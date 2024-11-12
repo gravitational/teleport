@@ -497,8 +497,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
 		} else if err := u.Process.Sync(ctx); err != nil {
 			u.Log.ErrorContext(ctx, "Failed to sync configuration after failed restart.", errorKey, err)
+		} else {
+			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 		}
-		u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 
 		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", targetVersion, err)
 	}
@@ -519,8 +520,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 				u.Log.ErrorContext(ctx, "Invalid configuration found after reverting Teleport to older version. Installation likely broken.", errorKey, err)
 			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", errorKey, err)
+			} else {
+				u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 			}
-			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 
 			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
 		}

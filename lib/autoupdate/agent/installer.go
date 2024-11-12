@@ -43,13 +43,16 @@ import (
 )
 
 const (
-	checksumType   = "sha256"
-	checksumHexLen = sha256.Size * 2 // bytes to hex
+	checksumType       = "sha256"
+	checksumHexLen     = sha256.Size * 2 // bytes to hex
+	maxServiceFileSize = 1_000_000       // 1 MB
 )
 
 var (
-	// servicePath contains the path to the Teleport SystemD service within the version directory.
-	servicePath = filepath.Join("etc", "systemd", "teleport.service")
+	// serviceDir contains the path to the Teleport SystemD service dir within the version directory.
+	serviceDir = filepath.Join("etc", "systemd")
+	// serviceName contains the name of the Teleport SystemD service file.
+	serviceName = "teleport.service"
 )
 
 // LocalInstaller manages the creation and removal of installations
@@ -413,7 +416,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	}
 	revert, err = li.forceLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, filepath.Dir(servicePath)),
+		filepath.Join(versionDir, serviceDir),
 	)
 	if err != nil {
 		return revert, trace.Wrap(err)
@@ -429,32 +432,53 @@ func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.C
 	return revert, trace.Wrap(err)
 }
 
-// symlink from old to new
+// symlink from oldname to newname
 type symlink struct {
-	old, new string
+	oldname, newname string
 }
 
-// forceLinks replaces binary and service links with links to files in binDir and svcDir.
-// Existing links are replaced, but existing non-link files will result in error.
+// smallFile is a small file with text content.
+type smallFile struct {
+	name string
+	data []byte
+	mode os.FileMode
+}
+
+// forceLinks replaces binary links and service files with files in binDir and svcDir.
+// Existing files are replaced, but existing non-link files where links should be present will result in error.
 // forceLinks will revert any overridden links if it hits an error.
 // If successful, forceLinks may be reverted after the fact by calling revert.
 // The revert function returns true if reverting succeeds.
 func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string) (revert func(context.Context) bool, err error) {
 	// setup revert function
-	var revertLinks []symlink
+	var (
+		revertLinks []symlink
+		revertFiles []smallFile
+	)
 	revert = func(ctx context.Context) bool {
 		// This function is safe to call repeatedly.
-		// Returns true only when all symlinks are successfully reverted.
-		var keep []symlink
+		// Returns true only when all changes are successfully reverted.
+		var (
+			keepLinks []symlink
+			keepFiles []smallFile
+		)
 		for _, l := range revertLinks {
-			err := renameio.Symlink(l.old, l.new)
+			err := renameio.Symlink(l.oldname, l.newname)
 			if err != nil {
-				keep = append(keep, l)
-				li.Log.ErrorContext(ctx, "Failed to revert symlink", "old", l.old, "new", l.new, "err", err)
+				keepLinks = append(keepLinks, l)
+				li.Log.ErrorContext(ctx, "Failed to revert symlink", "oldname", l.oldname, "newname", l.newname, errorKey, err)
 			}
 		}
-		revertLinks = keep
-		return len(revertLinks) == 0
+		for _, f := range revertFiles {
+			err := renameio.WriteFile(f.name, f.data, f.mode)
+			if err != nil {
+				keepFiles = append(keepFiles, f)
+				li.Log.ErrorContext(ctx, "Failed to revert files", "name", f.name, errorKey, err)
+			}
+		}
+		revertLinks = keepLinks
+		revertFiles = keepFiles
+		return len(revertLinks) == 0 && len(revertFiles) == 0
 	}
 	// revert immediately on error, so caller can ignore revert arg
 	defer func() {
@@ -487,13 +511,13 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
 		orig, err := forceLink(oldname, newname)
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrExist) {
 			return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 		}
 		if orig != "" {
 			revertLinks = append(revertLinks, symlink{
-				old: orig,
-				new: newname,
+				oldname: orig,
+				newname: newname,
 			})
 		}
 		linked++
@@ -502,44 +526,114 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 		return revert, trace.Errorf("no binaries available to link")
 	}
 
-	// create systemd service link
+	// create systemd service file
 
-	oldname := filepath.Join(svcDir, filepath.Base(servicePath))
-	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	orig, err := forceLink(oldname, newname)
-	if err != nil {
-		return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+	src := filepath.Join(svcDir, serviceName)
+	dst := filepath.Join(li.LinkServiceDir, serviceName)
+	orig, err := forceCopy(dst, src, maxServiceFileSize)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return revert, trace.Errorf("failed to create file for %s: %w", serviceName, err)
 	}
-	if orig != "" {
-		revertLinks = append(revertLinks, symlink{
-			old: orig,
-			new: newname,
-		})
+	if orig != nil {
+		revertFiles = append(revertFiles, *orig)
 	}
 	return revert, nil
 }
 
 // forceLink attempts to create a symlink, atomically replacing an existing link if already present.
 // If a non-symlink file or directory exists in newname already, forceLink errors.
+// If the link is already present with the desired oldname, forceLink returns os.ErrExist.
 func forceLink(oldname, newname string) (orig string, err error) {
+	exec, err := isExecutable(oldname)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !exec {
+		return "", trace.Errorf("%s is not a regular executable file", oldname)
+	}
 	orig, err = os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
 		// important: do not attempt to replace a non-linked install of Teleport
-		return orig, trace.Errorf("refusing to replace file at %s", newname)
+		return "", trace.Errorf("refusing to replace file at %s", newname)
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return orig, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	if orig == oldname {
-		return "", nil
+		return "", trace.Wrap(os.ErrExist)
 	}
-	// TODO(sclevine): verify oldname is valid binary
 	err = renameio.Symlink(oldname, newname)
 	if err != nil {
-		return orig, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	return orig, nil
+}
+
+// isExecutable returns true for regular files that are executable by all users (0111).
+func isExecutable(path string) (bool, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	// TODO(sclevine): verify path is valid binary
+	return fi.Mode().IsRegular() &&
+		fi.Mode()&0111 == 0111, nil
+}
+
+// forceCopy atomically copies a file from src to dst, replacing an existing file at dst if needed.
+// Both src and dst must be smaller than n.
+// forceCopy returns the original file path, mode, and contents as orig.
+// If an irregular file, too large file, or directory exists in path already, forceCopy errors.
+// If the file is already present with the desired contents, forceCopy returns os.ErrExist.
+func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
+	srcData, err := readFileN(src, n)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fi, err := os.Lstat(dst)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, trace.Wrap(err)
+	}
+	if err == nil {
+		orig = &smallFile{
+			name: dst,
+			mode: fi.Mode(),
+		}
+		if !orig.mode.IsRegular() {
+			return nil, trace.Errorf("refusing to replace irregular file at %s", src)
+		}
+		orig.data, err = readFileN(dst, n)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if bytes.Equal(srcData, orig.data) {
+			return nil, trace.Wrap(os.ErrExist)
+		}
+	}
+	err = renameio.WriteFile(dst, srcData, 0644)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return orig, nil
+}
+
+// readFileN reads a file up to n, or errors if it is too large.
+func readFileN(name string, n int64) ([]byte, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	lim := &io.LimitedReader{R: f, N: n}
+	data, err := io.ReadAll(lim)
+	if err != nil {
+		return data, err
+	}
+	if lim.N <= 0 {
+		return data, trace.Errorf("file too large (>%d)", n)
+	}
+	return data, nil
 }
 
 // TryLink links the specified version, but only in the case that
@@ -552,7 +646,7 @@ func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
 	}
 	return trace.Wrap(li.tryLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, filepath.Dir(servicePath)),
+		filepath.Join(versionDir, serviceDir),
 	))
 }
 
@@ -606,21 +700,18 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 		return trace.Errorf("no binaries available to link")
 	}
 
-	// validate that we can link the systemd service file before attempting linking
+	// validate that we can create the systemd service file before attempting linking
 
-	oldname := filepath.Join(svcDir, filepath.Base(servicePath))
-	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	ok, err := needsLink(oldname, newname)
-	if err != nil {
-		return trace.Errorf("error evaluating link for %s: %w", filepath.Base(oldname), err)
-	}
-	if ok {
-		links = append(links, symlink{oldname, newname})
+	src := filepath.Join(svcDir, serviceName)
+	dst := filepath.Join(li.LinkServiceDir, serviceName)
+	err = tryCopy(dst, src, maxServiceFileSize)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return trace.Errorf("error writing %s: %w", serviceName, err)
 	}
 
 	for _, link := range links {
-		if err := os.Symlink(link.old, link.new); err != nil {
-			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(link.old), err)
+		if err := os.Symlink(link.oldname, link.newname); err != nil {
+			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(link.oldname), err)
 		}
 	}
 
@@ -631,6 +722,13 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 // If a non-symlink file or directory exists at newname, needsLink errors.
 // If a symlink to a different location exists, needsLink errors with ErrLinked.
 func needsLink(oldname, newname string) (ok bool, err error) {
+	exec, err := isExecutable(oldname)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if !exec {
+		return false, trace.Errorf("%s is not a regular executable file", oldname)
+	}
 	orig, err := os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
@@ -647,6 +745,40 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 		return false, trace.Errorf("refusing to replace link at %s: %w", newname, ErrLinked)
 	}
 	return false, nil
+}
+
+// tryCopy attempts to atomically copy a file from src to dst.
+// tryCopy errors if a file or directory already exists at dst.
+// tryCopy returns ErrLinked if a regular file smaller than n with different data already exists.
+// tryCopy returns os.ErrExist if a regular file smaller than n with the same contents exists.
+// The src and any dst file must be smaller than n, or tryCopy errors.
+func tryCopy(dst, src string, n int64) error {
+	srcData, err := readFileN(src, n)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fi, err := os.Lstat(dst)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(err)
+	}
+	if err == nil { // dst exists
+		if !fi.Mode().IsRegular() {
+			return trace.Errorf("refusing to replace irregular file at %s", src)
+		}
+		dstData, err := readFileN(dst, n)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if bytes.Equal(srcData, dstData) {
+			return os.ErrExist
+		}
+		return trace.Errorf("refusing to replace file at %s: %w", dst, ErrLinked)
+	}
+	err = renameio.WriteFile(dst, srcData, 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // versionDir returns the storage directory for a Teleport version.
@@ -684,10 +816,13 @@ func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
 			return true, nil
 		}
 	}
-	v, err := os.Readlink(filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
+	linkData, err := readFileN(filepath.Join(li.LinkServiceDir, serviceName), maxServiceFileSize)
 	if err != nil {
 		return false, nil
 	}
-	return filepath.Clean(v) ==
-		filepath.Join(versionDir, servicePath), nil
+	versionData, err := readFileN(filepath.Join(versionDir, serviceDir, serviceName), maxServiceFileSize)
+	if err != nil {
+		return false, nil
+	}
+	return bytes.Equal(linkData, versionData), nil
 }

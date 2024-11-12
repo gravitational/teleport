@@ -194,15 +194,17 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 func TestLocalInstaller_Link(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
+	servicePath := filepath.Join(serviceDir, serviceName)
 
 	tests := []struct {
-		name          string
-		installDirs   []string
-		installFiles  []string
-		existingLinks []string
-		existingFiles []string
+		name            string
+		installDirs     []string
+		installFiles    []string
+		installFileMode os.FileMode
+		existingLinks   []string
+		existingFiles   []string
 
-		resultLinks []string
+		resultPaths []string
 		errMatch    string
 	}{
 		{
@@ -222,13 +224,35 @@ func TestLocalInstaller_Link(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 
-			resultLinks: []string{
+			resultPaths: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
 				"lib/systemd/system/teleport.service",
 			},
+		},
+		{
+			name: "present with non-executable files",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			installFileMode: 0644,
+
+			errMatch: "executable",
 		},
 		{
 			name: "present with existing links",
@@ -247,14 +271,17 @@ func TestLocalInstaller_Link(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 			existingLinks: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
+			},
+			existingFiles: []string{
 				"lib/systemd/system/teleport.service",
 			},
 
-			resultLinks: []string{
+			resultPaths: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
@@ -278,12 +305,11 @@ func TestLocalInstaller_Link(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 			existingLinks: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
-			},
-			existingFiles: []string{
 				"lib/systemd/system/teleport.service",
 			},
 
@@ -306,6 +332,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 			existingLinks: []string{
 				"bin/teleport",
 				"bin/tbot",
@@ -346,7 +373,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				require.NoError(t, err)
 			}
 			for _, n := range tt.installFiles {
-				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), tt.installFileMode)
 				require.NoError(t, err)
 			}
 
@@ -397,7 +424,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			require.NoError(t, err)
 
 			// verify links
-			for _, link := range tt.resultLinks {
+			for _, link := range tt.resultPaths {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
 				require.Equal(t, filepath.Base(link), string(v))
@@ -423,15 +450,17 @@ func TestLocalInstaller_Link(t *testing.T) {
 func TestLocalInstaller_TryLink(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
+	servicePath := filepath.Join(serviceDir, serviceName)
 
 	tests := []struct {
-		name          string
-		installDirs   []string
-		installFiles  []string
-		existingLinks []string
-		existingFiles []string
+		name            string
+		installDirs     []string
+		installFiles    []string
+		installFileMode os.FileMode
+		existingLinks   []string
+		existingFiles   []string
 
-		resultLinks []string
+		resultPaths []string
 		errMatch    string
 	}{
 		{
@@ -451,13 +480,35 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 
-			resultLinks: []string{
+			resultPaths: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
 				"lib/systemd/system/teleport.service",
 			},
+		},
+		{
+			name: "present with non-executable files",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			installFileMode: 0644,
+
+			errMatch: "executable",
 		},
 		{
 			name: "present with existing links",
@@ -476,10 +527,13 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 			existingLinks: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
+			},
+			existingFiles: []string{
 				"lib/systemd/system/teleport.service",
 			},
 
@@ -502,16 +556,12 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				servicePath,
 				"README",
 			},
+			installFileMode: os.ModePerm,
 			existingLinks: []string{
-				"bin/teleport",
-				"bin/tsh",
-				"bin/tbot",
-			},
-			existingFiles: []string{
 				"lib/systemd/system/teleport.service",
 			},
 
-			errMatch: "refusing",
+			errMatch: "replace irregular file",
 		},
 		{
 			name: "conflicting bin files",
@@ -530,16 +580,12 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				servicePath,
 				"README",
 			},
-			existingLinks: []string{
-				"bin/teleport",
-				"bin/tbot",
-				"lib/systemd/system/teleport.service",
-			},
+			installFileMode: os.ModePerm,
 			existingFiles: []string{
 				"bin/tsh",
 			},
 
-			errMatch: "refusing",
+			errMatch: "replace file",
 		},
 		{
 			name:         "no links",
@@ -570,7 +616,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				require.NoError(t, err)
 			}
 			for _, n := range tt.installFiles {
-				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), tt.installFileMode)
 				require.NoError(t, err)
 			}
 
@@ -617,7 +663,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			require.NoError(t, err)
 
 			// verify links
-			for _, link := range tt.resultLinks {
+			for _, link := range tt.resultPaths {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
 				require.Equal(t, filepath.Base(link), string(v))
@@ -629,6 +675,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 func TestLocalInstaller_Remove(t *testing.T) {
 	t.Parallel()
 	const version = "existing-version"
+	servicePath := filepath.Join(serviceDir, serviceName)
 
 	tests := []struct {
 		name          string
@@ -663,8 +710,8 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		},
 		{
 			name:          "version linked",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
-			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			dirs:          []string{"bin", "bin/somedir", "somedir", "etc", serviceDir},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README", servicePath},
 			createVersion: version,
 			linkedVersion: version,
 			removeVersion: version,
