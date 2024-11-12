@@ -5496,20 +5496,20 @@ var xxx_messageInfo_ProvisionTokenSpecV2Bitbucket proto.InternalMessageInfo
 // allowed to use this ProvisionToken.
 type ProvisionTokenSpecV2Bitbucket_Rule struct {
 	// WorkspaceUUID is the UUID of the workspace for which this token was
-	// issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'.
+	// issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
 	// This value may be found in the Pipelines -> OpenID Connect section of the
 	// repository settings.
 	WorkspaceUUID string `protobuf:"bytes,1,opt,name=WorkspaceUUID,proto3" json:"workspace_uuid,omitempty"`
 	// RepositoryUUID is the UUID of the repository for which this token was
-	// issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'.
+	// issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
 	// This value may be found in the Pipelines -> OpenID Connect section of the
 	// repository settings.
 	RepositoryUUID string `protobuf:"bytes,2,opt,name=RepositoryUUID,proto3" json:"repository_uuid,omitempty"`
 	// PipelineUUID is the UUID of the pipeline for which this token was issued.
-	// Bitbucket UUIDs must begin and end with braces, e.g. '{...}'
+	// Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
 	PipelineUUID string `protobuf:"bytes,3,opt,name=PipelineUUID,proto3" json:"pipeline_uuid,omitempty"`
 	// StepUUID is the UUID of the pipeline step for which this token was
-	// issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'
+	// issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
 	StepUUID string `protobuf:"bytes,4,opt,name=StepUUID,proto3" json:"step_uuid,omitempty"`
 	// DeploymentEnvironmentUUID is the UUID of the deployment environment
 	// targeted by this pipelines run, if any. These values may be found in the

@@ -174,22 +174,22 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"pipeline_uuid": {
-									Description: "PipelineUUID is the UUID of the pipeline for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'",
+									Description: "PipelineUUID is the UUID of the pipeline for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_uuid": {
-									Description: "RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
+									Description: "RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"step_uuid": {
-									Description: "StepUUID is the UUID of the pipeline step for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'",
+									Description: "StepUUID is the UUID of the pipeline step for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"workspace_uuid": {
-									Description: "WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
+									Description: "WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},

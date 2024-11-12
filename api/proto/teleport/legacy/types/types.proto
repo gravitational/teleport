@@ -1668,23 +1668,23 @@ message ProvisionTokenSpecV2Bitbucket {
   // allowed to use this ProvisionToken.
   message Rule {
     // WorkspaceUUID is the UUID of the workspace for which this token was
-    // issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'.
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
     // This value may be found in the Pipelines -> OpenID Connect section of the
     // repository settings.
     string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
 
     // RepositoryUUID is the UUID of the repository for which this token was
-    // issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'.
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
     // This value may be found in the Pipelines -> OpenID Connect section of the
     // repository settings.
     string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
 
     // PipelineUUID is the UUID of the pipeline for which this token was issued.
-    // Bitbucket UUIDs must begin and end with braces, e.g. '{...}'
+    // Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
     string PipelineUUID = 3 [(gogoproto.jsontag) = "pipeline_uuid,omitempty"];
 
     // StepUUID is the UUID of the pipeline step for which this token was
-    // issued. Bitbucket UUIDs must begin and end with braces, e.g. '{...}'
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
     string StepUUID = 4 [(gogoproto.jsontag) = "step_uuid,omitempty"];
 
     // DeploymentEnvironmentUUID is the UUID of the deployment environment
