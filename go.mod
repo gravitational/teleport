@@ -80,6 +80,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
+	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.23
 	github.com/crewjam/saml v0.4.14

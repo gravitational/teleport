@@ -305,8 +305,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "resources not defined",
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: api.Version,
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:    api.Version,
+				ToolsAutoUpdate: false,
 			},
 		},
 		{
@@ -317,36 +317,36 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
-				ToolsVersion: api.Version,
+				ToolsAutoUpdate: true,
+				ToolsVersion:    api.Version,
 			},
 			cleanup: true,
 		},
 		{
-			name:    "no autoupdate tool config nor version",
+			name:    "empty config and version",
 			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: api.Version,
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:    api.Version,
+				ToolsAutoUpdate: false,
 			},
 			cleanup: true,
 		},
 		{
-			name: "set auto update version",
+			name: "set tools auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
 				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: "1.2.3",
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:    "1.2.3",
+				ToolsAutoUpdate: false,
 			},
 			cleanup: true,
 		},
 		{
-			name: "enable auto update and set version",
+			name: "enable tools auto update and set version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
@@ -358,8 +358,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
-				ToolsVersion: "1.2.3",
+				ToolsAutoUpdate: true,
+				ToolsVersion:    "1.2.3",
 			},
 		},
 		{
@@ -375,8 +375,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
-				ToolsVersion: "3.2.1",
+				ToolsAutoUpdate: false,
+				ToolsVersion:    "3.2.1",
 			},
 		},
 	}
