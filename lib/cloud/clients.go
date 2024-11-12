@@ -171,10 +171,6 @@ type AzureClients interface {
 	GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error)
 	// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
 	GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error)
-	// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
-	GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error)
-	// GetAzureRoleAssignmentsClient returns an Azure Role Assignment client for the given subscription.
-	GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error)
 }
 
 type clientConstructor[T any] func(context.Context) (T, error)
@@ -237,14 +233,6 @@ func newAzureClients() (*azureClients, error) {
 		return nil, trace.Wrap(err)
 	}
 	azClients.azureRunCommandClients, err = azure.NewClientMap(azure.NewRunCommandClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	azClients.azureRoleDefinitionsClients, err = azure.NewClientMap(azure.NewRoleDefinitionsClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	azClients.azureRoleAssignmentsClients, err = azure.NewClientMap(azure.NewRoleAssignmentsClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

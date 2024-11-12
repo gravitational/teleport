@@ -8,15 +8,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type RoleAssignmentsClient interface {
-	ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error)
-}
-
-type roleAssignmentsClient struct {
+type RoleAssignmentsClient struct {
 	cli *armauthorization.RoleAssignmentsClient
 }
 
-func (c *roleAssignmentsClient) ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error) {
+func NewRoleAssignmentsClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (*RoleAssignmentsClient, error) {
+	clientFactory, err := armauthorization.NewClientFactory(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleDefCli := clientFactory.NewRoleAssignmentsClient()
+	return &RoleAssignmentsClient{cli: roleDefCli}, nil
+}
+
+func (c *RoleAssignmentsClient) ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error) {
 	pager := c.cli.NewListForScopePager(scope, nil)
 	roleDefs := make([]*armauthorization.RoleAssignment, 0, 128)
 	for pager.More() {
@@ -27,13 +32,4 @@ func (c *roleAssignmentsClient) ListRoleAssignments(ctx context.Context, scope s
 		roleDefs = append(roleDefs, page.Value...)
 	}
 	return roleDefs, nil
-}
-
-func NewRoleAssignmentsClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RoleAssignmentsClient, error) {
-	clientFactory, err := armauthorization.NewClientFactory(subscription, cred, options)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleDefCli := clientFactory.NewRoleAssignmentsClient()
-	return &roleAssignmentsClient{cli: roleDefCli}, nil
 }

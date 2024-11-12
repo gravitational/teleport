@@ -27,14 +27,8 @@ import (
 )
 
 func (a *Fetcher) fetchRoleAssignments(ctx context.Context) ([]*accessgraphv1alpha.AzureRoleAssignment, error) {
-	// Get the Role Assignments client
-	cli, err := a.CloudClients.GetAzureRoleAssignmentsClient(a.GetSubscriptionID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// List the role definitions
-	roleAssigns, err := cli.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
+	roleAssigns, err := a.roleAssignClient.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

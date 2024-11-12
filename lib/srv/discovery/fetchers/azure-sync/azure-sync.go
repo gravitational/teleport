@@ -22,6 +22,7 @@ import (
 	"context"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -56,9 +57,13 @@ type Resources struct {
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 }
 
-type RoleDefinitionsClient interface{}
+type RoleDefinitionsClient interface {
+	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
+}
 
-type RoleAssignmentsClient interface{}
+type RoleAssignmentsClient interface {
+	ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error)
+}
 
 type VirtualMachinesClient interface {
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
@@ -77,6 +82,7 @@ type Fetcher struct {
 }
 
 func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
+	// Establish the credential from the managed identity
 	cred, err := azidentity.NewManagedIdentityCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,11 +98,22 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	roleDefClient, err := azure.NewRoleDefinitionsClient(cfg.SubscriptionID, staticCred, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, staticCred, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	// Create and return the fetcher
 	return &Fetcher{
-		Config:     cfg,
-		lastResult: &Resources{},
-		vmClient:   vmClient,
+		Config:           cfg,
+		lastResult:       &Resources{},
+		vmClient:         vmClient,
+		roleDefClient:    roleDefClient,
+		roleAssignClient: roleAssignClient,
 	}, nil
 }
 

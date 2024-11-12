@@ -27,14 +27,8 @@ import (
 )
 
 func (a *Fetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraphv1alpha.AzureRoleDefinition, error) {
-	// Get the Role Definitions client
-	cli, err := a.CloudClients.GetAzureRoleDefinitionsClient(a.GetSubscriptionID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// List the role definitions
-	roleDefs, err := cli.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
+	roleDefs, err := a.roleDefClient.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

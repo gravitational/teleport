@@ -279,8 +279,18 @@ func deriveTeleportEqual_18(this, that *types.AccessGraphAWSSync) bool {
 			this.Integration == that.Integration
 }
 
-// deriveTeleportEqual_19 returns whether this and that are equal.
-func deriveTeleportEqual_19(this, that *types.AzureInstallerParams) bool {
+// deriveTeleportEqual_20 returns whether this and that are equal.
+func deriveTeleportEqual_20(this, that *types.AccessGraphAzureSync) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_14(this.Regions, that.Regions) &&
+			this.SubscriptionID == that.SubscriptionID &&
+			this.UmiClientId == that.UmiClientId &&
+			this.Integration == that.Integration
+}
+
+// deriveTeleportEqual_21 returns whether this and that are equal.
+func deriveTeleportEqual_21(this, that *types.AzureInstallerParams) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ClientID == that.ClientID
