@@ -460,8 +460,8 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -661,8 +661,8 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 			continue
 		}
 
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
