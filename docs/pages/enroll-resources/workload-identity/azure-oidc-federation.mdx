@@ -156,9 +156,64 @@ file created at `/opt/workload-identity/azure-jwt` containing the JWT.
 
 ## Step 4/4. Configure the Azure CLIs and SDKs
 
+You can now use the issued JWT SVID to authenticate to Azure. How this is
+configured varies between the Azure CLI and Azure SDK.
+
 ### Configuring Azure CLI
 
+To use the JWT SVID to authenticate with the Azure CLI, you perform
+log-in specifying the JWT and the client and tenant ID of the user-managed 
+identity you created. This performs an initial exchange of the JWT SVID for an
+Azure access token, which is then cached by the CLI until the access token 
+expires.
+
+Run the following, inserting the client and tenant id you recorded in the first
+step:
+
+```code
+$ az login \ 
+  --federated-token $(cat /opt/workload-identity/azure-jwt) \
+  --service-principal \
+  -u <user-managed-identity-client-id> \
+  -t <user-managed-identity-tenant-id>
+```
+
+You should see a message indicating that this has succeeded.
+
+You can now test this has succeeded by uploading a file to the Azure Blob
+Storage container:
+
+```sh
+$ echo "testing 1,2,3..." > test.txt
+# Upload a test file. Replace the name of the account and container with those
+# you selected earlier.
+$ az storage blob upload \
+  --auth login \
+  --account-name examplestorageaccount \
+  --container-name examplecontainer \
+  --name test.txt \
+  --file ./test.txt
+# Check that the file has been uploaded. Replace the name of teh account and
+# container with those you selected earlier.
+$ az storage blob list \
+  --auth login \
+  --output table \
+  --account-name examplestorageaccount \
+  --container-name examplecontainer
+```
+
 ### Configuring Azure SDKs
+
+The Azure SDKs support a set of environment variables to configure them to use
+the federated credential for authentication with the issued JWT SVID:
+
+- `AZURE_CLIENT_ID`: The client ID of the user-managed identity.
+- `AZURE_TENANT_ID`: The tenant ID of the user-managed identity.
+- `AZURE_FEDERATED_TOKEN_FILE`: The path to the JWT SVID file, for example
+  `/opt/workload-identity/azure-jwt`.
+
+You can also explicitly configure the SDK to use the federated credential, this
+will vary language-to-language.
 
 ## Next steps
 
