@@ -46,8 +46,9 @@ type getResponse struct {
 // AutoUpdateCommand implements the `tctl autoupdate` command for managing
 // autoupdate process for tools and agents.
 type AutoUpdateCommand struct {
-	app    *kingpin.Application
-	config *servicecfg.Config
+	app      *kingpin.Application
+	config   *servicecfg.Config
+	readOnly bool
 
 	setCmd *kingpin.CmdClause
 	getCmd *kingpin.CmdClause
@@ -84,11 +85,13 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
-	switch cmd {
-	case c.setCmd.FullCommand():
+	switch {
+	case !c.readOnly && cmd == c.setCmd.FullCommand():
 		err = c.Set(ctx, client)
-	case c.getCmd.FullCommand():
+	case !c.readOnly && c.proxy == "" && cmd == c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
+	case c.readOnly && c.proxy != "" && cmd == c.getCmd.FullCommand():
+		err = c.GetByProxy(ctx)
 	default:
 		return false, nil
 	}
@@ -112,28 +115,45 @@ func (c *AutoUpdateCommand) Set(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-// Get makes request to fetch tools autoupdate version, if proxy flag is not set
-// authorized handler should be used.
+// Get makes request to auth service to fetch tools autoupdate version.
 func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) error {
-	response, err := c.get(ctx, client)
+	var response getResponse
+	config, err := client.GetAutoUpdateConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if config != nil && config.Spec.Tools != nil {
+		response.Mode = config.Spec.Tools.Mode
+	}
+
+	version, err := client.GetAutoUpdateVersion(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if version != nil && version.Spec.Tools != nil {
+		response.TargetVersion = version.Spec.Tools.TargetVersion
+	}
+
+	return c.printResponse(response)
+}
+
+// GetByProxy makes request to find endpoint without auth to fetch tools autoupdate version.
+func (c *AutoUpdateCommand) GetByProxy(ctx context.Context) error {
+	find, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: c.proxy,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	switch c.format {
-	case teleport.JSON:
-		if err := utils.WriteJSON(c.stdout, response); err != nil {
-			return trace.Wrap(err)
-		}
-	case teleport.YAML:
-		if err := utils.WriteYAML(c.stdout, response); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.BadParameter("unsupported output format %s, supported values are %s and %s", c.format, teleport.JSON, teleport.YAML)
+	mode := autoupdate.ToolsUpdateModeDisabled
+	if find.AutoUpdate.ToolsAutoUpdate {
+		mode = autoupdate.ToolsUpdateModeEnabled
 	}
-
-	return nil
+	return c.printResponse(getResponse{
+		TargetVersion: find.AutoUpdate.ToolsVersion,
+		Mode:          mode,
+	})
 }
 
 func (c *AutoUpdateCommand) setAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
@@ -203,37 +223,18 @@ func (c *AutoUpdateCommand) setAutoUpdateVersion(ctx context.Context, client *au
 	return nil
 }
 
-func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*getResponse, error) {
-	if c.proxy != "" {
-		find, err := webclient.Find(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: c.proxy,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+func (c *AutoUpdateCommand) printResponse(response getResponse) error {
+	switch c.format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(c.stdout, response); err != nil {
+			return trace.Wrap(err)
 		}
-		mode := autoupdate.ToolsUpdateModeDisabled
-		if find.AutoUpdate.ToolsAutoUpdate {
-			mode = autoupdate.ToolsUpdateModeEnabled
+	case teleport.YAML:
+		if err := utils.WriteYAML(c.stdout, response); err != nil {
+			return trace.Wrap(err)
 		}
-		return &getResponse{
-			TargetVersion: find.AutoUpdate.ToolsVersion,
-			Mode:          mode,
-		}, nil
+	default:
+		return trace.BadParameter("unsupported output format %s, supported values are %s and %s", c.format, teleport.JSON, teleport.YAML)
 	}
-
-	var response getResponse
-	config, err := client.GetAutoUpdateConfig(ctx)
-	if config != nil && config.Spec.Tools != nil {
-		response.Mode = config.Spec.Tools.Mode
-	}
-	version, err := client.GetAutoUpdateVersion(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	if version != nil && version.Spec.Tools != nil {
-		response.TargetVersion = version.Spec.Tools.TargetVersion
-	}
-
-	return &response, nil
+	return nil
 }
