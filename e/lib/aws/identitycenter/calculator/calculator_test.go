@@ -3,6 +3,7 @@ package calculator
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"maps"
 	"slices"
@@ -10,13 +11,16 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -93,9 +97,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		PrincipalAssignmentsSvc: fixture.Auth.Services,
 		Logger:                  logger,
 		RolesGetter:             fixture.Auth.Services,
-
-		// TODO: Update when auth.Cache implements AccountAssignmentLister
-		AccountAssignmentCache: fixture.Auth.Services,
+		AccountAssignmentCache:  fixture.Auth.Cache,
 	})
 	require.NoError(t, err)
 
@@ -485,6 +487,11 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 			require.NoError(t, err)
 			accountAssignmentRoles[key] = role
 		}
+
+		cachePopulated := func(c *assert.CollectT) {
+			assertSequenceLength(c, len(accountAssignments), iciter.AllAccountAssignments(ctx, fixture.Auth.Cache))
+		}
+		require.EventuallyWithT(t, cachePopulated, time.Second, 10*time.Millisecond)
 	}
 
 	return testResources{
@@ -493,4 +500,18 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 		accountAssignments: accountAssignments,
 		roles:              accountAssignmentRoles,
 	}
+}
+
+// assertSequenceLength asserts that a sequence can be read start-to-finish
+// without error, and that the sequence has a specific length.
+func assertSequenceLength[T any](t assert.TestingT, expectedLength int, seq iter.Seq2[T, error]) {
+	length := 0
+	for _, err := range seq {
+		assert.NoError(t, err)
+		if err != nil {
+			return
+		}
+		length++
+	}
+	assert.Equal(t, expectedLength, length)
 }

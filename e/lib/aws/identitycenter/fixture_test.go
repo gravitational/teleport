@@ -24,23 +24,21 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 			AccessListsSvcCache: fixture.Auth.Cache,
 			LocksSvc:            fixture.Auth.Services,
 		},
-		ICClient:              fixture.ICClient,
-		UsersSvc:              fixture.Auth.Services,
-		AccessListsSvc:        fixture.Auth.Services,
-		AccessRequestsSvc:     fixture.Auth.Services,
-		Clock:                 fixture.Clock,
-		EventsClient:          fixture.Auth.Services,
-		IdentityCenterDataSvc: fixture.Auth.Services,
-		Log:                   slog.Default().With("test", t.Name()),
-		RolesSvc:              fixture.Auth.Services,
+		ICClient:                   fixture.ICClient,
+		UsersSvc:                   fixture.Auth.Services,
+		AccessListsSvc:             fixture.Auth.Services,
+		AccessRequestsSvc:          fixture.Auth.Services,
+		Clock:                      fixture.Clock,
+		EventsClient:               fixture.Auth.Services,
+		IdentityCenterDataSvc:      fixture.Auth.Services,
+		IdentityCenterDataSvcCache: fixture.Auth.Cache,
+		Log:                        slog.Default().With("test", t.Name()),
+		RolesSvc:                   fixture.Auth.Services,
 		ImportConfig: ImportConfig{
 			AccessListDefaultOwners: []string{"user1", "user2"},
 		},
 		PluginsService:   fixture.PluginService,
 		PluginStatusSink: fixture.PluginStatusSink,
-
-		// TODO: replace with cache when Auth.Cache implements AccountAssignmentLister
-		IdentityCenterDataSvcCache: fixture.Auth.Services,
 	}
 
 	svc, err := NewService(cfg)

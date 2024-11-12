@@ -89,24 +89,21 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 				AccessListsSvcCache: authServer.Cache,
 				LocksSvc:            authServer.Services,
 			},
-			ICClient:              identityCenterClient,
-			UsersSvc:              authServer.Services,
-			AccessListsSvc:        authServer.Services,
-			AccessRequestsSvc:     authServer.Services,
-			Clock:                 authServer.GetClock(),
-			EventsClient:          deps.client,
-			IdentityCenterDataSvc: authServer.Services,
-			Log:                   logger,
-			RolesSvc:              authServer.Services,
+			ICClient:                   identityCenterClient,
+			UsersSvc:                   authServer.Services,
+			AccessListsSvc:             authServer.Services,
+			AccessRequestsSvc:          authServer.Services,
+			Clock:                      authServer.GetClock(),
+			EventsClient:               deps.client,
+			IdentityCenterDataSvc:      authServer.Services,
+			IdentityCenterDataSvcCache: authServer.Cache,
+			Log:                        logger,
+			RolesSvc:                   authServer.Services,
 			ImportConfig: identitycenter.ImportConfig{
 				AccessListDefaultOwners: settings.AccessListDefaultOwners,
 			},
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,
-
-			// TODO(tcsc): Expose ListAccountAssignments on the cache interface
-			//             and replace this with a reference to authServer.Cache
-			IdentityCenterDataSvcCache: authServer.Services,
 		})
 		if err != nil {
 			return trace.Wrap(err)
