@@ -6498,6 +6498,11 @@ message PluginEntraIDSyncSettings {
   // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the Entra integration when utilized.
   string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
 }
 
 // EntraIDCredentialsSource defines the credentials source for Entra ID.

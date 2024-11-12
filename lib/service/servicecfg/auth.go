@@ -21,7 +21,6 @@ package servicecfg
 import (
 	"slices"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -178,10 +177,6 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
-	// TODO(tross) delete once teleport.e has been converted.
-	// Deprecated: use SlackCredentials instead.
-	Slack *oauth2.ClientCredentials
-
 	SlackCredentials *OAuthClientCredentials
 }
 

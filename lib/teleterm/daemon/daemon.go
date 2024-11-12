@@ -797,26 +797,6 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
