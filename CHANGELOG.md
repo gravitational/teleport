@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-#### Mac Package Changes
+#### macOS Package Changes
 
 To support a more consistent user experience, Mac packages have been restructured so that all packages will provide a 
 `tsh` and `tctl` capable of utilizing TouchID.
