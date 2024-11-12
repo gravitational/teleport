@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -177,7 +176,7 @@ TxnLoop:
 					First:  time.Millisecond * 16,
 					Driver: retryutils.NewExponentialDriver(time.Millisecond * 16),
 					Max:    time.Millisecond * 1024,
-					Jitter: utils.FullJitter,
+					Jitter: retryutils.FullJitter,
 				})
 
 				if err != nil {
