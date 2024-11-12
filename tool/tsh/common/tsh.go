@@ -4867,7 +4867,18 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	// `tsh status` should run without requiring user interaction.
+	// To achieve this, we avoid remote calls that might prompt for
+	// hardware key touch or require a PIN.
+	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
+
+	var accessListsToReview []*accesslist.AccessList
+	if hardwareKeyInteractionRequired {
+		log.Debug("Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement.")
+	} else {
+		accessListsToReview = cf.getAccessListsToReview(tc)
+	}
+	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4880,7 +4891,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	if tc.PrivateKeyPolicy.MFAVerified() {
+	if hardwareKeyInteractionRequired {
 		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,

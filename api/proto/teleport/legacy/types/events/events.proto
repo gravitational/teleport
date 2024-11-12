@@ -1973,6 +1973,13 @@ message Subsystem {
 
   // Error contains error in case of unsucessfull attempt
   string Error = 5 [(gogoproto.jsontag) = "exitError"];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // ClientDisconnect is emitted when client is disconnected
