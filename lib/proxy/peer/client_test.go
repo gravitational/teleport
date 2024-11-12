@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -212,7 +213,7 @@ func TestBackupClient(t *testing.T) {
 	require.True(t, dialCalled)
 }
 
-func waitForGRPCConns(t *testing.T, conns map[string]clientConn, d time.Duration) {
+func waitForGRPCConns(t *testing.T, conns map[string]internal.ClientConn, d time.Duration) {
 	require.Eventually(t, func() bool {
 		for _, conn := range conns {
 			// panic if we hit a non-grpc client conn
