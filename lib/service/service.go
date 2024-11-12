@@ -138,6 +138,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
+	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -4705,7 +4706,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var peerServer *peer.Server
-	var peerQUICServer *peer.QUICServer
+	var peerQUICServer *peerquic.QUICServer
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4748,7 +4749,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if peerQUICTransport != nil {
-			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
+			peerQUICServer, err := peerquic.NewQUICServer(peerquic.QUICServerConfig{
 				Log:          process.logger,
 				Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
 				CipherSuites: cfg.CipherSuites,
