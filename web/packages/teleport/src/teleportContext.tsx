@@ -164,6 +164,7 @@ class TeleportContext implements types.Context {
       // having list access, requestable roles, or allowed search_as_roles.
       if (cfg.hideInaccessibleFeatures) {
         return !!(
+          userContext.getReviewRequests() ||
           userContext.getAccessRequestAccess().list ||
           userContext.getRequestableRoles().length ||
           userContext.getAllowedSearchAsRoles().length
@@ -178,6 +179,16 @@ class TeleportContext implements types.Context {
       return (
         userContext.getAuditQueryAccess().list ||
         userContext.getSecurityReportAccess().list
+      );
+    }
+
+    function hasAccessGraphIntegrationsAccess() {
+      return (
+        userContext.getIntegrationsAccess().list &&
+        userContext.getIntegrationsAccess().read &&
+        userContext.getPluginsAccess().read &&
+        userContext.getDiscoveryConfigAccess().list &&
+        userContext.getDiscoveryConfigAccess().read
       );
     }
 
@@ -224,6 +235,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
       tokens: userContext.getTokenAccess().create,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
@@ -264,6 +276,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
