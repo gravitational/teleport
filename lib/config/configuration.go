@@ -1171,6 +1171,7 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	}
 	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
+	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
 	return nil
 }
 
