@@ -145,7 +145,7 @@ func WithSessionRecordingFormatContext(ctx context.Context, format string) conte
 // recording (if present).
 func SessionRecordingFormatFromContext(ctx context.Context) string {
 	values := metadata.ValueFromIncomingContext(ctx, SessionRecordingFormatContextKey)
-	if len(values) != 1 {
+	if len(values) == 0 {
 		return ""
 	}
 
