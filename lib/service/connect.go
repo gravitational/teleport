@@ -640,7 +640,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully. Starting syncing rotation status.", "max_retry_period", maxRetryPeriod)
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(maxRetryPeriod / 16),
+		First:  retryutils.FullJitter(maxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(maxRetryPeriod / 16),
 		Max:    maxRetryPeriod,
 		Jitter: retryutils.HalfJitter,

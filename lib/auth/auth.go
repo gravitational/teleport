@@ -1316,7 +1316,7 @@ const (
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+	firstReleaseCheck := retryutils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
 	// by an upcoming tctl command. currently exists for testing purposes only.
@@ -1352,13 +1352,13 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           notificationsCleanupKey,
 			Duration:      48 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Hour),
+			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           roleCountKey,
 			Duration:      12 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Minute),
+			FirstDuration: retryutils.FullJitter(time.Minute),
 			Jitter:        retryutils.SeventhJitter,
 		},
 	)
@@ -1435,7 +1435,7 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           upgradeWindowCheckKey,
 			Duration:      3 * time.Minute,
-			FirstDuration: utils.FullJitter(30 * time.Second),
+			FirstDuration: retryutils.FullJitter(30 * time.Second),
 			Jitter:        retryutils.SeventhJitter,
 		})
 	}

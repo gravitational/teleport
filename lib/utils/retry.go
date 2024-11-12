@@ -45,7 +45,7 @@ func FullJitter(d time.Duration) time.Duration { return retryutils.FullJitter(d)
 // but this retry will always be configured for automatic reset.
 func NewDefaultLinear() *retryutils.Linear {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:     FullJitter(time.Second * 10),
+		First:     retryutils.FullJitter(time.Second * 10),
 		Step:      time.Second * 15,
 		Max:       time.Second * 90,
 		Jitter:    retryutils.HalfJitter,

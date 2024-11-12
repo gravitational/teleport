@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const staticHostUserWatcherTimeout = 30 * time.Second
@@ -89,7 +88,7 @@ func NewStaticHostUserHandler(cfg StaticHostUserHandlerConfig) (*StaticHostUserH
 		cfg.clock = clockwork.NewRealClock()
 	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
+		First:  retryutils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
 		Jitter: retryutils.HalfJitter,

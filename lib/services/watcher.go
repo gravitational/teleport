@@ -138,7 +138,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		return nil, trace.Wrap(err)
 	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
+		First:  retryutils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
 		Jitter: retryutils.HalfJitter,
