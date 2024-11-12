@@ -105,7 +105,7 @@ func TestLinearRetryMax(t *testing.T) {
 				First:  time.Second * 45,
 				Step:   time.Second * 30,
 				Max:    time.Minute,
-				Jitter: NewFullJitter(),
+				Jitter: FullJitter,
 			},
 			previousCompareFn: require.NotEqual,
 		},

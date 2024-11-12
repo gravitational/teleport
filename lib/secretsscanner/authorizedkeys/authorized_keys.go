@@ -194,7 +194,7 @@ func (w *Watcher) start(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
-	case <-w.clock.After(retryutils.NewFullJitter()(maxInitialDelay)):
+	case <-w.clock.After(retryutils.FullJitter(maxInitialDelay)):
 	}
 
 	jitterFunc := retryutils.NewHalfJitter()

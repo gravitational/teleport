@@ -81,7 +81,7 @@ func (i *singleDatabaseImporter) start(ctx context.Context) {
 	ticker := interval.New(interval.Config{
 		Jitter:        retryutils.NewSeventhJitter(),
 		Duration:      i.cfg.ScanInterval * 7 / 6,
-		FirstDuration: retryutils.NewFullJitter()(i.cfg.ScanInterval),
+		FirstDuration: retryutils.FullJitter(i.cfg.ScanInterval),
 	})
 	defer ticker.Stop()
 
