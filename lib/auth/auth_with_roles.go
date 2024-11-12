@@ -42,6 +42,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -193,15 +194,32 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 }
 
 // actionForKindSession is a special checker that grants access to session
-// recordings.  It can allow access to a specific recording based on the
+// recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) (types.SessionKind, error) {
+	sessionEnd, err := a.findSessionEndEvent(namespace, sid)
+
 	extendContext := func(ctx *services.Context) error {
-		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
+
+	var sessionKind types.SessionKind
+	switch e := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		sessionKind = types.SSHSessionKind
+		if e.KubernetesCluster != "" {
+			sessionKind = types.KubernetesSessionKind
+		}
+	case *apievents.DatabaseSessionEnd:
+		sessionKind = types.DatabaseSessionKind
+	case *apievents.AppSessionEnd:
+		sessionKind = types.AppSessionKind
+	case *apievents.WindowsDesktopSessionEnd:
+		sessionKind = types.WindowsDesktopSessionKind
+	}
+
+	return sessionKind, trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
@@ -6235,8 +6253,11 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	err := a.localServerAction()
 	isTeleportServer := err == nil
 
+	var sessionType types.SessionKind
 	if !isTeleportServer {
-		if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
+		var err error
+		sessionType, err = a.actionForKindSession(apidefaults.Namespace, sessionID)
+		if err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)
 			return c, e
@@ -6253,6 +6274,8 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 			},
 			SessionID:    sessionID.String(),
 			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+			SessionType:  string(sessionType),
+			Format:       metadata.SessionRecordingFormatFromContext(ctx),
 		}); err != nil {
 			return createErrorChannel(err)
 		}
