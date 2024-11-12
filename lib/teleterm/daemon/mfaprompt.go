@@ -63,10 +63,10 @@ func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptCo
 }
 
 func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer s.importantModalSemaphore.Release()
+	defer s.singleImportantModalSemaphore.Release()
 
 	return s.tshdEventsClient.PromptMFA(ctx, in)
 }
