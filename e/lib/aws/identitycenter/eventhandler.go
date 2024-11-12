@@ -58,7 +58,11 @@ func (svc *Service) handleResourceEvent(ctx context.Context, event *monitor.Prin
 		return nil
 
 	case monitor.VerbCalculate:
-		if !svc.isTargetedResource(event.Principal) {
+		includeResource, err := svc.isTargetedResource(ctx, event.Principal)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !includeResource {
 			return nil
 		}
 
@@ -113,7 +117,7 @@ func (svc *Service) refreshAllPrincipalAssignments(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		if !svc.userPredicate(user) {
+		if !svc.userMatchesPredicate(user) {
 			continue
 		}
 
@@ -145,7 +149,16 @@ func (svc *Service) refreshAllPrincipalAssignments(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		if !svc.accessListPredicate(acl) {
+		includeACL, err := svc.accessListMatchesPredicate(ctx, acl)
+		if err != nil {
+			svc.log.ErrorContext(ctx,
+				"Access List predicate returned an error. Excluding Access List.",
+				"error", err,
+				"access_list", acl.GetName(),
+				"access_list_title", acl.Spec.Title)
+			continue
+		}
+		if !includeACL {
 			continue
 		}
 

@@ -60,7 +60,7 @@ type UserPredicate func(types.User) bool
 
 // AccessListPredicate is a filter function for identifying Access Lists to
 // provision downstream
-type AccessListPredicate func(*accesslist.AccessList) bool
+type AccessListPredicate func(context.Context, *accesslist.AccessList) (bool, error)
 
 type ServiceConfig struct {
 	// SCIMClient is the SCIM client implementation the provisioning system will
@@ -100,7 +100,7 @@ type ServiceConfig struct {
 
 	// AccessListPredicate is a function used to select which access lists are
 	// provisioned downstream. Returns `true` if the given access list should be
-	// provisioned downstream. Defaults to including ALL access lists.
+	// provisioned downstream.
 	AccessListPredicate AccessListPredicate
 
 	// EventsClient is used to hook into the eventing system to create resource
@@ -171,7 +171,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.AccessListPredicate == nil {
-		cfg.AccessListPredicate = func(*accesslist.AccessList) bool { return true }
+		return trace.BadParameter("must supply access list predicate")
 	}
 
 	if cfg.Clock == nil {
@@ -461,7 +461,11 @@ func (svc *Service) refreshUser(ctx context.Context, user *types.UserV2, allStat
 }
 
 func (svc *Service) refreshAccessList(ctx context.Context, acl *accesslist.AccessList, allStates stateMap) error {
-	if !svc.accessListPredicate(acl) {
+	includeACL, err := svc.accessListPredicate(ctx, acl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !includeACL {
 		return nil
 	}
 
@@ -495,7 +499,7 @@ func (svc *Service) refreshAccessList(ctx context.Context, acl *accesslist.Acces
 		return nil
 	}
 
-	err := svc.enqueuePrincipalEvent(ctx,
+	err = svc.enqueuePrincipalEvent(ctx,
 		provisioningOpCreate,
 		provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
 		acl.GetName())
@@ -595,11 +599,15 @@ func (svc *Service) reprovisionUserAccessLists(ctx context.Context, principalSta
 			return trace.Wrap(err, "re-provisioning user access lists")
 		}
 
-		if !svc.accessListPredicate(acl) {
+		includeACL, err := svc.accessListPredicate(ctx, acl)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !includeACL {
 			continue
 		}
 
-		_, err := svc.assessListsSvcCache.GetAccessListMember(ctx, acl.GetName(), username)
+		_, err = svc.assessListsSvcCache.GetAccessListMember(ctx, acl.GetName(), username)
 		if err != nil {
 			continue
 		}
@@ -731,7 +739,11 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !svc.accessListPredicate(acl) {
+		includeACL, err := svc.accessListPredicate(ctx, acl)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !includeACL {
 			return nil, nil
 		}
 		provisioningStateId = getIDForAccessListName(principalName)

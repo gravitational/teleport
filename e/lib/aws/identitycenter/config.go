@@ -10,10 +10,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
-	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
-	scimSDK "github.com/gravitational/teleport/e/lib/scim/sdk"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
@@ -23,7 +22,7 @@ import (
 // Center service.
 type ProvisioningConfig struct {
 	// SCIMClient is the SCIM client used to interact with the downstream SCIM
-	SCIMClient scimSDK.Client
+	SCIMClient scimsdk.Client
 	// UsersSvcCache is the cache of users to be used by the provisioning service
 	UsersSvcCache provisioning.UsersService
 	// AccessListsSvcCache is the cache of access lists to be used by the provisioning service
@@ -84,7 +83,7 @@ type AccountAssignmentLister interface {
 type ServiceConfig struct {
 	Provisioning ProvisioningConfig
 	// ICClient is Identity Center SDK client
-	ICClient                   icSDK.Client
+	ICClient                   icsdk.Client
 	Clock                      clockwork.Clock
 	EventsClient               types.Events
 	IdentityCenterDataSvc      services.IdentityCenter
@@ -105,12 +104,6 @@ type ServiceConfig struct {
 	// Returns `true` if the user should be provisioned and managed by Teleport.
 	// Defaults to including ALL non-system Users.
 	UserPredicate func(types.User) bool
-
-	// AccessListPredicate is a function used to select which access lists are
-	// provisioned into AWS and managed by Teleport. Returns `true` if the given
-	// access list should be provisioned and managed by Teleport. Defaults to
-	// including ALL access lists.
-	AccessListPredicate func(*accesslist.AccessList) bool
 
 	// PluginStatusSink is used to emit plugin status. It can be used to report the main
 	// plugin runtime status or emit internal sub-process status such as group import
@@ -146,11 +139,6 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.AccessListsSvc == nil {
 		return trace.BadParameter("missing access lists service")
-	}
-	if cfg.AccessListPredicate == nil {
-		cfg.AccessListPredicate = func(_ *accesslist.AccessList) bool {
-			return true
-		}
 	}
 	if cfg.AccessRequestsSvc == nil {
 		return trace.BadParameter("missing access request service")

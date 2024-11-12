@@ -30,26 +30,26 @@ const (
 
 // Service is the configuration for the Identity Center service
 type Service struct {
-	accessListSvc         services.AccessLists
-	accessListPredicate   func(*accesslist.AccessList) bool
-	accessListSvcCache    provisioning.AccessListsService
-	accessRequestSvc      services.AccessRequestGetter
-	icClient              icsdk.Client
-	clock                 clockwork.Clock
-	icSvc                 services.IdentityCenter
-	log                   *slog.Logger
-	provisioner           *provisioning.Service
-	rolesSvc              RolesService
-	usersSvc              UsersService
-	userPredicate         func(types.User) bool
-	awsSyncInterval       time.Duration
-	importConfig          ImportConfig
-	pluginStatusSink      common.StatusSink
-	pluginsService        pluginsService
-	resourceMonitor       *monitor.ResourceMonitor
-	principalEventCh      chan *monitor.PrincipalEvent
-	assignmentCalculator  *calculator.AssignmentCalculator
-	assignmentProvisioner *icprov.AssignmentProvisioner
+	accessListSvc              services.AccessLists
+	accessListMatchesPredicate provisioning.AccessListPredicate
+	accessListSvcCache         provisioning.AccessListsService
+	accessRequestSvc           services.AccessRequestGetter
+	icClient                   icsdk.Client
+	clock                      clockwork.Clock
+	icSvc                      services.IdentityCenter
+	log                        *slog.Logger
+	provisioner                *provisioning.Service
+	rolesSvc                   RolesService
+	usersSvc                   UsersService
+	userMatchesPredicate       func(types.User) bool
+	awsSyncInterval            time.Duration
+	importConfig               ImportConfig
+	pluginStatusSink           common.StatusSink
+	pluginsService             pluginsService
+	resourceMonitor            *monitor.ResourceMonitor
+	principalEventCh           chan *monitor.PrincipalEvent
+	assignmentCalculator       *calculator.AssignmentCalculator
+	assignmentProvisioner      *icprov.AssignmentProvisioner
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -58,6 +58,8 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	aclPredicate := makeAccessListAssignmentPredicate(config.RolesSvc)
 
 	provisioner, err := provisioning.NewService(provisioning.ServiceConfig{
 		DownstreamID:        identityCenterDownstreamID,
@@ -69,7 +71,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		Locks:               config.Provisioning.LocksSvc,
 		EventsClient:        config.EventsClient,
 		UserPredicate:       config.UserPredicate,
-		AccessListPredicate: config.AccessListPredicate,
+		AccessListPredicate: aclPredicate,
 		Logger:              config.Log.With(teleport.ComponentKey, Component+":PR"),
 	})
 	if err != nil {
@@ -118,26 +120,26 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	principalEventCh := make(chan *monitor.PrincipalEvent, config.EventBufferSize)
 
 	svc = &Service{
-		accessListSvc:         config.AccessListsSvc,
-		accessListSvcCache:    config.Provisioning.AccessListsSvcCache,
-		accessRequestSvc:      config.AccessRequestsSvc,
-		clock:                 config.Clock,
-		icSvc:                 config.IdentityCenterDataSvc,
-		icClient:              config.ICClient,
-		log:                   config.Log,
-		provisioner:           provisioner,
-		rolesSvc:              config.RolesSvc,
-		usersSvc:              config.UsersSvc,
-		userPredicate:         config.UserPredicate,
-		accessListPredicate:   config.AccessListPredicate,
-		awsSyncInterval:       config.SyncInterval,
-		importConfig:          config.ImportConfig,
-		pluginStatusSink:      config.PluginStatusSink,
-		pluginsService:        config.PluginsService,
-		resourceMonitor:       resourceMonitor,
-		principalEventCh:      principalEventCh,
-		assignmentCalculator:  assignmentCalculator,
-		assignmentProvisioner: assignmentProvisioner,
+		accessListSvc:              config.AccessListsSvc,
+		accessListSvcCache:         config.Provisioning.AccessListsSvcCache,
+		accessRequestSvc:           config.AccessRequestsSvc,
+		clock:                      config.Clock,
+		icSvc:                      config.IdentityCenterDataSvc,
+		icClient:                   config.ICClient,
+		log:                        config.Log,
+		provisioner:                provisioner,
+		rolesSvc:                   config.RolesSvc,
+		usersSvc:                   config.UsersSvc,
+		userMatchesPredicate:       config.UserPredicate,
+		accessListMatchesPredicate: aclPredicate,
+		awsSyncInterval:            config.SyncInterval,
+		importConfig:               config.ImportConfig,
+		pluginStatusSink:           config.PluginStatusSink,
+		pluginsService:             config.PluginsService,
+		resourceMonitor:            resourceMonitor,
+		principalEventCh:           principalEventCh,
+		assignmentCalculator:       assignmentCalculator,
+		assignmentProvisioner:      assignmentProvisioner,
 	}
 	resourceMonitor.SetEventHandler(svc.onResourceMonitorEvent)
 
@@ -212,13 +214,13 @@ func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.P
 	}
 }
 
-func (svc *Service) isTargetedResource(resource types.Resource) bool {
+func (svc *Service) isTargetedResource(ctx context.Context, resource types.Resource) (bool, error) {
 	switch r := resource.(type) {
 	case *types.UserV2:
-		return svc.userPredicate(r)
+		return svc.userMatchesPredicate(r), nil
 	case *accesslist.AccessList:
-		return svc.accessListPredicate(r)
+		return svc.accessListMatchesPredicate(ctx, r)
 	default:
-		return false
+		return false, nil
 	}
 }

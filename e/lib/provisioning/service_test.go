@@ -148,6 +148,9 @@ func newPack(t *testing.T, options ...sutOption) *testPack {
 		EventsClient:     depsMock,
 		Clock:            clock,
 		DownstreamID:     "downstreamID",
+		AccessListPredicate: func(context.Context, *accesslist.AccessList) (bool, error) {
+			return true, nil
+		},
 	})
 	require.NoError(t, err)
 
