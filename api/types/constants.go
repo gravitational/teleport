@@ -580,21 +580,17 @@ const (
 	KindIdentityCenter = "aws_identity_center"
 
 	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
-	// DO NOT USE THIS KIND IN RBAC CHECKS: use KindIdentityCenter instead
 	KindIdentityCenterAccount = "aws_ic_account"
 
 	// KindIdentityCenterPermissionSet describes an AWS Identity Center Permission Set
-	// DO NOT USE THIS KIND IN RBAC CHECKS: use KindIdentityCenter instead
 	KindIdentityCenterPermissionSet = "aws_ic_permission_set"
 
 	// KindIdentityCenterPermissionSet describes an AWS Principal Assignment, representing
 	// a collection Account Assignments assigned to a Teleport User or AccessList
-	// DO NOT USE THIS KIND IN RBAC CHECKS: use KindIdentityCenter instead
 	KindIdentityCenterPrincipalAssignment = "aws_ic_principal_assignment"
 
 	// KindIdentityCenterAccountAssignment describes an AWS Account and Permission Set
 	// pair that can be requested by a Teleport User.
-	// DO NOT USE THIS KIND IN RBAC CHECKS: use KindIdentityCenter instead
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
