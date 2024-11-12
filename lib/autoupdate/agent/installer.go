@@ -601,7 +601,7 @@ func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
 			mode: fi.Mode(),
 		}
 		if !orig.mode.IsRegular() {
-			return nil, trace.Errorf("refusing to replace irregular file at %s", src)
+			return nil, trace.Errorf("refusing to replace irregular file at %s", dst)
 		}
 		orig.data, err = readFileN(dst, n)
 		if err != nil {
@@ -763,7 +763,7 @@ func tryCopy(dst, src string, n int64) error {
 	}
 	if err == nil { // dst exists
 		if !fi.Mode().IsRegular() {
-			return trace.Errorf("refusing to replace irregular file at %s", src)
+			return trace.Errorf("refusing to replace irregular file at %s", dst)
 		}
 		dstData, err := readFileN(dst, n)
 		if err != nil {
