@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { Fragment } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
-import { Dialog } from 'teleterm/ui/services/modals';
+import { RegularDialog, ImportantDialog } from 'teleterm/ui/services/modals';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
 
 import { ClusterLogout } from '../ClusterLogout';
@@ -38,35 +38,45 @@ import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
-  const { regular: regularDialog, important: importantDialog } =
+  const { regular: regularDialog, important: importantDialogs } =
     modalsService.useState();
 
   const closeRegularDialog = () => modalsService.closeRegularDialog();
-  const closeImportantDialog = () => modalsService.closeImportantDialog();
 
   return (
     <>
-      {renderDialog(regularDialog, closeRegularDialog)}
-      {renderDialog(importantDialog, closeImportantDialog)}
+      {renderRegularDialog({
+        dialog: regularDialog,
+        handleClose: closeRegularDialog,
+      })}
+      {importantDialogs.map((dialog, index) => {
+        const isLast = index === importantDialogs.length - 1;
+        return (
+          <Fragment key={dialog.kind}>
+            {renderImportantDialog({
+              dialog: dialog,
+              handleClose: () => modalsService.closeImportantDialog(dialog),
+              hidden: !isLast,
+            })}
+          </Fragment>
+        );
+      })}
     </>
   );
 }
 
-function renderDialog(dialog: Dialog, handleClose: () => void) {
+function renderRegularDialog({
+  dialog,
+  handleClose,
+}: {
+  dialog: RegularDialog;
+  handleClose: () => void;
+}) {
+  if (!dialog) {
+    return null;
+  }
+
   switch (dialog.kind) {
-    case 'device-trust-authorize': {
-      return (
-        <AuthenticateWebDevice
-          rootClusterUri={dialog.rootClusterUri}
-          onAuthorize={dialog.onAuthorize}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onClose={handleClose}
-        />
-      );
-    }
     case 'cluster-connect': {
       return (
         <ClusterConnect
@@ -81,6 +91,19 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
               dialog.onSuccess(clusterUri);
             },
           }}
+        />
+      );
+    }
+    case 'device-trust-authorize': {
+      return (
+        <AuthenticateWebDevice
+          rootClusterUri={dialog.rootClusterUri}
+          onAuthorize={dialog.onAuthorize}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onClose={handleClose}
         />
       );
     }
@@ -141,49 +164,11 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-
     case 'resource-search-errors': {
       return (
         <ResourceSearchErrors
           errors={dialog.errors}
           getClusterName={dialog.getClusterName}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-        />
-      );
-    }
-
-    case 'headless-authn': {
-      return (
-        <HeadlessAuthentication
-          rootClusterUri={dialog.rootClusterUri}
-          headlessAuthenticationId={dialog.headlessAuthenticationId}
-          clientIp={dialog.headlessAuthenticationClientIp}
-          skipConfirm={dialog.skipConfirm}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onSuccess={() => {
-            handleClose();
-            dialog.onSuccess();
-          }}
-        />
-      );
-    }
-
-    case 'reauthenticate': {
-      return (
-        <ReAuthenticate
-          promptMfaRequest={dialog.promptMfaRequest}
-          onOtpSubmit={totpCode => {
-            handleClose();
-            dialog.onSuccess(totpCode);
-          }}
-          // This function needs to be stable between renders.
-          onSsoContinue={dialog.onSsoContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -205,9 +190,89 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
+
+    default: {
+      return assertUnreachable(dialog);
+    }
+  }
+}
+
+/**
+ * Renders an important dialog.
+ * Each dialog must implement a `hidden` prop which visually hides the dialog
+ * without unmounting it.
+ * This is needed because tshd can send more than one event,
+ * and we need to queue dialogs on the Electron side.
+ */
+function renderImportantDialog({
+  dialog,
+  handleClose,
+  hidden,
+}: {
+  dialog: ImportantDialog;
+  handleClose: () => void;
+  hidden: boolean;
+}) {
+  switch (dialog.kind) {
+    case 'cluster-connect': {
+      return (
+        <ClusterConnect
+          hidden={hidden}
+          dialog={{
+            ...dialog,
+            onCancel: () => {
+              handleClose();
+              dialog.onCancel?.();
+            },
+            onSuccess: clusterUri => {
+              handleClose();
+              dialog.onSuccess(clusterUri);
+            },
+          }}
+        />
+      );
+    }
+    case 'headless-authn': {
+      return (
+        <HeadlessAuthentication
+          hidden={hidden}
+          rootClusterUri={dialog.rootClusterUri}
+          headlessAuthenticationId={dialog.headlessAuthenticationId}
+          clientIp={dialog.headlessAuthenticationClientIp}
+          skipConfirm={dialog.skipConfirm}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onSuccess={() => {
+            handleClose();
+            dialog.onSuccess();
+          }}
+        />
+      );
+    }
+    case 'reauthenticate': {
+      return (
+        <ReAuthenticate
+          hidden={hidden}
+          promptMfaRequest={dialog.promptMfaRequest}
+          onOtpSubmit={totpCode => {
+            handleClose();
+            dialog.onSuccess(totpCode);
+          }}
+          // This function needs to be stable between renders.
+          onSsoContinue={dialog.onSsoContinue}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
     case 'hardware-key-pin': {
       return (
         <AskPin
+          hidden={hidden}
           req={dialog.req}
           onSuccess={res => {
             handleClose();
@@ -223,6 +288,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-touch': {
       return (
         <Touch
+          hidden={hidden}
           req={dialog.req}
           onCancel={() => {
             handleClose();
@@ -234,6 +300,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-pin-change': {
       return (
         <ChangePin
+          hidden={hidden}
           req={dialog.req}
           onSuccess={dialog.onSuccess}
           onCancel={() => {
@@ -246,6 +313,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-slot-overwrite': {
       return (
         <OverwriteSlot
+          hidden={hidden}
           req={dialog.req}
           onConfirm={dialog.onConfirm}
           onCancel={() => {
@@ -255,11 +323,6 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-
-    case 'none': {
-      return null;
-    }
-
     default: {
       return assertUnreachable(dialog);
     }
