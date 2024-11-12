@@ -437,7 +437,7 @@ type symlink struct {
 	oldname, newname string
 }
 
-// smallFile is a small file with text content.
+// smallFile is a file small enough to be stored in memory.
 type smallFile struct {
 	name string
 	data []byte
