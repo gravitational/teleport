@@ -174,7 +174,6 @@ WithAwsPermissionsError.parameters = {
 };
 
 export const WithEnrollmentError = () => <Component />;
-
 WithEnrollmentError.parameters = {
   msw: {
     handlers: [
@@ -209,6 +208,39 @@ WithEnrollmentError.parameters = {
   },
 };
 
+export const WithAlreadyExistsError = () => (
+  <Component devInfoText="select any region, select EKS1 to see already exist error" />
+);
+WithAlreadyExistsError.parameters = {
+  msw: {
+    handlers: [
+      tokenHandler,
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+        {
+          return HttpResponse.json({ clusters: eksClusters });
+        }
+      }),
+      http.get(
+        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+        () => {
+          return HttpResponse.json({ items: kubeServers });
+        }
+      ),
+      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+        await delay(1000);
+        return HttpResponse.json({
+          results: [
+            {
+              clusterName: 'EKS1',
+              error: 'teleport-kube-agent is already installed',
+            },
+          ],
+        });
+      }),
+    ],
+  },
+};
+
 export const WithOtherError = () => <Component />;
 
 WithOtherError.parameters = {
@@ -222,7 +254,7 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = () => {
+const Component = ({ devInfoText = '' }) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -278,7 +310,9 @@ const Component = () => {
           resourceKind={ResourceKind.Kubernetes}
         >
           <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>Devs: Select any region to see story state</Info>
+            <Info>
+              {devInfoText || 'Devs: Select any region to see story state'}
+            </Info>
             <EnrollEksCluster
               nextStep={discoverCtx.nextStep}
               updateAgentMeta={discoverCtx.updateAgentMeta}
