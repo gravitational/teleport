@@ -134,7 +134,6 @@ import (
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -4584,12 +4583,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		peerAddrString = peerAddr.String()
 		proxyServer, err = peer.NewServer(peer.ServerConfig{
-			AccessCache:   accessPoint,
-			Listener:      listeners.proxyPeer,
-			TLSConfig:     serverTLSConfig,
-			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-			Log:           process.logger,
-			ClusterName:   clusterName,
+			AccessCache: accessPoint,
+			Listener:    listeners.proxyPeer,
+			TLSConfig:   serverTLSConfig,
+			Dialer:      reversetunnelclient.NewPeerDialer(tsrv),
+			Log:         process.logger,
+			ClusterName: clusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6439,7 +6438,6 @@ func (process *TeleportProcess) initPublicGRPCServer(
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 
 	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)

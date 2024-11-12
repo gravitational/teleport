@@ -236,7 +236,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		AccessCache:        &mockCAGetter{},
 		Listener:           listener,
 		TLSConfig:          tlsConf,
-		ClusterDialer:      &mockClusterDialer{},
+		Dialer:             &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
 		service:            &mockProxyService{},
 		ClusterName:        "test",
