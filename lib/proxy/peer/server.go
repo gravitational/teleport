@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"math"
 	"net"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,10 +35,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -118,7 +116,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	tlsConfig.NextProtos = []string{"h2"}
 	tlsConfig.GetCertificate = cfg.GetCertificate
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	tlsConfig.VerifyPeerCertificate = verifyPeerCertificateIsProxy
+	tlsConfig.VerifyPeerCertificate = internal.VerifyPeerCertificateIsProxy
 
 	getClientCAs := cfg.GetClientCAs
 	tlsConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -163,23 +161,6 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		dialer: cfg.Dialer,
 		server: server,
 	}, nil
-}
-
-func verifyPeerCertificateIsProxy(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-	if len(verifiedChains) < 1 {
-		return trace.AccessDenied("missing client certificate (this is a bug)")
-	}
-
-	clientCert := verifiedChains[0][0]
-	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !slices.Contains(clientIdentity.Groups, string(types.RoleProxy)) {
-		return trace.AccessDenied("expected Proxy client credentials")
-	}
-	return nil
 }
 
 // Serve starts the proxy server.
