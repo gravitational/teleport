@@ -356,21 +356,23 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
-        <Box mt={3}>
-          <img src={img} width="60%" />
+      </HeaderSubtitle>
+      <Box mb={5} mt={-3}>
+        <Box minWidth="500px" maxWidth="998px">
+          <img src={img} width="100%" />
         </Box>
         {!wantAutoDiscover && (
           <>
             <br />
-            Want to deploy a database service manually from one of your existing
-            servers?{' '}
+            Do you want to deploy a database service manually from one of your
+            existing servers?{' '}
             <AlternateInstructionButton
               onClick={toggleDeployMethod}
               disabled={togglerDisabled}
             />
           </>
         )}
-      </HeaderSubtitle>
+      </Box>
     </>
   );
 };
