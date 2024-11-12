@@ -566,6 +566,7 @@
     "jumphost",
     "jwks",
     "jwkset",
+    "keepalive",
     "keepalives",
     "keyfile",
     "keymap",
