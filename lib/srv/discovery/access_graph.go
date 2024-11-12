@@ -367,12 +367,21 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		}
 	}()
 
-	currentTAGResources := &aws_sync.Resources{}
-	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", s.Config.Matchers.AccessGraph.PollInterval)
-	tickerInterval := s.Config.Matchers.AccessGraph.PollInterval
-	if tickerInterval <= defaultPollInterval {
-		tickerInterval = defaultPollInterval
+	// Configure the poll interval
+	tickerInterval := defaultPollInterval
+	if s.Config.Matchers.AccessGraph != nil {
+		if s.Config.Matchers.AccessGraph.PollInterval > defaultPollInterval {
+			tickerInterval = s.Config.Matchers.AccessGraph.PollInterval
+		} else {
+			s.Log.WarnContext(ctx,
+				"Access graph service poll interval cannot be less than the default",
+				"default_poll_interval",
+				defaultPollInterval)
+		}
 	}
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
+
+	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)
 	defer timer.Stop()
 	for {
