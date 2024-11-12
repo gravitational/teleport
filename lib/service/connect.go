@@ -76,7 +76,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		Step:   process.Config.MaxRetryPeriod / 5,
 		Max:    process.Config.MaxRetryPeriod,
 		Clock:  process.Clock,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -643,7 +643,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		First:  utils.FullJitter(maxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(maxRetryPeriod / 16),
 		Max:    maxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  process.Clock,
 	})
 	if err != nil {

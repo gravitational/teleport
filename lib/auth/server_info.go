@@ -61,7 +61,7 @@ func ReconcileServerInfos(ctx context.Context, ap ServerInfoAccessPoint) error {
 		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  ap.GetClock(),
 	})
 	if err != nil {

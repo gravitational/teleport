@@ -87,7 +87,7 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 		First:  utils.FullJitter(maxBackoffDuration / 10),
 		Step:   maxBackoffDuration / 5,
 		Max:    maxBackoffDuration,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  s.cfg.Clock,
 	})
 	if err != nil {
