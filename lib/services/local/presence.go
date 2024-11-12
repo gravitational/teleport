@@ -57,7 +57,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
-		jitter:  retryutils.NewFullJitter(),
+		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
 }

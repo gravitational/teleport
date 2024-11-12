@@ -1387,7 +1387,7 @@ func (a *Server) runPeriodicOperations() {
 			// note the use of FullJitter for the releases check interval. this lets us ensure
 			// that frequent restarts don't prevent checks from happening despite the infrequent
 			// effective check rate.
-			Jitter: retryutils.NewFullJitter(),
+			Jitter: retryutils.FullJitter,
 		})
 		// more frequent release check that just re-calculates alerts based on previously
 		// pulled versioning info.
