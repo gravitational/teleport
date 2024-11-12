@@ -663,7 +663,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
 }
 
-func TestUpsertAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
+func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
@@ -698,6 +698,14 @@ func TestUpsertAccessListWithMembers_PreservesIdentityCenterLablesForExistingMem
 	_, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{dupeMemberButWithoutOriginLabel})
 	require.NoError(t, err)
 	require.Equal(t, "bar", updatedMembers[0].GetMetadata().Labels["foo"])
+
+	updatedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+	require.NoError(t, err)
+	require.Equal(t, "bar", updatedMember.GetMetadata().Labels["foo"])
+
+	upsertedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+	require.NoError(t, err)
+	require.Equal(t, "bar", upsertedMember.GetMetadata().Labels["foo"])
 }
 
 func TestAccessListReviewCRUD(t *testing.T) {

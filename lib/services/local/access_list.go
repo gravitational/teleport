@@ -545,6 +545,13 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		existingMember, err := a.memberService.GetResource(ctx, member.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		conditionallyPreserveAWSIdentityCenterLabels(existingMember, member)
 
 		if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
@@ -576,6 +583,11 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			existingMember, err := a.memberService.GetResource(ctx, member.GetName())
+			if err != nil {
+				trace.Wrap(err)
+			}
+			conditionallyPreserveAWSIdentityCenterLabels(existingMember, member)
 
 			if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 				return trace.Wrap(err)
@@ -733,9 +745,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					if existingMember.Spec.Reason != "" {
 						newMember.Spec.Reason = existingMember.Spec.Reason
 					}
-					if existingMember.Origin() == common.OriginAWSIdentityCenter {
-						newMember.Metadata.Labels = existingMember.GetAllLabels()
-					}
+					conditionallyPreserveAWSIdentityCenterLabels(existingMember, newMember)
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 					// Compare members and update if necessary.
@@ -1032,4 +1042,19 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
 	return trace.AccessDenied(limitReachedMessage)
+}
+
+// conditionallyPreserveAWSIdentityCenterLabels preserves member labels if
+// it originated from AWS Identity Center plugin.
+// The Web UI does not preserve metadata labels so this function should be called
+// in every update/upsert member calls.
+func conditionallyPreserveAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
+	if old == nil || new == nil {
+		return
+	}
+	if old.Origin() == common.OriginAWSIdentityCenter {
+		new.Metadata.Labels = old.GetAllLabels()
+	}
+
+	return
 }
