@@ -1750,6 +1750,9 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		if fc.Discovery.AccessGraph.PollInterval > 0 {
+			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
+		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
