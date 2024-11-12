@@ -16,22 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import Dialog from 'design/Dialog';
-
-function DialogConfirmation(props) {
-  const { children, open, onClose, dialogCss } = props;
-  return (
-    <Dialog
-      dialogCss={dialogCss}
-      disableEscapeKeyDown={false}
-      onClose={onClose}
-      open={open}
-    >
-      {children}
-    </Dialog>
-  );
-}
+import { DialogConfirmation } from './DialogConfirmation';
+import {
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+} from './../Dialog';
 
 export default DialogConfirmation;
+export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

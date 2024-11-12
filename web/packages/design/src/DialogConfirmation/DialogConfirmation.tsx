@@ -16,13 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DialogConfirmation from './DialogConfirmation';
-import {
-  DialogTitle,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-} from './../Dialog';
+import { ReactNode } from 'react';
+import { StyleFunction } from 'styled-components';
 
-export default DialogConfirmation;
-export { DialogTitle, DialogContent, DialogFooter, DialogHeader };
+import Dialog from 'design/Dialog';
+
+export function DialogConfirmation(props: {
+  open: boolean;
+  /** @deprecated This props has no effect, it was never passed down to `Dialog`. */
+  disableEscapeKeyDown?: boolean;
+  children?: ReactNode;
+  onClose?: (
+    event: KeyboardEvent | React.MouseEvent,
+    reason: 'escapeKeyDown' | 'backdropClick'
+  ) => void;
+  dialogCss?: StyleFunction<any>;
+}) {
+  return (
+    <Dialog
+      dialogCss={props.dialogCss}
+      disableEscapeKeyDown={false}
+      onClose={props.onClose}
+      open={props.open}
+    >
+      {props.children}
+    </Dialog>
+  );
+}

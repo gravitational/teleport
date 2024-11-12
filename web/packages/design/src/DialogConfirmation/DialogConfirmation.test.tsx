@@ -16,29 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { render, fireEvent } from 'design/utils/testing';
 
-import { ButtonPrimary } from '../Button';
+import { DialogConfirmation } from './DialogConfirmation';
 
-import DialogConfirmation, {
-  DialogHeader,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-} from './index';
+test('onClose is respected', () => {
+  const onClose = jest.fn();
+  const { container } = render(
+    <DialogConfirmation open={true} onClose={onClose} />
+  );
 
-export default {
-  title: 'Design/Dialog/Confirmation',
-};
-
-export const Confirmation = () => (
-  <DialogConfirmation open={true}>
-    <DialogHeader>
-      <DialogTitle>Confirmation Dialog Header</DialogTitle>
-    </DialogHeader>
-    <DialogContent>Simplified dialog for use with confirmations</DialogContent>
-    <DialogFooter>
-      <ButtonPrimary>Save and Close</ButtonPrimary>
-    </DialogFooter>
-  </DialogConfirmation>
-);
+  fireEvent.keyDown(container, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
