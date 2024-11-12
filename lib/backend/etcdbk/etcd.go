@@ -47,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -513,7 +514,7 @@ WatchEvents:
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
-		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-time.After(retryutils.HalfJitter(time.Millisecond * 1500)):
 		case <-b.ctx.Done():
 			break WatchEvents
 		}

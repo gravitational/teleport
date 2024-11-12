@@ -309,7 +309,7 @@ func (h *HeartbeatV2) run() {
 
 	// set up interval for forced announcement (i.e. heartbeat even if state is unchanged).
 	h.announce = interval.New(interval.Config{
-		FirstDuration: utils.HalfJitter(h.announceInterval),
+		FirstDuration: retryutils.HalfJitter(h.announceInterval),
 		Duration:      h.announceInterval,
 		Jitter:        retryutils.SeventhJitter,
 	})
@@ -317,7 +317,7 @@ func (h *HeartbeatV2) run() {
 
 	// set up interval for polling the inner heartbeat impl for changes.
 	h.poll = interval.New(interval.Config{
-		FirstDuration: utils.HalfJitter(h.pollInterval),
+		FirstDuration: retryutils.HalfJitter(h.pollInterval),
 		Duration:      h.pollInterval,
 		Jitter:        retryutils.SeventhJitter,
 	})

@@ -1421,7 +1421,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	if c.EnableRelativeExpiry {
 		relativeExpiryInterval = interval.New(interval.Config{
 			Duration:      c.Config.RelativeExpiryCheckInterval,
-			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			FirstDuration: retryutils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
 			Jitter:        retryutils.SeventhJitter,
 		})
 	}

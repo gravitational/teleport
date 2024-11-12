@@ -1321,7 +1321,7 @@ func (a *Server) runPeriodicOperations() {
 	// this environment variable is "unstable" since it will be deprecated
 	// by an upcoming tctl command. currently exists for testing purposes only.
 	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
-		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+		firstReleaseCheck = retryutils.HalfJitter(time.Second * 10)
 	}
 
 	// run periodic functions with a semi-random period
@@ -1346,7 +1346,7 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           instancePeriodicsKey,
 			Duration:      9 * time.Minute,
-			FirstDuration: utils.HalfJitter(time.Minute),
+			FirstDuration: retryutils.HalfJitter(time.Minute),
 			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
@@ -1372,7 +1372,7 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           dynamicLabelsCheckKey,
 			Duration:      dynamicLabelCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1394,7 +1394,7 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           localReleaseCheckKey,
 			Duration:      10 * time.Minute,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
 		})
 	}
@@ -1403,7 +1403,7 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
 		})
 	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {

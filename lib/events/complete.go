@@ -158,7 +158,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
-		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
+		FirstDuration: retryutils.HalfJitter(u.cfg.CheckPeriod),
 		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
