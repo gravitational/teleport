@@ -1422,7 +1422,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		relativeExpiryInterval = interval.New(interval.Config{
 			Duration:      c.Config.RelativeExpiryCheckInterval,
 			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 	defer relativeExpiryInterval.Stop()

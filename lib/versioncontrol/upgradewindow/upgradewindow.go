@@ -206,7 +206,7 @@ func (e *Exporter[C]) run(ctx context.Context) {
 	exportInterval := interval.New(interval.Config{
 		FirstDuration: utils.FullJitter(e.cfg.FirstExport),
 		Duration:      e.cfg.ExportInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer exportInterval.Stop()
 

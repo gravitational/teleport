@@ -122,7 +122,7 @@ func (a *App) run(ctx context.Context) error {
 
 	a.job.SetReady(true)
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := a.clock.NewTimer(jitter(30 * time.Second))
 	defer timer.Stop()
 

@@ -1341,25 +1341,25 @@ func (a *Server) runPeriodicOperations() {
 			Key:           metricsKey,
 			Duration:      defaults.PrometheusScrapeInterval,
 			FirstDuration: 5 * time.Second,
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           instancePeriodicsKey,
 			Duration:      9 * time.Minute,
 			FirstDuration: utils.HalfJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           notificationsCleanupKey,
 			Duration:      48 * time.Hour,
 			FirstDuration: utils.FullJitter(time.Hour),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           roleCountKey,
 			Duration:      12 * time.Hour,
 			FirstDuration: utils.FullJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 	)
 
@@ -1373,12 +1373,12 @@ func (a *Server) runPeriodicOperations() {
 			Key:           dynamicLabelsCheckKey,
 			Duration:      dynamicLabelCheckPeriod,
 			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:      heartbeatCheckKey,
 			Duration: apidefaults.ServerKeepAliveTTL() * 2,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           releaseCheckKey,
@@ -1415,7 +1415,7 @@ func (a *Server) runPeriodicOperations() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
 		remoteClustersRefresh := interval.New(interval.Config{
 			Duration: time.Second * 40,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		defer remoteClustersRefresh.Stop()
 
@@ -1436,7 +1436,7 @@ func (a *Server) runPeriodicOperations() {
 			Key:           upgradeWindowCheckKey,
 			Duration:      3 * time.Minute,
 			FirstDuration: utils.FullJitter(30 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 

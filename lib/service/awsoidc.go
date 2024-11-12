@@ -159,7 +159,7 @@ func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDC
 func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration: updateAWSOIDCDeployServiceInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		Jitter:   retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 

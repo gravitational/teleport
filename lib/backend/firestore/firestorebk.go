@@ -438,7 +438,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 		migrationInterval := interval.New(interval.Config{
 			Duration:      time.Hour * 12,
 			FirstDuration: utils.FullJitter(time.Minute * 5),
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 			Clock:         b.clock,
 		})
 		defer migrationInterval.Stop()

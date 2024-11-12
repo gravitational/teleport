@@ -311,7 +311,7 @@ func (h *HeartbeatV2) run() {
 	h.announce = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.announceInterval),
 		Duration:      h.announceInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer h.announce.Stop()
 
@@ -319,7 +319,7 @@ func (h *HeartbeatV2) run() {
 	h.poll = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.pollInterval),
 		Duration:      h.pollInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer h.poll.Stop()
 
