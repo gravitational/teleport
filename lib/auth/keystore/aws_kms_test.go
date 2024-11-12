@@ -320,7 +320,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 				assert.NotContains(t, keyID.arn, "mrk-")
 			}
 
-			tagsOut, err := fakeKMS.ListResourceTags(&kms.ListResourceTagsInput{KeyId: &keyID.arn})
+			tagsOut, err := fakeKMS.ListResourceTagsWithContext(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
 			require.NoError(t, err)
 			if len(tc.tags) == 0 {
 				tc.tags = map[string]string{
