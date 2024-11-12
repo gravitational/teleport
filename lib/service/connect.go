@@ -705,7 +705,7 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.PollingPeriod,
 		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 

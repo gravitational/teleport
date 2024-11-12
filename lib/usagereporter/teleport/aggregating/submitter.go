@@ -107,7 +107,7 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	iv := interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(2 * submitInterval),
 		Duration:      submitInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer iv.Stop()
 

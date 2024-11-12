@@ -146,7 +146,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 }
 
 var (
-	seventhJitter = retryutils.NewSeventhJitter()
+	seventhJitter = retryutils.SeventhJitter
 	fullJitter    = retryutils.FullJitter
 	halfJitter    = retryutils.HalfJitter
 )

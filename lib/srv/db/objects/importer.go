@@ -79,7 +79,7 @@ func newSingleDatabaseImporter(cfg Config, database types.Database, fetcher Obje
 func (i *singleDatabaseImporter) start(ctx context.Context) {
 	i.cfg.Log.DebugContext(ctx, "Starting database importer.")
 	ticker := interval.New(interval.Config{
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 		Duration:      i.cfg.ScanInterval * 7 / 6,
 		FirstDuration: retryutils.FullJitter(i.cfg.ScanInterval),
 	})

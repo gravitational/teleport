@@ -245,7 +245,7 @@ func (e *Exporter) run(ctx context.Context) {
 	poll := interval.New(interval.Config{
 		Duration:      e.cfg.PollInterval,
 		FirstDuration: utils.FullJitter(e.cfg.PollInterval / 2),
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer poll.Stop()
 

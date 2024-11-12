@@ -159,7 +159,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
