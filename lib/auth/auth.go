@@ -2122,6 +2122,13 @@ func (r *certRequest) check() error {
 		return trace.BadParameter("must provide a public key")
 	}
 
+	if r.githubUserID == "" {
+		r.githubUserID = r.user.GetGitHubUserID()
+	}
+	if r.githubUsername == "" {
+		r.githubUsername = r.user.GetGitHubUsername()
+	}
+
 	return nil
 }
 
@@ -3012,8 +3019,6 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// could we use user state or req.githubUserID only?
 	if req.githubUserID != "" {
 		allowedLogins = append(allowedLogins, req.githubUserID)
-	} else if req.user.GetGitHubUserID() != "" && req.user.GetGitHubUserID() != req.githubUserID {
-		allowedLogins = append(allowedLogins, req.user.GetGitHubUserID())
 	}
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())

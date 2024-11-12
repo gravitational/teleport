@@ -19,7 +19,9 @@
 package userloginstate
 
 import (
+	"cmp"
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -280,12 +282,37 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
+// maybePreserveOldStates retrieves states from old user login state and keeps
+// them in the new one.
+//
+// Currently these states are being preserved during refresh:
+// - GitHub user ID and username
+func maybePreserveOldStates(ctx context.Context, newState *userloginstate.UserLoginState, ulsService services.UserLoginStates) *userloginstate.UserLoginState {
+	if newState.GetGitHubUserID() != "" && newState.GetGitHubUsername() != "" {
+		return newState
+	}
+
+	oldState, err := ulsService.GetUserLoginState(ctx, newState.GetName())
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			slog.WarnContext(ctx, "failed to fetch old login state", "error", err)
+		}
+		return newState
+	}
+
+	newState.SetGitHubUserID(cmp.Or(newState.GetGitHubUserID(), oldState.GetGitHubUserID()))
+	newState.SetGitHubUsername(cmp.Or(newState.GetGitHubUsername(), oldState.GetGitHubUsername()))
+	return newState
+}
+
 // Refresh will take the user and update the user login state in the backend.
 func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
 	uls, err := g.Generate(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	uls = maybePreserveOldStates(ctx, uls, ulsService)
 
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)
