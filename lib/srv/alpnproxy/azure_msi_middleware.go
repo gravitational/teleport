@@ -101,10 +101,14 @@ func (m *AzureMSIMiddleware) SetPrivateKey(privateKey crypto.Signer) {
 	defer m.privateKeyMu.Unlock()
 	m.privateKey = privateKey
 }
-func (m *AzureMSIMiddleware) getPrivateKey() crypto.Signer {
+func (m *AzureMSIMiddleware) getPrivateKey() (crypto.Signer, error) {
 	m.privateKeyMu.RLock()
 	defer m.privateKeyMu.RUnlock()
-	return m.privateKey
+	if m.privateKey == nil {
+		// Use a plain error to return status code 500.
+		return nil, trace.Errorf("missing private key set in AzureMSIMiddleware")
+	}
+	return m.privateKey, nil
 }
 
 func (m *AzureMSIMiddleware) msiEndpoint(rw http.ResponseWriter, req *http.Request) error {
@@ -184,10 +188,14 @@ func (m *AzureMSIMiddleware) fetchMSILoginResp(resource string) ([]byte, error) 
 }
 
 func (m *AzureMSIMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error) {
+	privateKey, err := m.getPrivateKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	// Create a new key that can sign and verify tokens.
 	key, err := jwt.New(&jwt.Config{
 		Clock:       m.Clock,
-		PrivateKey:  m.getPrivateKey(),
+		PrivateKey:  privateKey,
 		ClusterName: types.TeleportAzureMSIEndpoint, // todo get cluster name
 	})
 	if err != nil {
