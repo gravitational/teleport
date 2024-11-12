@@ -229,13 +229,13 @@ func (w *Watcher) start(ctx context.Context) error {
 			expirationTimerInterval = maxInitialDelay
 		}
 
-		// reset the mandatory report flag.
-		requiresReportToExtendTTL = false
-
 		// If the keys were reported, reset the expiration timer.
-		if keysReported {
+		if keysReported || requiresReportToExtendTTL {
 			resetTimer(expirationTimer, expirationTimerInterval)
 		}
+
+		// reset the mandatory report flag.
+		requiresReportToExtendTTL = false
 
 		resetTimer(monitorTimer, monitorTimerInterval)
 
