@@ -74,11 +74,12 @@ func VerifyPeerCertificateIsSpecificProxy(peerID string) func(rawCerts [][]byte,
 	}
 }
 
-const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address when connecting to a Proxy which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
-
 // LogDuplicatePeer should be used to log a message if a proxy peering client
 // connects to a Proxy that did not have the expected host ID.
 func LogDuplicatePeer(ctx context.Context, log *slog.Logger, level slog.Level, args ...any) {
+	const duplicatePeerMsg = "" +
+		"Detected multiple Proxy Peers with the same public address when connecting to a Proxy which can lead to inconsistent state and problems establishing sessions. " +
+		"For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 	log.Log(ctx, level, duplicatePeerMsg, args...)
 }
 
