@@ -8,6 +8,7 @@ import (
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/accesslists"
 )
@@ -129,20 +130,31 @@ func (p *provisioner) validateListMembers(
 			"member_username", memberUserName,
 			"member_state_id", memberStateId)
 
-		extID, err := p.externalIDCache.GetExternalID(ctx, memberStateId)
-		if err != nil || extID == "" {
-			log.WarnContext(ctx, "un-provisioned user excluded from group")
-			continue
-		}
-
 		user, err := p.usersSvc.GetUser(ctx, memberUserName, false)
 		if err != nil {
-			if trace.IsNotFound(err) {
-				log.WarnContext(ctx, "non-existent user excluded from group")
+			// Check if the member is an AWS Identity Center user whose account does not exist in Teleport.
+			// Such members are labeled with OriginAWSIdentityCenter and ExternalIDLabel.
+			if trace.IsNotFound(err) && aclMember.Origin() == common.OriginAWSIdentityCenter {
+				extID, ok := aclMember.GetAllLabels()[ExternalIDLabel.String()]
+				if !ok {
+					log.WarnContext(ctx, "External ID not found for a user from AWS Identity Center. This is a bug.", "member_username", memberUserName)
+					continue
+				}
+				groupMembers = append(groupMembers, &scimsdk.GroupMember{
+					ExternalID: extID,
+					Type:       scimsdk.ResourceTypeUser,
+				})
 				continue
 			}
 			log.ErrorContext(ctx, "error loading user")
 			return nil, trace.Wrap(err)
+
+		}
+
+		extID, err := p.externalIDCache.GetExternalID(ctx, memberStateId)
+		if err != nil || extID == "" {
+			log.WarnContext(ctx, "user excluded from group", "member_state_id", memberStateId)
+			continue
 		}
 
 		// Assert that the user is not only a recorded member , but also

@@ -46,6 +46,8 @@ const (
 	member1           = "member1"
 	member2           = "member2"
 	member3           = "member3"
+	externalMember1   = "externalMember1"
+	externalMember2   = "membeexternalMember2r3"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.
@@ -3012,7 +3014,16 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 	return accessList
 }
 
-func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock) *accesslist.AccessListMember {
+type newMemberOption func(*accesslist.AccessListMember) *accesslist.AccessListMember
+
+func withOriginLabel(origin string) newMemberOption {
+	return func(am *accesslist.AccessListMember) *accesslist.AccessListMember {
+		am.SetOrigin(origin)
+		return am
+	}
+}
+
+func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock, opts ...newMemberOption) *accesslist.AccessListMember {
 	t.Helper()
 
 	member, err := accesslist.NewAccessListMember(
@@ -3030,6 +3041,10 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, member
 		},
 	)
 	require.NoError(t, err)
+
+	for _, opt := range opts {
+		member = opt(member)
+	}
 
 	return member
 }

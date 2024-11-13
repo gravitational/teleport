@@ -8,11 +8,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -264,22 +266,23 @@ func accountAndPermAssignments(
 func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*accesslist.AccessListMember, error) {
 	out := map[string]*accesslist.AccessListMember{}
 
-	groupMembersFromIC, err := listGroupMembersFromIC(ctx, s.icClient)
-	if err != nil {
-		return nil, trace.Wrap(err, "listing group members from identity center")
-	}
-
 	teleportUsers, err := listTeleportUsers(ctx, s.usersSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "listing teleport user to filter Access List members.")
 	}
 
+	groupMembersFromIC, err := listGroupMembersFromIC(ctx, s.icClient)
+	if err != nil {
+		return nil, trace.Wrap(err, "listing group members from identity center")
+	}
+
 	for _, gm := range groupMembersFromIC {
 		for _, m := range gm.Members {
-			if _, ok := teleportUsers[m]; !ok {
-				continue
+			isICOriginated := false
+			if _, ok := teleportUsers[m.UserName]; !ok {
+				isICOriginated = true
 			}
-			aclMember, err := newAccessListMember(gm.GroupID, m)
+			aclMember, err := newAccessListMember(gm.GroupID, m, isICOriginated)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -291,55 +294,69 @@ func (s *Service) accessListMembersFromIC(ctx context.Context) (map[string]*acce
 }
 
 // listGroupMembersFromIC returns Identity Center group members with their respective username.
-func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client) ([]groupMembersWithUsername, error) {
-	users, err := icClient.ListUsers(ctx)
+func listGroupMembersFromIC(ctx context.Context, icClient icsdk.Client) ([]groupMembersWithIDAndUserName, error) {
+	icUsers, err := icClient.ListUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	usersMap := icsdk.ToUserMap(users)
+	icUsersMap := icsdk.ToUserMap(icUsers)
 
 	groupWithMembers, err := icClient.ListGroupsWithMembers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]groupMembersWithUsername, 0, len(groupWithMembers))
+	out := make([]groupMembersWithIDAndUserName, 0, len(groupWithMembers))
 	for _, g := range groupWithMembers {
-		out = append(out, groupMembersWithUsername{
+		out = append(out, groupMembersWithIDAndUserName{
 			GroupID: g.ID,
-			Members: usernamesFromMemberID(g.Members, usersMap),
+			Members: memberWithIDAndUsername(g.Members, icUsersMap),
 		})
 	}
 
 	return out, nil
 }
 
-type groupMembersWithUsername struct {
+type groupMembersWithIDAndUserName struct {
 	GroupID string
-	Members []string
+	Members []member
 }
 
-func usernamesFromMemberID(membersID []*icsdk.GroupMember, usermap icsdk.UserMap) []string {
-	out := make([]string, 0, len(membersID))
-	for _, m := range membersID {
-		out = append(out, usermap[m.MemberID].UserName)
+type member struct {
+	ID       string
+	UserName string
+}
+
+func memberWithIDAndUsername(members []*icsdk.GroupMember, usermap icsdk.UserMap) []member {
+	out := make([]member, 0, len(members))
+	for _, m := range members {
+		out = append(out, member{
+			ID:       m.MemberID,
+			UserName: usermap[m.MemberID].UserName,
+		})
 	}
 	return out
 }
 
-func newAccessListMember(aclName, member string) (*accesslist.AccessListMember, error) {
+func newAccessListMember(aclName string, member member, isICOriginated bool) (*accesslist.AccessListMember, error) {
 	alm, err := accesslist.NewAccessListMember(
 		header.Metadata{
-			Name: member,
+			Name: member.UserName,
 		},
 		accesslist.AccessListMemberSpec{
-			AccessList: aclName,
-			Name:       member,
-			Joined:     time.Now().UTC(),
-			AddedBy:    teleport.UserSystem,
+			AccessList:     aclName,
+			Name:           member.UserName,
+			Joined:         time.Now().UTC(),
+			AddedBy:        teleport.UserSystem,
+			MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if isICOriginated {
+		alm.SetOrigin(common.OriginAWSIdentityCenter)
+		alm.Metadata.Labels[provisioning.ExternalIDLabel.String()] = member.ID
 	}
 
 	return alm, nil
@@ -405,7 +422,9 @@ func toAclOwner(in []string) []accesslist.Owner {
 	for _, n := range in {
 		if n != "" {
 			out = append(out, accesslist.Owner{
-				Name: n,
+				MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+				IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)],
+				Name:             n,
 			})
 		}
 

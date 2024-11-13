@@ -315,6 +315,12 @@ var groupMembers = []*GroupMember{
 	{
 		MemberID: "u1",
 	},
+	{
+		MemberID: "u2",
+	},
+	{
+		MemberID: "u3",
+	},
 }
 
 var users = []*User{

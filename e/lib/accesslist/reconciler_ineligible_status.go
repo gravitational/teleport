@@ -12,6 +12,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 )
 
 // IneligibleStatusReconcilerConfig is the configuration for the IneligibleStatusReconciler.
@@ -291,13 +292,19 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 				// they are always eligible
 				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
 			default:
-				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
-					userLookup: usersMap,
-					username:   member.Spec.Name,
-					expires:    member.Spec.Expires,
-					clock:      r.clock,
-					requires:   accessList.GetMembershipRequires(),
-				})
+				if _, ok := usersMap[member.Spec.Name]; ok {
+					ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
+						userLookup: usersMap,
+						username:   member.Spec.Name,
+						expires:    member.Spec.Expires,
+						clock:      r.clock,
+						requires:   accessList.GetMembershipRequires(),
+					})
+				} else if member.Origin() == common.OriginAWSIdentityCenter {
+					// Identity Center originated members who do not have an account in Teleport
+					// should always eligible.
+					ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
+				}
 			}
 
 			oldIneligibleStatus := member.Spec.IneligibleStatus

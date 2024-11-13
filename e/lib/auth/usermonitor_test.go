@@ -13,6 +13,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta"
@@ -475,6 +476,41 @@ func TestProcessEvent(t *testing.T) {
 			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
+		{
+			name: "access list membership changes with a member whose account does not exist in Teleport",
+			setup: func(t *testing.T, as *auth.Server) {
+				addRoles(t, as, "role2", "role3")
+				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, "non-existent-user")
+			},
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{
+						Resource: newAccessListMember(t, "access-list1", "non-existent-user"),
+						Type:     types.OpDelete,
+					}
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, `"non-existent-user" doesn't exist`)
+			},
+		},
+		{
+			name: "access list membership changes with a member whose account does not exist in Teleport but has OriginAWSIdentityCenter label",
+			setup: func(t *testing.T, as *auth.Server) {
+				addUser(t, as, userName, types.UserTypeSSO, "role1")
+				addRoles(t, as, "role2", "role3")
+				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, externalMemberWithOriginAWSIdentityCenter)
+			},
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{
+						Resource: newAccessListMember(t, "access-list2", externalMemberWithOriginAWSIdentityCenter),
+						Type:     types.OpDelete,
+					}
+				},
+			},
+			errAssert: require.NoError,
+		},
 	}
 
 	for _, test := range tests {
@@ -511,6 +547,9 @@ func TestProcessEvent(t *testing.T) {
 			test.errAssert(t, trace.NewAggregate(processErrs...))
 
 			if err != nil {
+				return
+			}
+			if test.expected == nil {
 				return
 			}
 
@@ -692,8 +731,14 @@ func newAccessListMember(t *testing.T, accessList, name string) *accesslist.Acce
 	)
 	require.NoError(t, err)
 
+	if name == externalMemberWithOriginAWSIdentityCenter {
+		member.SetOrigin(common.OriginAWSIdentityCenter)
+	}
+
 	return member
 }
+
+const externalMemberWithOriginAWSIdentityCenter = "external-user1"
 
 func addUserLoginState(t *testing.T, as *auth.Server, name string, originalRoles, roles []string, userType types.UserType) {
 	t.Helper()

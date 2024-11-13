@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -284,7 +285,12 @@ func (u *UserMonitor) processResource(ctx context.Context, resource types.Resour
 	case types.KindRole:
 		return trace.Wrap(u.processRoleChange(ctx, resource.GetName()))
 	case types.KindAccessListMember:
-		return trace.Wrap(u.rebuildAndProcessUser(ctx, resource.GetName()))
+		if err := u.rebuildAndProcessUser(ctx, resource.GetName()); err != nil {
+			if trace.IsNotFound(err) && isAWSIdentityCenterOriginated(resource.GetMetadata().Labels) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
 	case types.KindAccessList:
 		// Delete isn't needed because the individual removals of the access list members will be handled by the monitor
 		// individually.
@@ -408,7 +414,11 @@ func (u *UserMonitor) processAccessListChange(ctx context.Context, accessList *a
 
 		for _, member := range members {
 			if err := u.rebuildAndProcessUser(ctx, member.GetName()); err != nil {
-				return trace.Wrap(err)
+				if trace.IsNotFound(err) && isAWSIdentityCenterOriginated(member.GetMetadata().Labels) {
+					continue
+				} else {
+					return trace.Wrap(err)
+				}
 			}
 		}
 
@@ -515,6 +525,18 @@ func isLockSupported(target types.LockTarget) bool {
 		return true
 	case target.AccessRequest != "":
 		return true
+	}
+
+	return false
+}
+
+// isAWSIdentityCenterOriginated checks for label value containing OriginAWSIdentityCenter.
+func isAWSIdentityCenterOriginated(labels map[string]string) bool {
+	if labels == nil {
+		return false
+	}
+	if originLabelValue, ok := labels[types.OriginLabel]; ok {
+		return originLabelValue == common.OriginAWSIdentityCenter
 	}
 
 	return false

@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -241,7 +242,7 @@ func TestStartGroupsAndGroupMembersImport(t *testing.T) {
 			},
 		},
 		{
-			name: "identity center group members whose user account does not exist in Teleport, should be filtered",
+			name: "identity center group members whose user account does not exist in Teleport should still be added as Access List members",
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
 				Groups: []groupWithMemberAndAssigment{
@@ -257,7 +258,7 @@ func TestStartGroupsAndGroupMembersImport(t *testing.T) {
 				{
 					name:    "group2",
 					title:   "alist2",
-					members: []string{"user3", "user4"},
+					members: []string{"user3", "user4", "external1", "external2"},
 					roles:   []string{"admin-on-account1", "readonly-on-account2"},
 				},
 			},
@@ -270,7 +271,7 @@ func TestStartGroupsAndGroupMembersImport(t *testing.T) {
 					{
 						id:          "group2",
 						name:        "alist2",
-						members:     []string{"user3", "user4", "external1", "external2"},
+						members:     []string{"user3", "user4"},
 						assignments: []*icsdk.Assigment{{AccountID: "12345", PermissionSetARN: "arn:aws:sso:::permissionSet/NetworkAdmin"}},
 					},
 				},
@@ -338,6 +339,11 @@ func listMembers(t *testing.T, ctx context.Context, accesListName string, servic
 	}
 
 	for _, m := range members {
+		if m.GetName() == "external1" || m.GetName() == "external2" {
+			require.Equal(t, common.OriginAWSIdentityCenter, m.Origin())
+			require.Equal(t, m.GetAllLabels()[provisioning.ExternalIDLabel.String()], m.GetName())
+		}
+
 		out = append(out, m.GetName())
 	}
 

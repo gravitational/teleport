@@ -254,31 +254,38 @@ func (c *client) ListGroupMemberships(ctx context.Context, groupID string) ([]*G
 		return nil, trace.Wrap(err)
 	}
 
+	// 100 is max result size supported by AWS.
+	// https://docs.aws.amazon.com/singlesignon/latest/IdentityStoreAPIReference/API_ListGroupMemberships.html#API_ListGroupMemberships_RequestSyntax
+	maxResult := int32(100)
+
 	var nextToken *string
 	var out []*GroupMember
-	resp, err := c.identityStoreClient.ListGroupMemberships(ctx, &identitystore.ListGroupMembershipsInput{
-		IdentityStoreId: descResp.IdentityStoreId,
-		GroupId:         aws.String(groupID),
-		NextToken:       nextToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, v := range resp.GroupMemberships {
-		var memberID string
-		switch t := v.MemberId.(type) {
-		case *identitystoretypes.MemberIdMemberUserId:
-			memberID = t.Value
-		case *identitystoretypes.UnknownUnionMember:
-			// TODO: investigate why this happen.
-			continue
-		default:
-			return nil, trace.BadParameter("unexpected member ID type: %T", t)
-		}
-		out = append(out, &GroupMember{
-			MemberID: memberID,
+	for {
+		resp, err := c.identityStoreClient.ListGroupMemberships(ctx, &identitystore.ListGroupMembershipsInput{
+			IdentityStoreId: descResp.IdentityStoreId,
+			GroupId:         aws.String(groupID),
+			NextToken:       nextToken,
+			MaxResults:      &maxResult,
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, v := range resp.GroupMemberships {
+			var memberID string
+			switch t := v.MemberId.(type) {
+			case *identitystoretypes.MemberIdMemberUserId:
+				memberID = t.Value
+			case *identitystoretypes.UnknownUnionMember:
+				// TODO: investigate why this happen.
+				continue
+			default:
+				return nil, trace.BadParameter("unexpected member ID type: %T", t)
+			}
+			out = append(out, &GroupMember{
+				MemberID: memberID,
+			})
+		}
 
 		nextToken = resp.NextToken
 		if nextToken == nil {

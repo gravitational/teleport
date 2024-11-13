@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 )
 
 func TestNewIneligibleStatusReconciler(t *testing.T) {
@@ -23,10 +24,12 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	a1m3 := newAccessListMember(t, a1.GetName(), member3, accesslist.MembershipKindUser, c.clock)
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock)
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, accesslist.MembershipKindUser, c.clock)
-	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock)
+	// origin label OriginAWSIdentityCenter for member with existing account should not bypass checkUserIsStillEligible.
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter))
+	externalMemberWithIdentityCenterOrigin := newAccessListMember(t, a3.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter))
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2})
+		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2, externalMemberWithIdentityCenterOrigin})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
@@ -35,6 +38,24 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 			assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 		}
 	}, 5*time.Second, 100*time.Millisecond)
+
+	// Update the access list member with non-existent account and without identity center origin label.
+	externalMemberWithoutOrigin := newAccessListMember(t, a3.GetName(), externalMember2, accesslist.MembershipKindUser, c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{}, []*accesslist.AccessListMember{externalMemberWithoutOrigin})
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		require.NoError(t, err)
+		for _, member := range members {
+			switch member.Spec.Name {
+			case externalMemberWithoutOrigin.GetName():
+				assert.Equal(t, "INELIGIBLE_STATUS_UNSPECIFIED", member.Spec.IneligibleStatus)
+			default:
+				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+			}
+		}
+	}, 5*time.Second, 100*time.Millisecond)
+	c.svc.accessLists.DeleteAccessListMember(c.userCtx, a3.GetName(), externalMemberWithoutOrigin.GetName())
 
 	// Update the access list member to be ineligible.
 	user, err := c.testEnv.identity.GetUser(c.userCtx, member1, false /* withSecrets */)
@@ -115,7 +136,12 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
 		for _, member := range members {
-			assert.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
+			switch member.Spec.Name {
+			case externalMemberWithIdentityCenterOrigin.GetName():
+				assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+			default:
+				assert.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
+			}
 		}
 	}, 5*time.Second, 100*time.Millisecond)
 }

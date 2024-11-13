@@ -12,6 +12,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/entitlements"
@@ -39,12 +40,14 @@ func TestUpstreamProvisioning(t *testing.T) {
 	t.Run("should provision access list to scim upstream", func(t *testing.T) {
 		pack.mustCreateAccessList(t, aclID, aclTitle)
 		pack.mustUpsertAccessListMember(t, aclID, aliceUser, accesslist.MembershipKindUser)
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 1)
+		pack.mustUpsertAccessListMemberWithoutTeleportAccount(t, aclID, "external-user")
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
 	})
 
-	t.Run("should de-provision scim group membership", func(t *testing.T) {
+	t.Run("should de-provision scim group membership for member deleted from access list", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteAccessListMember(ctx, aclID, aliceUser))
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 0)
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 1)
 	})
 
 	t.Run("should de-provision scim group", func(t *testing.T) {
@@ -322,7 +325,15 @@ func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) *acces
 	return acl
 }
 
-func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberName string, memberKind string) {
+func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberName, memberKind string) {
+	s.aclMember(t, accessList, memberName, memberKind, "" /* withOrigin */)
+}
+
+func (s *testPack) mustUpsertAccessListMemberWithoutTeleportAccount(t *testing.T, accessList, memberName string) {
+	s.aclMember(t, accessList, memberName, accesslist.MembershipKindUser, common.OriginAWSIdentityCenter)
+}
+
+func (s *testPack) aclMember(t *testing.T, accessList, memberName string, memberKind string, withOrigin string) {
 	aclMember := &accesslist.AccessListMember{
 		ResourceHeader: header.ResourceHeader{
 			Metadata: header.Metadata{Name: memberName},
@@ -334,6 +345,10 @@ func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberNa
 			AddedBy:        "ut-test",
 			MembershipKind: memberKind,
 		},
+	}
+	if withOrigin != "" {
+		aclMember.SetOrigin(withOrigin)
+		aclMember.Metadata.Labels[ExternalIDLabel.String()] = memberName
 	}
 	_, err := s.depsMock.UpsertAccessListMember(context.Background(), aclMember)
 	require.NoError(t, err)
