@@ -234,6 +234,33 @@ export interface PromptMFARequest {
      * @generated from protobuf field: string cluster_uri = 5;
      */
     clusterUri: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
+     */
+    sso?: SSOChallenge;
+}
+/**
+ * SSOChallenge contains SSO challenge details.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.SSOChallenge
+ */
+export interface SSOChallenge {
+    /**
+     * @generated from protobuf field: string connector_id = 1;
+     */
+    connectorId: string;
+    /**
+     * @generated from protobuf field: string connector_type = 2;
+     */
+    connectorType: string;
+    /**
+     * @generated from protobuf field: string display_name = 3;
+     */
+    displayName: string;
+    /**
+     * @generated from protobuf field: string redirect_url = 4;
+     */
+    redirectUrl: string;
 }
 /**
  * Response for PromptMFA.
@@ -921,7 +948,8 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -951,6 +979,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                 case /* string cluster_uri */ 5:
                     message.clusterUri = reader.string();
                     break;
+                case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
+                    message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -975,6 +1006,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* string cluster_uri = 5; */
         if (message.clusterUri !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.clusterUri);
+        /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
+        if (message.sso)
+            SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -985,6 +1019,77 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFARequest
  */
 export const PromptMFARequest = new PromptMFARequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SSOChallenge$Type extends MessageType<SSOChallenge> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.SSOChallenge", [
+            { no: 1, name: "connector_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "connector_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "redirect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SSOChallenge>): SSOChallenge {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.connectorId = "";
+        message.connectorType = "";
+        message.displayName = "";
+        message.redirectUrl = "";
+        if (value !== undefined)
+            reflectionMergePartial<SSOChallenge>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SSOChallenge): SSOChallenge {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string connector_id */ 1:
+                    message.connectorId = reader.string();
+                    break;
+                case /* string connector_type */ 2:
+                    message.connectorType = reader.string();
+                    break;
+                case /* string display_name */ 3:
+                    message.displayName = reader.string();
+                    break;
+                case /* string redirect_url */ 4:
+                    message.redirectUrl = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SSOChallenge, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string connector_id = 1; */
+        if (message.connectorId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.connectorId);
+        /* string connector_type = 2; */
+        if (message.connectorType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.connectorType);
+        /* string display_name = 3; */
+        if (message.displayName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.displayName);
+        /* string redirect_url = 4; */
+        if (message.redirectUrl !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.redirectUrl);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SSOChallenge
+ */
+export const SSOChallenge = new SSOChallenge$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
     constructor() {

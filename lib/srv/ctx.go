@@ -862,7 +862,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.GetServerMetadata(),
+		ServerMetadata:  c.srv.TargetMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -1245,15 +1245,6 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 		return nil, trace.NotFound("execRequest has not been set")
 	}
 	return c.execRequest, nil
-}
-
-func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{
-		ServerVersion:   teleport.Version,
-		ServerID:        c.srv.HostUUID(),
-		ServerHostname:  c.srv.GetInfo().GetHostname(),
-		ServerNamespace: c.srv.GetNamespace(),
-	}
 }
 
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {

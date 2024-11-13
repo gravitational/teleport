@@ -22,7 +22,7 @@ export type TrustedDevice = {
   id: string;
   assetTag: string;
   osType: TrustedDeviceOSType;
-  enrollStatus: 'Enrolled' | 'Not Enrolled';
+  enrollStatus: 'enrolled' | 'not enrolled';
   owner?: string;
 };
 
