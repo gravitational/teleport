@@ -205,6 +205,12 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    // Access Graph is part of enterprise, but we need to generate links in the audit log,
+    // which is in OSS.
+    accessGraph: {
+      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+    },
   },
 
   api: {
@@ -1178,6 +1184,10 @@ const cfg = {
 
   getNotificationStateUrl(clusterId: string) {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
+  },
+
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
   },
 
   init(backendConfig = {}) {
