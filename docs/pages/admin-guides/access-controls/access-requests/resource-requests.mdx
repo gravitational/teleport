@@ -408,6 +408,11 @@ in the cluster.
 
 ##### Restrict Access Requests to specific Kubernetes resource kinds
 
+<Admonition type="note">
+The `request.kubernetes_resources` field was released in Teleport 16.4.7.
+All Auth Services must be on version 16.4.7+ before the Kubernetes resource restrictions will be enforced.
+</Admonition>
+
 The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
 resources a user can request access to. Configuring this field to any value will disallow
 requesting access to the entire Kubernetes cluster.
