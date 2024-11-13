@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const serverInfoBatchSize = 100
@@ -58,10 +57,10 @@ type ServerInfoAccessPoint interface {
 // resources with their corresponding Teleport SSH servers.
 func ReconcileServerInfos(ctx context.Context, ap ServerInfoAccessPoint) error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
+		First:  retryutils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  ap.GetClock(),
 	})
 	if err != nil {

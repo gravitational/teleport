@@ -44,6 +44,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -94,11 +95,11 @@ type ClientConfig struct {
 }
 
 // connShuffler shuffles the order of client connections.
-type connShuffler func([]clientConn)
+type connShuffler func([]internal.ClientConn)
 
 // randomConnShuffler returns a conn shuffler that randomizes the order of connections.
 func randomConnShuffler() connShuffler {
-	return func(conns []clientConn) {
+	return func(conns []internal.ClientConn) {
 		rand.Shuffle(len(conns), func(i, j int) {
 			conns[i], conns[j] = conns[j], conns[i]
 		})
@@ -107,7 +108,7 @@ func randomConnShuffler() connShuffler {
 
 // noopConnShutffler returns a conn shuffler that keeps the original connection ordering.
 func noopConnShuffler() connShuffler {
-	return func([]clientConn) {}
+	return func([]internal.ClientConn) {}
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -163,32 +164,6 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// clientConn manages client connections to a specific peer proxy (with a fixed
-// host ID and address).
-type clientConn interface {
-	// peerID returns the host ID of the peer proxy.
-	peerID() string
-	// peerAddr returns the address of the peer proxy.
-	peerAddr() string
-
-	// dial opens a connection of a given tunnel type to a node with the given
-	// ID through the peer proxy managed by the clientConn.
-	dial(
-		nodeID string,
-		src net.Addr,
-		dst net.Addr,
-		tunnelType types.TunnelType,
-	) (net.Conn, error)
-
-	// close closes all connections and releases any background resources
-	// immediately.
-	close() error
-
-	// shutdown waits until all connections are closed or the context is done,
-	// then acts like close.
-	shutdown(context.Context)
-}
-
 // grpcClientConn manages client connections to a specific peer proxy over gRPC.
 type grpcClientConn struct {
 	cc      *grpc.ClientConn
@@ -205,13 +180,13 @@ type grpcClientConn struct {
 	count   int
 }
 
-var _ clientConn = (*grpcClientConn)(nil)
+var _ internal.ClientConn = (*grpcClientConn)(nil)
 
-// peerID implements [clientConn].
-func (c *grpcClientConn) peerID() string { return c.id }
+// PeerID implements [internal.ClientConn].
+func (c *grpcClientConn) PeerID() string { return c.id }
 
-// peerAddr implements [clientConn].
-func (c *grpcClientConn) peerAddr() string { return c.addr }
+// PeerAddr implements [internal.ClientConn].
+func (c *grpcClientConn) PeerAddr() string { return c.addr }
 
 // maybeAcquire returns a non-nil release func if the grpcClientConn is
 // currently allowed to open connections; i.e., if it hasn't fully shut down.
@@ -234,8 +209,8 @@ func (c *grpcClientConn) maybeAcquire() (release func()) {
 	})
 }
 
-// shutdown implements [clientConn].
-func (c *grpcClientConn) shutdown(ctx context.Context) {
+// Shutdown implements [internal.ClientConn].
+func (c *grpcClientConn) Shutdown(ctx context.Context) {
 	defer c.cc.Close()
 
 	c.mu.Lock()
@@ -255,13 +230,13 @@ func (c *grpcClientConn) shutdown(ctx context.Context) {
 	}
 }
 
-// close implements [clientConn].
-func (c *grpcClientConn) close() error {
+// Close implements [internal.ClientConn].
+func (c *grpcClientConn) Close() error {
 	return c.cc.Close()
 }
 
-// dial implements [clientConn].
-func (c *grpcClientConn) dial(
+// Dial implements [internal.ClientConn].
+func (c *grpcClientConn) Dial(
 	nodeID string,
 	src net.Addr,
 	dst net.Addr,
@@ -335,7 +310,7 @@ type Client struct {
 	cancel context.CancelFunc
 
 	config   ClientConfig
-	conns    map[string]clientConn
+	conns    map[string]internal.ClientConn
 	metrics  *clientMetrics
 	reporter *reporter
 }
@@ -360,7 +335,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 		config:   config,
 		ctx:      closeContext,
 		cancel:   cancel,
-		conns:    make(map[string]clientConn),
+		conns:    make(map[string]internal.ClientConn),
 		metrics:  metrics,
 		reporter: reporter,
 	}
@@ -453,7 +428,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 	}
 
 	var toDelete []string
-	toKeep := make(map[string]clientConn)
+	toKeep := make(map[string]internal.ClientConn)
 	for id, conn := range c.conns {
 		proxy, ok := toDial[id]
 
@@ -464,7 +439,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// peer address changed
-		if conn.peerAddr() != proxy.GetPeerAddr() {
+		if conn.PeerAddr() != proxy.GetPeerAddr() {
 			toDelete = append(toDelete, id)
 			continue
 		}
@@ -485,8 +460,8 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -503,7 +478,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 	for _, id := range toDelete {
 		if conn, ok := c.conns[id]; ok {
-			go conn.shutdown(c.ctx)
+			go conn.Shutdown(c.ctx)
 		}
 	}
 	c.conns = toKeep
@@ -556,9 +531,9 @@ func (c *Client) Shutdown(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, conn := range c.conns {
 		wg.Add(1)
-		go func(conn clientConn) {
+		go func(conn internal.ClientConn) {
 			defer wg.Done()
-			conn.shutdown(ctx)
+			conn.Shutdown(ctx)
 		}(conn)
 	}
 	wg.Wait()
@@ -572,7 +547,7 @@ func (c *Client) Stop() error {
 
 	var errs []error
 	for _, conn := range c.conns {
-		if err := conn.close(); err != nil {
+		if err := conn.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -627,7 +602,7 @@ func (c *Client) dial(
 
 	var errs []error
 	for _, clientConn := range conns {
-		conn, err := clientConn.dial(nodeID, src, dst, tunnelType)
+		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -643,13 +618,13 @@ func (c *Client) dial(
 // otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
+func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool, error) {
 	if len(proxyIDs) == 0 {
 		return nil, false, trace.BadParameter("failed to dial: no proxy ids given")
 	}
 
 	ids := make(map[string]struct{})
-	var conns []clientConn
+	var conns []internal.ClientConn
 
 	// look for existing matching connections.
 	c.RLock()
@@ -686,8 +661,8 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 			continue
 		}
 
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -707,7 +682,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 	defer c.Unlock()
 
 	for _, conn := range conns {
-		c.conns[conn.peerID()] = conn
+		c.conns[conn.PeerID()] = conn
 	}
 
 	c.config.connShuffler(conns)
@@ -715,7 +690,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 }
 
 // connect dials a new connection to proxyAddr.
-func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (clientConn, error) {
+func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (internal.ClientConn, error) {
 	if supportsQUIC && c.config.QUICTransport != nil {
 		panic("QUIC proxy peering is not implemented")
 	}

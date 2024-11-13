@@ -173,7 +173,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		First:  firstPeriod,
 		Step:   backoffRefreshStep,
 		Max:    defaultRefreshPeriod,
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 		Clock:  cfg.clock,
 	})
 	if err != nil {

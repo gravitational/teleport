@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 func init() {
@@ -270,7 +271,18 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoResolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(dynamoResolver)}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
@@ -283,18 +295,37 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
+	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
+
+	streamsResolver, err := endpoint.NewLoggingResolver(
+		dynamodbstreams.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodbstreams.ServiceID,
+			"api_version", dynamodbstreams.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, dynamodbstreams.WithEndpointResolverV2(streamsResolver))
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
 		clock:   clockwork.NewRealClock(),
 		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
-		svc:     dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
-		streams: dynamodbstreams.NewFromConfig(awsConfig),
+		svc:     dynamoClient,
+		streams: streamsClient,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.InfoContext(ctx, "Connection established to DynamoDB state database",
+		"table", cfg.TableName,
+		"region", cfg.Region,
+	)
 
 	go func() {
 		if err := b.asyncPollStreams(ctx); err != nil {
