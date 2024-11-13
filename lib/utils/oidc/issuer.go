@@ -28,7 +28,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// ProxyGetter is a service that gets proxies.
+// ErrProxyPublicAddressNotFound is returned when the proxy public address is not found.
+// during IssuerForCluster call.
+var ErrProxyPublicAddressNotFound = trace.BadParameter("failed to get Proxy Public Address")
+
+// ProxiesGetter is a service that gets proxies.
 type ProxiesGetter interface {
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
@@ -50,7 +54,7 @@ func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (stri
 		}
 	}
 
-	return "", trace.BadParameter("failed to get Proxy Public Address")
+	return "", ErrProxyPublicAddressNotFound
 }
 
 // IssuerFromPublicAddress is the address for an OIDC Provider.
