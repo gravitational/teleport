@@ -1192,8 +1192,14 @@ type Service struct {
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
 	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
-	// However, we should use this feature only when necessary (for example, for hardware key prompts
-	// while relogin is in progress). In any other case, we should open one modal at a time.
+	// However, we should use this feature only when necessary (as of now, we use it to show hardware key prompts
+	// when relogin is in progress). In any other case, we should open one modal at a time.
+	// The special thing about hardware key prompts is that it's the only case where we need to complete
+	// an action started in one modal in another modal.
+	//
+	// This semaphore also prevents concurrent MFA prompts when using VNet with per-session MFA.
+	// Issuing an MFA prompt starts the Webauthn goroutine which prompts for key touch on hardware level.
+	// Webauthn does not support concurrent prompts, so without this semaphore, one of the prompts would fail immediately.
 	//
 	// We use a semaphore instead of a mutex in order to cancel important modals that
 	// are no longer relevant before acquisition.
