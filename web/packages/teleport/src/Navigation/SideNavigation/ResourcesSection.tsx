@@ -35,18 +35,19 @@ import { useUser } from 'teleport/User/UserContext';
 
 import { NavigationSubsection, NavigationSection } from './Navigation';
 import {
-  Section,
+  CustomChildrenSection,
   RightPanel,
   verticalPadding,
   SubsectionItem,
+  RightPanelHeader,
 } from './Section';
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
 
 /**
- * getResourcesSectionForSearch returns a NavigationSection for resources,
- * this is only used for the sake of indexing these subsections in the sidenav search.
+ * getResourcesSection returns a NavigationSection for resources,
+ * this is used for the sake of indexing these subsections in the sidenav search.
  */
-export function getResourcesSectionForSearch(
+export function getResourcesSection(
   subsectionProps: GetSubsectionProps
 ): NavigationSection {
   return {
@@ -174,7 +175,13 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'resources', 'pinned resources'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isPinnedOnly && currentKinds.length !== 1,
+      customRouteMatchFn: currentViewRoute =>
+        !!matchPath(currentViewRoute, {
+          path: cfg.routes.unifiedResources,
+          exact: false,
+        }) &&
+        isPinnedOnly &&
+        currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),
     },
     {
@@ -240,11 +247,17 @@ export function ResourcesSection({
   previousExpandedSection,
   handleSetExpandedSection,
   currentView,
+  stickyMode,
+  toggleStickyMode,
+  canToggleStickyMode,
 }: {
   expandedSection: NavigationSection;
   previousExpandedSection: NavigationSection;
   currentView: NavigationSubsection;
   handleSetExpandedSection: (section: NavigationSection) => void;
+  stickyMode: boolean;
+  toggleStickyMode: () => void;
+  canToggleStickyMode: boolean;
 }) {
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
@@ -268,12 +281,11 @@ export function ResourcesSection({
   const currentViewRoute = currentView?.route;
 
   return (
-    <Section
+    <CustomChildrenSection
       key="resources"
       section={section}
       $active={currentView?.route === baseRoute}
-      onClick={() => null}
-      setExpandedSection={() => handleSetExpandedSection(section)}
+      onExpandSection={() => handleSetExpandedSection(section)}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
     >
@@ -285,15 +297,16 @@ export function ResourcesSection({
       >
         <Box
           css={`
-            overflow-y: scroll;
+            overflow-y: auto;
             padding: 3px;
           `}
         >
-          <Flex py={verticalPadding} px={3}>
-            <Text typography="h2" color="text.slightlyMuted">
-              Resources
-            </Text>
-          </Flex>
+          <RightPanelHeader
+            title={section.category}
+            stickyMode={stickyMode}
+            toggleStickyMode={toggleStickyMode}
+            canToggleStickyMode={canToggleStickyMode}
+          />
           {subsections
             .filter(section => !section.subCategory)
             .map(section => (
@@ -336,7 +349,7 @@ export function ResourcesSection({
             ))}
         </Box>
       </RightPanel>
-    </Section>
+    </CustomChildrenSection>
   );
 }
 

@@ -1125,7 +1125,7 @@ func TestValidateRole(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 
 			if len(tc.expectWarnings) == 0 {
-				require.Empty(t, warning)
+				require.NoError(t, warning)
 			}
 			for _, msg := range tc.expectWarnings {
 				require.ErrorContains(t, warning, msg)
@@ -2505,25 +2505,25 @@ func TestDefaultImplicitRules(t *testing.T) {
 		checks []check
 	}{
 		{
-			name: "KindIdentityCenterAccount with NewPresetAccessRole",
+			name: "KindIdentityCenter with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
-			name: "KindIdentityCenterAccount with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
+			name: "KindIdentityCenter with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{

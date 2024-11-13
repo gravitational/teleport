@@ -19,13 +19,12 @@ package configure
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/coreos/go-oidc/oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -289,8 +288,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	}
 
 	// verify .well-known/openid-configuration is reachable
-	err = checkOpenidConfiguration(spec.IssuerURL)
-	if err != nil {
+	if _, err := oidc.NewProvider(ctx, spec.IssuerURL); err != nil {
 		if cmd.Config.Debug {
 			cmd.Logger.WithError(err).Warnf("Failed to load .well-known/openid-configuration for issuer URL %q", spec.IssuerURL)
 		}
@@ -345,10 +343,4 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	}
 
 	return trace.Wrap(utils.WriteYAML(os.Stdout, connector))
-}
-
-func checkOpenidConfiguration(issuerURL string) error {
-	r := oidc.NewHTTPProviderConfigGetter(http.DefaultClient, issuerURL)
-	_, err := r.Get()
-	return trace.Wrap(err)
 }
