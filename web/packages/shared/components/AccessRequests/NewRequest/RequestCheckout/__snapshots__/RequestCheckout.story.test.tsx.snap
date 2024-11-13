@@ -31,13 +31,13 @@ exports[`failed state 1`] = `
   margin-bottom: 16px;
 }
 
-.c13 {
+.c23 {
   box-sizing: border-box;
   margin-bottom: 4px;
   margin-top: 40px;
 }
 
-.c16 {
+.c26 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-bottom: 8px;
@@ -45,28 +45,28 @@ exports[`failed state 1`] = `
   border-bottom: 1px solid;
 }
 
-.c22 {
+.c32 {
   box-sizing: border-box;
   margin-top: 40px;
 }
 
-.c24 {
+.c34 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c25 {
+.c35 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c29 {
+.c38 {
   box-sizing: border-box;
   max-width: 270px;
   min-width: 200px;
 }
 
-.c38 {
+.c45 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -77,7 +77,7 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c40 {
+.c47 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 4px;
@@ -85,13 +85,30 @@ exports[`failed state 1`] = `
   height: 34px;
 }
 
-.c44 {
+.c51 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
 }
 
-.c21 {
+.c15 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-bottom: -16px;
+  width: 100%;
+}
+
+.c19 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c31 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -119,22 +136,22 @@ exports[`failed state 1`] = `
   width: 50px;
 }
 
-.c21:hover,
-.c21:focus {
+.c31:hover,
+.c31:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c21:active {
+.c31:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c21:disabled {
+.c31:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c47 {
+.c54 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -162,22 +179,22 @@ exports[`failed state 1`] = `
   text-transform: none;
 }
 
-.c47:hover,
-.c47:focus {
+.c54:hover,
+.c54:focus {
   background: #B29DFF;
 }
 
-.c47:active {
+.c54:active {
   background: #C5B6FF;
 }
 
-.c47:disabled {
+.c54:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c48 {
+.c55 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -205,22 +222,22 @@ exports[`failed state 1`] = `
   text-transform: none;
 }
 
-.c48:hover,
-.c48:focus {
+.c55:hover,
+.c55:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c48:active {
+.c55:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c48:disabled {
+.c55:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c43 {
+.c50 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -240,17 +257,17 @@ exports[`failed state 1`] = `
   width: 32px;
 }
 
-.c43:disabled {
+.c50:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c43:not(:disabled):hover,
-.c43:not(:disabled):focus {
+.c50:not(:disabled):hover,
+.c50:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c43:not(:disabled):active {
+.c50:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -261,14 +278,14 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c32 {
+.c40 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-left: 16px;
 }
 
-.c35 {
+.c43 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -291,21 +308,21 @@ exports[`failed state 1`] = `
   margin: 0px;
 }
 
-.c20 {
+.c30 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
 }
 
-.c33 {
+.c41 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
 }
 
-.c42 {
+.c49 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
@@ -313,7 +330,7 @@ exports[`failed state 1`] = `
   margin-right: 8px;
 }
 
-.c28 {
+.c21 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -326,37 +343,54 @@ exports[`failed state 1`] = `
   align-items: center;
 }
 
-.c17 {
+.c27 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c19 {
+.c29 {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.c23 {
+.c33 {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.c26 {
+.c36 {
   display: flex;
   align-items: end;
   gap: 8px;
 }
 
-.c30 {
+.c13 {
   display: flex;
 }
 
-.c45 {
+.c52 {
   display: flex;
   gap: 8px;
+}
+
+.c14 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c16 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.c17 {
+  display: flex;
+  gap: 32px;
 }
 
 .c9 {
@@ -449,7 +483,23 @@ exports[`failed state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c37 .react-select-container {
+.c44 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c42 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c42:hover {
+  cursor: pointer;
+}
+
+.c22 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -461,7 +511,7 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c37 .react-select__control {
+.c22 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -471,161 +521,146 @@ exports[`failed state 1`] = `
   box-shadow: none;
 }
 
-.c37 .react-select__control .react-select__dropdown-indicator {
+.c22 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c37 .react-select__control:hover,
-.c37 .react-select__control:focus,
-.c37 .react-select__control:active {
+.c22 .react-select__control:hover,
+.c22 .react-select__control:focus,
+.c22 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c37 .react-select__control:hover .react-select__dropdown-indicator,
-.c37 .react-select__control:focus .react-select__dropdown-indicator,
-.c37 .react-select__control:active .react-select__dropdown-indicator {
+.c22 .react-select__control:hover .react-select__dropdown-indicator,
+.c22 .react-select__control:focus .react-select__dropdown-indicator,
+.c22 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c37 .react-select__control .react-select__indicator:hover,
-.c37 .react-select__control .react-select__dropdown-indicator:hover,
-.c37 .react-select__control .react-select__indicator:focus,
-.c37 .react-select__control .react-select__dropdown-indicator:focus,
-.c37 .react-select__control .react-select__indicator:active,
-.c37 .react-select__control .react-select__dropdown-indicator:active {
+.c22 .react-select__control .react-select__indicator:hover,
+.c22 .react-select__control .react-select__dropdown-indicator:hover,
+.c22 .react-select__control .react-select__indicator:focus,
+.c22 .react-select__control .react-select__dropdown-indicator:focus,
+.c22 .react-select__control .react-select__indicator:active,
+.c22 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c37 .react-select__control--is-focused {
+.c22 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c37 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c22 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c37 .react-select__single-value {
+.c22 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c37 .react-select__placeholder {
+.c22 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c37 .react-select__multi-value {
+.c22 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__label {
+.c22 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__remove {
+.c22 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c37 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c22 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c37 .react-select__option:hover {
+.c22 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-focused {
+.c22 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-focused:hover {
+.c22 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__option--is-selected {
+.c22 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c37 .react-select__option--is-selected:hover {
+.c22 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 .react-select__clear-indicator {
+.c22 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c37 .react-select__clear-indicator:hover,
-.c37 .react-select__clear-indicator:focus {
+.c22 .react-select__clear-indicator:hover,
+.c22 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c37 .react-select__clear-indicator:hover svg,
-.c37 .react-select__clear-indicator:focus svg {
+.c22 .react-select__clear-indicator:hover svg,
+.c22 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c37 .react-select__menu {
+.c22 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c37 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c22 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c37 .react-select__indicator-separator {
+.c22 .react-select__indicator-separator {
   display: none;
 }
 
-.c37 .react-select__loading-indicator {
+.c22 .react-select__loading-indicator {
   display: none;
 }
 
-.c37 .react-select__control--is-disabled {
+.c22 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c37 .react-select__control--is-disabled .react-select__single-value,
-.c37 .react-select__control--is-disabled .react-select__placeholder {
+.c22 .react-select__control--is-disabled .react-select__single-value,
+.c22 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c37 .react-select__control--is-disabled .react-select__indicator {
+.c22 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c37 .react-select__input {
+.c22 .react-select__input {
   color: #FFFFFF;
 }
 
-.c36 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c34 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c34:hover {
-  cursor: pointer;
-}
-
-.c31 {
+.c39 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -635,16 +670,16 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c31:hover {
+.c39:hover {
   background-color: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c27 {
+.c37 {
   position: relative;
 }
 
-.c14 {
+.c24 {
   width: 260px;
   height: 150px;
   background-color: #ffffff;
@@ -655,26 +690,26 @@ exports[`failed state 1`] = `
   top: 40px;
 }
 
-.c14 .react-select__group,
-.c14 .react-select__group-heading,
-.c14 .react-select__menu-list {
+.c24 .react-select__group,
+.c24 .react-select__group-heading,
+.c24 .react-select__menu-list {
   padding: 0;
   margin: 0;
 }
 
-.c14 .react-select__menu-list {
+.c24 .react-select__menu-list {
   margin-top: 10px;
 }
 
-.c14 .react-select__option--is-focused {
+.c24 .react-select__option--is-focused {
   background-color: inherit;
 }
 
-.c14 .react-select__option--is-focused:hover {
+.c24 .react-select__option--is-focused:hover {
   background-color: #deebff;
 }
 
-.c14 .react-select-container {
+.c24 .react-select-container {
   width: 300px;
   box-sizing: border-box;
   border: none;
@@ -687,30 +722,30 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c14 .react-select__menu {
+.c24 .react-select__menu {
   box-shadow: none;
 }
 
-.c14 .react-select__control {
+.c24 .react-select__control {
   border-radius: 30px;
   background-color: #f0f2f4;
   margin: 0px 16px 10px 16px;
 }
 
-.c14 .react-select__control:hover {
+.c24 .react-select__control:hover {
   cursor: pointer;
 }
 
-.c14 .react-select__control--is-focused {
+.c24 .react-select__control--is-focused {
   border-color: transparent;
   box-shadow: none;
 }
 
-.c14 .react-select__placeholder {
+.c24 .react-select__placeholder {
   font-size: 14px;
 }
 
-.c14 .react-select__option {
+.c24 .react-select__option {
   white-space: nowrap;
   padding: 9px 16px;
   border-top: 1px solid #eaeaea;
@@ -718,43 +753,43 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c14 .react-select__option:hover {
+.c24 .react-select__option:hover {
   cursor: pointer;
 }
 
-.c14 .react-select__option:hover:last-child {
+.c24 .react-select__option:hover:last-child {
   border-bottom-right-radius: 3px;
   border-bottom-left-radius: 3px;
 }
 
-.c14 .react-select__option .icon-circlecheck {
+.c24 .react-select__option .icon-circlecheck {
   color: transparent;
   margin-right: 10px;
 }
 
-.c14 .react-select__option--is-selected {
+.c24 .react-select__option--is-selected {
   background-color: inherit;
   color: inherit;
 }
 
-.c14 .react-select__indicators {
+.c24 .react-select__indicators {
   display: none;
 }
 
-.c14 .react-select__selected .icon-circlecheck {
+.c24 .react-select__selected .icon-circlecheck {
   color: #00BFA6;
 }
 
-.c14 .react-select__selected .icon-cross {
+.c24 .react-select__selected .icon-cross {
   color: #010B1C;
   display: none;
 }
 
-.c14 .react-select__selected:hover .icon-cross {
+.c24 .react-select__selected:hover .icon-cross {
   display: block;
 }
 
-.c15 {
+.c25 {
   width: 100%;
   background-color: #efefef;
   color: #324148;
@@ -762,12 +797,56 @@ exports[`failed state 1`] = `
   padding: 3px 15px;
 }
 
-.c18 {
+.c28 {
   border-color: rgba(255,255,255,0.13);
 }
 
-.c41 {
+.c48 {
   border-color: rgba(255,255,255,0.13);
+}
+
+.c20 input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.c20 .react-select__control {
+  font-size: 12px;
+  width: 350px;
+  background: #344179;
+}
+
+.c20 .react-select__control:hover {
+  background: #344179;
+}
+
+.c20 .react-select__menu {
+  font-size: 12px;
+  width: 350px;
+  right: 0;
+  margin-bottom: 0;
+}
+
+.c20 .react-select__option {
+  padding: 0;
+  font-size: 12px;
+}
+
+.c20 .react-select__value-container {
+  position: static;
+}
+
+.c20 .react-select__placeholder {
+  color: #FFFFFF;
+}
+
+.c12 {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 2px;
+}
+
+.c12:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 {
@@ -833,41 +912,32 @@ exports[`failed state 1`] = `
   overflow: hidden;
 }
 
-.c12 {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-  border-radius: 2px;
-}
-
-.c12:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c46 {
+.c53 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c39 {
+.c46 {
   outline: none;
   background: transparent;
 }
 
-.c39::placeholder {
+.c46::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c39:hover,
-.c39:focus,
-.c39:active {
+.c46:hover,
+.c46:focus,
+.c46:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -991,29 +1061,135 @@ exports[`failed state 1`] = `
               </td>
             </tr>
             <tr>
-              <td>
-                Kubernetes
-              </td>
-              <td>
-                kube-name
-              </td>
               <td
-                align="right"
+                colspan="3"
               >
-                <span
-                  class="c11 c12"
+                <div
+                  class="c1 c13"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
+                  <div
+                    class="c1 c14"
                   >
-                    <path
-                      d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
-                    />
-                  </svg>
-                </span>
+                    <div
+                      class="c15 c16"
+                      width="100%"
+                    >
+                      <div
+                        class="c1 c17"
+                      >
+                        <div
+                          class="c1"
+                        >
+                          Kubernetes
+                        </div>
+                        <div
+                          class="c1"
+                        >
+                          kube-name
+                        </div>
+                      </div>
+                      <span
+                        class="c11 c12"
+                      >
+                        <svg
+                          fill="currentColor"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          width="16"
+                        >
+                          <path
+                            d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                    <div
+                      class="c18"
+                      width="100%"
+                    >
+                      <div
+                        class="c19 c20"
+                        width="100%"
+                      >
+                        <label
+                          class="c21"
+                          for="app-name"
+                        >
+                          Namespaces
+                        </label>
+                        <div
+                          class="c22"
+                        >
+                          <div
+                            class="react-select-container css-2b097c-container"
+                          >
+                            <div
+                              class="react-select__control css-yk16xz-control"
+                            >
+                              <div
+                                class="react-select__value-container react-select__value-container--is-multi css-g1d714-ValueContainer"
+                              >
+                                <div
+                                  class="react-select__placeholder css-1wa3eu0-placeholder"
+                                >
+                                  Start typing a namespace and press enter
+                                </div>
+                                <div
+                                  class="css-b8ldur-Input"
+                                >
+                                  <div
+                                    class="react-select__input"
+                                    style="display: inline-block;"
+                                  >
+                                    <input
+                                      aria-autocomplete="list"
+                                      autocapitalize="none"
+                                      autocomplete="off"
+                                      autocorrect="off"
+                                      id="app-name"
+                                      spellcheck="false"
+                                      style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                                      tabindex="0"
+                                      type="text"
+                                      value=""
+                                    />
+                                    <div
+                                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div
+                                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                              >
+                                <span
+                                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                                />
+                                <div
+                                  aria-hidden="true"
+                                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    class="css-6q0nyr-Svg"
+                                    focusable="false"
+                                    height="20"
+                                    viewBox="0 0 20 20"
+                                    width="20"
+                                  >
+                                    <path
+                                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                                    />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </td>
             </tr>
             <tr>
@@ -1071,14 +1247,14 @@ exports[`failed state 1`] = `
           </tbody>
         </table>
         <div
-          class="c13"
+          class="c23"
         >
           <div
             class="c1"
             style="position: relative;"
           >
             <div
-              class="c1 c14"
+              class="c1 c24"
               style="display: none;"
             >
               <div
@@ -1107,7 +1283,7 @@ exports[`failed state 1`] = `
                           autocapitalize="none"
                           autocomplete="off"
                           autocorrect="off"
-                          id="react-select-4-input"
+                          id="react-select-5-input"
                           spellcheck="false"
                           style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                           tabindex="0"
@@ -1157,10 +1333,10 @@ exports[`failed state 1`] = `
                       <div
                         class="react-select__group-heading css-18ng2q5-group"
                         data="[object Object]"
-                        id="react-select-4-group-1-heading"
+                        id="react-select-5-group-1-heading"
                       >
                         <div
-                          class="c1 c15"
+                          class="c1 c25"
                         >
                           Suggested Reviewers
                         </div>
@@ -1172,20 +1348,20 @@ exports[`failed state 1`] = `
               </div>
             </div>
             <div
-              class="c16 c17 c18"
+              class="c26 c27 c28"
               height="34px"
             >
               <div
-                class="c1 c19"
+                class="c1 c29"
               >
                 <div
-                  class="c20"
+                  class="c30"
                   font-size="1"
                 >
                   Reviewers (optional)
                 </div>
                 <button
-                  class="c21"
+                  class="c31"
                   kind="border"
                   width="50px"
                 >
@@ -1200,28 +1376,28 @@ exports[`failed state 1`] = `
           </div>
         </div>
         <div
-          class="c22 c23"
+          class="c32 c33"
         >
           <div
-            class="c24"
+            class="c34"
           >
             <div
-              class="c25 c26"
+              class="c35 c36"
             >
               <div
-                class="c1 c27"
+                class="c1 c37"
               >
                 <label
-                  class="c28"
+                  class="c21"
                 >
                   Start Date
                 </label>
                 <div
-                  class="c29 c30 c31"
+                  class="c38 c13 c39"
                 >
                   Immediately
                   <span
-                    class="c32 icon icon-calendar"
+                    class="c40 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -1246,23 +1422,23 @@ exports[`failed state 1`] = `
               </div>
             </div>
             <label
-              class="c28"
+              class="c21"
               color="text.slightlyMuted"
             >
               <div
                 class="c1 c5"
               >
                 <div
-                  class="c33"
+                  class="c41"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c34"
+                  class="c42"
                   role="icon"
                 >
                   <span
-                    class="c35 c36"
+                    class="c43 c44"
                   >
                     <svg
                       fill="currentColor"
@@ -1286,7 +1462,7 @@ exports[`failed state 1`] = `
                 </span>
               </div>
               <div
-                class="c37"
+                class="c22"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -1314,7 +1490,7 @@ exports[`failed state 1`] = `
                             autocapitalize="none"
                             autocomplete="off"
                             autocorrect="off"
-                            id="react-select-5-input"
+                            id="react-select-6-input"
                             spellcheck="false"
                             style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                             tabindex="0"
@@ -1357,11 +1533,11 @@ exports[`failed state 1`] = `
             </label>
           </div>
           <label
-            class="c28"
+            class="c21"
           >
             Request Reason
             <textarea
-              class="c38 c39"
+              class="c45 c46"
               color="text.main"
               height="80px"
               placeholder="Describe your request... (optional)"
@@ -1369,21 +1545,21 @@ exports[`failed state 1`] = `
             />
           </label>
           <div
-            class="c40 c17 c41"
+            class="c47 c27 c48"
             height="34px"
           >
             <div
-              class="c42"
+              class="c49"
               font-size="1"
             >
               Additional Options
             </div>
             <button
-              class="c43"
+              class="c50"
               data-testid="additional-info-btn"
             >
               <span
-                class="c35 icon icon-chevronright"
+                class="c43 icon icon-chevronright"
               >
                 <svg
                   fill="currentColor"
@@ -1401,17 +1577,17 @@ exports[`failed state 1`] = `
             </button>
           </div>
           <div
-            class="c44 c45 c46"
+            class="c51 c52 c53"
           >
             <button
-              class="c47"
+              class="c54"
               kind="primary"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c48"
+              class="c55"
               kind="secondary"
               width="100%"
             >
@@ -1435,18 +1611,18 @@ exports[`loaded state 1`] = `
   margin-bottom: 16px;
 }
 
-.c12 {
+.c22 {
   box-sizing: border-box;
   margin-bottom: 4px;
   margin-top: 40px;
 }
 
-.c15 {
+.c25 {
   box-sizing: border-box;
   width: 210px;
 }
 
-.c20 {
+.c30 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding-bottom: 8px;
@@ -1454,7 +1630,7 @@ exports[`loaded state 1`] = `
   border-bottom: 1px solid;
 }
 
-.c26 {
+.c36 {
   box-sizing: border-box;
   padding-left: 16px;
   padding-right: 16px;
@@ -1465,28 +1641,28 @@ exports[`loaded state 1`] = `
   border-color: #222C59;
 }
 
-.c30 {
+.c40 {
   box-sizing: border-box;
   margin-top: 40px;
 }
 
-.c32 {
+.c42 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c33 {
+.c43 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
 
-.c37 {
+.c46 {
   box-sizing: border-box;
   max-width: 270px;
   min-width: 200px;
 }
 
-.c45 {
+.c52 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -1497,7 +1673,7 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c47 {
+.c54 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 4px;
@@ -1505,13 +1681,30 @@ exports[`loaded state 1`] = `
   height: 34px;
 }
 
-.c50 {
+.c57 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
 }
 
-.c24 {
+.c14 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-bottom: -16px;
+  width: 100%;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.c34 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1539,22 +1732,22 @@ exports[`loaded state 1`] = `
   width: 50px;
 }
 
-.c24:hover,
-.c24:focus {
+.c34:hover,
+.c34:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c24:active {
+.c34:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c24:disabled {
+.c34:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c53 {
+.c60 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1582,22 +1775,22 @@ exports[`loaded state 1`] = `
   text-transform: none;
 }
 
-.c53:hover,
-.c53:focus {
+.c60:hover,
+.c60:focus {
   background: #B29DFF;
 }
 
-.c53:active {
+.c60:active {
   background: #C5B6FF;
 }
 
-.c53:disabled {
+.c60:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c54 {
+.c61 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1625,22 +1818,22 @@ exports[`loaded state 1`] = `
   text-transform: none;
 }
 
-.c54:hover,
-.c54:focus {
+.c61:hover,
+.c61:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c54:active {
+.c61:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c54:disabled {
+.c61:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c25 {
+.c35 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1660,21 +1853,21 @@ exports[`loaded state 1`] = `
   width: 32px;
 }
 
-.c25:disabled {
+.c35:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c25:not(:disabled):hover,
-.c25:not(:disabled):focus {
+.c35:not(:disabled):hover,
+.c35:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c25:not(:disabled):active {
+.c35:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
-.c29 {
+.c39 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1694,17 +1887,17 @@ exports[`loaded state 1`] = `
   width: 24px;
 }
 
-.c29:disabled {
+.c39:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c29:not(:disabled):hover,
-.c29:not(:disabled):focus {
+.c39:not(:disabled):hover,
+.c39:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c29:not(:disabled):active {
+.c39:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -1715,7 +1908,7 @@ exports[`loaded state 1`] = `
   margin-right: 16px;
 }
 
-.c16 {
+.c26 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1723,13 +1916,13 @@ exports[`loaded state 1`] = `
   margin-right: 8px;
 }
 
-.c18 {
+.c28 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c40 {
+.c48 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1753,20 +1946,20 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c17 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c23 {
+.c33 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
 }
 
-.c28 {
+.c38 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1775,14 +1968,14 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c41 {
+.c49 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
 }
 
-.c49 {
+.c56 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
@@ -1790,7 +1983,7 @@ exports[`loaded state 1`] = `
   margin-right: 8px;
 }
 
-.c36 {
+.c20 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -1803,37 +1996,54 @@ exports[`loaded state 1`] = `
   align-items: center;
 }
 
-.c14 {
+.c24 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c22 {
+.c32 {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.c31 {
+.c41 {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.c34 {
+.c44 {
   display: flex;
   align-items: end;
   gap: 8px;
 }
 
-.c38 {
+.c12 {
   display: flex;
 }
 
-.c51 {
+.c58 {
   display: flex;
   gap: 8px;
+}
+
+.c13 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c15 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.c16 {
+  display: flex;
+  gap: 32px;
 }
 
 .c8 {
@@ -1926,7 +2136,23 @@ exports[`loaded state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c44 .react-select-container {
+.c51 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c50 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c50:hover {
+  cursor: pointer;
+}
+
+.c21 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1938,7 +2164,7 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c44 .react-select__control {
+.c21 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1948,161 +2174,146 @@ exports[`loaded state 1`] = `
   box-shadow: none;
 }
 
-.c44 .react-select__control .react-select__dropdown-indicator {
+.c21 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c44 .react-select__control:hover,
-.c44 .react-select__control:focus,
-.c44 .react-select__control:active {
+.c21 .react-select__control:hover,
+.c21 .react-select__control:focus,
+.c21 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c44 .react-select__control:hover .react-select__dropdown-indicator,
-.c44 .react-select__control:focus .react-select__dropdown-indicator,
-.c44 .react-select__control:active .react-select__dropdown-indicator {
+.c21 .react-select__control:hover .react-select__dropdown-indicator,
+.c21 .react-select__control:focus .react-select__dropdown-indicator,
+.c21 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c44 .react-select__control .react-select__indicator:hover,
-.c44 .react-select__control .react-select__dropdown-indicator:hover,
-.c44 .react-select__control .react-select__indicator:focus,
-.c44 .react-select__control .react-select__dropdown-indicator:focus,
-.c44 .react-select__control .react-select__indicator:active,
-.c44 .react-select__control .react-select__dropdown-indicator:active {
+.c21 .react-select__control .react-select__indicator:hover,
+.c21 .react-select__control .react-select__dropdown-indicator:hover,
+.c21 .react-select__control .react-select__indicator:focus,
+.c21 .react-select__control .react-select__dropdown-indicator:focus,
+.c21 .react-select__control .react-select__indicator:active,
+.c21 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c44 .react-select__control--is-focused {
+.c21 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c44 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c21 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c44 .react-select__single-value {
+.c21 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c44 .react-select__placeholder {
+.c21 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c44 .react-select__multi-value {
+.c21 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c44 .react-select__multi-value .react-select__multi-value__label {
+.c21 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c44 .react-select__multi-value .react-select__multi-value__remove {
+.c21 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c44 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c21 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c44 .react-select__option:hover {
+.c21 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c44 .react-select__option--is-focused {
+.c21 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c44 .react-select__option--is-focused:hover {
+.c21 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c44 .react-select__option--is-selected {
+.c21 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c44 .react-select__option--is-selected:hover {
+.c21 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c44 .react-select__clear-indicator {
+.c21 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c44 .react-select__clear-indicator:hover,
-.c44 .react-select__clear-indicator:focus {
+.c21 .react-select__clear-indicator:hover,
+.c21 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c44 .react-select__clear-indicator:hover svg,
-.c44 .react-select__clear-indicator:focus svg {
+.c21 .react-select__clear-indicator:hover svg,
+.c21 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c44 .react-select__menu {
+.c21 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c44 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c21 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c44 .react-select__indicator-separator {
+.c21 .react-select__indicator-separator {
   display: none;
 }
 
-.c44 .react-select__loading-indicator {
+.c21 .react-select__loading-indicator {
   display: none;
 }
 
-.c44 .react-select__control--is-disabled {
+.c21 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c44 .react-select__control--is-disabled .react-select__single-value,
-.c44 .react-select__control--is-disabled .react-select__placeholder {
+.c21 .react-select__control--is-disabled .react-select__single-value,
+.c21 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c44 .react-select__control--is-disabled .react-select__indicator {
+.c21 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c44 .react-select__input {
+.c21 .react-select__input {
   color: #FFFFFF;
 }
 
-.c43 {
-  height: 18px;
-  width: 18px;
-  color: inherit;
-}
-
-.c42 {
-  vertical-align: middle;
-  display: inline-block;
-  height: 18px;
-}
-
-.c42:hover {
-  cursor: pointer;
-}
-
-.c39 {
+.c47 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -2112,16 +2323,16 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c39:hover {
+.c47:hover {
   background-color: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c35 {
+.c45 {
   position: relative;
 }
 
-.c13 {
+.c23 {
   width: 260px;
   height: 150px;
   background-color: #ffffff;
@@ -2132,26 +2343,26 @@ exports[`loaded state 1`] = `
   top: 40px;
 }
 
-.c13 .react-select__group,
-.c13 .react-select__group-heading,
-.c13 .react-select__menu-list {
+.c23 .react-select__group,
+.c23 .react-select__group-heading,
+.c23 .react-select__menu-list {
   padding: 0;
   margin: 0;
 }
 
-.c13 .react-select__menu-list {
+.c23 .react-select__menu-list {
   margin-top: 10px;
 }
 
-.c13 .react-select__option--is-focused {
+.c23 .react-select__option--is-focused {
   background-color: inherit;
 }
 
-.c13 .react-select__option--is-focused:hover {
+.c23 .react-select__option--is-focused:hover {
   background-color: #deebff;
 }
 
-.c13 .react-select-container {
+.c23 .react-select-container {
   width: 300px;
   box-sizing: border-box;
   border: none;
@@ -2164,30 +2375,30 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c13 .react-select__menu {
+.c23 .react-select__menu {
   box-shadow: none;
 }
 
-.c13 .react-select__control {
+.c23 .react-select__control {
   border-radius: 30px;
   background-color: #f0f2f4;
   margin: 0px 16px 10px 16px;
 }
 
-.c13 .react-select__control:hover {
+.c23 .react-select__control:hover {
   cursor: pointer;
 }
 
-.c13 .react-select__control--is-focused {
+.c23 .react-select__control--is-focused {
   border-color: transparent;
   box-shadow: none;
 }
 
-.c13 .react-select__placeholder {
+.c23 .react-select__placeholder {
   font-size: 14px;
 }
 
-.c13 .react-select__option {
+.c23 .react-select__option {
   white-space: nowrap;
   padding: 9px 16px;
   border-top: 1px solid #eaeaea;
@@ -2195,43 +2406,43 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c13 .react-select__option:hover {
+.c23 .react-select__option:hover {
   cursor: pointer;
 }
 
-.c13 .react-select__option:hover:last-child {
+.c23 .react-select__option:hover:last-child {
   border-bottom-right-radius: 3px;
   border-bottom-left-radius: 3px;
 }
 
-.c13 .react-select__option .icon-circlecheck {
+.c23 .react-select__option .icon-circlecheck {
   color: transparent;
   margin-right: 10px;
 }
 
-.c13 .react-select__option--is-selected {
+.c23 .react-select__option--is-selected {
   background-color: inherit;
   color: inherit;
 }
 
-.c13 .react-select__indicators {
+.c23 .react-select__indicators {
   display: none;
 }
 
-.c13 .react-select__selected .icon-circlecheck {
+.c23 .react-select__selected .icon-circlecheck {
   color: #00BFA6;
 }
 
-.c13 .react-select__selected .icon-cross {
+.c23 .react-select__selected .icon-cross {
   color: #010B1C;
   display: none;
 }
 
-.c13 .react-select__selected:hover .icon-cross {
+.c23 .react-select__selected:hover .icon-cross {
   display: block;
 }
 
-.c19 {
+.c29 {
   width: 100%;
   background-color: #efefef;
   color: #324148;
@@ -2239,16 +2450,60 @@ exports[`loaded state 1`] = `
   padding: 3px 15px;
 }
 
-.c27 {
+.c37 {
   background: rgba(255,255,255,0.07);
 }
 
-.c21 {
+.c31 {
   border-color: rgba(255,255,255,0.13);
 }
 
-.c48 {
+.c55 {
   border-color: rgba(255,255,255,0.13);
+}
+
+.c19 input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.c19 .react-select__control {
+  font-size: 12px;
+  width: 350px;
+  background: #344179;
+}
+
+.c19 .react-select__control:hover {
+  background: #344179;
+}
+
+.c19 .react-select__menu {
+  font-size: 12px;
+  width: 350px;
+  right: 0;
+  margin-bottom: 0;
+}
+
+.c19 .react-select__option {
+  padding: 0;
+  font-size: 12px;
+}
+
+.c19 .react-select__value-container {
+  position: static;
+}
+
+.c19 .react-select__placeholder {
+  color: #FFFFFF;
+}
+
+.c11 {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 2px;
+}
+
+.c11:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c3 {
@@ -2314,41 +2569,32 @@ exports[`loaded state 1`] = `
   overflow: hidden;
 }
 
-.c11 {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
-  border-radius: 2px;
-}
-
-.c11:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c52 {
+.c59 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c46 {
+.c53 {
   outline: none;
   background: transparent;
 }
 
-.c46::placeholder {
+.c53::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c46:hover,
-.c46:focus,
-.c46:active {
+.c53:hover,
+.c53:focus,
+.c53:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -2466,29 +2712,135 @@ exports[`loaded state 1`] = `
               </td>
             </tr>
             <tr>
-              <td>
-                Kubernetes
-              </td>
-              <td>
-                kube-name
-              </td>
               <td
-                align="right"
+                colspan="3"
               >
-                <span
-                  class="c10 c11"
+                <div
+                  class="c1 c12"
                 >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
+                  <div
+                    class="c1 c13"
                   >
-                    <path
-                      d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
-                    />
-                  </svg>
-                </span>
+                    <div
+                      class="c14 c15"
+                      width="100%"
+                    >
+                      <div
+                        class="c1 c16"
+                      >
+                        <div
+                          class="c1"
+                        >
+                          Kubernetes
+                        </div>
+                        <div
+                          class="c1"
+                        >
+                          kube-name
+                        </div>
+                      </div>
+                      <span
+                        class="c10 c11"
+                      >
+                        <svg
+                          fill="currentColor"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          width="16"
+                        >
+                          <path
+                            d="M19.2803 5.78033C19.5732 5.48744 19.5732 5.01256 19.2803 4.71967C18.9874 4.42678 18.5126 4.42678 18.2197 4.71967L12 10.9393L5.78033 4.71967C5.48744 4.42678 5.01256 4.42678 4.71967 4.71967C4.42678 5.01256 4.42678 5.48744 4.71967 5.78033L10.9393 12L4.71967 18.2197C4.42678 18.5126 4.42678 18.9874 4.71967 19.2803C5.01256 19.5732 5.48744 19.5732 5.78033 19.2803L12 13.0607L18.2197 19.2803C18.5126 19.5732 18.9874 19.5732 19.2803 19.2803C19.5732 18.9874 19.5732 18.5126 19.2803 18.2197L13.0607 12L19.2803 5.78033Z"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                    <div
+                      class="c17"
+                      width="100%"
+                    >
+                      <div
+                        class="c18 c19"
+                        width="100%"
+                      >
+                        <label
+                          class="c20"
+                          for="app-name"
+                        >
+                          Namespaces
+                        </label>
+                        <div
+                          class="c21"
+                        >
+                          <div
+                            class="react-select-container css-2b097c-container"
+                          >
+                            <div
+                              class="react-select__control css-yk16xz-control"
+                            >
+                              <div
+                                class="react-select__value-container react-select__value-container--is-multi css-g1d714-ValueContainer"
+                              >
+                                <div
+                                  class="react-select__placeholder css-1wa3eu0-placeholder"
+                                >
+                                  Start typing a namespace and press enter
+                                </div>
+                                <div
+                                  class="css-b8ldur-Input"
+                                >
+                                  <div
+                                    class="react-select__input"
+                                    style="display: inline-block;"
+                                  >
+                                    <input
+                                      aria-autocomplete="list"
+                                      autocapitalize="none"
+                                      autocomplete="off"
+                                      autocorrect="off"
+                                      id="app-name"
+                                      spellcheck="false"
+                                      style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
+                                      tabindex="0"
+                                      type="text"
+                                      value=""
+                                    />
+                                    <div
+                                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div
+                                class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                              >
+                                <span
+                                  class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                                />
+                                <div
+                                  aria-hidden="true"
+                                  class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    class="css-6q0nyr-Svg"
+                                    focusable="false"
+                                    height="20"
+                                    viewBox="0 0 20 20"
+                                    width="20"
+                                  >
+                                    <path
+                                      d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                                    />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </td>
             </tr>
             <tr>
@@ -2546,14 +2898,14 @@ exports[`loaded state 1`] = `
           </tbody>
         </table>
         <div
-          class="c12"
+          class="c22"
         >
           <div
             class="c1"
             style="position: relative;"
           >
             <div
-              class="c1 c13"
+              class="c1 c23"
               style="display: none;"
             >
               <div
@@ -2641,14 +2993,14 @@ exports[`loaded state 1`] = `
                           tabindex="-1"
                         >
                           <div
-                            class="c1 c14"
+                            class="c1 c24"
                           >
                             <div
-                              class="c15 c5"
+                              class="c25 c5"
                               width="210px"
                             >
                               <span
-                                class="c16 icon icon-circlecheck"
+                                class="c26 icon icon-circlecheck"
                                 color="success.main"
                               >
                                 <svg
@@ -2668,14 +3020,14 @@ exports[`loaded state 1`] = `
                                 </svg>
                               </span>
                               <div
-                                class="c17"
+                                class="c27"
                                 title="bob"
                               >
                                 bob
                               </div>
                             </div>
                             <span
-                              class="c18 icon icon-cross"
+                              class="c28 icon icon-cross"
                             >
                               <svg
                                 fill="currentColor"
@@ -2696,14 +3048,14 @@ exports[`loaded state 1`] = `
                           tabindex="-1"
                         >
                           <div
-                            class="c1 c14"
+                            class="c1 c24"
                           >
                             <div
-                              class="c15 c5"
+                              class="c25 c5"
                               width="210px"
                             >
                               <span
-                                class="c16 icon icon-circlecheck"
+                                class="c26 icon icon-circlecheck"
                                 color="success.main"
                               >
                                 <svg
@@ -2723,14 +3075,14 @@ exports[`loaded state 1`] = `
                                 </svg>
                               </span>
                               <div
-                                class="c17"
+                                class="c27"
                                 title="cat"
                               >
                                 cat
                               </div>
                             </div>
                             <span
-                              class="c18 icon icon-cross"
+                              class="c28 icon icon-cross"
                             >
                               <svg
                                 fill="currentColor"
@@ -2751,14 +3103,14 @@ exports[`loaded state 1`] = `
                           tabindex="-1"
                         >
                           <div
-                            class="c1 c14"
+                            class="c1 c24"
                           >
                             <div
-                              class="c15 c5"
+                              class="c25 c5"
                               width="210px"
                             >
                               <span
-                                class="c16 icon icon-circlecheck"
+                                class="c26 icon icon-circlecheck"
                                 color="success.main"
                               >
                                 <svg
@@ -2778,14 +3130,14 @@ exports[`loaded state 1`] = `
                                 </svg>
                               </span>
                               <div
-                                class="c17"
+                                class="c27"
                                 title="george washington"
                               >
                                 george washington
                               </div>
                             </div>
                             <span
-                              class="c18 icon icon-cross"
+                              class="c28 icon icon-cross"
                             >
                               <svg
                                 fill="currentColor"
@@ -2811,7 +3163,7 @@ exports[`loaded state 1`] = `
                         id="react-select-2-group-1-heading"
                       >
                         <div
-                          class="c1 c19"
+                          class="c1 c29"
                         >
                           Suggested Reviewers
                         </div>
@@ -2823,27 +3175,27 @@ exports[`loaded state 1`] = `
               </div>
             </div>
             <div
-              class="c20 c14 c21"
+              class="c30 c24 c31"
               height="34px"
             >
               <div
-                class="c1 c22"
+                class="c1 c32"
               >
                 <div
-                  class="c23"
+                  class="c33"
                   font-size="1"
                 >
                   Reviewers (optional)
                 </div>
                 <button
-                  class="c24"
+                  class="c34"
                   kind="border"
                   width="50px"
                 >
                   Edit
                 </button>
                 <button
-                  class="c24"
+                  class="c34"
                   kind="border"
                   width="50px"
                 >
@@ -2851,10 +3203,10 @@ exports[`loaded state 1`] = `
                 </button>
               </div>
               <button
-                class="c25"
+                class="c35"
               >
                 <span
-                  class="c18 icon icon-chevrondown"
+                  class="c28 icon icon-chevrondown"
                 >
                   <svg
                     fill="currentColor"
@@ -2876,21 +3228,21 @@ exports[`loaded state 1`] = `
               data-testid="reviewers"
             >
               <div
-                class="c26 c14 c27"
+                class="c36 c24 c37"
               >
                 <div
-                  class="c28"
+                  class="c38"
                   style="white-space: nowrap; max-width: 200px;"
                   title="bob"
                 >
                   bob
                 </div>
                 <button
-                  class="c29"
+                  class="c39"
                   title="Remove reviewer"
                 >
                   <span
-                    class="c18 icon icon-cross"
+                    class="c28 icon icon-cross"
                   >
                     <svg
                       fill="currentColor"
@@ -2906,21 +3258,21 @@ exports[`loaded state 1`] = `
                 </button>
               </div>
               <div
-                class="c26 c14 c27"
+                class="c36 c24 c37"
               >
                 <div
-                  class="c28"
+                  class="c38"
                   style="white-space: nowrap; max-width: 200px;"
                   title="cat"
                 >
                   cat
                 </div>
                 <button
-                  class="c29"
+                  class="c39"
                   title="Remove reviewer"
                 >
                   <span
-                    class="c18 icon icon-cross"
+                    class="c28 icon icon-cross"
                   >
                     <svg
                       fill="currentColor"
@@ -2936,21 +3288,21 @@ exports[`loaded state 1`] = `
                 </button>
               </div>
               <div
-                class="c26 c14 c27"
+                class="c36 c24 c37"
               >
                 <div
-                  class="c28"
+                  class="c38"
                   style="white-space: nowrap; max-width: 200px;"
                   title="george washington"
                 >
                   george washington
                 </div>
                 <button
-                  class="c29"
+                  class="c39"
                   title="Remove reviewer"
                 >
                   <span
-                    class="c18 icon icon-cross"
+                    class="c28 icon icon-cross"
                   >
                     <svg
                       fill="currentColor"
@@ -2969,28 +3321,28 @@ exports[`loaded state 1`] = `
           </div>
         </div>
         <div
-          class="c30 c31"
+          class="c40 c41"
         >
           <div
-            class="c32"
+            class="c42"
           >
             <div
-              class="c33 c34"
+              class="c43 c44"
             >
               <div
-                class="c1 c35"
+                class="c1 c45"
               >
                 <label
-                  class="c36"
+                  class="c20"
                 >
                   Start Date
                 </label>
                 <div
-                  class="c37 c38 c39"
+                  class="c46 c12 c47"
                 >
                   Immediately
                   <span
-                    class="c40 icon icon-calendar"
+                    class="c48 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -3015,23 +3367,23 @@ exports[`loaded state 1`] = `
               </div>
             </div>
             <label
-              class="c36"
+              class="c20"
               color="text.slightlyMuted"
             >
               <div
                 class="c1 c5"
               >
                 <div
-                  class="c41"
+                  class="c49"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c42"
+                  class="c50"
                   role="icon"
                 >
                   <span
-                    class="c18 c43"
+                    class="c28 c51"
                   >
                     <svg
                       fill="currentColor"
@@ -3055,7 +3407,7 @@ exports[`loaded state 1`] = `
                 </span>
               </div>
               <div
-                class="c44"
+                class="c21"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -3126,11 +3478,11 @@ exports[`loaded state 1`] = `
             </label>
           </div>
           <label
-            class="c36"
+            class="c20"
           >
             Request Reason
             <textarea
-              class="c45 c46"
+              class="c52 c53"
               color="text.main"
               height="80px"
               placeholder="Describe your request..."
@@ -3138,21 +3490,21 @@ exports[`loaded state 1`] = `
             />
           </label>
           <div
-            class="c47 c14 c48"
+            class="c54 c24 c55"
             height="34px"
           >
             <div
-              class="c49"
+              class="c56"
               font-size="1"
             >
               Additional Options
             </div>
             <button
-              class="c25"
+              class="c35"
               data-testid="additional-info-btn"
             >
               <span
-                class="c18 icon icon-chevronright"
+                class="c28 icon icon-chevronright"
               >
                 <svg
                   fill="currentColor"
@@ -3170,17 +3522,17 @@ exports[`loaded state 1`] = `
             </button>
           </div>
           <div
-            class="c50 c51 c52"
+            class="c57 c58 c59"
           >
             <button
-              class="c53"
+              class="c60"
               kind="primary"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c54"
+              class="c61"
               kind="secondary"
               width="100%"
             >
@@ -3302,19 +3654,20 @@ exports[`success state 1`] = `
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
   margin: 0px;
-  color: #FFFFFF;
+  margin-bottom: 4px;
 }
 
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 400;
   font-size: 14px;
-  line-height: 24px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.014px;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
@@ -3383,6 +3736,7 @@ exports[`success state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -3394,16 +3748,15 @@ exports[`success state 1`] = `
         <div
           class="c1"
         >
-          <div
+          <header
             class="c4"
           >
-            <div
+            <h2
               class="c5"
-              color="text.main"
             >
               Resources Requested Successfully
-            </div>
-            <div
+            </h2>
+            <p
               class="c6"
               color="text.slightlyMuted"
             >
@@ -3411,8 +3764,8 @@ exports[`success state 1`] = `
               4
                
               resources
-            </div>
-          </div>
+            </p>
+          </header>
           <div
             class="c7 c8"
           >

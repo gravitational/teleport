@@ -72,12 +72,6 @@ func NewCLIPrompt(cfg *CLIPromptConfig) *CLIPrompt {
 	}
 }
 
-// NewCLIPromptV2 returns a new CLI mfa prompt with the given config.
-// TODO(Joerger): remove once /e is no longer dependent on this.
-func NewCLIPromptV2(cfg *CLIPromptConfig) *CLIPrompt {
-	return NewCLIPrompt(cfg)
-}
-
 func (c *CLIPrompt) stdin() prompt.StdinReader {
 	if c.cfg.StdinFunc == nil {
 		return prompt.Stdin()

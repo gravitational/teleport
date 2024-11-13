@@ -134,7 +134,8 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
-			extraRoles = append(extraRoles, userContext.Checker.GetAllowedSearchAsRoles()...)
+			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.ResourceType)
+			extraRoles = append(extraRoles, allowedSearchAsRoles...)
 		}
 		if req.UsePreviewAsRoles {
 			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)

@@ -106,7 +106,6 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c23 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -114,7 +113,6 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c26 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -441,7 +439,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -830,7 +828,6 @@ exports[`render with all access 1`] = `
 
 .c17 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -838,7 +835,6 @@ exports[`render with all access 1`] = `
 
 .c20 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -1079,90 +1075,6 @@ exports[`render with all access 1`] = `
     </div>
     <div
       class="c7"
-      data-testid="1"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c16"
-          >
-            Aurora MySQL/MariaDB
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
-      data-testid="1"
-    >
-      <div
-        class="c8"
-      >
-        Guided
-      </div>
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c16"
-          >
-            Aurora PostgreSQL
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c7"
       data-testid="0"
     >
       <div
@@ -1275,7 +1187,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -1444,6 +1356,90 @@ exports[`render with all access 1`] = `
             class="c16"
           >
             PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            RDS Aurora MySQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            RDS Aurora PostgreSQL
           </div>
         </div>
       </div>
@@ -2875,7 +2871,6 @@ exports[`render with no access 1`] = `
 
 .c7 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -2883,7 +2878,6 @@ exports[`render with no access 1`] = `
 
 .c21 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -3121,92 +3115,6 @@ exports[`render with no access 1`] = `
             class="c19"
           >
             Application
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c8"
-      data-testid="1"
-    >
-      <div
-        class="c9 c10"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c11 c12"
-      >
-        <div
-          class="c13 c14"
-          width="24px"
-        >
-          <img
-            class="c15"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c16"
-        >
-          <div
-            class="c17"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c19"
-          >
-            Aurora MySQL/MariaDB
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c8"
-      data-testid="1"
-    >
-      <div
-        class="c9 c10"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c11 c12"
-      >
-        <div
-          class="c13 c14"
-          width="24px"
-        >
-          <img
-            class="c15"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c16"
-        >
-          <div
-            class="c17"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c19"
-          >
-            Aurora PostgreSQL
           </div>
         </div>
       </div>
@@ -3693,7 +3601,7 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -4329,6 +4237,92 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </a>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9 c10"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c11 c12"
+      >
+        <div
+          class="c13 c14"
+          width="24px"
+        >
+          <img
+            class="c15"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c19"
+          >
+            RDS Aurora MySQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9 c10"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c11 c12"
+      >
+        <div
+          class="c13 c14"
+          width="24px"
+        >
+          <img
+            class="c15"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c19"
+          >
+            RDS Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
     <div
       class="c8"
       data-testid="1"
@@ -5068,7 +5062,6 @@ exports[`render with partial access 1`] = `
 
 .c17 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -5076,7 +5069,6 @@ exports[`render with partial access 1`] = `
 
 .c23 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -5455,7 +5447,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -5747,92 +5739,6 @@ exports[`render with partial access 1`] = `
         </div>
       </div>
     </a>
-    <div
-      class="c19"
-      data-testid="1"
-    >
-      <div
-        class="c20 c21"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c16"
-          >
-            Aurora MySQL/MariaDB
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      class="c19"
-      data-testid="1"
-    >
-      <div
-        class="c20 c21"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            data-testid="res-icon-aws"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Amazon Web Services (AWS)
-          </div>
-          <div
-            class="c16"
-          >
-            Aurora PostgreSQL
-          </div>
-        </div>
-      </div>
-    </div>
     <a
       class="c17 c19"
       data-testid="1"
@@ -6617,6 +6523,92 @@ exports[`render with partial access 1`] = `
         </div>
       </div>
     </a>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20 c21"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            RDS Aurora MySQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20 c21"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            data-testid="res-icon-aws"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            RDS Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
     <div
       class="c19"
       data-testid="1"

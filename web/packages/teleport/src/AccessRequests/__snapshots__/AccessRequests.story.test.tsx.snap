@@ -149,7 +149,6 @@ exports[`locked 1`] = `
 
 .c19 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;

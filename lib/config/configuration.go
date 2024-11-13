@@ -1171,6 +1171,7 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	}
 	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
+	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
 	return nil
 }
 
@@ -1748,6 +1749,9 @@ kubernetes matchers are present`)
 				Regions:    regions,
 				AssumeRole: assumeRole,
 			})
+		}
+		if fc.Discovery.AccessGraph.PollInterval > 0 {
+			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
