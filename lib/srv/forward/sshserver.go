@@ -1446,7 +1446,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	}
 
 	// if SFTP was requested, check that
-	if subsystem.subsytemName == teleport.SFTPSubsystem {
+	if subsystem.subsystemName == teleport.SFTPSubsystem {
 		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
@@ -1456,7 +1456,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServerMetadata(),
+				ServerMetadata: serverContext.GetServer().TargetMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
@@ -1467,7 +1467,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsytemName,
+			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
 		return trace.Wrap(err)
@@ -1477,7 +1477,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	go func() {
 		err := subsystem.Wait()
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsytemName,
+			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
 	}()
