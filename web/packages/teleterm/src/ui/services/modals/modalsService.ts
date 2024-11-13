@@ -39,7 +39,7 @@ type State = {
   // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: Dialog[];
+  important: { dialog: Dialog; id: string }[];
   regular: Dialog | undefined;
 };
 
@@ -92,14 +92,16 @@ export class ModalsService extends ImmutableStore<State> {
    * The returned closeDialog function can be used to close the dialog and automatically call the
    * dialog's onCancel callback (if present).
    */
-  openImportantDialog(dialog: Dialog): { closeDialog: () => void } {
+  openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
+    const id = crypto.randomUUID();
     this.setState(draftState => {
-      draftState.important.push(dialog);
+      draftState.important.push({ dialog, id });
     });
 
     return {
+      id,
       closeDialog: () => {
-        this.closeImportantDialog(dialog);
+        this.closeImportantDialog(id);
         dialog['onCancel']?.();
       },
     };
@@ -111,13 +113,13 @@ export class ModalsService extends ImmutableStore<State> {
     });
   }
 
-  closeImportantDialog(dialog: Dialog) {
-    const index = this.state.important.indexOf(dialog);
-    if (index >= 0) {
-      this.setState(draftState => {
+  closeImportantDialog(id: string) {
+    this.setState(draftState => {
+      const index = draftState.important.findIndex(d => d.id === id);
+      if (index >= 0) {
         draftState.important.splice(index, 1);
-      });
-    }
+      }
+    });
   }
 
   useState() {
