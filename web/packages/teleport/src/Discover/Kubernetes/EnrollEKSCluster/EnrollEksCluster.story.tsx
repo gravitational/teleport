@@ -232,7 +232,7 @@ WithAlreadyExistsError.parameters = {
           results: [
             {
               clusterName: 'EKS1',
-              error: 'teleport-kube-agent is already installed',
+              error: 'teleport-kube-agent is already installed on the cluster',
             },
           ],
         });
