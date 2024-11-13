@@ -577,7 +577,7 @@ func readConfig(path string) (*UpdateConfig, error) {
 // writeConfig writes UpdateConfig to a file atomically, ensuring the file cannot be corrupted.
 func writeConfig(filename string, cfg *UpdateConfig) error {
 	opts := []renameio.Option{
-		renameio.WithPermissions(0755),
+		renameio.WithPermissions(configFileMode),
 		renameio.WithExistingPermissions(),
 	}
 	t, err := renameio.NewPendingFile(filename, opts...)

@@ -84,7 +84,6 @@ func TestLocalInstaller_Install(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 
@@ -360,7 +359,6 @@ func TestLocalInstaller_Link(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			versionsDir := t.TempDir()
 			versionDir := filepath.Join(versionsDir, version)
@@ -603,7 +601,6 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			versionsDir := t.TempDir()
 			versionDir := filepath.Join(versionsDir, version)
@@ -757,7 +754,6 @@ func TestLocalInstaller_Remove(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			versionsDir := t.TempDir()
 			versionDir := filepath.Join(versionsDir, tt.createVersion)

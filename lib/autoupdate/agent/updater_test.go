@@ -81,7 +81,6 @@ func TestUpdater_Disable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")
@@ -393,7 +392,6 @@ func TestUpdater_Update(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var requestedGroup string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -579,7 +577,6 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")
@@ -832,7 +829,6 @@ func TestUpdater_Enable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")

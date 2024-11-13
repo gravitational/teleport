@@ -43,9 +43,16 @@ import (
 )
 
 const (
-	checksumType       = "sha256"
-	checksumHexLen     = sha256.Size * 2 // bytes to hex
-	maxServiceFileSize = 1_000_000       // 1 MB
+	// checksumType for Teleport tgzs
+	checksumType = "sha256"
+	// checksumHexLen is the length of the Teleport checksum.
+	checksumHexLen = sha256.Size * 2 // bytes to hex
+	// maxServiceFileSize is the maximum size allowed for a systemd service file.
+	maxServiceFileSize = 1_000_000 // 1 MB
+	// configFileMode is the mode used for new configuration files.
+	configFileMode = 0644
+	// systemDirMode is the mode used for new directories.
+	systemDirMode = 0755
 )
 
 var (
@@ -62,11 +69,11 @@ type LocalInstaller struct {
 	InstallDir string
 	// LinkBinDir contains symlinks to the linked installation's binaries.
 	LinkBinDir string
-	// LinkServiceDir contains a symlink to the linked installation's systemd service.
+	// LinkServiceDir contains a copy of the linked installation's systemd service.
 	LinkServiceDir string
-	// SystemBinDir
+	// SystemBinDir contains binaries for the system (packaged) install of Teleport.
 	SystemBinDir string
-	// SystemServiceDir
+	// SystemServiceDir contains the systemd service file for the system (packaged) install of Teleport.
 	SystemServiceDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
@@ -209,7 +216,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
-	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
+	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode)
 	if err != nil {
 		return trace.Errorf("failed to write checksum: %w", err)
 	}
@@ -331,7 +338,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 }
 
 func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags InstallFlags) error {
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
@@ -364,13 +371,13 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		prefix += "-ent"
 	}
 	return []utils.ExtractPath{
-		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "etc/systemd/teleport.service", DirMode: 0755},
-		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: 0755},
-		{Src: path.Join(prefix, "install"), Skip: true, DirMode: 0755},
-		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: 0755},
-		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: 0755},
-		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: 0755},
-		{Src: prefix, Dst: "bin", DirMode: 0755},
+		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "etc/systemd/teleport.service", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: systemDirMode},
+		{Src: path.Join(prefix, "install"), Skip: true, DirMode: systemDirMode},
+		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: systemDirMode},
+		{Src: prefix, Dst: "bin", DirMode: systemDirMode},
 	}
 }
 
@@ -488,11 +495,11 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 	}()
 
 	// ensure target directories exist before trying to create links
-	err = os.MkdirAll(li.LinkBinDir, 0755)
+	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
-	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	err = os.MkdirAll(li.LinkServiceDir, systemDirMode)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
@@ -611,7 +618,7 @@ func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
 			return nil, trace.Wrap(os.ErrExist)
 		}
 	}
-	err = renameio.WriteFile(dst, srcData, 0644)
+	err = renameio.WriteFile(dst, srcData, configFileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -625,15 +632,8 @@ func readFileN(name string, n int64) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	lim := &io.LimitedReader{R: f, N: n}
-	data, err := io.ReadAll(lim)
-	if err != nil {
-		return data, err
-	}
-	if lim.N <= 0 {
-		return data, trace.Errorf("file too large (>%d)", n)
-	}
-	return data, nil
+	data, err := utils.ReadAtMost(f, n)
+	return data, trace.Wrap(err)
 }
 
 // TryLink links the specified version, but only in the case that
@@ -663,11 +663,11 @@ func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
 // However, concurrent changes to links may result in an error with partially-complete linking.
 func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) error {
 	// ensure target directories exist before trying to create links
-	err := os.MkdirAll(li.LinkBinDir, 0755)
+	err := os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	err = os.MkdirAll(li.LinkServiceDir, systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -774,7 +774,7 @@ func tryCopy(dst, src string, n int64) error {
 		}
 		return trace.Errorf("refusing to replace file at %s: %w", dst, ErrLinked)
 	}
-	err = renameio.WriteFile(dst, srcData, 0644)
+	err = renameio.WriteFile(dst, srcData, configFileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
