@@ -30,6 +30,9 @@ import (
 
 // NewHardwareKeyPromptConstructor returns a new hardware key prompt constructor
 // for this service and the given root cluster URI.
+// Unlike other modals triggered by tshd events, we do not acquire the singleImportantModalSemaphore here.
+// This allows these prompts to show up while a relogin modal is still opened.
+//
 // TODO(gzdunek): Improve multi-cluster and multi-hardware keys support.
 // The code in yubikey.go doesn't really support using multiple hardware keys (like one per cluster):
 // 1. We don't offer a choice which key should be used on the initial login.
@@ -42,8 +45,8 @@ import (
 // It seems that the better option would be to have a prompt per physical key, not per cluster.
 // But I will leave that for the future, it's hard to say how common these scenarios will be in Connect.
 //
-// Because of the above, we don't have any mutex here. I don't expect receiving prompts
-// from different hardware keys at the same time.
+// Because the code in yubikey.go assumes you use a single key, we don't have any mutex here.
+// We don't expect receiving prompts from different hardware keys.
 func (s *Service) NewHardwareKeyPromptConstructor(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 	return &hardwareKeyPrompter{s: s, rootClusterURI: rootClusterURI}
 }
