@@ -203,7 +203,7 @@ type Service struct {
 	stateSvcCache       services.DownstreamProvisioningStateGetter
 	usersSvcCache       UsersService
 	userPredicate       UserPredicate
-	assessListsSvcCache AccessListsService
+	accessListsSvcCache AccessListsService
 	accessListPredicate AccessListPredicate
 	eventsClient        types.Events
 	log                 *slog.Logger
@@ -253,7 +253,7 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 		stateSvcCache:        cfg.StateSvcCache,
 		usersSvcCache:        cfg.UsersCache,
 		userPredicate:        cfg.UserPredicate,
-		assessListsSvcCache:  cfg.AccessListsCache,
+		accessListsSvcCache:  cfg.AccessListsCache,
 		accessListPredicate:  cfg.AccessListPredicate,
 		eventsClient:         cfg.EventsClient,
 		eventsSvc:            cfg.EventsClient,
@@ -539,7 +539,7 @@ func (svc *Service) refreshProvisioningStates(ctx context.Context) error {
 		}
 	}
 
-	for acl, err := range allAccessLists(ctx, svc.assessListsSvcCache) {
+	for acl, err := range allAccessLists(ctx, svc.accessListsSvcCache) {
 		if err != nil {
 			svc.log.ErrorContext(ctx, "error refreshing access list provisioning states",
 				"error", err)
@@ -594,11 +594,12 @@ func (svc *Service) reprovisionUserAccessLists(ctx context.Context, principalSta
 
 	username := principalState.GetSpec().GetPrincipalId()
 
-	for acl, err := range allAccessLists(ctx, svc.assessListsSvcCache) {
+	for acl, err := range allAccessLists(ctx, svc.accessListsSvcCache) {
 		if err != nil {
 			return trace.Wrap(err, "re-provisioning user access lists")
 		}
 
+		// Is this Access List exported by the provisioning system?
 		includeACL, err := svc.accessListPredicate(ctx, acl)
 		if err != nil {
 			return trace.Wrap(err)
@@ -607,7 +608,8 @@ func (svc *Service) reprovisionUserAccessLists(ctx context.Context, principalSta
 			continue
 		}
 
-		_, err = svc.assessListsSvcCache.GetAccessListMember(ctx, acl.GetName(), username)
+		// Is the user of interest a member of this Access List?
+		_, err = svc.accessListsSvcCache.GetAccessListMember(ctx, acl.GetName(), username)
 		if err != nil {
 			continue
 		}
@@ -735,7 +737,7 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 		provisioningStateId = getIDForUserName(principalName)
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
-		acl, err := svc.assessListsSvcCache.GetAccessList(ctx, principalName)
+		acl, err := svc.accessListsSvcCache.GetAccessList(ctx, principalName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

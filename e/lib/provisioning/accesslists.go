@@ -23,8 +23,9 @@ func (p *provisioner) provisionAccessList(
 	if err != nil {
 		return nil, trace.Wrap(err, "loading access list and members for provisioning")
 	}
+	log = log.With("title", acl.Spec.Title)
 
-	groupMembers, err := p.validateListMembers(ctx, acl, aclMembers, log)
+	groupMembers, err := p.validateListMembers(ctx, acl, aclMembers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,8 +114,12 @@ func (p *provisioner) validateListMembers(
 	ctx context.Context,
 	acl *accesslist.AccessList,
 	aclMembers []*accesslist.AccessListMember,
-	log *slog.Logger,
 ) ([]*scimsdk.GroupMember, error) {
+	log := p.log.With(
+		slog.Group("access_list",
+			slog.String("name", acl.GetName()),
+			slog.String("title", acl.Spec.Title)))
+
 	groupMembers := make([]*scimsdk.GroupMember, 0, len(aclMembers))
 	for _, aclMember := range aclMembers {
 		memberUserName := aclMember.Spec.Name

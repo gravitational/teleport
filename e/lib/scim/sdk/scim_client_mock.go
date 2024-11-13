@@ -2,6 +2,7 @@ package scimsdk
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -147,7 +148,11 @@ func (s *ClientMock) GetGroupByDisplayName(ctx context.Context, displayName stri
 
 	for _, group := range s.Groups {
 		if group.DisplayName == displayName {
-			return group, nil
+			// Take a copy of the group in order to avoid data races while
+			// examining the member list outside of the client mutex
+			result := *group
+			result.Members = slices.Clone(group.Members)
+			return &result, nil
 		}
 	}
 	return nil, trace.NotFound("group with display name %q not found", displayName)

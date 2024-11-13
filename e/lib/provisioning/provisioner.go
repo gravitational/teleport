@@ -14,6 +14,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -222,28 +223,14 @@ func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provision
 }
 
 func getAccessListWithMembers(ctx context.Context, name string, aclSvc AccessListsService) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	// TODO(tcsc): handle nested access lists
 	acl, err := aclSvc.GetAccessList(ctx, name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "fetching ACL for provisioning")
 	}
 
-	var allMembers []*accesslist.AccessListMember
-	var pageToken string
-
-	for {
-		members, nextPage, err := aclSvc.ListAccessListMembers(ctx, name, defaultUserPageSize, pageToken)
-		if err != nil {
-			return nil, nil, trace.Wrap(err, "fetching access list members for provisioning")
-		}
-
-		allMembers = append(allMembers, members...)
-
-		if nextPage == "" {
-			break
-		}
-
-		pageToken = nextPage
+	allMembers, err := accesslists.GetMembersFor(ctx, name, aclSvc)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return acl, allMembers, nil

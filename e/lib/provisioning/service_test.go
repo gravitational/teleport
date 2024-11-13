@@ -14,7 +14,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -36,7 +38,7 @@ func TestUpstreamProvisioning(t *testing.T) {
 
 	t.Run("should provision access list to scim upstream", func(t *testing.T) {
 		pack.mustCreateAccessList(t, aclID, aclTitle)
-		pack.mustUpsertAccessListMember(t, aclID, aliceUser)
+		pack.mustUpsertAccessListMember(t, aclID, aliceUser, accesslist.MembershipKindUser)
 		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 1)
 	})
 
@@ -53,6 +55,75 @@ func TestUpstreamProvisioning(t *testing.T) {
 	t.Run("should de-provision scim user", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteUser(ctx, aliceUser))
 		assertSCIMUserDoesntExist(t, pack.scimMock, aliceUser)
+	})
+}
+
+func TestProvisioningNestedAccessLists(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true},
+			},
+		},
+	})
+
+	ctx := context.Background()
+	pack := newPack(t)
+
+	const (
+		aliceUser = "alice"
+		bobUser   = "bob"
+		carolUser = "carol"
+
+		parentACLID    = "parent-acl"
+		parentACLTitle = "Parent ACL title"
+
+		childACLID    = "child-acl"
+		childACLTitle = "Child ACL title"
+	)
+
+	t.Run("should provision nested access list members to scim downstream", func(t *testing.T) {
+		// Given an Access List `Parent` containing "alice"
+		pack.mustCreateTeleportUser(t, aliceUser)
+		pack.mustCreateAccessList(t, parentACLID, parentACLTitle)
+		pack.mustUpsertAccessListMember(t, parentACLID, aliceUser, accesslist.MembershipKindUser)
+
+		// Given a second Access List `Child` containing "bob" and "carol"
+		pack.mustCreateAccessList(t, childACLID, childACLTitle)
+		pack.mustCreateTeleportUser(t, bobUser)
+		pack.mustUpsertAccessListMember(t, childACLID, bobUser, accesslist.MembershipKindUser)
+		pack.mustCreateTeleportUser(t, carolUser)
+		pack.mustUpsertAccessListMember(t, childACLID, carolUser, accesslist.MembershipKindUser)
+
+		// When I make the `Child` Access List a member of `Parent`
+		pack.mustUpsertAccessListMember(t, parentACLID, childACLID, accesslist.MembershipKindList)
+
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, childACLTitle, 2)
+
+		// Expect that the membership of the downstream group `Parent` is
+		// expanded to include the two users from `Child`
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 3)
+	})
+
+	t.Run("should re-provision access list when child list is updated", func(t *testing.T) {
+		// Given the `Parent` and `Child` Access Lists created above,
+		// When I remove `Bob` from the `Child` Access List...
+		require.NoError(t, pack.depsMock.DeleteAccessListMember(ctx, childACLID, bobUser))
+
+		// Expect that the membership of the downstream group `Parent` contracts
+		// to reflect that Bob is no longer inherits membership of `Parent`
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 2)
+	})
+
+	t.Run("should re-provision access list when member list deleted", func(t *testing.T) {
+		// Given the `Parent` and `Child` Access Lists created above,
+		// When I revoke `Child`'s membership of `Parent`...
+		require.NoError(t, pack.depsMock.DeleteAccessListMember(ctx, parentACLID, childACLID))
+
+		// Expect that the membership of the downstream group `Parent`contracts
+		// to just  the one member of `Parent`
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 1)
 	})
 }
 
@@ -180,7 +251,8 @@ func assertSCIMGroupExitsWithMembersLength(t *testing.T, client scimsdk.Client, 
 		if !assert.NoError(collect, err) {
 			return
 		}
-		assert.Len(collect, acl.Members, wantMembersLength)
+		assert.Len(collect, acl.Members, wantMembersLength,
+			"Group %q expected to have %d members", groupDisplayName, wantMembersLength)
 	})
 }
 
@@ -234,7 +306,7 @@ func (s *testPack) mustCreateTeleportUser(t *testing.T, name string) {
 	require.NoError(t, err)
 }
 
-func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) {
+func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) *accesslist.AccessList {
 	acl := &accesslist.AccessList{
 		ResourceHeader: header.ResourceHeader{
 			Metadata: header.Metadata{Name: name},
@@ -245,20 +317,22 @@ func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) {
 			Title:  title,
 		},
 	}
-	_, err := s.depsMock.UpsertAccessList(context.Background(), acl)
+	acl, err := s.depsMock.UpsertAccessList(context.Background(), acl)
 	require.NoError(t, err)
+	return acl
 }
 
-func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberName string) {
+func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberName string, memberKind string) {
 	aclMember := &accesslist.AccessListMember{
 		ResourceHeader: header.ResourceHeader{
 			Metadata: header.Metadata{Name: memberName},
 		},
 		Spec: accesslist.AccessListMemberSpec{
-			AccessList: accessList,
-			Name:       memberName,
-			Joined:     s.clock.Now(),
-			AddedBy:    "ut-test",
+			AccessList:     accessList,
+			Name:           memberName,
+			Joined:         s.clock.Now(),
+			AddedBy:        "ut-test",
+			MembershipKind: memberKind,
 		},
 	}
 	_, err := s.depsMock.UpsertAccessListMember(context.Background(), aclMember)

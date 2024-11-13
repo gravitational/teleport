@@ -9,6 +9,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/accesslists"
 )
 
 type resourceMonitor struct {
@@ -128,11 +129,11 @@ func (rm *resourceMonitor) processEvent(ctx context.Context, resource types.Reso
 	case types.KindAccessList:
 		switch op {
 		case types.OpPut:
-			err := rm.svc.enqueuePrincipalEvent(ctx,
-				provisioningOpStale,
-				provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
-				resource.GetName())
-			return trace.Wrap(err)
+			acl, ok := resource.(*accesslist.AccessList)
+			if !ok {
+				return trace.BadParameter("unexpected Access List resource type %T", resource)
+			}
+			return trace.Wrap(rm.handleAccessListUpdate(ctx, acl))
 
 		case types.OpDelete:
 			err := rm.svc.enqueuePrincipalEvent(ctx,
@@ -149,11 +150,11 @@ func (rm *resourceMonitor) processEvent(ctx context.Context, resource types.Reso
 			if !ok {
 				return trace.BadParameter("Expected AccessListMember resource, got %T", resource)
 			}
-			err := rm.svc.enqueuePrincipalEvent(ctx,
-				provisioningOpStale,
-				provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
-				aclMember.Spec.AccessList)
-			return trace.Wrap(err)
+			acl, err := rm.svc.accessListsSvcCache.GetAccessList(ctx, aclMember.Spec.AccessList)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(rm.handleAccessListUpdate(ctx, acl))
 
 		case types.OpDelete:
 			// the AccessListMember parser smuggles the name of the access list
@@ -163,11 +164,11 @@ func (rm *resourceMonitor) processEvent(ctx context.Context, resource types.Reso
 			if aclName == "" {
 				return trace.BadParameter("AccessListMember missing Access List Name in Description")
 			}
-			err := rm.svc.enqueuePrincipalEvent(ctx,
-				provisioningOpStale,
-				provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
-				aclName)
-			return trace.Wrap(err)
+			acl, err := rm.svc.accessListsSvcCache.GetAccessList(ctx, aclName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(rm.handleAccessListUpdate(ctx, acl))
 		}
 
 	case types.KindLock:
@@ -188,6 +189,36 @@ func (rm *resourceMonitor) processEvent(ctx context.Context, resource types.Reso
 				return trace.Wrap(err)
 			}
 			return nil
+		}
+	}
+
+	return nil
+}
+
+// handleAccessListUpdate issues re-provisioning requests for the target
+// AccessList and all of the Access Lists that it is a member of.
+//
+// The Provisioner handles nested Access Lists by expanding them in to a single
+// Group containing all users reachable from a given Access List, either directly
+// or transitively via nested Access Lists. This means that any change to an
+// Access List *also* needs to re-provision all of its ancestor Access Lists as
+// well, otherwise the provisioned Groups will have inconsistent member lists.
+func (rm *resourceMonitor) handleAccessListUpdate(ctx context.Context, acl *accesslist.AccessList) error {
+	targetACLs := []*accesslist.AccessList{acl}
+
+	ancestors, err := accesslists.GetAncestorsFor(ctx, acl, accesslists.RelationshipKindMember, rm.svc.accessListsSvcCache)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	targetACLs = append(targetACLs, ancestors...)
+
+	for _, a := range targetACLs {
+		err := rm.svc.enqueuePrincipalEvent(ctx,
+			provisioningOpStale,
+			provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
+			a.GetName())
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
