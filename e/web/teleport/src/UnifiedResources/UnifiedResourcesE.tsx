@@ -180,29 +180,40 @@ export function UnifiedResourcesE() {
           </SamlAppActionProvider>
         </ResizingResourceWrapper>
         {showCheckout && (
-          <CheckoutWrapper>
-            <RequestCheckout
-              {...requestCheckout}
-              clearAttempt={clearAttempt}
-              createAttempt={createAttempt}
-              toggleResource={({ kind, id, name }) =>
-                addOrRemoveResource(kind, id, name)
-              }
-              reset={cancelCheckout}
-              onClose={clearAttempt}
-              isResourceRequest={true} // only resource requests happen from this page
-              Header={() => (
-                <Box mb={3}>
-                  <H2>
-                    New Access Request: {numAddedResources}{' '}
-                    {pluralize(numAddedResources, 'Resource')} Selected
-                  </H2>
-                </Box>
-              )}
-              SuccessComponent={SuccessActionComponent}
-              bulkToggleKubeResources={items => bulkToggleResources(items)}
+          <>
+            {/* Add a div with the width of the checkout to adjust the page layout so that the checkout doesn't cover the resources. */}
+            <Box
+              css={`
+                min-width: 450px;
+                height: 100%;
+                // Counteract the padding on the page so that this is aligned with the requestcheckout.
+                margin-right: -${props => props.theme.space[4]}px;
+              `}
             />
-          </CheckoutWrapper>
+            <CheckoutWrapper>
+              <RequestCheckout
+                {...requestCheckout}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+                toggleResource={({ kind, id, name }) =>
+                  addOrRemoveResource(kind, id, name)
+                }
+                reset={cancelCheckout}
+                onClose={clearAttempt}
+                isResourceRequest={true} // only resource requests happen from this page
+                Header={() => (
+                  <Box mb={3}>
+                    <H2>
+                      New Access Request: {numAddedResources}{' '}
+                      {pluralize(numAddedResources, 'Resource')} Selected
+                    </H2>
+                  </Box>
+                )}
+                SuccessComponent={SuccessActionComponent}
+                bulkToggleKubeResources={items => bulkToggleResources(items)}
+              />
+            </CheckoutWrapper>
+          </>
         )}
         <Prompt
           when={numAddedResources > 0}
@@ -231,8 +242,7 @@ const CheckoutWrapper = styled(Box)`
 `;
 
 const ResizingResourceWrapper = styled(Box)<{ showCheckout?: boolean }>`
-  width: ${props =>
-    props.showCheckout ? 'calc(100vw - 514px - var(--sidenav-width))' : '100%'};
+  width: 100%;
   padding-right: ${props => props.theme.space[3]}px;
 `;
 
