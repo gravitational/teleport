@@ -29,58 +29,45 @@ import (
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
 // an app with internal "kube-teleport-proxy-alpn." ServerName prefix won't be created.
 func TestAppPublicAddrValidation(t *testing.T) {
-	type check func(t *testing.T, err error)
-
-	hasNoErr := func() check {
-		return func(t *testing.T, err error) {
-			require.NoError(t, err)
-		}
-	}
-	hasErrTypeBadParameter := func() check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err))
-		}
-	}
-
 	tests := []struct {
 		name       string
 		publicAddr string
-		check      check
+		check      require.ErrorAssertionFunc
 	}{
 		{
 			name:       "kubernetes app",
 			publicAddr: "kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app public addr without port",
 			publicAddr: "kubernetes.example.com",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app http",
 			publicAddr: "http://kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app https",
 			publicAddr: "https://kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "public address with internal kube ServerName prefix",
 			publicAddr: constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter(),
+			check:      hasErrTypeBadParameter,
 		},
 		{
 			name:       "https public address with internal kube ServerName prefix",
 			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter(),
+			check:      hasErrTypeBadParameter,
 		},
 		{
 			name:       "addr with numbers in the host",
 			publicAddr: "123456789012.teleport.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 	}
 
@@ -98,35 +85,11 @@ func TestAppPublicAddrValidation(t *testing.T) {
 }
 
 func TestAppPortsValidation(t *testing.T) {
-	type check func(t *testing.T, err error)
-
-	hasNoErr := func() check {
-		return func(t *testing.T, err error) {
-			require.NoError(t, err)
-		}
-	}
-	hasErrTypeBadParameter := func() check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err))
-		}
-	}
-	hasErrTypeBadParameterAndContains := func(msg string) check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
-			require.ErrorContains(t, err, msg)
-		}
-	}
-	hasErrAndContains := func(msg string) check {
-		return func(t *testing.T, err error) {
-			require.ErrorContains(t, err, msg)
-		}
-	}
-
 	tests := []struct {
 		name     string
 		tcpPorts []*PortRange
 		uri      string
-		check    check
+		check    require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid ranges and single ports",
@@ -135,7 +98,7 @@ func TestAppPortsValidation(t *testing.T) {
 				&PortRange{Port: 26},
 				&PortRange{Port: 65535},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		{
 			name: "valid overlapping ranges",
@@ -146,7 +109,7 @@ func TestAppPortsValidation(t *testing.T) {
 				&PortRange{Port: 150, EndPort: 210},
 				&PortRange{Port: 1, EndPort: 65535},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		{
 			name: "valid non-TCP app with ports ignored",
@@ -155,7 +118,7 @@ func TestAppPortsValidation(t *testing.T) {
 				&PortRange{Port: 123456789},
 				&PortRange{Port: 10, EndPort: 2},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		// Test cases for invalid ports.
 		{
@@ -163,14 +126,14 @@ func TestAppPortsValidation(t *testing.T) {
 			tcpPorts: []*PortRange{
 				&PortRange{Port: 0},
 			},
-			check: hasErrTypeBadParameter(),
+			check: hasErrTypeBadParameter,
 		},
 		{
 			name: "port bigger than 65535",
 			tcpPorts: []*PortRange{
 				&PortRange{Port: 78787},
 			},
-			check: hasErrTypeBadParameter(),
+			check: hasErrTypeBadParameter,
 		},
 		{
 			name: "end port smaller than 2",
@@ -184,7 +147,7 @@ func TestAppPortsValidation(t *testing.T) {
 			tcpPorts: []*PortRange{
 				&PortRange{Port: 1, EndPort: 78787},
 			},
-			check: hasErrTypeBadParameter(),
+			check: hasErrTypeBadParameter,
 		},
 		{
 			name: "end port smaller than port",
@@ -597,5 +560,26 @@ func TestNewAppV3(t *testing.T) {
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, actual)
 		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.NoError(t, err, msgAndArgs...)
+}
+
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
+}
+
+func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func hasErrAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

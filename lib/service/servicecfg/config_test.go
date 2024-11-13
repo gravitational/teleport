@@ -183,35 +183,11 @@ func TestCheckApp(t *testing.T) {
 }
 
 func TestCheckAppTCPPorts(t *testing.T) {
-	type check func(t *testing.T, err error)
-
-	hasNoErr := func() check {
-		return func(t *testing.T, err error) {
-			require.NoError(t, err)
-		}
-	}
-	hasErrTypeBadParameter := func() check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err))
-		}
-	}
-	hasErrTypeBadParameterAndContains := func(msg string) check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
-			require.ErrorContains(t, err, msg)
-		}
-	}
-	hasErrAndContains := func(msg string) check {
-		return func(t *testing.T, err error) {
-			require.ErrorContains(t, err, msg)
-		}
-	}
-
 	tests := []struct {
 		name     string
 		tcpPorts []PortRange
 		uri      string
-		check    check
+		check    require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid ranges and single ports",
@@ -220,7 +196,7 @@ func TestCheckAppTCPPorts(t *testing.T) {
 				PortRange{Port: 26},
 				PortRange{Port: 65535},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		{
 			name: "valid overlapping ranges",
@@ -231,7 +207,7 @@ func TestCheckAppTCPPorts(t *testing.T) {
 				PortRange{Port: 150, EndPort: 210},
 				PortRange{Port: 1, EndPort: 65535},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		{
 			// Ports are validated only for TCP apps to allow for some forwards compatibility.
@@ -243,7 +219,7 @@ func TestCheckAppTCPPorts(t *testing.T) {
 				PortRange{Port: 0},
 				PortRange{Port: 10, EndPort: 2},
 			},
-			check: hasNoErr(),
+			check: hasNoErr,
 		},
 		// Test cases for invalid ports.
 		{
@@ -251,7 +227,7 @@ func TestCheckAppTCPPorts(t *testing.T) {
 			tcpPorts: []PortRange{
 				PortRange{Port: 0},
 			},
-			check: hasErrTypeBadParameter(),
+			check: hasErrTypeBadParameter,
 		},
 		{
 			name: "end port smaller than 2",
@@ -712,5 +688,26 @@ func TestSetLogLevel(t *testing.T) {
 			l, _ := c.Log.(*logrus.Logger)
 			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.NoError(t, err, msgAndArgs...)
+}
+
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
+}
+
+func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func hasErrAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
