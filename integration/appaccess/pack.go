@@ -350,7 +350,11 @@ func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName str
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
+	session := p.CreateAppSession(t, CreateAppSessionParams{
+		Username:      p.username,
+		ClusterName:   p.rootAppClusterName,
+		AppPublicAddr: p.rootAppPublicAddr,
+	})
 	config := p.makeTLSConfig(t, tlsConfigParams{
 		sessionID:   session.GetName(),
 		username:    session.GetUser(),
@@ -360,21 +364,27 @@ func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
 	return config.Certificates
 }
 
-func (p *Pack) CreateAppSession(t *testing.T, username, clusterName, appPublicAddr string) types.WebSession {
+type CreateAppSessionParams struct {
+	Username      string
+	ClusterName   string
+	AppPublicAddr string
+}
+
+func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) types.WebSession {
 	ctx := context.Background()
-	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, username)
+	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, params.Username)
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUserState(userState)
 
 	ws, err := p.rootCluster.Process.GetAuthServer().CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
 		NewWebSessionRequest: auth.NewWebSessionRequest{
-			User:       username,
+			User:       params.Username,
 			Roles:      accessInfo.Roles,
 			Traits:     accessInfo.Traits,
 			SessionTTL: time.Hour,
 		},
-		PublicAddr:  appPublicAddr,
-		ClusterName: clusterName,
+		PublicAddr:  params.AppPublicAddr,
+		ClusterName: params.ClusterName,
 	})
 	require.NoError(t, err)
 
