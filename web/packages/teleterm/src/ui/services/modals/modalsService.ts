@@ -39,8 +39,8 @@ type State = {
   // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: ImportantDialog[];
-  regular: RegularDialog | undefined;
+  important: Dialog[];
+  regular: Dialog | undefined;
 };
 
 export class ModalsService extends ImmutableStore<State> {
@@ -61,7 +61,7 @@ export class ModalsService extends ImmutableStore<State> {
    * The returned closeDialog function can be used to close the dialog and automatically call the
    * dialog's onCancel callback (if present).
    */
-  openRegularDialog(dialog: RegularDialog): { closeDialog: () => void } {
+  openRegularDialog(dialog: Dialog): { closeDialog: () => void } {
     this.state.regular?.['onCancel']?.();
     this.setState(draftState => {
       draftState.regular = dialog;
@@ -92,7 +92,7 @@ export class ModalsService extends ImmutableStore<State> {
    * The returned closeDialog function can be used to close the dialog and automatically call the
    * dialog's onCancel callback (if present).
    */
-  openImportantDialog(dialog: ImportantDialog): { closeDialog: () => void } {
+  openImportantDialog(dialog: Dialog): { closeDialog: () => void } {
     this.setState(draftState => {
       draftState.important.push(dialog);
     });
@@ -111,7 +111,7 @@ export class ModalsService extends ImmutableStore<State> {
     });
   }
 
-  closeImportantDialog(dialog: ImportantDialog) {
+  closeImportantDialog(dialog: Dialog) {
     const index = this.state.important.indexOf(dialog);
     if (index >= 0) {
       this.setState(draftState => {
@@ -246,7 +246,7 @@ export interface DialogHardwareKeySlotOverwrite {
   onCancel(): void;
 }
 
-export type RegularDialog =
+export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
   | DialogDocumentsReopen
@@ -254,12 +254,9 @@ export type RegularDialog =
   | DialogUsageData
   | DialogUserJobRole
   | DialogResourceSearchErrors
-  | DialogChangeAccessRequestKind;
-
-export type ImportantDialog =
-  | DialogClusterConnect
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
+  | DialogChangeAccessRequestKind
   | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
