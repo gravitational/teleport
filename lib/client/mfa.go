@@ -95,7 +95,11 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 
 	rd, err := sso.NewRedirector(rdConfig)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to create a redirector for SSO MFA")
+	}
+
+	if tc.SSOMFACeremonyConstructor != nil {
+		return tc.SSOMFACeremonyConstructor(rd), nil
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil

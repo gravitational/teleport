@@ -92,6 +92,8 @@ type LocalProxyConfig struct {
 	CheckCertNeeded bool
 	// verifyUpstreamConnection is a callback function to verify upstream connection state.
 	verifyUpstreamConnection func(tls.ConnectionState) error
+	// onSetCert is a callback when lp.SetCert is called.
+	onSetCert func(tls.Certificate)
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.
@@ -484,6 +486,11 @@ func (l *LocalProxy) SetCert(cert tls.Certificate) {
 	l.certMu.Lock()
 	defer l.certMu.Unlock()
 	l.cfg.Cert = cert
+
+	// Callback, if any.
+	if l.cfg.onSetCert != nil {
+		l.cfg.onSetCert(cert)
+	}
 }
 
 // getCertForConn determines if certificates should be used when dialing

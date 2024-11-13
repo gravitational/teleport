@@ -287,8 +287,8 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 // WarmupHardwareKey performs a bogus sign() call to prompt the user for
 // a PIN/touch (if needed).
 func (y *YubiKeyPrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	b := make([]byte, 256)
-	_, err := y.sign(ctx, rand.Reader, b, crypto.SHA256)
+	hash := sha256.Sum256(make([]byte, 256))
+	_, err := y.sign(ctx, rand.Reader, hash[:], crypto.SHA256)
 	return trace.Wrap(err, "failed to access a YubiKey private key")
 }
 
