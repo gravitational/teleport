@@ -95,7 +95,7 @@ func Run(args []string) error {
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
-	app := libutils.InitCLIParser("teleport-updater", appHelp).Interspersed(false)
+	app := libutils.InitCLIParser("teleport-update", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
 	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
