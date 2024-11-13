@@ -313,7 +313,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
         };
-        if (result.error.includes('teleport-kube-agent is already installed')) {
+        if (
+          result.error.includes(
+            'teleport-kube-agent is already installed on the cluster'
+          )
+        ) {
           errorState.status = 'alreadyExists';
         }
         setEnrollmentState(errorState);
