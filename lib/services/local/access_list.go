@@ -546,10 +546,8 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 		existingMember, err := a.memberService.GetResource(ctx, member.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
 		}
 		keepAWSIdentityCenterLabels(existingMember, member)
 
@@ -584,10 +582,8 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 				return trace.Wrap(err)
 			}
 			existingMember, err := a.memberService.GetResource(ctx, member.GetName())
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
 			}
 			keepAWSIdentityCenterLabels(existingMember, member)
 
@@ -1058,6 +1054,4 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
-
-	return
 }
