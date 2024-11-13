@@ -81,8 +81,9 @@ export function KubeNamespaceSelector({
         updateNamespacesForKubeCluster([], kubeClusterItem);
         return;
       case 'remove-value':
+        const selectedOptions = options || [];
         updateNamespacesForKubeCluster(
-          getPendingNamespaces(options),
+          selectedOptions.map(o => optionToKubeNamespace(o)),
           kubeClusterItem
         );
         return;
@@ -90,24 +91,25 @@ export function KubeNamespaceSelector({
   }
 
   const handleMenuClose = () => {
+    const selectedOptions = selectedOpts || [];
     setIsMenuOpen(false);
     updateNamespacesForKubeCluster(
-      getPendingNamespaces(selectedOpts),
+      selectedOptions.map(o => optionToKubeNamespace(o)),
       kubeClusterItem
     );
   };
 
-  function getPendingNamespaces(
-    selectedOptions: Option[]
-  ): PendingKubeResourceItem[] {
-    const selectedNamespaceIds = selectedOptions?.map(o => o.value) || [];
-    return selectedNamespaceIds.map(namespace => ({
+  function optionToKubeNamespace(
+    selectedOption: Option
+  ): PendingKubeResourceItem {
+    const namespace = selectedOption.value;
+    return {
       kind: 'namespace',
       id: kubeClusterItem.id,
       subResourceName: namespace,
       clusterName: kubeClusterItem.clusterName,
       name: namespace,
-    }));
+    };
   }
 
   async function handleLoadOptions(input: string) {
@@ -123,6 +125,7 @@ export function KubeNamespaceSelector({
   return (
     <Box width="100%" mb={-3} mt={2}>
       <StyledSelect
+        label={`Namespaces`}
         inputId={`${kubeClusterItem.id}-${kubeClusterItem.clusterName}`}
         width="100%"
         placeholder="Start typing a namespace and press enter"

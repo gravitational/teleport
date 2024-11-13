@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 
 import {
   makeRootCluster,
@@ -230,83 +230,86 @@ test('after creating an access request, pending requests and specifiable fields 
     wrapper,
   });
 
-  await waitFor(() => {
-    result.current.setSelectedReviewers([{ value: 'bob', label: 'bob' }]);
-    expect(result.current.selectedReviewers).toEqual([
-      { value: 'bob', label: 'bob' },
-    ]);
-  });
+  await act(() =>
+    result.current.setSelectedReviewers([{ value: 'bob', label: 'bob' }])
+  );
+  expect(result.current.selectedReviewers).toEqual([
+    { value: 'bob', label: 'bob' },
+  ]);
 
-  await waitFor(() => {
-    result.current.setSelectedResourceRequestRoles(['apple', 'banana']);
-    expect(result.current.selectedResourceRequestRoles).toEqual([
-      'apple',
-      'banana',
-    ]);
-  });
+  await act(() =>
+    result.current.setSelectedResourceRequestRoles(['apple', 'banana'])
+  );
+  expect(result.current.selectedResourceRequestRoles).toEqual([
+    'apple',
+    'banana',
+  ]);
 
-  await waitFor(async () => {
-    await result.current.createRequest({
+  await act(() =>
+    result.current.createRequest({
       suggestedReviewers: result.current.selectedReviewers.map(r => r.value),
-    });
-    expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
-      rootClusterUri: '/clusters/teleport-local',
-      resourceIds: [
-        {
-          clusterName: 'teleport-local',
-          kind: 'kube_cluster',
-          name: kube.name,
-          subResourceName: '',
-        },
-        {
-          clusterName: 'teleport-local',
-          kind: 'kube_cluster',
-          name: kube2.name,
-          subResourceName: '',
-        },
-      ],
-      roles: ['apple', 'banana'],
-      suggestedReviewers: ['bob'],
-    });
+    })
+  );
+
+  expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
+    rootClusterUri: '/clusters/teleport-local',
+    resourceIds: [
+      {
+        clusterName: 'teleport-local',
+        kind: 'kube_cluster',
+        name: kube.name,
+        subResourceName: '',
+      },
+      {
+        clusterName: 'teleport-local',
+        kind: 'kube_cluster',
+        name: kube2.name,
+        subResourceName: '',
+      },
+    ],
+    roles: ['apple', 'banana'],
+    suggestedReviewers: ['bob'],
   });
   expect(result.current.requestedCount).toBe(2);
 
   // Call create again, should've cleared reviewers and previous roles.
   mockedCreateAccessRequestFn.mockClear();
+  // A successful create would've cleared all selected resources,
+  // so we add it back here to allow creating again.
   await waitFor(async () => {
-    // A successful create would've cleared all selected resources,
-    // so we add it back here to allow creating again.
     expect(result.current.pendingAccessRequests).toHaveLength(0);
-    await appContext.workspacesService
+  });
+  await act(() =>
+    appContext.workspacesService
       .getWorkspaceAccessRequestsService(rootClusterUri)
       .addOrRemoveResource({
         kind: 'kube',
         resource: kube,
-      });
-  });
+      })
+  );
 
-  await waitFor(async () => {
-    await result.current.createRequest({
+  await act(() =>
+    result.current.createRequest({
       suggestedReviewers: result.current.selectedReviewers.map(r => r.value),
-    });
-    expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
-      rootClusterUri: '/clusters/teleport-local',
-      resourceIds: [
-        {
-          clusterName: 'teleport-local',
-          kind: 'kube_cluster',
-          name: kube.name,
-          subResourceName: '',
-        },
-      ],
-      // These fields gotten cleared after the first create.
-      roles: [],
-      suggestedReviewers: [],
-    });
+    })
+  );
+  expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
+    rootClusterUri: '/clusters/teleport-local',
+    resourceIds: [
+      {
+        clusterName: 'teleport-local',
+        kind: 'kube_cluster',
+        name: kube.name,
+        subResourceName: '',
+      },
+    ],
+    // These fields gotten cleared after the first create.
+    roles: [],
+    suggestedReviewers: [],
   });
 });
 
-test(`updating kube namespaces`, async () => {
+test('updating kube namespaces', async () => {
   const kube1 = makeKube();
 
   const cluster = makeRootCluster();
@@ -346,7 +349,7 @@ test(`updating kube namespaces`, async () => {
   };
 
   // Test order of request are retained.
-  await waitFor(() => {
+  await act(() =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -372,16 +375,15 @@ test(`updating kube namespaces`, async () => {
         },
       ],
       kubeItem
-    );
-
-    const savaedRequestIds = result.current.pendingAccessRequests
-      .filter(r => r.kind === 'namespace')
-      .map(r => r.subResourceName);
-    expect(savaedRequestIds).toEqual(['n3', 'n2', 'n1']);
-  });
+    )
+  );
+  let savedRequestIds = result.current.pendingAccessRequests
+    .filter(r => r.kind === 'namespace')
+    .map(r => r.subResourceName);
+  expect(savedRequestIds).toEqual(['n3', 'n2', 'n1']);
 
   // Test order of request are retained a second time.
-  await waitFor(() => {
+  await act(() =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -407,23 +409,19 @@ test(`updating kube namespaces`, async () => {
         },
       ],
       kubeItem
-    );
-
-    const savaedRequestIds = result.current.pendingAccessRequests
-      .filter(r => r.kind === 'namespace')
-      .map(r => r.subResourceName);
-    expect(savaedRequestIds).toEqual(['n2', 'n1', 'n3']);
-  });
+    )
+  );
+  savedRequestIds = result.current.pendingAccessRequests
+    .filter(r => r.kind === 'namespace')
+    .map(r => r.subResourceName);
+  expect(savedRequestIds).toEqual(['n2', 'n1', 'n3']);
 
   // Test empty request clears request.
-  await waitFor(() => {
-    result.current.updateNamespacesForKubeCluster([], kubeItem);
-
-    const savaedRequestIds = result.current.pendingAccessRequests
-      .filter(r => r.kind === 'namespace')
-      .map(r => r.subResourceName);
-    expect(savaedRequestIds).toEqual([]);
-  });
+  await act(() => result.current.updateNamespacesForKubeCluster([], kubeItem));
+  savedRequestIds = result.current.pendingAccessRequests
+    .filter(r => r.kind === 'namespace')
+    .map(r => r.subResourceName);
+  expect(savedRequestIds).toEqual([]);
 
   // Test invalid request.
   await expect(
