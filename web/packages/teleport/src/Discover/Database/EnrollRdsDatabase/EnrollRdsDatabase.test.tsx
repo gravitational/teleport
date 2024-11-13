@@ -88,7 +88,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown' });
     fireEvent.keyDown(selectEl, { key: 'Enter' });
 
-    await screen.findByText(/selected region/i);
+    await screen.findByText(/selected VPC/i);
   }
 
   test('without rds database result, does not attempt to fetch db servers', async () => {

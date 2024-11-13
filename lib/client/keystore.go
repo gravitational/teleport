@@ -217,9 +217,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
-		// PPKFile can only be generated from an RSA private key. If the key is in a different
-		// format, a BadParameter error is returned and we can skip PPK generation.
-		if err != nil && !trace.IsBadParameter(err) {
+		if err != nil {
 			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {

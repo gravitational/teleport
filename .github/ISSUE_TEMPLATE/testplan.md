@@ -267,7 +267,8 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] `tsh ssh -X root@node xeyes`
   - [ ] Test untrusted vs trusted forwarding
     - [ ] `tsh ssh -Y server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should print "Hello World"
-    - [ ] `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+    - [ ] (Linux) `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+      - This test doesn't work with XQuartz as it doesn't seem to enable the X Security Extension.
 
 ### User accounting
 
@@ -812,8 +813,6 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 Run the full test suite with each HSM/KMS:
 
 ```shell
-$ make run-etcd # in background shell
-$
 $ # test YubiHSM
 $ yubihsm-connector -d # in a background shell
 $ cat /etc/yubihsm_pkcs11.conf
@@ -821,23 +820,23 @@ $ cat /etc/yubihsm_pkcs11.conf
 connector = http://127.0.0.1:12345
 debug
 $ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
 $
 $ # test AWS KMS
 $ # login in to AWS locally
 $ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
 $ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./integration/hsm -v --count 1
 $
 $ # test AWS CloudHSM
 $ # set up the CloudHSM cluster and run this on an EC2 that can reach it
 $ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./integration/hsm -v --count 1
 $
 $ # test GCP KMS
 $ # login in to GCP locally
 $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./integration/hsm -v --count 1
 ```
 
 ## Moderated session

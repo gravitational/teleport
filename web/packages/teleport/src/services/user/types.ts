@@ -71,6 +71,7 @@ export interface AccessWithUse extends Access {
 
 export interface Acl {
   directorySharingEnabled: boolean;
+  reviewRequests: boolean;
   desktopSessionRecordingEnabled: boolean;
   clipboardSharingEnabled: boolean;
   authConnectors: Access;
