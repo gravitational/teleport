@@ -2169,6 +2169,9 @@ message UpdateSessionTrackerRequest {
 message PresenceMFAChallengeRequest {
   // SessionID is unique identifier of the session you want to request presence for.
   string SessionID = 1 [(gogoproto.jsontag) = "session_id,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges.
+  string SSOClientRedirectURL = 2 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.

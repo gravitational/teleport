@@ -218,7 +218,7 @@ type ProxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -812,6 +812,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
 
 	// Site specific API
+
+	// get site info
+	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
 
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
@@ -2883,6 +2886,35 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
+}
+
+type getClusterInfoResponse struct {
+	ui.Cluster
+	IsCloud bool `json:"isCloud"`
+}
+
+// getClusterInfo returns the information about the cluster in the :site param
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	clusterDetails, err := ui.GetClusterDetails(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getClusterInfoResponse{
+		Cluster: *clusterDetails,
+		IsCloud: pingResp.GetServerFeatures().Cloud,
+	}, nil
 }
 
 type getSiteNamespacesResponse struct {
