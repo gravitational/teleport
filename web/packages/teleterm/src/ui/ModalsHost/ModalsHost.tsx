@@ -22,7 +22,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
-import { RegularDialog, ImportantDialog } from 'teleterm/ui/services/modals';
+import { Dialog } from 'teleterm/ui/services/modals';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
 
 import { ClusterLogout } from '../ClusterLogout';
@@ -45,15 +45,16 @@ export default function ModalsHost() {
 
   return (
     <>
-      {renderRegularDialog({
+      {renderDialog({
         dialog: regularDialog,
         handleClose: closeRegularDialog,
+        hidden: !!importantDialogs.length,
       })}
       {importantDialogs.map((dialog, index) => {
         const isLast = index === importantDialogs.length - 1;
         return (
           <Fragment key={dialog.kind}>
-            {renderImportantDialog({
+            {renderDialog({
               dialog: dialog,
               handleClose: () => modalsService.closeImportantDialog(dialog),
               hidden: !isLast,
@@ -65,21 +66,45 @@ export default function ModalsHost() {
   );
 }
 
-function renderRegularDialog({
+/**
+ * Renders a dialog.
+ * Each dialog must implement a `hidden` prop which visually hides the dialog
+ * without unmounting it.
+ * This is needed because tshd may want to display more than one dialog.
+ * Also, we hide a regular dialog, when an important one is visible.
+ */
+function renderDialog({
   dialog,
   handleClose,
+  hidden,
 }: {
-  dialog: RegularDialog;
+  dialog: Dialog;
   handleClose: () => void;
+  hidden: boolean;
 }) {
   if (!dialog) {
     return null;
   }
 
   switch (dialog.kind) {
+    case 'device-trust-authorize': {
+      return (
+        <AuthenticateWebDevice
+          hidden={hidden}
+          rootClusterUri={dialog.rootClusterUri}
+          onAuthorize={dialog.onAuthorize}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onClose={handleClose}
+        />
+      );
+    }
     case 'cluster-connect': {
       return (
         <ClusterConnect
+          hidden={hidden}
           dialog={{
             ...dialog,
             onCancel: () => {
@@ -94,22 +119,10 @@ function renderRegularDialog({
         />
       );
     }
-    case 'device-trust-authorize': {
-      return (
-        <AuthenticateWebDevice
-          rootClusterUri={dialog.rootClusterUri}
-          onAuthorize={dialog.onAuthorize}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onClose={handleClose}
-        />
-      );
-    }
     case 'cluster-logout': {
       return (
         <ClusterLogout
+          hidden={hidden}
           clusterUri={dialog.clusterUri}
           clusterTitle={dialog.clusterTitle}
           onClose={handleClose}
@@ -119,6 +132,7 @@ function renderRegularDialog({
     case 'documents-reopen': {
       return (
         <DocumentsReopen
+          hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           numberOfDocuments={dialog.numberOfDocuments}
           onCancel={() => {
@@ -135,6 +149,7 @@ function renderRegularDialog({
     case 'usage-data': {
       return (
         <UsageData
+          hidden={hidden}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -153,6 +168,7 @@ function renderRegularDialog({
     case 'user-job-role': {
       return (
         <UserJobRole
+          hidden={hidden}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -167,67 +183,12 @@ function renderRegularDialog({
     case 'resource-search-errors': {
       return (
         <ResourceSearchErrors
+          hidden={hidden}
           errors={dialog.errors}
           getClusterName={dialog.getClusterName}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
-          }}
-        />
-      );
-    }
-    case 'change-access-request-kind': {
-      return (
-        <ChangeAccessRequestKind
-          onConfirm={() => {
-            handleClose();
-            dialog.onConfirm();
-          }}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-        />
-      );
-    }
-
-    default: {
-      return assertUnreachable(dialog);
-    }
-  }
-}
-
-/**
- * Renders an important dialog.
- * Each dialog must implement a `hidden` prop which visually hides the dialog
- * without unmounting it.
- * This is needed because tshd can send more than one event,
- * and we need to queue dialogs on the Electron side.
- */
-function renderImportantDialog({
-  dialog,
-  handleClose,
-  hidden,
-}: {
-  dialog: ImportantDialog;
-  handleClose: () => void;
-  hidden: boolean;
-}) {
-  switch (dialog.kind) {
-    case 'cluster-connect': {
-      return (
-        <ClusterConnect
-          hidden={hidden}
-          dialog={{
-            ...dialog,
-            onCancel: () => {
-              handleClose();
-              dialog.onCancel?.();
-            },
-            onSuccess: clusterUri => {
-              handleClose();
-              dialog.onSuccess(clusterUri);
-            },
           }}
         />
       );
@@ -262,6 +223,21 @@ function renderImportantDialog({
           }}
           // This function needs to be stable between renders.
           onSsoContinue={dialog.onSsoContinue}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'change-access-request-kind': {
+      return (
+        <ChangeAccessRequestKind
+          hidden={hidden}
+          onConfirm={() => {
+            handleClose();
+            dialog.onConfirm();
+          }}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -323,6 +299,7 @@ function renderImportantDialog({
         />
       );
     }
+
     default: {
       return assertUnreachable(dialog);
     }

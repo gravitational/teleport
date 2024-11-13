@@ -77,8 +77,12 @@ jest.mock('teleterm/ui/ModalsHost/modals/HardwareKeys/Touch', () => ({
 }));
 
 jest.mock('teleterm/ui/DocumentsReopen', () => ({
-  DocumentsReopen: () => (
-    <div data-testid="mocked-dialog" data-dialog-kind="documents-reopen" />
+  DocumentsReopen: props => (
+    <div
+      data-testid="mocked-dialog"
+      data-dialog-kind="documents-reopen"
+      data-dialog-is-hidden={props.hidden}
+    />
   ),
 }));
 
@@ -107,7 +111,9 @@ test('the important dialog is rendered above the regular dialog', () => {
   // The important dialog should be after the regular dialog in the DOM so that it's shown over the
   // regular dialog.
   expect(dialogs[0]).toHaveAttribute('data-dialog-kind', regularDialog.kind);
+  expect(dialogs[0]).toHaveAttribute('data-dialog-is-hidden', 'true');
   expect(dialogs[1]).toHaveAttribute('data-dialog-kind', importantDialog.kind);
+  expect(dialogs[1]).toHaveAttribute('data-dialog-is-hidden', 'false');
 });
 
 test('the second important dialog is rendered above the first important dialog', () => {
