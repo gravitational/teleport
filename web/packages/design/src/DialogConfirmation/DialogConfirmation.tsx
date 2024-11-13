@@ -27,7 +27,7 @@ export function DialogConfirmation(props: {
    * Prevent unmounting the component and its children from the DOM when closed.
    * Instead, hides it with CSS.
    */
-  keepMounted?: boolean;
+  keepInDOMAfterClose?: boolean;
   /** @deprecated This props has no effect, it was never passed down to `Dialog`. */
   disableEscapeKeyDown?: boolean;
   children?: ReactNode;
@@ -43,7 +43,7 @@ export function DialogConfirmation(props: {
       disableEscapeKeyDown={false}
       onClose={props.onClose}
       open={props.open}
-      keepMounted={props.keepMounted}
+      keepInDOMAfterClose={props.keepInDOMAfterClose}
     >
       {props.children}
     </Dialog>
