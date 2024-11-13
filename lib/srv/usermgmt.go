@@ -186,7 +186,7 @@ func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
 
 type HostUsers interface {
 	// UpsertUser creates a temporary Teleport user in the TeleportDropGroup
-	UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error)
+	UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (bool, io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
@@ -418,8 +418,8 @@ type HostUser struct {
 	Groups map[string]struct{}
 }
 
-// UpsertUser creates a temporary Teleport user in the TeleportDropGroup
-func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
+// UpsertUser creates or updates a user with the correct group assignments.
+func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (bool, io.Closer, error) {
 	log := u.log.With(
 		"host_username", name,
 		"mode", ui.Mode,
@@ -430,7 +430,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 	log.DebugContext(u.ctx, "Attempting to upsert host user")
 	hostUser, err := u.getHostUser(name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, nil, trace.Wrap(err)
 	}
 
 	log.DebugContext(u.ctx, "Resolving groups for user")
@@ -447,12 +447,12 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 				"login", name)
 		}
 
-		return nil, trace.Wrap(err)
+		return false, nil, trace.Wrap(err)
 	}
 
 	log.DebugContext(u.ctx, "Ensuring configured host groups exist", "groups", groups)
 	if err := u.ensureGroupsExist(groups...); err != nil {
-		return nil, trace.Wrap(err)
+		return false, nil, trace.Wrap(err)
 	}
 
 	ui.Groups = groups
@@ -469,20 +469,20 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 	defer u.backend.RemoveExpirations(name)
 	if hostUser == nil {
 		if err := u.createUser(name, ui); err != nil {
-			return nil, trace.Wrap(err)
+			return false, nil, trace.Wrap(err)
 		}
 
-		return closer, nil
+		return true, closer, nil
 	}
 
 	if groups != nil {
 		if err := u.updateUser(*hostUser, ui); err != nil {
-			return nil, trace.Wrap(err)
+			return false, nil, trace.Wrap(err)
 		}
 	}
 
 	// attempt to remove password expirations from managed users if they've been added
-	return closer, nil
+	return false, closer, nil
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {

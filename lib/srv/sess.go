@@ -317,22 +317,24 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 		return false, nil, trace.Wrap(accessErr)
 	}
 
-	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
+	created, userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil {
 		log.DebugContext(ctx, "Error creating user", "error", err)
 
 		if errors.Is(err, unmanagedUserErr) {
 			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
-			return false, nil, nil
+			return created, nil, nil
 		}
 
 		if !trace.IsAlreadyExists(err) {
-			return false, nil, trace.Wrap(err)
+			return created, nil, trace.Wrap(err)
 		}
+
 		log.DebugContext(ctx, "Host user already exists")
+		return created, userCloser, nil
 	}
 
-	return true, userCloser, nil
+	return created, userCloser, nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.

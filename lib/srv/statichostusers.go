@@ -266,7 +266,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 	if createUser.Gid != 0 {
 		ui.GID = strconv.Itoa(int(createUser.Gid))
 	}
-	if _, err := s.users.UpsertUser(login, ui); err != nil {
+	if _, _, err := s.users.UpsertUser(login, ui); err != nil {
 		return trace.Wrap(err)
 	}
 	if s.sudoers != nil && len(createUser.Sudoers) != 0 {

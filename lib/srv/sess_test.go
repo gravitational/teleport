@@ -1463,7 +1463,7 @@ func TestUpsertHostUser(t *testing.T) {
 				username: {},
 			}},
 
-			expectCreated: true,
+			expectCreated: false,
 
 			expectUsers: map[string][]string{
 				username: {"foo", "bar"},
@@ -1677,13 +1677,14 @@ type fakeHostUsersBackend struct {
 	users map[string][]string
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (bool, io.Closer, error) {
 	if f.users == nil {
 		f.users = make(map[string][]string)
 	}
 
+	_, exists := f.users[name]
 	f.users[name] = hostRoleInfo.Groups
-	return nil, nil
+	return !exists, nil, nil
 }
 
 func (f *fakeHostUsersBackend) UserExists(name string) error {

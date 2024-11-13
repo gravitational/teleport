@@ -250,8 +250,9 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: services.HostUserModeDrop})
+		created, closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: services.HostUserModeDrop})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		testGroups = append(testGroups, types.TeleportDropGroup)
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, testGroups) })
@@ -275,12 +276,13 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := user.LookupGroupId(testGID)
 		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{
+		created, closer, err := users.UpsertUser(testuser, services.HostUsersInfo{
 			Mode: services.HostUserModeDrop,
 			UID:  testUID,
 			GID:  testGID,
 		})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportDropGroup}) })
 
@@ -304,8 +306,9 @@ func TestRootHostUsers(t *testing.T) {
 		expectedHome := filepath.Join("/home", testuser)
 		require.NoDirExists(t, expectedHome)
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep})
+		created, closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep})
 		require.NoError(t, err)
+		require.True(t, created)
 		require.Nil(t, closer)
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
 
@@ -330,11 +333,12 @@ func TestRootHostUsers(t *testing.T) {
 			os.Remove(sudoersPath(testuser, uuid))
 			cleanupUsersAndGroups([]string{testuser}, nil)
 		})
-		closer, err := users.UpsertUser(testuser,
+		created, closer, err := users.UpsertUser(testuser,
 			services.HostUsersInfo{
 				Mode: services.HostUserModeDrop,
 			})
 		require.NoError(t, err)
+		require.True(t, created)
 		err = sudoers.WriteSudoers(testuser, []string{"ALL=(ALL) ALL"})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
@@ -356,27 +360,29 @@ func TestRootHostUsers(t *testing.T) {
 	})
 
 	t.Run("test delete all users in teleport service group", func(t *testing.T) {
-		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-		users.SetHostUserDeletionGrace(0)
-
-		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
-		for _, user := range deleteableUsers {
-			_, err := users.UpsertUser(user, services.HostUsersInfo{Mode: services.HostUserModeDrop})
-			require.NoError(t, err)
-		}
-
-		// this user should not be in the service group as it was created with mode keep.
-		closer, err := users.UpsertUser("teleport-user4", services.HostUsersInfo{
-			Mode: services.HostUserModeKeep,
-		})
-		require.NoError(t, err)
-		require.Nil(t, closer)
-
 		t.Cleanup(func() {
 			cleanupUsersAndGroups(
 				[]string{"teleport-user1", "teleport-user2", "teleport-user3", "teleport-user4"},
 				[]string{types.TeleportDropGroup, types.TeleportKeepGroup})
 		})
+
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		users.SetHostUserDeletionGrace(0)
+
+		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
+		for _, user := range deleteableUsers {
+			created, _, err := users.UpsertUser(user, services.HostUsersInfo{Mode: services.HostUserModeDrop})
+			require.NoError(t, err)
+			require.True(t, created)
+		}
+
+		// this user should not be in the service group as it was created with mode keep.
+		created, closer, err := users.UpsertUser("teleport-user4", services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.True(t, created)
+		require.NoError(t, err)
+		require.Nil(t, closer)
 
 		err = users.DeleteAllUsers()
 		require.NoError(t, err)
@@ -422,21 +428,23 @@ func TestRootHostUsers(t *testing.T) {
 
 				// Verify that the user is created with the first set of groups.
 				users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-				_, err := users.UpsertUser(testuser, services.HostUsersInfo{
+				created, _, err := users.UpsertUser(testuser, services.HostUsersInfo{
 					Groups: tc.firstGroups,
 					Mode:   services.HostUserModeKeep,
 				})
 				require.NoError(t, err)
+				require.True(t, created)
 				u, err := user.Lookup(testuser)
 				require.NoError(t, err)
 				requireUserInGroups(t, u, tc.firstGroups)
 
 				// Verify that the user is updated with the second set of groups.
-				_, err = users.UpsertUser(testuser, services.HostUsersInfo{
+				created, _, err = users.UpsertUser(testuser, services.HostUsersInfo{
 					Groups: tc.secondGroups,
 					Mode:   services.HostUserModeKeep,
 				})
 				require.NoError(t, err)
+				require.False(t, created)
 				u, err = user.Lookup(testuser)
 				require.NoError(t, err)
 				requireUserInGroups(t, u, tc.secondGroups)
@@ -461,25 +469,28 @@ func TestRootHostUsers(t *testing.T) {
 
 		// Create a user with a named shell expected to be available in the PATH
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-		_, err := users.UpsertUser(namedShellUser, services.HostUsersInfo{
+		created, _, err := users.UpsertUser(namedShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "bash",
 		})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		// Create a user with an absolute path to a shell
-		_, err = users.UpsertUser(absoluteShellUser, services.HostUsersInfo{
+		created, _, err = users.UpsertUser(absoluteShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "/usr/bin/bash",
 		})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		// Create a user with the host default shell (default behavior)
-		_, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
+		created, _, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "zsh",
 		})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		_, err = user.Lookup(namedShellUser)
 		require.NoError(t, err)
@@ -503,10 +514,11 @@ func TestRootHostUsers(t *testing.T) {
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
 		// User's shell should not be overwritten when updating, only when creating a new host user
-		_, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
+		created, _, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
 			Mode:  services.HostUserModeKeep,
 			Shell: "sh",
 		})
+		require.False(t, created)
 		require.NoError(t, err)
 
 		userShells, err = getUserShells("/etc/passwd")
@@ -534,10 +546,11 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Upsert a new user which should have the expirations removed
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+		created, _, err := users.UpsertUser(expiredUser, services.HostUsersInfo{
 			Mode: services.HostUserModeKeep,
 		})
 		require.NoError(t, err)
+		require.True(t, created)
 
 		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
 		require.NoError(t, err)
@@ -557,10 +570,11 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Update user without any changes
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+		created, _, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
 			Mode: services.HostUserModeKeep,
 		})
 		require.NoError(t, err)
+		require.False(t, created)
 
 		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
 		require.NoError(t, err)
@@ -573,11 +587,12 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Update user with changes
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+		created, _, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
 			Mode:   services.HostUserModeKeep,
 			Groups: []string{"test-group"},
 		})
 		require.NoError(t, err)
+		require.False(t, created)
 
 		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
 		require.NoError(t, err)
@@ -591,8 +606,9 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := host.UserAdd(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep, Groups: []string{types.TeleportKeepGroup}})
+		created, closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep, Groups: []string{types.TeleportKeepGroup}})
 		require.NoError(t, err)
+		require.False(t, created)
 		require.Nil(t, closer)
 
 		u, err := user.Lookup(testuser)

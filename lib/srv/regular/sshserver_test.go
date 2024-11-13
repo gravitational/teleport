@@ -3077,9 +3077,9 @@ func (f *fakeHostUsersBackend) functionCalled(name string) {
 	f.calls[name]++
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (bool, io.Closer, error) {
 	f.functionCalled("UpsertUser")
-	return nil, trace.NotImplemented("")
+	return false, nil, trace.NotImplemented("")
 }
 
 func (f *fakeHostUsersBackend) DeleteUser(name, gid string) error {

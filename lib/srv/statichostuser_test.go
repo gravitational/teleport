@@ -105,12 +105,12 @@ type mockHostUsers struct {
 	upsertedUsers map[string]services.HostUsersInfo
 }
 
-func (m *mockHostUsers) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
+func (m *mockHostUsers) UpsertUser(name string, ui services.HostUsersInfo) (bool, io.Closer, error) {
 	if m.upsertedUsers == nil {
 		m.upsertedUsers = make(map[string]services.HostUsersInfo)
 	}
 	m.upsertedUsers[name] = ui
-	return nil, nil
+	return false, nil, nil
 }
 
 type mockHostSudoers struct {
