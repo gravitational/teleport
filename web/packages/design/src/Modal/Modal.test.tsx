@@ -160,7 +160,7 @@ test('restores focus on close', async () => {
 
 test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
   const { rerender } = render(
-    <Modal open={true} keepInDOMAfterClose={true}>
+    <Modal open={true} keepInDOMAfterClose>
       <div>Hello</div>
     </Modal>
   );
@@ -168,7 +168,7 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
   expect(screen.getByText('Hello')).toBeVisible();
 
   rerender(
-    <Modal open={false} keepInDOMAfterClose={true}>
+    <Modal open={false} keepInDOMAfterClose>
       <div>Hello</div>
     </Modal>
   );

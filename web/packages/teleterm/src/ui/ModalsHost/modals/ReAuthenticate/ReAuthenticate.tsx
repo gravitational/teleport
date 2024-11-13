@@ -91,7 +91,7 @@ export const ReAuthenticate: FC<{
   return (
     <DialogConfirmation
       open={!props.hidden}
-      keepInDOMAfterClose={true}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',

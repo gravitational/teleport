@@ -53,7 +53,7 @@ export function ClusterConnect(props: {
       disableEscapeKeyDown={false}
       onClose={props.dialog.onCancel}
       open={!props.hidden}
-      keepInDOMAfterClose={true}
+      keepInDOMAfterClose
     >
       {!clusterUri ? (
         <ClusterAdd

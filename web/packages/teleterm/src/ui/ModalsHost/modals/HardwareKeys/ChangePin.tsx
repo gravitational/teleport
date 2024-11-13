@@ -57,7 +57,7 @@ export function ChangePin(props: {
   return (
     <DialogConfirmation
       open={!props.hidden}
-      keepInDOMAfterClose={true}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',
