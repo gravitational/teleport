@@ -581,7 +581,7 @@ class FeatureAccessGraphIntegrations extends FeatureAccessGraph {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.accessGraphIntegrations;
+    return super.hasAccess(flags) && flags.accessGraphIntegrations;
   }
 
   navigationItem = {
