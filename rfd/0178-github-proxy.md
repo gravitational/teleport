@@ -67,15 +67,14 @@ Integration" page. Alice selects a "guided" GitHub integration experience:
 
 <img src="./assets/0178-enroll-step3.png" width="600" />
 
-3. Next Alice creates a Git server resource and a Teleport role for Teleport
-   users to access.
+3. Next Alice creates a Teleport role for Teleport users to access.
 
-<img src="./assets/0178-enroll-step4.png" width="400" /> <img src="./assets/0178-enroll-step5.png" width="400" />
+<img src="./assets/0178-enroll-step4.png" width="400" />
 
 4. Lastly, Alice is presented instructions on how to use `tsh` to setup the Git
    repos.
 
-<img src="./assets/0178-enroll-step6.png" width="600" />
+<img src="./assets/0178-enroll-step5.png" width="600" />
 
 After the enrollment, Alice needs to assign the created role to desired
 Teleport users. For example, once she assigns the role to herself, she will
@@ -216,6 +215,22 @@ If one day Bob needs to revert Teleport settings in the Git repo:
 $ tsh git config reset
 The Teleport configuration for the current git dir is removed.
 ```
+
+#### Bob uses the GitHub proxy on a remote machine
+
+Bob, a Teleport user that's granted access to the GitHub organization, wants to
+uses the GitHub proxy on a remote machine that cannot open browser windows.
+
+If Bob has never went through the GitHub OAuth flow to prove his GitHub
+identity, he has two options:
+- Option 1: run `tsh git login --github-org my-org` on his laptop where a browser is
+  available. The GitHub identity will be preserved when he logins on the remote
+  machine.
+- Option 2: when `tsh ssh` (or `ssh`) into the the remote machine, forwards a
+  local port say `-L 8080:localhost:8080`. Then on the remote machine, specify
+  this port for the callback like `tsh git login --github-org my-org --callback-addr localhost:8080`.
+  Bob can finish the OAuth flow using the link provided by `tsh` in his
+  laptop's browser.
 
 #### Alice wants to require Bob to use MFA for every `git` command.
 
@@ -364,6 +379,9 @@ After the Auth service verifies the GitHub callback, it updates the user's
 info, the reissued SSH user cert will have the following extensions:
 - `github-id@goteleport.com` for GitHub user ID
 - `github-login@goteleport.com` for GitHub username
+
+Note that the GitHub identity is preserved in the login state during login
+state refresh (like a new login event).
 
 #### GitHub Integration resource
 
@@ -638,107 +656,11 @@ message SessionStartGitMetadata {
 ```
 ### Security
 
-#### Provisioning GitHub username
-
-In the design described above, GitHub usernames are provided through an user
-trait. For local users, only Teleport "admins" can set the traits as modifying
-users is considered an admin action. For external users, only "admins" of the
-external identity provider, say an Okta admin, can configure the values of the
-traits.
-
-However, with this method, it is possible for an "admin" to assign a false
-GitHub username to impersonate another GitHub user. We can argue that this is
-the nature of GitHub's SSH CA feature since anyone that has access to the CA
-can techinically impersonate everyone in their organization. But admin can make
-mistakes when configuring the traits. A "malicious" admin can also easily make
-one Teleport user to impersonate another.
-
-Here are two additional alternatives that provides extra validations on the
-GitHub username that a Teleport user owns.
-
-(Note: the RFD has been updated to use Alternative 2).
-
-##### Alternative 1: GitHub username by GitHub GraphQL API
-
-We can use GitHub GraphQL API to map emails
-(`organizationVerifiedDomainEmails`) to GitHub usernames:
-```
-query users($org: String!, $cursor: String) {
-  organization(login: $org) {
-    membersWithRole(first: 100, after: $cursor) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      nodes {
-        login
-        organizationVerifiedDomainEmails(login: $org)
-      }
-    }
-  }
-}
-```
-Gives:
-```json
-{ "data": { "organization": { "membersWithRole": {
-  "pageInfo": { "hasNextPage": false, "endCursor": "<cursor>" },
-  "nodes": [
-    {
-      "login": "my-github-username",
-      "organizationVerifiedDomainEmails": [ "my-email@my-company.com" ]
-    },
-    ...
-  ]
-} } } }
-```
-
-To utilize this, Teleport admin can create a GitHub token (for API) and save it
-in the Teleport GitHub integration. Teleport Auth can periodically make this
-call and cache the mapping.
-
-When a Teleport user runs `git` commands, Teleport Auth will search the GitHub
-username using the email address of the Teleport user.
-
-Pros:
-- There is no extra step for a Teleport user when using `git` commands.
-- The GitHub IAM integration will require permissions to run some GitHub
-  queries so this method prepares for that.
-
-Cons:
-- To make this secure, this integration will be limited to only Teleport SSO
-  logins that use emails as their usernames, (or GitHub SSO where the Teleport
-  username IS already the GitHub username where validation is not necessary).
-  Teleport local users will not be able to use the GitHub proxy feature
-  outlined by this RFD.
-
-##### Alternative 2: GitHub username by GitHub OAuth
-
-Teleport today supports [GitHub SSO
-connector](https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/)
-by configuring Teleport as an OAuth app. We can repurpose the GitHub connector
-flow to obtain the GitHub username, as a secondary identity attribute provider
-to whatever auth/connector method the Teleport cluster already uses.
-
-Teleport "admins" first need to configure Teleport as a GitHub OAuth app. A
-Teleport still logins `tsh` as today. Then when a Teleport user runs `git`
-command for the first time through Teleport (or some special command like `tsh
-git login --github-org`), a browser window will be open to authenticate with
-GitHub. If OAuth flow is successful, Teleport Auth will save the GitHub
-username as an attribute of the Teleport user. This GitHub username attribute
-should only be configurable during this flow and should expire either when the
-user expire or upon a certain TTL.
-
-Pros:
-- This method can work with any Teleport auth/connector type.
-- The proof comes from the end user logging in GitHub in their browser.
-
-Cons:
-- Teleport "admins" need to configure an additional connector for GitHub OAuth
-  app.
-- Teleport users will need the browser window open for GitHub login from time
-  to time.
-
 #### The GitHub OAuth flow
+
+The design improves security by using the GitHub OAuth flow to verify the end
+user's GitHub identity through their browser, reducing the risk of identity
+impersonation.
 
 As stated above, the `types.GithubAuthRequest` is created for an
 "authenticated" user. And it's created when:
@@ -748,8 +670,9 @@ As stated above, the `types.GithubAuthRequest` is created for an
   with the Git server.
 
 When the flow is successful, the user login state is updated with retrieved
-GitHub identity information. The login state do expire so the user will need to
-go through the flow again once their sessions expire.
+GitHub identity information. The GitHub identity saved in login state are
+preserved when login states are refreshed if no new GitHub identity is
+provided.
 
 Rest of the GitHub OAuth flow is the same as the existing GitHub SSO flow.
 
