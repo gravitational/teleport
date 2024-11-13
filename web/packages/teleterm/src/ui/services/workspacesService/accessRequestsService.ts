@@ -99,7 +99,7 @@ export class AccessRequestsService {
     });
   }
 
-  async updateNamespacesForKubeCluster(
+  updateNamespacesForKubeCluster(
     namespaceUris: KubeResourceNamespaceUri[],
     kubeClusterUri: string
   ) {
@@ -111,16 +111,13 @@ export class AccessRequestsService {
       const { resources } = draftState.pending;
 
       // Validate each namespace uri's.
-      namespaceUris.forEach(resourceUri => {
-        const kubeRequestedResource = resources.get(
+      namespaceUris.forEach(namespaceUri => {
+        const namespaceKubeResource = resources.get(
           routing.getKubeUri(
-            routing.parseKubeResourceNamespaceUri(resourceUri).params
+            routing.parseKubeResourceNamespaceUri(namespaceUri).params
           )
         );
-        if (!kubeRequestedResource || kubeRequestedResource.kind !== 'kube') {
-          throw new Error('Cannot add a kube namespace to a non-kube resource');
-        }
-        if (kubeRequestedResource.resource.uri != kubeClusterUri) {
+        if (namespaceKubeResource.resource.uri != kubeClusterUri) {
           throw new Error(
             'Only namespace belonging to the same requested kube cluster can be updated'
           );

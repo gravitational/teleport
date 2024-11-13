@@ -257,11 +257,11 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  async function updateNamespacesForKubeCluster(
+  function updateNamespacesForKubeCluster(
     items: PendingKubeResourceItem[],
     kubeCluster: PendingListKubeClusterWithOriginalItem
   ) {
-    await workspaceAccessRequest.updateNamespacesForKubeCluster(
+    workspaceAccessRequest.updateNamespacesForKubeCluster(
       items.map(item =>
         mapRequestToKubeNamespaceUri({
           id: item.id,
