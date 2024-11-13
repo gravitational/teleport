@@ -144,7 +144,12 @@ func TestCAChange(t *testing.T) {
 	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
 
 	// dial server and send a test data frame
-	conn, err := client.connect("s1", server.config.Listener.Addr().String())
+	conn, err := client.connect(connectParams{
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -161,7 +166,12 @@ func TestCAChange(t *testing.T) {
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect(connectParams{
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -179,7 +189,12 @@ func TestCAChange(t *testing.T) {
 		return config, nil
 	}
 
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect(connectParams{
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)

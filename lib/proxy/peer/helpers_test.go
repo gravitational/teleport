@@ -59,6 +59,7 @@ type mockProxyAccessPoint struct {
 }
 
 type mockProxyService struct {
+	clientapi.UnimplementedProxyServiceServer
 	mockDialNode func(stream clientapi.ProxyService_DialNodeServer) error
 }
 
