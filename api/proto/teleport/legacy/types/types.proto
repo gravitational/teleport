@@ -8025,10 +8025,8 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
-  // Azure is a configuration for the Azure Access Graph service poll service.
-  repeated AccessGraphAzureSync Azure = 2 [(gogoproto.jsontag) = "azure,omitempty"];
   // PollInterval is the frequency at which to poll for AWS resources
-  google.protobuf.Duration PollInterval = 3 [
+  google.protobuf.Duration PollInterval = 2 [
     (gogoproto.jsontag) = "poll_interval,omitempty",
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
