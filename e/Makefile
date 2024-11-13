@@ -10,7 +10,9 @@ CGOFLAG ?= CGO_ENABLED=1
 GITTAG ?= v$(VERSION)
 DOCKER_IMAGE ?= teleport-ent
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-BINS = teleport tctl tsh tbot fdpass-teleport
+BINS_default = teleport tctl tsh tbot fdpass-teleport teleport-update
+BINS_darwin = teleport tctl tsh tbot fdpass-teleport
+BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES ?= $(addprefix $(BUILDDIR)/,$(BINS))
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 
@@ -247,6 +249,10 @@ $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpc
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ../build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION=-X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
+	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
+
+.PHONY: $(BUILDDIR)/teleport-update
+$(BUILDDIR)/teleport-update:
 	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
 
 TBOT_DYNAMIC :=
