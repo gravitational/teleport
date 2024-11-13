@@ -114,6 +114,8 @@ func TestNewUserACL(t *testing.T) {
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
 	require.False(t, userContext.DesktopSessionRecording)
+
+	require.False(t, userContext.ReviewRequests)
 }
 
 func TestNewUserACLCloud(t *testing.T) {

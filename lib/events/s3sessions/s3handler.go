@@ -47,6 +47,7 @@ import (
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -164,6 +165,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	logger := slog.With(teleport.ComponentKey, teleport.SchemeS3)
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),
@@ -190,7 +192,19 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
 
-	var s3Opts []func(*s3.Options)
+	resolver, err := endpoint.NewLoggingResolver(
+		s3.NewDefaultEndpointResolverV2(),
+		logger.With(slog.Group("service",
+			"id", s3.ServiceID,
+			"api_version", s3.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
+
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured S3 endpoint is invalid: %s", err.Error())
@@ -221,7 +235,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	downloader := manager.NewDownloader(client)
 
 	h := &Handler{
-		logger:     slog.With(teleport.ComponentKey, teleport.SchemeS3),
+		logger:     logger,
 		Config:     cfg,
 		uploader:   uploader,
 		downloader: downloader,
@@ -229,11 +243,21 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	}
 
 	start := time.Now()
-	h.logger.InfoContext(ctx, "Setting up S3 bucket", "bucket", h.Bucket, "path", h.Path, "region", h.Region)
+	h.logger.InfoContext(ctx, "Setting up S3 bucket",
+		"bucket", h.Bucket,
+		"path", h.Path,
+		"region", h.Region,
+	)
 	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.logger.InfoContext(ctx, "Setting up bucket S3 completed.", "bucket", h.Bucket, "duration", time.Since(start))
+
+	h.logger.InfoContext(ctx, "Setting up bucket S3 completed",
+		"bucket", h.Bucket,
+		"path", h.Path,
+		"region", h.Region,
+		"duration", time.Since(start),
+	)
 	return h, nil
 }
 
