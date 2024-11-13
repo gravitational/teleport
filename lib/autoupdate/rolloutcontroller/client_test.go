@@ -20,10 +20,12 @@ package rolloutcontroller
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"testing"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 
 // mockClient is a mock implementation if the Client interface for testing purposes.

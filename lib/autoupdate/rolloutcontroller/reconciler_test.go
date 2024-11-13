@@ -20,17 +20,19 @@ package rolloutcontroller
 
 import (
 	"context"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
-	"testing"
 )
 
 // rolloutEquals returns a require.ValueAssertionFunc that checks the rollout is identical.

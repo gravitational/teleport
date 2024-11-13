@@ -20,6 +20,7 @@ package rolloutcontroller
 
 import (
 	"context"
+
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 
