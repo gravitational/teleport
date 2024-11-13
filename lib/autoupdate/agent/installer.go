@@ -57,7 +57,7 @@ const (
 
 var (
 	// serviceDir contains the path to the Teleport SystemD service dir within the version directory.
-	serviceDir = filepath.Join("etc", "systemd")
+	serviceDir = filepath.Join("lib", "systemd", "system")
 	// serviceName contains the name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
 )
@@ -371,7 +371,7 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		prefix += "-ent"
 	}
 	return []utils.ExtractPath{
-		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "etc/systemd/teleport.service", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "lib/systemd/system/teleport.service", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "install"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},

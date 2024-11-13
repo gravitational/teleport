@@ -136,7 +136,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
 			for _, p := range []string{
-				filepath.Join(dir, version, "etc", "systemd", "teleport.service"),
+				filepath.Join(dir, version, "lib", "systemd", "system", "teleport.service"),
 				filepath.Join(dir, version, "bin", "teleport"),
 				filepath.Join(dir, version, "bin", "tsh"),
 			} {
@@ -211,9 +211,9 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -237,9 +237,9 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -258,9 +258,9 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -292,9 +292,9 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -319,9 +319,9 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -466,9 +466,9 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -492,9 +492,9 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -513,9 +513,9 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -542,9 +542,9 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -566,9 +566,9 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installDirs: []string{
 				"bin",
 				"bin/somedir",
-				"etc",
-				"etc/systemd",
-				"etc/systemd/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
 				"somedir",
 			},
 			installFiles: []string{
@@ -707,7 +707,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		},
 		{
 			name:          "version linked",
-			dirs:          []string{"bin", "bin/somedir", "somedir", "etc", serviceDir},
+			dirs:          []string{"bin", "bin/somedir", "somedir", "lib", "lib/systemd", "lib/systemd/system"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README", servicePath},
 			createVersion: version,
 			linkedVersion: version,
