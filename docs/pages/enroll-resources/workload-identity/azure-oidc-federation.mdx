@@ -83,11 +83,11 @@ First, you'll create a user-managed identity to represent the workload within
 Azure.
 
 1. Browse to the "Managed Identities" section of the Azure Portal.
-2. Select "Create" to open the "Create User Assigned Managed Identity" form.
-3. Select your resource group and subscription.
-4. Enter a unique name for your identity that describes the workload it will
+1. Select "Create" to open the "Create User Assigned Managed Identity" form.
+1. Select your resource group and subscription.
+1. Enter a unique name for your identity that describes the workload it will
   represent. In our example, we will use "example-service".
-5. Select "Review + create".
+1. Select "Review + create".
 
 You now need to record some key information about the created user-managed
 identity to be used in future steps.
@@ -103,25 +103,106 @@ cluster as a form of authentication for this user-managed identity.
 
 1. Browse to your user-managed identity in the Azure Portal and select the 
   "Federated credentials" page from the "Settings" section.
-2. Select "Add Credential" to open the "Add Federated Credential" form.
-3. Select "Other" for the "Federated credential scenario".
-4. Enter the address of your Teleport Proxy service followed by
+1. Select "Add Credential" to open the "Add Federated Credential" form.
+1. Select "Other" for the "Federated credential scenario".
+1. Enter the address of your Teleport Proxy service followed by
   `/workload-identity` for the "Issuer URL", for example
   `https://example.teleport.sh/workload-identity`.
-5. Enter the SPIFFE ID you have decided on for the workload in the
+1. Enter the SPIFFE ID you have decided on for the workload in the
   "Subject identifier" field. For example,
   `spiffe://example.teleport.sh/svc/example-service`. This will control which
   JWT SVIDs issued by Teleport Workload Identity will be accepted for this
   user-managed identity.
-6. Enter a unique, identifiable name for the federated credential. For example,
+1. Enter a unique, identifiable name for the federated credential. For example,
    `example-teleport-sh-svc-example-service`.
-7. Click "Add".
+1. Click "Add".
 
 ### Create a storage account and container
 
+For the purposes of this guide, you'll create a storage account and container
+for your workload to authenticate to. You can skip this step if you already have
+resources you wish to grant the workload access to.
+
+First, create a storage account:
+
+1. Browse to the "Storage accounts" section of the Azure Portal and select the 
+  "Create" button to open the "Create a storage account" form.
+1. Select your resource group and subscription.
+1. Enter a unique, identifiable name for the storage account. Record this as 
+  you will need it later. In our examples we will use `examplestorageaccount`.
+1. Select a region and select "Azure Blob Storage" for the "Primary Service"
+  field.
+1. Click "Create".
+
+Now, you can create a storage container:
+
+1. Browse to the "Storage accounts" section of the Azure Portal and select the
+  storage account you created.
+1. Browse to the "Containers" section beneath the "Data storage" section.
+1. Select "Add container" to open the "New container" form.
+1. Enter a unique, identifiable name for the container. Record this as you will
+  need it later. In our examples we will use `examplecontainer`.
+
 ### Create a role assignment
 
+Finally, you need to grant the user-managed identity the necessary permissions
+for your workload to perform the actions it needs to within Azure.
+
+When creating a role assignment in Azure, it can be scoped to different levels:
+
+- Subscription (to grant access to any resource within the subscription)
+- Resource Group (to grant access to any resource within the resource group)
+- Resource (to grant access to a specific resource)
+
+For the purposes of this guide, we will grant the user-managed identity the
+`Storage Blob Data Owner` role with the scope of the storage account you have
+created.
+
+1. Browse to the "Storage accounts" section of the Azure Portal and select the
+  storage account you created.
+1. Browse to "Access control (IAM)" in the sidebar, then select "Add" and "Add
+  role assignment".
+1. Under "Role" select "Storage Blob Data Owner".
+1. Under "Members", for "Assign access to" select "Managed identity" and then
+  press "Select members".
+1. For "Managed identity", select "User-assigned managed identity" and then 
+  search for and select the user-managed identity you created earlier.
+1. Click "Review + assign" and save your changes.
+
 ## Step 2/4. Configure Teleport RBAC
+
+Now we need to configure Teleport to allow a JWT to be issued containing the
+SPIFFE ID we have chosen.
+
+Create `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: my-workload-azure
+spec:
+  allow:
+    spiffe:
+      - path: /svc/example-service
+```
+
+Replace:
+
+- `my-workload-azure` with a descriptive name for the role.
+- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+
+Apply this role to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f role.yaml
+```
+
+You now need to assign this role to the bot:
+
+```code
+$ tctl bots update my-bot --add-roles my-workload-azure
+```
 
 ## Step 3/4. Issue Workload Identity JWTs
 
