@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -222,21 +223,9 @@ func (a *App) checkPorts() error {
 		return trace.BadParameter("app URI %q must not include a port number when the app spec defines a list of ports", a.URI)
 	}
 
-	const minPort = 1
-	const maxPort = 65535
 	for _, portRange := range a.TCPPorts {
-		if portRange.Port < minPort || portRange.Port > maxPort {
-			return trace.BadParameter("app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
-		}
-
-		if portRange.EndPort != 0 {
-			if portRange.EndPort < minPort+1 || portRange.EndPort > maxPort {
-				return trace.BadParameter("app end port must be between %d and %d, but got %d", minPort+1, maxPort, portRange.EndPort)
-			}
-
-			if portRange.EndPort <= portRange.Port {
-				return trace.BadParameter("app end port must be greater than port (%d vs %d)", portRange.EndPort, portRange.Port)
-			}
+		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
 		}
 	}
 

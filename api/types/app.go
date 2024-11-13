@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
 var _ compare.IsEqual[Application] = (*AppV3)(nil)
@@ -446,21 +447,9 @@ func (a *AppV3) checkTCPPorts() error {
 		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
 	}
 
-	const minPort = 1
-	const maxPort = 65535
 	for _, portRange := range a.Spec.TCPPorts {
-		if portRange.Port < minPort || portRange.Port > maxPort {
-			return trace.BadParameter("TCP app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
-		}
-
-		if portRange.EndPort != 0 {
-			if portRange.EndPort < minPort+1 || portRange.EndPort > maxPort {
-				return trace.BadParameter("TCP app end port must be between %d and %d, but got %d", minPort+1, maxPort, portRange.EndPort)
-			}
-
-			if portRange.EndPort <= portRange.Port {
-				return trace.BadParameter("TCP app end port must be greater than port (%d vs %d)", portRange.EndPort, portRange.Port)
-			}
+		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
 		}
 	}
 
