@@ -12,6 +12,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T) {
@@ -34,16 +35,18 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 	})
 	require.NoError(t, err)
 
+	var assignees = []*pb.AccountAssignmentRef{
+		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+	}
+
 	principal := &pb.PrincipalAssignment{
 		Spec: &pb.PrincipalAssignmentSpec{
 			ExternalId:    externalID,
 			PrincipalType: pb.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
 		},
 		Status: &pb.PrincipalAssignmentStatus{
-			Assignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
-			},
+			Assignments:       assignees,
 			ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
 		},
 	}
@@ -56,24 +59,97 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 	require.NoError(t, err)
 
 	want := []*icsdk.Assigment{
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin"},
+	}
+
+	assertAssignments(t, want, got)
+
+	_, err = sdkMockClient.CreateAccountAssignment(ctx, &icsdk.CreateAccountAssignmentRequest{
+		PrincipalID:      externalID,
+		PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom",
+		AccountID:        "22222222222",
+		PrincipalType:    ssoadmintypes.PrincipalTypeGroup,
+	})
+	require.NoError(t, err)
+
+	principal.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_STALE
+	principal.Status.Assignments = []*pb.AccountAssignmentRef{
+		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+	}
+
+	_, err = provisioner.Provision(ctx, principal)
+	require.NoError(t, err)
+
+	got, err = sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
+	require.NoError(t, err)
+	want = []*icsdk.Assigment{
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+	}
+	assertAssignments(t, want, got)
+}
+
+func TestAssignmentDiffCalculator(t *testing.T) {
+	tests := []struct {
+		name        string
+		localState  []icsdk.Assigment
+		remoteState []icsdk.Assigment
+
+		wantToDelete []icsdk.Assigment
+		wantToCreate []icsdk.Assigment
+	}{
 		{
-			AccountID:        "1111111111",
-			PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly",
+			name: "no diff",
+			localState: []icsdk.Assigment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+			},
+			remoteState: []icsdk.Assigment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+			},
+			wantToDelete: nil,
+			wantToCreate: nil,
 		},
 		{
-			AccountID:        "1111111111",
-			PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin",
+			name:         "no diff nil objects",
+			localState:   nil,
+			remoteState:  nil,
+			wantToDelete: nil,
+			wantToCreate: nil,
+		},
+		{
+			name: "delete and update",
+			localState: []icsdk.Assigment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Admin"},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
+			},
+			remoteState: []icsdk.Assigment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountID: "3333333333", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
+			},
+			wantToDelete: []icsdk.Assigment{
+				{AccountID: "3333333333", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
+			},
+			wantToCreate: []icsdk.Assigment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Admin"},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
+			},
 		},
 	}
 
-	require.Empty(t, cmp.Diff(want, got,
-		cmpopts.SortSlices(func(a, b *icsdk.Assigment) bool {
-			if a.AccountID != b.AccountID {
-				return a.AccountID < b.AccountID
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			diff := &assignmentDiffCalculator{
+				teleportAssignments: utils.NewSet(tc.localState...),
+				awsAssignments:      utils.NewSet(tc.remoteState...),
 			}
-			return a.PermissionSetARN < b.PermissionSetARN
-		}),
-	))
+			gotToDelete := diff.assignmentsToDelete()
+			require.ElementsMatch(t, tc.wantToDelete, gotToDelete.Elements())
+
+			gotToCreate := diff.assignmentsToCreate()
+			require.ElementsMatch(t, tc.wantToCreate, gotToCreate.Elements())
+		})
+	}
 }
 
 type mockAssignmentService struct {
@@ -86,4 +162,16 @@ func (m *mockAssignmentService) UpdatePrincipalAssignment(ctx context.Context, a
 		return m.UpdatePrincipalAssignmentFunc(ctx, assignment)
 	}
 	return assignment, nil
+}
+
+func assertAssignments(t *testing.T, want, got []*icsdk.Assigment) {
+	t.Helper()
+	require.Empty(t, cmp.Diff(want, got,
+		cmpopts.SortSlices(func(a, b *icsdk.Assigment) bool {
+			if a.AccountID != b.AccountID {
+				return a.AccountID < b.AccountID
+			}
+			return a.PermissionSetARN < b.PermissionSetARN
+		}),
+	))
 }

@@ -59,8 +59,8 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 	teleportAssignments := convertToICSDKAssignments(principal.GetStatus().GetAssignments())
 
 	diffCalc := assignmentDiffCalculator{
-		teleportAssignments: utils.NewSet(teleportAssignments...),
-		awsAssignments:      utils.NewSet(awsAssignments...),
+		teleportAssignments: utils.NewSet(dereferenceSlice(teleportAssignments)...),
+		awsAssignments:      utils.NewSet(dereferenceSlice(awsAssignments)...),
 	}
 
 	var g errGroup
@@ -146,19 +146,19 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 }
 
 type assignmentDiffCalculator struct {
-	teleportAssignments utils.Set[*icsdk.Assigment]
-	awsAssignments      utils.Set[*icsdk.Assigment]
+	teleportAssignments utils.Set[icsdk.Assigment]
+	awsAssignments      utils.Set[icsdk.Assigment]
 }
 
 // assignmentsToCreate calculates  the set of Identity Center assignment that
 // need to be created in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToCreate() utils.Set[*icsdk.Assigment] {
+func (d *assignmentDiffCalculator) assignmentsToCreate() utils.Set[icsdk.Assigment] {
 	return d.teleportAssignments.Clone().Subtract(d.awsAssignments)
 }
 
 // assignmentsToDelete calculates the set of Identity Center assignments that
 // need to be deleted in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToDelete() utils.Set[*icsdk.Assigment] {
+func (d *assignmentDiffCalculator) assignmentsToDelete() utils.Set[icsdk.Assigment] {
 	return d.awsAssignments.Clone().Subtract(d.teleportAssignments)
 }
 
@@ -223,4 +223,15 @@ func (g *errGroup) Wait() error {
 	//  discard g.Wait's error as we're collecting all errors manually
 	_ = g.errGroup.Wait()
 	return trace.NewAggregate(g.err...)
+}
+
+// dereferenceSlice takes a slice of pointers to T and returns a slice of T values
+func dereferenceSlice[T any](ptrs []*T) []T {
+	result := make([]T, len(ptrs))
+	for i, ptr := range ptrs {
+		if ptr != nil {
+			result[i] = *ptr
+		}
+	}
+	return result
 }
