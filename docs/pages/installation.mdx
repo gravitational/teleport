@@ -750,15 +750,12 @@ Teleport AMIs are automatically published to all [non-opt-in AWS regions](https:
 
 ## Helm
 
-(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+Teleport maintains Helm charts for services and plugins, including self-hosted
+Auth Service and Proxy service deployments, Teleport Agents, the Event Handler,
+and Access Request plugins.
 
-There are two charts available to install. Please see our guide for using each
-chart.
-
-|Chart|Included Services|Values Reference|
-|-|-|-|
-|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](reference/helm-reference/teleport-cluster.mdx)
-|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service<br/>Discovery Service<br/>Jamf Service|[Reference](reference/helm-reference/teleport-kube-agent.mdx)|
+Consult the [Helm chart reference](reference/helm-reference/helm-reference.mdx)
+for documentation on all available Helm charts.
 
 ## macOS
 
