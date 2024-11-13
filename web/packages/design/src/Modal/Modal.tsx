@@ -29,7 +29,7 @@ export type ModalProps = {
    * Prevent unmounting the component and its children from the DOM when closed.
    * Instead, hides it with CSS.
    */
-  keepMounted?: boolean;
+  keepInDOMAfterClose?: boolean;
 
   className?: string;
 
@@ -212,10 +212,10 @@ export default class Modal extends React.Component<ModalProps> {
       hideBackdrop,
       open,
       className,
-      keepMounted,
+      keepInDOMAfterClose,
     } = this.props;
 
-    if (!open && !keepMounted) {
+    if (!open && !keepInDOMAfterClose) {
       return null;
     }
 

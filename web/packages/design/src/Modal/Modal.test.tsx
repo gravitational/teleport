@@ -158,9 +158,9 @@ test('restores focus on close', async () => {
   expect(toggleModalButton).toHaveFocus();
 });
 
-test('closing dialog when keepMounted is set only hides it with DOM', async () => {
+test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
   const { rerender } = render(
-    <Modal open={true} keepMounted={true}>
+    <Modal open={true} keepInDOMAfterClose={true}>
       <div>Hello</div>
     </Modal>
   );
@@ -168,7 +168,7 @@ test('closing dialog when keepMounted is set only hides it with DOM', async () =
   expect(screen.getByText('Hello')).toBeVisible();
 
   rerender(
-    <Modal open={false} keepMounted={true}>
+    <Modal open={false} keepInDOMAfterClose={true}>
       <div>Hello</div>
     </Modal>
   );

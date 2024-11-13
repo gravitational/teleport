@@ -42,7 +42,7 @@ export function AskPin(props: {
   return (
     <DialogConfirmation
       open={!props.hidden}
-      keepMounted={true}
+      keepInDOMAfterClose={true}
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

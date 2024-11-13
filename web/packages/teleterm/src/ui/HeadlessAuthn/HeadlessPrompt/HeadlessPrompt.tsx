@@ -81,7 +81,7 @@ export function HeadlessPrompt({
   return (
     <DialogConfirmation
       open={!hidden}
-      keepMounted={true}
+      keepInDOMAfterClose={true}
       dialogCss={() => ({
         maxWidth: '480px',
         width: '100%',
