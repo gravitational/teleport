@@ -26,7 +26,11 @@ import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 
 export default function Container() {
   const ctx = useTeleportE();
-  const upgradeWindowsState = useUpgradeWindowStart(ctx);
+  const upgradeWindowsState = useUpgradeWindowStart(
+    ctx,
+    ctx.storeUser.getClusterId(),
+    cfg.isCloud
+  );
 
   return (
     <Support>
@@ -43,7 +47,7 @@ export const SupportE = ({
   onUpdate,
   selectedUpgradeWindowStart,
   setSelectedUpgradeWindowStart,
-  attempt,
+  updateWindowAttempt,
 }: Props) => {
   return (
     <>
@@ -104,7 +108,7 @@ export const SupportE = ({
           onCancel={closeScheduleUpgrade}
           selectedWindow={selectedUpgradeWindowStart}
           onSelectedWindowChange={setSelectedUpgradeWindowStart}
-          attempt={attempt}
+          attempt={updateWindowAttempt}
         />
       )}
       <ExternalAuditStorageCta />

@@ -3,28 +3,32 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import cfg from 'e-teleport/config';
 
 import type { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
 
-export function useUpgradeWindowStart(ctx: TeleportContextE) {
-  const { attempt, run } = useAttempt();
+export function useUpgradeWindowStart(
+  ctx: TeleportContextE,
+  clusterId: string,
+  isCloud: boolean
+) {
+  const { attempt: fetchWindowAttempt, run: fetchWindowRun } = useAttempt();
+  const { attempt: updateWindowAttempt, run: updateWindowRun } = useAttempt();
 
   const [scheduleUpgradesVisible, setScheduleUpgradesVisible] = useState(false);
   const [selectedUpgradeWindowStartHour, setSelectedUpgradeWindowStartHour] =
     useState<UpgradeWindowStartHour>(8);
 
   useEffect(() => {
-    if (!cfg.oss.isCloud) {
+    if (!isCloud) {
       return;
     }
 
-    run(() =>
+    fetchWindowRun(() =>
       ctx.upgradeWindowService
-        .getUpgradeWindowStartHour()
+        .getUpgradeWindowStartHour(clusterId)
         .then(setSelectedUpgradeWindowStartHour)
     );
-  }, []);
+  }, [clusterId, isCloud, fetchWindowRun, ctx.upgradeWindowService]);
 
   function showScheduleUpgrade() {
     setScheduleUpgradesVisible(true);
@@ -35,9 +39,9 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
   }
 
   function onUpdate() {
-    return run(() =>
+    return updateWindowRun(() =>
       ctx.upgradeWindowService
-        .updateUpgradeWindowStart(selectedUpgradeWindowStartHour)
+        .updateUpgradeWindowStart(clusterId, selectedUpgradeWindowStartHour)
         .then(closeScheduleUpgrade)
     );
   }
@@ -49,6 +53,7 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
     selectedUpgradeWindowStart: selectedUpgradeWindowStartHour,
     setSelectedUpgradeWindowStart: setSelectedUpgradeWindowStartHour,
     onUpdate,
-    attempt,
+    fetchWindowAttempt,
+    updateWindowAttempt,
   };
 }

@@ -89,7 +89,8 @@ const cfg = {
     recoveryTokenPath: '/v1/enterprise/cloud/recovery/token/:tokenId',
     recoveryCodesPath: '/v1/enterprise/cloud/recovery/codes',
 
-    upgradeWindowStartPath: '/v1/enterprise/cloud/upgradewindowstart',
+    upgradeWindowStartPath:
+      '/v1/enterprise/sites/:clusterId/upgradewindowstart',
 
     releases: '/v1/enterprise/releases',
     license: '/v1/enterprise/license',
@@ -174,6 +175,10 @@ const cfg = {
     // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
 
     return [this.routes.accessGraph.dashboard];
+  },
+
+  getWindowUpgradeStartUrl(clusterId: string) {
+    return generatePath(cfg.api.upgradeWindowStartPath, { clusterId });
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {

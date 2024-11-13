@@ -34,8 +34,12 @@ export const WithCloudSection = () => {
 };
 
 const props: Props = {
-  attempt: {
+  fetchWindowAttempt: {
     status: 'success',
+    statusText: '',
+  },
+  updateWindowAttempt: {
+    status: '',
     statusText: '',
   },
   closeScheduleUpgrade: () => null,

@@ -32,6 +32,7 @@ import cfg from 'e-teleport/config';
 import { Downloads } from 'e-teleport/Downloads';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
 import { Account as AccountE } from 'e-teleport/Account';
+import { Clusters as ClustersE } from 'e-teleport/Clusters';
 import Integrations from 'e-teleport/Integrations';
 import { Users } from 'e-teleport/Users';
 import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
@@ -407,6 +408,13 @@ class FeatureIntegrationStatus implements TeleportFeature {
 // Other Features
 // ****************************
 
+class FeatureClusters extends OSS.FeatureClusters {
+  route = {
+    ...super.getRoute(),
+    component: ClustersE,
+  };
+}
+
 class FeatureAccount extends OSS.FeatureAccount {
   route = {
     title: 'Account Settings',
@@ -612,7 +620,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureIntegrationStatus(),
 
     // - Permissions
-    new OSS.FeatureClusters(),
+    new FeatureClusters(),
     new OSS.FeatureTrust(),
 
     // - Identity

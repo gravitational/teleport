@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -371,6 +372,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.getNonBillableUsageSummaryHandle))
 
 		// Upgrade window related endpoints.
+		// TODO(mcbattirola): remove on v18, since the endpoints are deprecated in favor of `enterprise/sites/:site/upgradewindowstart`.
+		// Keeping it for now to ensure compatibility between proxies within the same major.
 		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHourHandle))
 		h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
 
@@ -382,6 +385,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.POST("/enterprise/cloud/teleportinvite", p.withCloudAuth(p.sendTeleportInviteHandle))
 		h.POST("/enterprise/cloud/teleportcredentialreset", p.withCloudAuth(p.sendTeleportCredentialResetHandle))
 	}
+
+	// upgrade window endpoints with cluster param
+	h.GET("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.getClusterUpgradeWindowStartHourHandle))
+	h.POST("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.updateClusterUpgradeWindowStartHourHandle))
 
 	// Recovery related endpoints.
 	if features.GetRecoveryCodes() {
@@ -442,20 +449,74 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 		// encode it with encoding/json.
 		pm, ok := res.(googleproto.Message)
 		if ok {
-			result, err := protojson.Marshal(pm)
-			if err != nil {
+			if err := writeProtoJsonResponse(w, pm); err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write(result)
-
 			return nil, nil
 		}
 
 		return res, trace.Wrap(err)
 	})
+}
+
+// ClusterCloudHandler is an authenticated handler that contains
+// a cloudClient authenticated against a remoteSite as specified by the ":site" url parameter.
+type ClusterCloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error)
+
+// withClusterCloudAuth wraps a handler to ensure that a request is  authenticated
+// to the remoteSite as specified by the ":site" url parameter (the same as WithClusterAuth),
+// and creates a cloud Client to be able to make requests to the cloud API form the remote site.
+func (plugin *Plugin) withClusterCloudAuth(fn ClusterCloudHandler) httprouter.Handle {
+	return plugin.h.WithClusterAuth(func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+		clt, err := sctx.GetUserClient(r.Context(), site)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		client, ok := clt.(*authclient.Client)
+		if !ok {
+			return nil, trace.BadParameter("unexpected underlying type for auth client")
+		}
+
+		cloudClient, err := cloud.NewClientFromConnection(client.GetConnection())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		res, err := fn(w, r, sctx, site, cloudClient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// if the handler being called as fn returns a protobuf type,
+		// encode it using protojson.
+		// Otherwise, return the response directly and let our middleware
+		// encode it with encoding/json.
+		pm, ok := res.(googleproto.Message)
+		if ok {
+			if err := writeProtoJsonResponse(w, pm); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nil, nil
+		}
+
+		return res, trace.Wrap(err)
+	})
+}
+
+// writeProtoJsonResponse marshals `pm` into JSON using protojson and writes the result
+// to the response writer `w`. If marshaling fails, it doesn't write anything to `w`.
+func writeProtoJsonResponse(w http.ResponseWriter, pm googleproto.Message) error {
+	result, err := protojson.Marshal(pm)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(result)
+
+	return nil
 }
 
 // withSAMLAuth authenticates request against a valid Teleport web session except for

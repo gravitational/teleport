@@ -11,9 +11,9 @@ export type UpgradeWindowStartHour =
   (typeof availableUpgradeWindowStartHours)[number];
 
 export const service = {
-  getUpgradeWindowStartHour(): Promise<UpgradeWindowStartHour> {
+  getUpgradeWindowStartHour(clusterId): Promise<UpgradeWindowStartHour> {
     return api
-      .get(cfg.api.upgradeWindowStartPath)
+      .get(cfg.getWindowUpgradeStartUrl(clusterId))
       .then(
         (res: GetAccountUpgradeWindowStartHourResponse) =>
           res.upgradeWindowStartHour as UpgradeWindowStartHour
@@ -21,13 +21,14 @@ export const service = {
   },
 
   updateUpgradeWindowStart(
+    clusterId,
     upgradeWindowStartHour: UpgradeWindowStartHour
   ): Promise<UpgradeWindowStartHour> {
     const req: UpdateAccountUpgradeWindowStartHourRequest = {
       upgradeWindowStartHour,
     };
     return api
-      .post(cfg.api.upgradeWindowStartPath, req)
+      .post(cfg.getWindowUpgradeStartUrl(clusterId), req)
       .then(
         (res: GetAccountUpgradeWindowStartHourResponse) =>
           res.upgradeWindowStartHour as UpgradeWindowStartHour
