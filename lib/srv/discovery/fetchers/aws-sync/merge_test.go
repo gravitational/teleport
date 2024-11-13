@@ -19,6 +19,7 @@
 package aws_sync
 
 import (
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,9 +46,9 @@ func TestMergeResources(t *testing.T) {
 
 	result := MergeResources(&oldResults, &newResults)
 	expected := Resources{
-		Users:     deduplicateSlice(append(oldUsers, newUsers...), usersKey),
-		Roles:     deduplicateSlice(append(oldRoles, newRoles...), roleKey),
-		Instances: deduplicateSlice(append(oldEC2, newEC2...), instanceKey),
+		Users:     common.DeduplicateSlice(append(oldUsers, newUsers...), usersKey),
+		Roles:     common.DeduplicateSlice(append(oldRoles, newRoles...), roleKey),
+		Instances: common.DeduplicateSlice(append(oldEC2, newEC2...), instanceKey),
 	}
 	require.Empty(t, cmp.Diff(&expected, result, protocmp.Transform(), cmpopts.EquateEmpty()))
 }

@@ -18,6 +18,8 @@
 
 package aws_sync
 
+import "github.com/gravitational/teleport/lib/srv/discovery/common"
+
 // MergeResources merges multiple resources into a single Resources object.
 // This is used to merge resources from multiple accounts and regions
 // into a single object.
@@ -58,24 +60,24 @@ func MergeResources(results ...*Resources) *Resources {
 }
 
 func deduplicateResources(result *Resources) {
-	result.Users = deduplicateSlice(result.Users, usersKey)
-	result.UserInlinePolicies = deduplicateSlice(result.UserInlinePolicies, userInlinePolKey)
-	result.UserAttachedPolicies = deduplicateSlice(result.UserAttachedPolicies, userAttchPolKey)
-	result.UserGroups = deduplicateSlice(result.UserGroups, userGroupKey)
-	result.Groups = deduplicateSlice(result.Groups, groupKey)
-	result.GroupInlinePolicies = deduplicateSlice(result.GroupInlinePolicies, grpInlinePolKey)
-	result.GroupAttachedPolicies = deduplicateSlice(result.GroupAttachedPolicies, grpAttchPolKey)
-	result.Instances = deduplicateSlice(result.Instances, instanceKey)
-	result.Policies = deduplicateSlice(result.Policies, policyKey)
-	result.S3Buckets = deduplicateSlice(result.S3Buckets, s3bucketKey)
-	result.Roles = deduplicateSlice(result.Roles, roleKey)
-	result.RoleInlinePolicies = deduplicateSlice(result.RoleInlinePolicies, roleInlinePolKey)
-	result.RoleAttachedPolicies = deduplicateSlice(result.RoleAttachedPolicies, roleAttchPolKey)
-	result.InstanceProfiles = deduplicateSlice(result.InstanceProfiles, instanceProfKey)
-	result.AssociatedAccessPolicies = deduplicateSlice(result.AssociatedAccessPolicies, assocAccPolKey)
-	result.EKSClusters = deduplicateSlice(result.EKSClusters, eksClusterKey)
-	result.AccessEntries = deduplicateSlice(result.AccessEntries, accessEntryKey)
-	result.RDSDatabases = deduplicateSlice(result.RDSDatabases, rdsDbKey)
-	result.SAMLProviders = deduplicateSlice(result.SAMLProviders, samlProvKey)
-	result.OIDCProviders = deduplicateSlice(result.OIDCProviders, oidcProvKey)
+	result.Users = common.DeduplicateSlice(result.Users, usersKey)
+	result.UserInlinePolicies = common.DeduplicateSlice(result.UserInlinePolicies, userInlinePolKey)
+	result.UserAttachedPolicies = common.DeduplicateSlice(result.UserAttachedPolicies, userAttchPolKey)
+	result.UserGroups = common.DeduplicateSlice(result.UserGroups, userGroupKey)
+	result.Groups = common.DeduplicateSlice(result.Groups, groupKey)
+	result.GroupInlinePolicies = common.DeduplicateSlice(result.GroupInlinePolicies, grpInlinePolKey)
+	result.GroupAttachedPolicies = common.DeduplicateSlice(result.GroupAttachedPolicies, grpAttchPolKey)
+	result.Instances = common.DeduplicateSlice(result.Instances, instanceKey)
+	result.Policies = common.DeduplicateSlice(result.Policies, policyKey)
+	result.S3Buckets = common.DeduplicateSlice(result.S3Buckets, s3bucketKey)
+	result.Roles = common.DeduplicateSlice(result.Roles, roleKey)
+	result.RoleInlinePolicies = common.DeduplicateSlice(result.RoleInlinePolicies, roleInlinePolKey)
+	result.RoleAttachedPolicies = common.DeduplicateSlice(result.RoleAttachedPolicies, roleAttchPolKey)
+	result.InstanceProfiles = common.DeduplicateSlice(result.InstanceProfiles, instanceProfKey)
+	result.AssociatedAccessPolicies = common.DeduplicateSlice(result.AssociatedAccessPolicies, assocAccPolKey)
+	result.EKSClusters = common.DeduplicateSlice(result.EKSClusters, eksClusterKey)
+	result.AccessEntries = common.DeduplicateSlice(result.AccessEntries, accessEntryKey)
+	result.RDSDatabases = common.DeduplicateSlice(result.RDSDatabases, rdsDbKey)
+	result.SAMLProviders = common.DeduplicateSlice(result.SAMLProviders, samlProvKey)
+	result.OIDCProviders = common.DeduplicateSlice(result.OIDCProviders, oidcProvKey)
 }

@@ -152,7 +152,7 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 		return nil, err
 	}
 	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
-	res.Principals = common.DeduplicateSlice(res.Principals, azureUserKey)
+	res.Principals = common.DeduplicateSlice(res.Principals, azurePrincipalsKey)
 	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
 	res.RoleAssignments = common.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
 	return res, trace.Wrap(err)

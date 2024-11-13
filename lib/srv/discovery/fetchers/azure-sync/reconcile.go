@@ -37,7 +37,7 @@ func MergeResources(results ...*Resources) *Resources {
 		result.Principals = append(result.Principals, r.Principals...)
 		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
 	}
-	result.Principals = common.DeduplicateSlice(result.Principals, azureUserKey)
+	result.Principals = common.DeduplicateSlice(result.Principals, azurePrincipalsKey)
 	result.VirtualMachines = common.DeduplicateSlice(result.VirtualMachines, azureVmKey)
 	return result
 }
@@ -52,7 +52,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 	upsert, delete = newResourceList(), newResourceList()
 	reconciledResources := []*reconcilePair{
 		reconcile(old.VirtualMachines, new.VirtualMachines, azureVmKey, azureVmWrap),
-		reconcile(old.Principals, new.Principals, azureUserKey, azureUsersWrap),
+		reconcile(old.Principals, new.Principals, azurePrincipalsKey, azurePrincipalsWrap),
 		reconcile(old.RoleDefinitions, new.RoleDefinitions, azureRoleDefKey, azureRoleDefWrap),
 		reconcile(old.RoleAssignments, new.RoleAssignments, azureRoleAssignKey, azureRoleAssignWrap),
 	}
@@ -128,11 +128,11 @@ func azureVmWrap(vm *accessgraphv1alpha.AzureVirtualMachine) *accessgraphv1alpha
 	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_VirtualMachine{VirtualMachine: vm}}
 }
 
-func azureUserKey(user *accessgraphv1alpha.AzurePrincipal) string {
+func azurePrincipalsKey(user *accessgraphv1alpha.AzurePrincipal) string {
 	return fmt.Sprintf("%s:%s", user.SubscriptionId, user.Id)
 }
 
-func azureUsersWrap(principal *accessgraphv1alpha.AzurePrincipal) *accessgraphv1alpha.AzureResource {
+func azurePrincipalsWrap(principal *accessgraphv1alpha.AzurePrincipal) *accessgraphv1alpha.AzureResource {
 	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_Principal{Principal: principal}}
 }
 
