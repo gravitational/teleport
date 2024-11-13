@@ -172,8 +172,8 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		onReconcile:             config.OnReconcile,
 		connected:               config.OktaConnected,
 		oktaClient:              config.OktaClient,
-		reconcileCh:             make(chan struct{}),
-		stopCh:                  make(chan struct{}, 1),
+		reconcileCh:             make(chan struct{}, 1),
+		stopCh:                  make(chan struct{}),
 		accessRequests:          newAccessRequestSyncMap(),
 		newAccessRequests:       newAccessRequestSyncMap(),
 		retryer:                 retryer,
@@ -288,11 +288,7 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler[types.AccessRequest]) {
 	for {
 		select {
-		case _, ok := <-a.reconcileCh:
-			if !ok {
-				return
-			}
-
+		case <-a.reconcileCh:
 			if err := reconciler.Reconcile(ctx); err != nil {
 				a.retryer.Inc()
 				a.logger.ErrorContext(ctx, "Failed to reconcile", "backoff", a.retryer.Duration(), "error", err)
@@ -301,14 +297,8 @@ func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *ser
 				// reconciliation will only happen again when the next access request event comes in,
 				// which could be indefinitely, and the associated OktaAssignment may never actually
 				// be created.
-				a.retryer.Inc() // Increment the retry attempt so that the next reconciler attempt waits.
-				a.clock.AfterFunc(a.retryer.Duration(), func() {
-					select {
-					case <-a.stopCh:
-					case <-ctx.Done():
-					case a.reconcileCh <- struct{}{}:
-					}
-				})
+				a.retryer.Inc()
+				a.clock.AfterFunc(a.retryer.Duration(), a.queueReconcile)
 			} else if a.onReconcile != nil {
 				a.onReconcile(a.accessRequests.CopyAsSlice())
 			}
@@ -321,6 +311,15 @@ func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *ser
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// queueReconcile will make sure reconciliation notification channel has a message in it. It is non-blocking.
+func (a *AccessRequestReconciler) queueReconcile() {
+	// reconcileCh is buffered so simply put a struct there or do nothing if it's full.
+	select {
+	case a.reconcileCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -358,22 +357,14 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 		return nil, trace.Wrap(err)
 	}
 	go func() {
-		defer func() {
-			a.logger.DebugContext(ctx, "Access request resource watcher finished")
-		}()
+		defer a.logger.DebugContext(ctx, "Access request resource watcher finished")
 
 		for {
 			select {
 			case newAccessRequests := <-watcher.AccessRequestsC:
 				a.newAccessRequests.ReplaceWith(newAccessRequests)
 
-				select {
-				case a.reconcileCh <- struct{}{}:
-				case <-a.stopCh:
-					return
-				case <-ctx.Done():
-					return
-				}
+				a.queueReconcile()
 			case <-a.stopCh:
 				return
 			case <-ctx.Done():
