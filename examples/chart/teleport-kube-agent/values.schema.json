@@ -509,6 +509,11 @@
                 }
             }
         },
+        "topologySpreadConstraints": {
+            "$id": "#/properties/topologySpreadConstraints",
+            "type": "array",
+            "default": []
+        },
         "affinity": {
             "$id": "#/properties/affinity",
             "type": "object",

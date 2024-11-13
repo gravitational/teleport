@@ -1066,6 +1066,9 @@ log:
 # for more details.
 affinity: {}
 
+# topologySpreadyConstraints -- set the topologySpreadConstraints for any pods created by the chart when provider and the replicaCount is greater than one.
+topologySpreadConstraints: []
+
 # dnsConfig(object) -- contains custom Pod DNS Configuration for the agent pods.
 # This value is useful if you need to reduce the DNS load: set "ndots" to 0 and
 # only use FQDNs to refer to applications and databases.

@@ -1,0 +1,11 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+topologySpreadConstraints:
+  - labelSelector:
+      matchLabels:
+        app-label: app-name
+    maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
