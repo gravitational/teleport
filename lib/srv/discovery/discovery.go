@@ -264,7 +264,7 @@ kubernetes matchers are present.`)
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 
-	c.jitter = retryutils.NewSeventhJitter()
+	c.jitter = retryutils.SeventhJitter
 
 	return nil
 }

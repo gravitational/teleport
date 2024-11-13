@@ -251,7 +251,7 @@ func (c *consumer) processEventsContinuously(ctx context.Context) {
 // Backend locking is used to make sure that only single auth is running consumer.
 func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProcessorFn func(context.Context)) {
 	// for 1 minute it will be 5s sleep before retry which seems like reasonable value.
-	waitTimeAfterLockingError := retryutils.NewSeventhJitter()(c.batchMaxInterval / 12)
+	waitTimeAfterLockingError := retryutils.SeventhJitter(c.batchMaxInterval / 12)
 	for {
 		select {
 		case <-ctx.Done():

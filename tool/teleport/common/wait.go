@@ -103,7 +103,7 @@ func waitNoResolve(ctx context.Context, domain string, period, timeout time.Dura
 	periodic := interval.New(interval.Config{
 		Duration:      period,
 		FirstDuration: time.Millisecond,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 
