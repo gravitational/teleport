@@ -122,7 +122,8 @@ test('the second important dialog is rendered above the first important dialog',
 
   const modalsService = new ModalsService();
   modalsService.openImportantDialog(importantDialog1);
-  modalsService.openImportantDialog(importantDialog2);
+  const { closeDialog: closeImportantDialog2 } =
+    modalsService.openImportantDialog(importantDialog2);
 
   const appContext = new MockAppContext();
   appContext.modalsService = modalsService;
@@ -146,7 +147,7 @@ test('the second important dialog is rendered above the first important dialog',
   expect(dialogs[1]).toHaveAttribute('data-dialog-kind', importantDialog2.kind);
   expect(dialogs[1]).toHaveAttribute('data-dialog-is-hidden', 'false');
 
-  act(() => modalsService.closeImportantDialog(importantDialog2));
+  act(() => closeImportantDialog2());
 
   dialogs = screen.queryAllByTestId('mocked-dialog');
 
