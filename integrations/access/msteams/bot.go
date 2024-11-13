@@ -41,16 +41,12 @@ const (
 
 type RecipientKind string
 
-// RecipientData represents cached data for a recipient (user or channel)
-type RecipientData struct {
-	// ID identifies the recipient, for users it is the UserID, for channels it is "tenant/group/channelName"
-	ID string
+// recipientData represents cached data for a recipient (user or channel)
+type recipientData struct {
 	// App installation for the recipient
 	App msapi.InstalledApp
 	// Chat for the recipient
 	Chat msapi.Chat
-	// Kind of the recipient (user or channel)
-	Kind RecipientKind
 }
 
 // Channel represents a MSTeams channel parsed from its web URL
@@ -75,7 +71,7 @@ type Bot struct {
 	// mu recipients access mutex
 	mu *sync.RWMutex
 	// recipients represents the cache of potential message recipients
-	recipients map[string]RecipientData
+	recipients map[string]common.Recipient
 	// webProxyURL represents Web UI address, if enabled
 	webProxyURL *url.URL
 	// clusterName cluster name
@@ -105,7 +101,7 @@ func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot
 		Config:      c.MSAPI,
 		graphClient: msapi.NewGraphClient(c.MSAPI),
 		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
-		recipients:  make(map[string]RecipientData),
+		recipients:  make(map[string]common.Recipient),
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
@@ -181,7 +177,7 @@ func (b *Bot) UninstallAppForUser(ctx context.Context, userIDOrEmail string) err
 // FetchRecipient checks if recipient is a user or a channel, installs app for a user if missing, fetches chat id
 // and saves everything to cache. This method is used for priming the cache. Returns trace.NotFound if a
 // user was not found.
-func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientData, error) {
+func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	if b.teamsApp == nil {
 		return nil, trace.Errorf("Bot is not configured, run GetTeamsApp first")
 	}
@@ -192,14 +188,18 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 	b.mu.RLock()
 	d, ok := b.recipients[recipient]
 	b.mu.RUnlock()
+	rd, err := getRecipientData(&d)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if ok {
 		log.DebugContext(ctx, "Found recipient in cache",
 			slog.Group("recipient",
 				"id", d.ID,
-				"installed_app_id", d.App.ID,
-				"chat_id", d.Chat.ID,
-				"chat_url", d.Chat.WebURL,
-				"chat_tenant_id", d.Chat.TenantID,
+				"installed_app_id", rd.App.ID,
+				"chat_id", rd.Chat.ID,
+				"chat_url", rd.Chat.WebURL,
+				"chat_tenant_id", rd.Chat.TenantID,
 				"kind", d.Kind,
 			),
 		)
@@ -220,7 +220,6 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 			),
 		)
 		// A team and a group are different but in MsTeams the team is associated to a group and will have the same id.
-
 		log = log.With("teams_app_id", b.teamsApp.ID, "channel_group", channel.Group)
 		log.DebugContext(ctx, "Retrieving the app installation ID for the team")
 		installedApp, err := b.graphClient.GetAppForTeam(ctx, b.teamsApp, channel.Group)
@@ -228,16 +227,20 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 			log.ErrorContext(ctx, "Failed to retrieve the app installation ID for the team", "error", err)
 			return nil, trace.Wrap(err)
 		}
-		d = RecipientData{
-			ID:  fmt.Sprintf("%s/%s/%s", channel.Tenant, channel.Group, channel.Name),
-			App: *installedApp,
-			Chat: msapi.Chat{
-				ID:       channel.ChatID,
-				TenantID: channel.Tenant,
-				WebURL:   channel.URL.String(),
+		d = common.Recipient{
+			Name: recipient,
+			ID:   fmt.Sprintf("%s/%s/%s", channel.Tenant, channel.Group, channel.Name),
+			Kind: string(RecipientKindChannel),
+			Data: recipientData{
+				App: *installedApp,
+				Chat: msapi.Chat{
+					ID:       channel.ChatID,
+					TenantID: channel.Tenant,
+					WebURL:   channel.URL.String(),
+				},
 			},
-			Kind: RecipientKindChannel,
 		}
+
 		log.DebugContext(ctx, "Retrieved the app installation ID for the team", "recipient_installed_app_id", installedApp.ID)
 
 		// If the recipient is not a channel, it means it is a user (either email or userID)
@@ -246,7 +249,7 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 		userID, err := b.getUserID(ctx, recipient)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to resolve recipient", "error", err)
-			return &RecipientData{}, trace.Wrap(err)
+			return &common.Recipient{}, trace.Wrap(err)
 		}
 		log = log.With("user_id", userID)
 		log.DebugContext(ctx, "Successfully resolve user recipient")
@@ -285,7 +288,15 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 		}
 		log.DebugContext(ctx, "Found the chat ID for the user", "chat_id", chat.ID)
 
-		d = RecipientData{userID, *installedApp, chat, RecipientKindUser}
+		d = common.Recipient{
+			Name: recipient,
+			ID:   userID,
+			Kind: string(RecipientKindUser),
+			Data: recipientData{
+				App:  *installedApp,
+				Chat: chat,
+			},
+		}
 	}
 
 	b.mu.Lock()
@@ -316,8 +327,12 @@ func (b *Bot) getUserID(ctx context.Context, userIDOrEmail string) (string, erro
 }
 
 // PostAdaptiveCardActivity sends the AdaptiveCard to a user
-func (b *Bot) PostAdaptiveCardActivity(ctx context.Context, recipient, cardBody, updateID string) (string, error) {
-	recipientData, err := b.FetchRecipient(ctx, recipient)
+func (b *Bot) PostAdaptiveCardActivity(ctx context.Context, recipient string, cardBody, updateID string) (string, error) {
+	fullRecipient, err := b.FetchRecipient(ctx, recipient)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	recipientData, err := getRecipientData(fullRecipient)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -473,4 +488,12 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 		}
 	}
 	return trace.Wrap(err)
+}
+
+func getRecipientData(recipient *common.Recipient) (recipientData, error) {
+	rd, ok := recipient.Data.(recipientData)
+	if !ok {
+		return recipientData{}, trace.BadParameter("unexpected recipient data type")
+	}
+	return rd, nil
 }

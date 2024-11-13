@@ -56,7 +56,11 @@ func Validate(configPath, recipient string) error {
 		recipient = userID
 	}
 
-	recipientData, err := b.FetchRecipient(context.Background(), recipient)
+	fullRecipient, err := b.FetchRecipient(ctx, recipient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	recipientData, err := getRecipientData(fullRecipient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
