@@ -38,6 +38,7 @@ export { ArrowDown } from './Icons/ArrowDown';
 export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';
 export { ArrowForward } from './Icons/ArrowForward';
 export { ArrowLeft } from './Icons/ArrowLeft';
+export { ArrowLineLeft } from './Icons/ArrowLineLeft';
 export { ArrowRight } from './Icons/ArrowRight';
 export { ArrowSquareOut } from './Icons/ArrowSquareOut';
 export { ArrowUp } from './Icons/ArrowUp';
