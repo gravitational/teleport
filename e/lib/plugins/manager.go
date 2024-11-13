@@ -17,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // HeartbeatCreator is a function that will create heartbeats for a given component.
@@ -85,10 +84,10 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 	}
 	if cfg.RetryConfig == nil {
 		cfg.RetryConfig = &retryutils.RetryV2Config{
-			First:     utils.FullJitter(1 * time.Second),
+			First:     retryutils.FullJitter(1 * time.Second),
 			Driver:    retryutils.NewExponentialDriver(1 * time.Second),
 			Max:       30 * time.Second,
-			Jitter:    retryutils.NewHalfJitter(),
+			Jitter:    retryutils.HalfJitter,
 			AutoReset: 2,
 			Clock:     cfg.Clock,
 		}

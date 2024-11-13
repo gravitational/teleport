@@ -350,7 +350,7 @@ func (svc *Service) syncStateRefreshLoop(ctx context.Context) {
 	svc.log.DebugContext(ctx, "Entering Provisioning Service state refresh loop")
 	defer svc.log.DebugContext(ctx, "Exiting Provisioning Service state refresh loop")
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := svc.clock.NewTimer(jitter(svc.stateRefreshInterval))
 	defer timer.Stop()
 

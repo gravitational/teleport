@@ -115,7 +115,7 @@ func (u *UserMonitor) reconciler(ctx context.Context) {
 		Duration:      userMonitorReconcile,
 		FirstDuration: time.Second,
 		Clock:         u.clock,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer interval.Stop()
 

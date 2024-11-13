@@ -406,7 +406,7 @@ func (a *accessListSync) startSync(ctx context.Context) {
 		}
 	}
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := a.clock.NewTimer(jitter(AccessListSyncFirstDuration))
 	defer timer.Stop()
 

@@ -32,7 +32,7 @@ func (s *Service) ReportCompliance(ctx context.Context) {
 		// has been set up properly. This isn't critical, so if this is missed it'll just be
 		// picked up on the next tick.
 		FirstDuration: time.Second * 30,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 		Clock:         s.clock,
 	})
 	defer ticker.Stop()

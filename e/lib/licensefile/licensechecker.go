@@ -22,7 +22,7 @@ func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal
 	}
 
 	licenseTicker := interval.New(interval.Config{
-		Jitter:   retryutils.NewSeventhJitter(),
+		Jitter:   retryutils.SeventhJitter,
 		Duration: constants.LicenseCheckInterval,
 	})
 	// Use an anonymous func as licenseTicker is re-bound later
@@ -47,7 +47,7 @@ func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal
 			if 0 < exp && exp < constants.LicenseCheckInterval {
 				licenseTicker.Stop()
 				licenseTicker = interval.New(interval.Config{
-					Jitter:        retryutils.NewSeventhJitter(),
+					Jitter:        retryutils.SeventhJitter,
 					Duration:      constants.LicenseCheckInterval,
 					FirstDuration: exp,
 				})

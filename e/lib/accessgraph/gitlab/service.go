@@ -142,7 +142,7 @@ func (s *Service) Run(ctx context.Context) error {
 		First:  defaults.HighResPollingPeriod,
 		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
 		Max:    defaults.LowResPollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  s.clock,
 	})
 	if err != nil {
@@ -215,7 +215,7 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)

@@ -714,7 +714,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 				First:  defaults.HighResPollingPeriod,
 				Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
 				Max:    defaults.LowResPollingPeriod,
-				Jitter: retryutils.NewHalfJitter(),
+				Jitter: retryutils.HalfJitter,
 				Clock:  p.Config.Clock,
 			})
 			if err != nil {

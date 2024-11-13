@@ -16,6 +16,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -77,7 +78,7 @@ func (c *licenseUpdateServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Interval <= 0 {
-		c.Interval = utils.HalfJitter(defaultLicenseQueryInterval * 2)
+		c.Interval = retryutils.HalfJitter(defaultLicenseQueryInterval * 2)
 	}
 
 	if c.RequestTimeout <= 0 {
