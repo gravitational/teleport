@@ -1462,6 +1462,8 @@ also managed, but not considered for role-based host user creation.
   - [ ] `standby` phase: only the new certs remain in `active_keys`, nothing in `additional_trusted_keys`
   - [ ] `rollback` phase (second pass, after completing a regular rotation): same content as in the `init` phase
   - [ ] `standby` phase after `rollback`: same content as in the previous `standby` phase
+  - [x] Changing `signature_algorithm_suite` should change the algorithm used by new CA issuers when entering `init` - only issued certificates change algorithm if the suite is changed at other times
+  - [x] Even after changing `signature_algorithm_suite`, entering the `rollback` phase correctly restores the original issuer, no matter the algorithm
 - Verify functionality in all phases (clients might have to log in again in lieu of waiting for credentials to expire between phases)
   - [ ] SSH session in tsh from a previous phase
   - [ ] SSH session in web UI from a previous phase
