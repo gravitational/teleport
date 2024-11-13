@@ -272,8 +272,16 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	})
 	evilUser, _ := p.CreateUser(t)
-	rootWs := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
-	leafWs := p.CreateAppSession(t, p.username, p.leafAppClusterName, p.leafAppPublicAddr)
+	rootWs := p.CreateAppSession(t, CreateAppSessionParams{
+		Username:      p.username,
+		ClusterName:   p.rootAppClusterName,
+		AppPublicAddr: p.rootAppPublicAddr,
+	})
+	leafWs := p.CreateAppSession(t, CreateAppSessionParams{
+		Username:      p.username,
+		ClusterName:   p.leafAppClusterName,
+		AppPublicAddr: p.leafAppPublicAddr,
+	})
 
 	tests := []struct {
 		desc          string
@@ -668,8 +676,16 @@ func TestTCP(t *testing.T) {
 	pack := Setup(t)
 	evilUser, _ := pack.CreateUser(t)
 
-	rootWs := pack.CreateAppSession(t, pack.tc.Username, pack.rootAppClusterName, pack.rootTCPPublicAddr)
-	leafWs := pack.CreateAppSession(t, pack.tc.Username, pack.leafAppClusterName, pack.leafTCPPublicAddr)
+	rootWs := pack.CreateAppSession(t, CreateAppSessionParams{
+		Username:      pack.tc.Username,
+		ClusterName:   pack.rootAppClusterName,
+		AppPublicAddr: pack.rootTCPPublicAddr,
+	})
+	leafWs := pack.CreateAppSession(t, CreateAppSessionParams{
+		Username:      pack.tc.Username,
+		ClusterName:   pack.leafAppClusterName,
+		AppPublicAddr: pack.leafTCPPublicAddr,
+	})
 
 	tests := []struct {
 		description string
@@ -753,7 +769,11 @@ func TestTCPLock(t *testing.T) {
 	msg := []byte(uuid.New().String())
 
 	// Start the proxy to the two way communication app.
-	rootWs := pack.CreateAppSession(t, pack.tc.Username, pack.rootAppClusterName, pack.rootTCPTwoWayPublicAddr)
+	rootWs := pack.CreateAppSession(t, CreateAppSessionParams{
+		Username:      pack.tc.Username,
+		ClusterName:   pack.rootAppClusterName,
+		AppPublicAddr: pack.rootTCPTwoWayPublicAddr,
+	})
 	tlsConfig := pack.makeTLSConfig(t, tlsConfigParams{
 		sessionID:   rootWs.GetName(),
 		username:    rootWs.GetUser(),
@@ -832,7 +852,11 @@ func TestTCPCertExpiration(t *testing.T) {
 	msg := []byte(uuid.New().String())
 
 	// Start the proxy to the two way communication app.
-	rootWs := pack.CreateAppSession(t, pack.tc.Username, pack.rootAppClusterName, pack.rootTCPTwoWayPublicAddr)
+	rootWs := pack.CreateAppSession(t, CreateAppSessionParams{
+		Username:      pack.tc.Username,
+		ClusterName:   pack.rootAppClusterName,
+		AppPublicAddr: pack.rootTCPTwoWayPublicAddr,
+	})
 	tlsConfig := pack.makeTLSConfig(t, tlsConfigParams{
 		sessionID:   rootWs.GetName(),
 		username:    rootWs.GetUser(),
