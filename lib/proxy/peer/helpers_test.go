@@ -224,7 +224,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	clientCAs.AddCert(clientCA.Cert)
 
 	config := ServerConfig{
-		ClusterDialer: &mockClusterDialer{},
+		Dialer: &mockClusterDialer{},
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return &tlsCert, nil
 		},
