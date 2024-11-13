@@ -51,11 +51,9 @@ architecture](../../../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deploym
 
 
 ## AWS Network Load Balancer (NLB)
-AWS NLBs are required for this highly available deployment architecture. 
-The NLB forwards traffic from users and services to an available Teleport Proxy Service instance. This must not 
-terminate TLS, and must transparently forward the TCP traffic it receives. 
-In other words, this must be a Layer 4 load balancer, not a Layer 7 
-(e.g., HTTP) load balancer. 
+We will use an AWS NLB for this highly available deployment architecture example.
+The NLB forwards traffic from users and services to an available Teleport Proxy Service instance.
+An AWS ALB can be used in this architecture. Please reference our [guide for using an AWS ALB](https://goteleport.com/docs/reference/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies) for this step is you wish to use an ALB.
 
 <Admonition
   type="warning"
