@@ -6524,6 +6524,7 @@ type AuthPreferenceSpecV2 struct {
 	// Type is the type of authentication.
 	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"type"`
 	// SecondFactor is the type of mult-factor.
+	// Deprecated: Prefer setting SecondFactors instead.
 	SecondFactor github_com_gravitational_teleport_api_constants.SecondFactorType `protobuf:"bytes,2,opt,name=SecondFactor,proto3,casttype=github.com/gravitational/teleport/api/constants.SecondFactorType" json:"second_factor,omitempty"`
 	// ConnectorName is the name of the OIDC or SAML connector. If this value is
 	// not set the first connector in the backend will be used.
@@ -6573,6 +6574,8 @@ type AuthPreferenceSpecV2 struct {
 	// 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
 	SignatureAlgorithmSuite SignatureAlgorithmSuite `protobuf:"varint,20,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3,enum=types.SignatureAlgorithmSuite" json:"signature_algorithm_suite,omitempty"`
 	// SecondFactors is a list of supported second factor types.
+	// 1 is "otp", 2 is "webauthn", 3 is "sso",
+	// If unspecified, the current default value is [1], or ["otp"].
 	SecondFactors        []SecondFactorType `protobuf:"varint,21,rep,packed,name=SecondFactors,proto3,enum=types.SecondFactorType" json:"second_factors,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
