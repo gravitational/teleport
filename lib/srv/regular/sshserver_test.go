@@ -19,7 +19,6 @@
 package regular
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -830,40 +829,63 @@ func TestDirectTCPIP(t *testing.T) {
 // "tcpip-forward" request and do remote port forwarding.
 func TestTCPIPForward(t *testing.T) {
 	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
-
-	// Request a listener from the server.
-	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	hostname, err := os.Hostname()
 	require.NoError(t, err)
+	tests := []struct {
+		name       string
+		listenAddr string
+	}{
+		{
+			name:       "localhost",
+			listenAddr: "localhost:0",
+		},
+		{
+			name:       "ip address",
+			listenAddr: "127.0.0.1:0",
+		},
+		{
+			name:       "hostname",
+			listenAddr: hostname + ":0",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixtureWithoutDiskBasedLogging(t)
 
-	// Start up a test server that uses the port forwarded listener.
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "hello, world")
-	}))
-	t.Cleanup(ts.Close)
-	ts.Listener = listener
-	ts.Start()
+			// Request a listener from the server.
+			listener, err := f.ssh.clt.Listen("tcp", tc.listenAddr)
+			require.NoError(t, err)
 
-	// Dial the test server over the SSH connection.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, &bytes.Buffer{})
-	require.NoError(t, err)
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, resp.Body.Close())
-	})
+			// Start up a test server that uses the port forwarded listener.
+			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintln(w, "hello, world")
+			}))
+			t.Cleanup(ts.Close)
+			ts.Listener = listener
+			ts.Start()
 
-	// Make sure the response is what was expected.
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, []byte("hello, world\n"), body)
+			// Dial the test server over the SSH connection.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			t.Cleanup(cancel)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
+			require.NoError(t, err)
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, resp.Body.Close())
+			})
+
+			// Make sure the response is what was expected.
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, []byte("hello, world\n"), body)
+		})
+	}
 
 	t.Run("SessionJoinPrincipal cannot use tcpip-forward", func(t *testing.T) {
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
 		// connect using "tcpip-forward".
+		f := newFixtureWithoutDiskBasedLogging(t)
 		ctx := context.Background()
 		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
 		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")

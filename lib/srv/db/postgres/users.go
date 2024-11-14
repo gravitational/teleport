@@ -611,7 +611,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -228,6 +228,8 @@ type NotificationFilters struct {
 	GlobalOnly bool `protobuf:"varint,2,opt,name=global_only,json=globalOnly,proto3" json:"global_only,omitempty"`
 	// user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface).
 	UserCreatedOnly bool `protobuf:"varint,3,opt,name=user_created_only,json=userCreatedOnly,proto3" json:"user_created_only,omitempty"`
+	// labels is used to request only notifications with specific labels.
+	Labels map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *NotificationFilters) Reset() {
@@ -279,6 +281,13 @@ func (x *NotificationFilters) GetUserCreatedOnly() bool {
 		return x.UserCreatedOnly
 	}
 	return false
+}
+
+func (x *NotificationFilters) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
 }
 
 // ListNotificationsResponse is the response from listing a user's notifications.
@@ -592,15 +601,24 @@ var file_teleport_notifications_v1_notifications_service_proto_rawDesc = []byte{
 	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69,
 	0x6f, 0x6e, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x73, 0x52, 0x07, 0x66, 0x69, 0x6c, 0x74,
-	0x65, 0x72, 0x73, 0x22, 0x7e, 0x0a, 0x13, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x73, 0x12, 0x1a, 0x0a, 0x08, 0x75, 0x73,
-	0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75, 0x73,
-	0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x67, 0x6c, 0x6f, 0x62, 0x61, 0x6c,
-	0x5f, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x67, 0x6c, 0x6f,
-	0x62, 0x61, 0x6c, 0x4f, 0x6e, 0x6c, 0x79, 0x12, 0x2a, 0x0a, 0x11, 0x75, 0x73, 0x65, 0x72, 0x5f,
-	0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x08, 0x52, 0x0f, 0x75, 0x73, 0x65, 0x72, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x4f,
-	0x6e, 0x6c, 0x79, 0x22, 0x80, 0x02, 0x0a, 0x19, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x74, 0x69,
+	0x65, 0x72, 0x73, 0x22, 0x8d, 0x02, 0x0a, 0x13, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x73, 0x12, 0x1a, 0x0a, 0x08, 0x75,
+	0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75,
+	0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x67, 0x6c, 0x6f, 0x62, 0x61,
+	0x6c, 0x5f, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x67, 0x6c,
+	0x6f, 0x62, 0x61, 0x6c, 0x4f, 0x6e, 0x6c, 0x79, 0x12, 0x2a, 0x0a, 0x11, 0x75, 0x73, 0x65, 0x72,
+	0x5f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x08, 0x52, 0x0f, 0x75, 0x73, 0x65, 0x72, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64,
+	0x4f, 0x6e, 0x6c, 0x79, 0x12, 0x52, 0x0a, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x18, 0x04,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x3a, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e,
+	0x6e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x2e, 0x76, 0x31,
+	0x2e, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c,
+	0x74, 0x65, 0x72, 0x73, 0x2e, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x52, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x1a, 0x39, 0x0a, 0x0b, 0x4c, 0x61, 0x62, 0x65,
+	0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a,
+	0x02, 0x38, 0x01, 0x22, 0x80, 0x02, 0x0a, 0x19, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x6f, 0x74, 0x69,
 	0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
 	0x65, 0x12, 0x4d, 0x0a, 0x0d, 0x6e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f,
 	0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70,
@@ -731,7 +749,7 @@ func file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP() []
 	return file_teleport_notifications_v1_notifications_service_proto_rawDescData
 }
 
-var file_teleport_notifications_v1_notifications_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_notifications_v1_notifications_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_notifications_v1_notifications_service_proto_goTypes = []any{
 	(*CreateUserNotificationRequest)(nil),         // 0: teleport.notifications.v1.CreateUserNotificationRequest
 	(*DeleteUserNotificationRequest)(nil),         // 1: teleport.notifications.v1.DeleteUserNotificationRequest
@@ -742,40 +760,42 @@ var file_teleport_notifications_v1_notifications_service_proto_goTypes = []any{
 	(*DeleteGlobalNotificationRequest)(nil),       // 6: teleport.notifications.v1.DeleteGlobalNotificationRequest
 	(*UpsertUserNotificationStateRequest)(nil),    // 7: teleport.notifications.v1.UpsertUserNotificationStateRequest
 	(*UpsertUserLastSeenNotificationRequest)(nil), // 8: teleport.notifications.v1.UpsertUserLastSeenNotificationRequest
-	(*Notification)(nil),                          // 9: teleport.notifications.v1.Notification
-	(*timestamppb.Timestamp)(nil),                 // 10: google.protobuf.Timestamp
-	(*GlobalNotification)(nil),                    // 11: teleport.notifications.v1.GlobalNotification
-	(*UserNotificationState)(nil),                 // 12: teleport.notifications.v1.UserNotificationState
-	(*UserLastSeenNotification)(nil),              // 13: teleport.notifications.v1.UserLastSeenNotification
-	(*emptypb.Empty)(nil),                         // 14: google.protobuf.Empty
+	nil,                              // 9: teleport.notifications.v1.NotificationFilters.LabelsEntry
+	(*Notification)(nil),             // 10: teleport.notifications.v1.Notification
+	(*timestamppb.Timestamp)(nil),    // 11: google.protobuf.Timestamp
+	(*GlobalNotification)(nil),       // 12: teleport.notifications.v1.GlobalNotification
+	(*UserNotificationState)(nil),    // 13: teleport.notifications.v1.UserNotificationState
+	(*UserLastSeenNotification)(nil), // 14: teleport.notifications.v1.UserLastSeenNotification
+	(*emptypb.Empty)(nil),            // 15: google.protobuf.Empty
 }
 var file_teleport_notifications_v1_notifications_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.notifications.v1.CreateUserNotificationRequest.notification:type_name -> teleport.notifications.v1.Notification
+	10, // 0: teleport.notifications.v1.CreateUserNotificationRequest.notification:type_name -> teleport.notifications.v1.Notification
 	3,  // 1: teleport.notifications.v1.ListNotificationsRequest.filters:type_name -> teleport.notifications.v1.NotificationFilters
-	9,  // 2: teleport.notifications.v1.ListNotificationsResponse.notifications:type_name -> teleport.notifications.v1.Notification
-	10, // 3: teleport.notifications.v1.ListNotificationsResponse.user_last_seen_notification_timestamp:type_name -> google.protobuf.Timestamp
-	11, // 4: teleport.notifications.v1.CreateGlobalNotificationRequest.global_notification:type_name -> teleport.notifications.v1.GlobalNotification
-	12, // 5: teleport.notifications.v1.UpsertUserNotificationStateRequest.user_notification_state:type_name -> teleport.notifications.v1.UserNotificationState
-	13, // 6: teleport.notifications.v1.UpsertUserLastSeenNotificationRequest.user_last_seen_notification:type_name -> teleport.notifications.v1.UserLastSeenNotification
-	0,  // 7: teleport.notifications.v1.NotificationService.CreateUserNotification:input_type -> teleport.notifications.v1.CreateUserNotificationRequest
-	1,  // 8: teleport.notifications.v1.NotificationService.DeleteUserNotification:input_type -> teleport.notifications.v1.DeleteUserNotificationRequest
-	5,  // 9: teleport.notifications.v1.NotificationService.CreateGlobalNotification:input_type -> teleport.notifications.v1.CreateGlobalNotificationRequest
-	6,  // 10: teleport.notifications.v1.NotificationService.DeleteGlobalNotification:input_type -> teleport.notifications.v1.DeleteGlobalNotificationRequest
-	2,  // 11: teleport.notifications.v1.NotificationService.ListNotifications:input_type -> teleport.notifications.v1.ListNotificationsRequest
-	7,  // 12: teleport.notifications.v1.NotificationService.UpsertUserNotificationState:input_type -> teleport.notifications.v1.UpsertUserNotificationStateRequest
-	8,  // 13: teleport.notifications.v1.NotificationService.UpsertUserLastSeenNotification:input_type -> teleport.notifications.v1.UpsertUserLastSeenNotificationRequest
-	9,  // 14: teleport.notifications.v1.NotificationService.CreateUserNotification:output_type -> teleport.notifications.v1.Notification
-	14, // 15: teleport.notifications.v1.NotificationService.DeleteUserNotification:output_type -> google.protobuf.Empty
-	11, // 16: teleport.notifications.v1.NotificationService.CreateGlobalNotification:output_type -> teleport.notifications.v1.GlobalNotification
-	14, // 17: teleport.notifications.v1.NotificationService.DeleteGlobalNotification:output_type -> google.protobuf.Empty
-	4,  // 18: teleport.notifications.v1.NotificationService.ListNotifications:output_type -> teleport.notifications.v1.ListNotificationsResponse
-	12, // 19: teleport.notifications.v1.NotificationService.UpsertUserNotificationState:output_type -> teleport.notifications.v1.UserNotificationState
-	13, // 20: teleport.notifications.v1.NotificationService.UpsertUserLastSeenNotification:output_type -> teleport.notifications.v1.UserLastSeenNotification
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	9,  // 2: teleport.notifications.v1.NotificationFilters.labels:type_name -> teleport.notifications.v1.NotificationFilters.LabelsEntry
+	10, // 3: teleport.notifications.v1.ListNotificationsResponse.notifications:type_name -> teleport.notifications.v1.Notification
+	11, // 4: teleport.notifications.v1.ListNotificationsResponse.user_last_seen_notification_timestamp:type_name -> google.protobuf.Timestamp
+	12, // 5: teleport.notifications.v1.CreateGlobalNotificationRequest.global_notification:type_name -> teleport.notifications.v1.GlobalNotification
+	13, // 6: teleport.notifications.v1.UpsertUserNotificationStateRequest.user_notification_state:type_name -> teleport.notifications.v1.UserNotificationState
+	14, // 7: teleport.notifications.v1.UpsertUserLastSeenNotificationRequest.user_last_seen_notification:type_name -> teleport.notifications.v1.UserLastSeenNotification
+	0,  // 8: teleport.notifications.v1.NotificationService.CreateUserNotification:input_type -> teleport.notifications.v1.CreateUserNotificationRequest
+	1,  // 9: teleport.notifications.v1.NotificationService.DeleteUserNotification:input_type -> teleport.notifications.v1.DeleteUserNotificationRequest
+	5,  // 10: teleport.notifications.v1.NotificationService.CreateGlobalNotification:input_type -> teleport.notifications.v1.CreateGlobalNotificationRequest
+	6,  // 11: teleport.notifications.v1.NotificationService.DeleteGlobalNotification:input_type -> teleport.notifications.v1.DeleteGlobalNotificationRequest
+	2,  // 12: teleport.notifications.v1.NotificationService.ListNotifications:input_type -> teleport.notifications.v1.ListNotificationsRequest
+	7,  // 13: teleport.notifications.v1.NotificationService.UpsertUserNotificationState:input_type -> teleport.notifications.v1.UpsertUserNotificationStateRequest
+	8,  // 14: teleport.notifications.v1.NotificationService.UpsertUserLastSeenNotification:input_type -> teleport.notifications.v1.UpsertUserLastSeenNotificationRequest
+	10, // 15: teleport.notifications.v1.NotificationService.CreateUserNotification:output_type -> teleport.notifications.v1.Notification
+	15, // 16: teleport.notifications.v1.NotificationService.DeleteUserNotification:output_type -> google.protobuf.Empty
+	12, // 17: teleport.notifications.v1.NotificationService.CreateGlobalNotification:output_type -> teleport.notifications.v1.GlobalNotification
+	15, // 18: teleport.notifications.v1.NotificationService.DeleteGlobalNotification:output_type -> google.protobuf.Empty
+	4,  // 19: teleport.notifications.v1.NotificationService.ListNotifications:output_type -> teleport.notifications.v1.ListNotificationsResponse
+	13, // 20: teleport.notifications.v1.NotificationService.UpsertUserNotificationState:output_type -> teleport.notifications.v1.UserNotificationState
+	14, // 21: teleport.notifications.v1.NotificationService.UpsertUserLastSeenNotification:output_type -> teleport.notifications.v1.UserLastSeenNotification
+	15, // [15:22] is the sub-list for method output_type
+	8,  // [8:15] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_notifications_v1_notifications_service_proto_init() }
@@ -790,7 +810,7 @@ func file_teleport_notifications_v1_notifications_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_notifications_v1_notifications_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -32,7 +32,7 @@ type Props = {
   operation: OperationType;
   integration: Integration;
   close(): void;
-  edit(req: EditableIntegrationFields): Promise<void>;
+  edit(integration: Integration, req: EditableIntegrationFields): Promise<void>;
   remove(): Promise<void>;
 };
 
