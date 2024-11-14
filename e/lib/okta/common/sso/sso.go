@@ -120,18 +120,19 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	//  See also: https://support.okta.com/help/s/article/The-Everyone-Group-in-Okta
 
 	everyone, err := findOktaBuiltinGroup(ctx, args.OktaClient, api.OktaGroupEveryone)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		args.Logger.WarnContext(ctx, "Skipping assigning Everyone built-in group to Okta app because it was not found - probably not allowed by Okta resource sets",
+			"app_name", app.Name, "app_id", app.Id)
+	} else if err != nil {
 		return nil, trace.Wrap(err, "finding Okta group Everyone")
-	}
+	} else {
+		args.Logger.InfoContext(ctx, "Assigning Everyone built-in group to Okta app",
+			"app_name", app.Name, "app_id", app.Id, "group_id", everyone.Id)
 
-	args.Logger.InfoContext(ctx, "Assigning everyone in group to app",
-		"group", everyone.Id,
-		"app_name", app.Name,
-		"app_id", app.Id,
-	)
-	err = args.OktaClient.AssignGroupToApplication(ctx, api.OktaGroupID(everyone.Id), api.OktaAppID(app.Id))
-	if err != nil {
-		return nil, trace.Wrap(err, "assigning everyone to app")
+		err := args.OktaClient.AssignGroupToApplication(ctx, api.OktaGroupID(everyone.Id), api.OktaAppID(app.Id))
+		if err != nil {
+			return nil, trace.Wrap(err, "assigning everyone to app")
+		}
 	}
 
 	// Now that we have configured the Okta side of the SSO connection, we need

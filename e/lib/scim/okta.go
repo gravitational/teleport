@@ -358,10 +358,10 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 	// Otherwise, Okta is actually trying to update our user. Because Okta's
 	// user and appuser profile schemes are so wildly customizable, and the
 	// mapping from an appuser profile to the structured SCIM data is not well
-	// known, reconciling the SCIm data with the teleport user traits is almost
+	// known, reconciling the SCIM data with the teleport user traits is almost
 	// impossible.
 	//
-	// To sidestep the whole mess, we use this skim request as a trigger to poll
+	// To sidestep the whole mess, we use this SCIM request as a trigger to poll
 	// the Okta API for the target user's data as a flat list of attributes and
 	// update as per the Okta sync service
 

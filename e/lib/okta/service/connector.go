@@ -2,6 +2,7 @@ package oktaservice
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -48,6 +49,9 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, oktaClient api.C
 			PublicURL:            publicURL,
 			Logger:               s.logger,
 		})
+		if trace.IsAccessDenied(err) {
+			return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+		}
 		return connInfo, trace.Wrap(err, "creating new SAML connector")
 	} else if err != nil {
 		return nil, trace.Wrap(err, "fetching SAML connector %s", connectorName)
@@ -55,10 +59,14 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, oktaClient api.C
 
 	connectorInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
 	if err != nil {
-		// Using the CompareFailed error here results in the HTTP request
+		msg := err.Error()
+		if trace.IsAccessDenied(err) {
+			msg = fmt.Sprintf("Could not access Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+		}
+		// Using the CompareFailed error here results in the HTTP response
 		// returning http.StatusPreconditionFailed, which we can use as a signal
 		// to the UI that the problem is the underlying SAML connector.
-		return nil, trace.CompareFailed(err.Error())
+		return nil, trace.CompareFailed(msg)
 	}
 	return connectorInfo, nil
 }

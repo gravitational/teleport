@@ -214,6 +214,85 @@ func TestSSOConectorCreation(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAlreadyExists(err))
 	})
+
+	t.Run("flow proceeds when resource sets are used and Everyone group cannot be fetched", func(t *testing.T) {
+		const (
+			testEntityMetadataURL         = "https://example.com/some/thing/or/other"
+			testEntityMetadataContentType = "vegetable/potato"
+		)
+
+		// Given a (mocked) cluster with no SAML connector named
+		// ${testConnectorName}...
+		samlConnectors := &mockSamlConnectors{}
+		samlConnectors.
+			On("GetSAMLConnector", mock.Anything, testConnectorName).
+			Return(nil, trace.NotFound(testConnectorName))
+		samlConnectors.
+			On("CreateSAMLConnector", mock.Anything, mock.Anything).
+			Return(nil, nil)
+
+		// and a (mock) Okta client configured with some groups (exluding the
+		// special "Everyone" group), and set to allow
+		createAppCalled := false
+		metadataWasFetched := false
+		oktaClient := api.NewTestClient()
+		oktaClient.OktaGroups = []*okta.Group{
+			makeTestGroup("NOT A BUILTIN", "OKTA_GROUP", "Everyone"),
+			makeTestGroup("NOT EVERYONE", "BUILT_IN", "Bananas"),
+			// No build-in Everyone
+			//makeTestGroup(everyoneGroupId, "BUILT_IN", "Everyone"),
+		}
+		oktaClient.MonkeyPatch.CreateApp =
+			func(ctx context.Context, app okta.App) (okta.App, error) {
+				// Expect that createApp was called.]
+				createAppCalled = true
+
+				// Pretend to be an Okta service and assign the app an ID and
+				// fill out its links field.
+				samlApp, ok := app.(*okta.SamlApplication)
+				require.True(t, ok, "Unexpected okta app type: %T", app)
+				samlApp.Id = "TEST-OKTA-APP-ID"
+				samlApp.Links = map[string]any{
+					"metadata": map[string]any{
+						"href": testEntityMetadataURL,
+						"type": testEntityMetadataContentType,
+					},
+				}
+				return samlApp, nil
+			}
+		oktaClient.MonkeyPatch.AssignGroupToApplication =
+			func(ctx context.Context, groupId api.OktaGroupID, appId api.OktaAppID) error {
+				require.Fail(t, "must not be called, because Everyone is not returned")
+				return nil
+			}
+		oktaClient.MonkeyPatch.DoHttp =
+			func(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error) {
+				require.Equal(t, http.MethodGet, method)
+				require.Equal(t, testEntityMetadataURL, url.String())
+				require.Contains(t, accept, testEntityMetadataContentType)
+				metadataWasFetched = true
+				return []byte(entityDescriptor), nil
+			}
+
+		// When I attempt to create a SAML connector and its corresponding
+		// Okta app...
+		_, err := CreateSAMLConnector(ctx, ConnectorArgs{
+			OktaClient:           oktaClient,
+			SAMLConnectorService: samlConnectors,
+			ClusterName:          testClusterName,
+			ConnectorName:        testConnectorName,
+			PublicURL:            must(url.Parse(testClusterURL)),
+			Logger:               utils.NewSlogLoggerForTests(),
+		})
+
+		// Expect that the operation succeeded, and all of the expected
+		// interactions with our mock Okta client happened
+		require.NoError(t, err)
+		require.True(t, createAppCalled, "CreateApp must be called")
+		// if the group was was assigned, mocked AssignGroupToApplication would fail by now, so no check here
+		require.True(t, metadataWasFetched, "SAML metadata must be fetched")
+		samlConnectors.AssertExpectations(t)
+	})
 }
 
 func TestExtractMetadataUrl(t *testing.T) {

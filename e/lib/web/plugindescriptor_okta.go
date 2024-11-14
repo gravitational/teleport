@@ -92,10 +92,6 @@ func (args *installOktaPluginArgs) CheckAndSetDefaults() error {
 	return nil
 }
 
-// installOktaPluginWithHTTPClient allows the caller to supply an HTTP client to
-// use when talking to the Okta API endpoint, for use in testing. The installer
-// will default to using the standard Okta client settings if no HTTP client is
-// provided.
 func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plugin, error) {
 	params, err := validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs, args.sessCtx)
 	if err != nil {

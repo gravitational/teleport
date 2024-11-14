@@ -97,7 +97,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err)
 	}
 
-	oktaPlugin := createOktaPlugin(req, info)
+	oktaPlugin := newOktaPlugin(req, info)
 	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                oktaPlugin,
 		StaticCredentialsList: getOktaPluginCredentials(req),
@@ -126,7 +126,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	return nil, trace.NotImplemented("not implemented")
 }
 
-func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo) *types.PluginV1 {
+func newOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo) *types.PluginV1 {
 	oktaSettings := &types.PluginOktaSettings{
 		OrgUrl: req.GetOktaOrganizationUrl(),
 		SyncSettings: &types.PluginOktaSyncSettings{
