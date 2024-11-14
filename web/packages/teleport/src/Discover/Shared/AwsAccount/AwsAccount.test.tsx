@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import {
@@ -46,6 +46,7 @@ import { ResourceSpec } from 'teleport/Discover/SelectResource';
 import { ResourceKind } from '../ResourceKind';
 
 import { AwsAccount } from './AwsAccount';
+import { findByText, fireEvent } from '@testing-library/react';
 
 beforeEach(() => {
   jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
@@ -144,6 +145,27 @@ test('missing permissions for integrations', async () => {
   expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
 });
 
+test('health check is called after selecting an aws integration', async () => {
+  const { ctx, discoverCtx, spyPing } = getMockedContexts({
+    kind: ResourceKind.Application,
+    appMeta: { awsConsole: true },
+    name: '',
+    icon: undefined,
+    keywords: [],
+    event: DiscoverEventResource.ApplicationHttp,
+  });
+
+  renderAwsAccount(ctx, discoverCtx);
+
+  await screen.findByText(/AWS Integrations/i);
+
+  const selectContainer = screen.getByRole('combobox');
+  fireEvent.mouseDown(selectContainer);
+  fireEvent.keyPress(selectContainer, { key: 'Enter' });
+
+  expect(spyPing).toHaveBeenCalledTimes(1);
+});
+
 function getMockedContexts(resourceSpec: ResourceSpec) {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
@@ -167,7 +189,21 @@ function getMockedContexts(resourceSpec: ResourceSpec) {
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
 
-  return { ctx, discoverCtx };
+  const spyPing = jest
+    .spyOn(integrationService, 'fetchIntegrations')
+    .mockResolvedValue({
+      items: [
+        {
+          resourceType: 'integration',
+          name: 'aws-oidc-1',
+          kind: IntegrationKind.AwsOidc,
+          spec: { roleArn: '111' },
+          statusCode: IntegrationStatusCode.Running,
+        },
+      ],
+    });
+
+  return { ctx, discoverCtx, spyPing };
 }
 
 function renderAwsAccount(
