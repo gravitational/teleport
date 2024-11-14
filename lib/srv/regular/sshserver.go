@@ -2194,8 +2194,18 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		return trace.Wrap(err)
 	}
 
-	// Set the src addr again since it may have been updated with a new port.
-	scx.SrcAddr = listener.Addr().String()
+	// If the client didn't request a specific port, the chosen port needs to
+	// be reported back.
+	srcHost, _, err := sshutils.SplitHostPort(scx.SrcAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, listenPort, err := sshutils.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
+
 	event := scx.GetPortForwardEvent()
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
 		s.Logger.WithError(err).Warn("Failed to emit audit event.")
