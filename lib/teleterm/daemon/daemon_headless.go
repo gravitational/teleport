@@ -271,10 +271,10 @@ func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *typ
 		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
 	}
 
-	if err := s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
+	if err := s.headlessAuthSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	defer s.singleImportantModalSemaphore.Release()
+	defer s.headlessAuthSemaphore.Release()
 
 	_, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(ctx, req)
 	return trace.Wrap(err)
