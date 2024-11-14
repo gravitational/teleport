@@ -231,9 +231,9 @@ rotation is initiated, or during a version upgrade when a new CA has been added
 in the new version.
 For these reasons we recommend continuing to use the `legacy` algorithm suite.
 
-### My YubiHSM2 authentication key does not have capabilites for ECDSA keys, what do I do?
+### My YubiHSM2 authentication key does not have capabilities for ECDSA keys, what do I do?
 
-Our [YubiHSM2 guide](../../admin-guides/deploy-a-cluster/hsm.mdx) recommends
+Our [YubiHSM2 guide](../admin-guides/deploy-a-cluster/hsm.mdx) recommends
 creating an
 [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
 to be used by the Teleport Auth Service to authenticate with the YubiHSM2.
@@ -253,7 +253,7 @@ Using default connector URL: http://localhost:12345
 yubihsm> connect
 Session keepalive set up to run every 15 seconds
 
-# Open a session with an admin authentication key that has capabilites to create
+# Open a session with an admin authentication key that has capabilities to create
 # new authentication keys. The factory default authentication key has id:1 and
 # password:password. Use the appropriate ID and password if you have changed
 # these parameters.
