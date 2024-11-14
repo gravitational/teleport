@@ -156,11 +156,18 @@ auth_service:
         # Possible values: true, false, "hardware_key", "hardware_key_touch".
         # Defaults to false.
         require_session_mfa: false
+        
+        # second_factors is the list of allowed second factors for the cluster.
+        # Possible values: "otp" and "webauthn".
+        # Defaults to ["otp"].
+        second_factors: ["otp"]
 
         # second_factor can be 'on', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
-        second_factor: otp
+        #
+        # Prefer setting second_factors instead.
+        #second_factor: otp
 
         # Sets whether passwordless authentication is allowed.
         # Passwordless requires WebAuthn.
