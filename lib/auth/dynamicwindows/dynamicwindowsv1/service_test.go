@@ -193,6 +193,10 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
+func (f fakeChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
+	return nil
+}
+
 func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) *Service {
 	t.Helper()
 
