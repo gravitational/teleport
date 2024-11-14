@@ -149,6 +149,7 @@ func NewClientConn(config ClientConnConfig) (*ClientConn, error) {
 	return cc, nil
 }
 
+// ClientConn is an [internal.ClientConn] that uses QUIC as its transport.
 type ClientConn struct {
 	id   string
 	addr *net.UDPAddr
@@ -167,6 +168,8 @@ type ClientConn struct {
 	// runCancel cancels runCtx.
 	runCancel context.CancelFunc
 
+	// mu guards the closed flag, waiting on the wg WaitGroup, and adding to the
+	// WaitGroup when it's potentially zero.
 	mu sync.Mutex
 	// closed is set at the beginning of a shutdown to signify that this client
 	// conn should not be opening any new connections.
@@ -192,6 +195,8 @@ func (c *ClientConn) PeerAddr() string {
 // Close implements [internal.ClientConn].
 func (c *ClientConn) Close() error {
 	c.mu.Lock()
+	// it's fine to double Close (or mix Close and Shutdown concurrently), the
+	// logic is idempotent
 	c.closed = true
 	c.mu.Unlock()
 	c.runCancel()
@@ -202,6 +207,8 @@ func (c *ClientConn) Close() error {
 // Shutdown implements [internal.ClientConn].
 func (c *ClientConn) Shutdown(ctx context.Context) {
 	c.mu.Lock()
+	// it's fine to double Shutdown (or mix Close and Shutdown concurrently),
+	// the logic is idempotent
 	c.closed = true
 	c.mu.Unlock()
 	defer c.runCancel()
@@ -515,6 +522,7 @@ func (c *streamConn) Write(b []byte) (n int, err error) {
 
 // Close implements [net.Conn].
 func (c *streamConn) Close() error {
+	// closing the connection will also close the stream
 	return trace.Wrap(c.conn.CloseWithError(noApplicationErrorCode, ""))
 }
 

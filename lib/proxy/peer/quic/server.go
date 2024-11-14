@@ -416,7 +416,7 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 }
 
 // dialResponseOK is the length-prefixed encoding of a DialResponse message that
-// signifies a successful dial.
+// signifies a successful dial (see TestDialResponseOKEncoding).
 const dialResponseOK = "\x00\x00\x00\x00"
 
 // Close stops listening for incoming connections and ungracefully terminates
