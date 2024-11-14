@@ -40,6 +40,9 @@ type ClientConn interface {
 		tunnelType types.TunnelType,
 	) (net.Conn, error)
 
+	// Ping checks if the peer is reachable and responsive.
+	Ping(context.Context) error
+
 	// Close closes all connections and releases any background resources
 	// immediately.
 	Close() error
