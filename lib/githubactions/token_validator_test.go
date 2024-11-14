@@ -378,6 +378,7 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 	return jwksData, signer
 }
 
+//nolint:govet // there's some weird json struct tag overlap here
 type claims struct {
 	jwt.Claims
 	IDTokenClaims
