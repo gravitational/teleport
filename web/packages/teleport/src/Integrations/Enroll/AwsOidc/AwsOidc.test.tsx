@@ -46,11 +46,7 @@ test('render', async () => {
   expect(
     screen.getByLabelText(/Give this AWS integration a name/i)
   ).toBeInTheDocument();
-  expect(
-    screen.getByLabelText(
-      /Give a name for an AWS IAM role this integration will create/i
-    )
-  ).toBeInTheDocument();
+  expect(screen.getByLabelText(/iam role name/i)).toBeInTheDocument();
 });
 
 test('generate command', async () => {
@@ -84,14 +80,9 @@ test('generate command', async () => {
   fireEvent.change(screen.getByLabelText(/Give this AWS integration a name/i), {
     target: { value: pluginConfig.name },
   });
-  fireEvent.change(
-    screen.getByLabelText(
-      /Give a name for an AWS IAM role this integration will create/i
-    ),
-    {
-      target: { value: pluginConfig.roleName },
-    }
-  );
+  fireEvent.change(screen.getByLabelText(/iam role name/i), {
+    target: { value: pluginConfig.roleName },
+  });
 
   fireEvent.click(screen.getByRole('button', { name: /Generate Command/i }));
 

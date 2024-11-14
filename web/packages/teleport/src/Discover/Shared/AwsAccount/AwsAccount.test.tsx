@@ -150,7 +150,7 @@ test('health check is called after selecting an aws integration', async () => {
     appMeta: { awsConsole: true },
     name: '',
     icon: undefined,
-    keywords: [],
+    keywords: '',
     event: DiscoverEventResource.ApplicationHttp,
   });
 
@@ -158,7 +158,7 @@ test('health check is called after selecting an aws integration', async () => {
 
   await screen.findByText(/AWS Integrations/i);
 
-  const selectContainer = screen.getByRole('combobox');
+  const selectContainer = screen.getByText(/AWS Integrations/i);
   fireEvent.mouseDown(selectContainer);
   fireEvent.keyPress(selectContainer, { key: 'Enter' });
 
