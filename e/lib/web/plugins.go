@@ -224,26 +224,9 @@ func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	pluginBeforeDeletion, err := authClient.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
-		Name:        pluginName,
-		WithSecrets: false,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	_, err = authClient.PluginsClient().DeletePlugin(r.Context(), &pluginspb.DeletePluginRequest{Name: pluginName})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// cleanup resource that are only allowed deletion once the plugin itself is deleted
-	// Note: plugin name for Identity Center plugin is hardcoded to the value of
-	// types.PluginTypeAWSIdentityCenter
-	if pluginName == types.PluginTypeAWSIdentityCenter {
-		if err := awsICPluginPostDeletionCleanup(r.Context(), authClient, pluginBeforeDeletion); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	return web.OK(), nil

@@ -150,6 +150,15 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.defaultCleanup(ctx, req.GetPlugin().GetType()); err != nil {
+		// needsCleanup will return below if defaultCleanup failed at deleting resource.
+		s.logger.WarnContext(ctx, `failed to cleanup resources created by the previous installation of this plugin.
+This may cause issues with the current installation`,
+			"error",
+			err,
+		)
+	}
+
 	// If the plugin needs cleanup, we won't allow the plugin to be created.
 	needsCleanup, _, err := s.needsCleanup(ctx, plugin.GetType())
 	// We'll ignore the not found error for now and let the rest of this function produce a more specific error.
@@ -538,6 +547,9 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := s.checkResourceCleanupPermissions(ctx, plugin.GetType()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	staticCredsRef := plugin.GetCredentials().GetStaticCredentialsRef()
 	if staticCredsRef != nil {
@@ -580,8 +592,16 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 	}); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit plugin delete event", "error", err)
 	}
-
 	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.Name)
+
+	// Plugin such as Okta does not currently cleanup resource on Delete. So we just pick
+	// PluginTypeAWSIdentityCenter plugin.
+	if req.Name == types.PluginTypeAWSIdentityCenter {
+		if err := s.cleanupAWSIdentityCenter(ctx, out); err != nil {
+			s.logger.WarnContext(ctx, "failed to cleanup resources created by the Identity Center plugin.", "error", err)
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	return &emptypb.Empty{}, nil
 }
@@ -725,7 +745,7 @@ func (s *Service) Cleanup(ctx context.Context, req *pluginspb.CleanupRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.cleanup(ctx, types.PluginType(req.Type)); err != nil {
+	if err := s.cleanup(ctx, types.PluginType(req.Type), nil /* plugin */); err != nil {
 		return nil, trace.Wrap(err, "cleanup of plugin %s failed", req.Type)
 	}
 
@@ -738,6 +758,8 @@ func (s *Service) needsCleanup(ctx context.Context, pluginType types.PluginType)
 	switch pluginType {
 	case types.PluginTypeOkta:
 		return s.oktaNeedsCleanup(ctx)
+	case types.PluginTypeAWSIdentityCenter:
+		return s.identityCenterNeedsCleanup(ctx)
 	}
 
 	// If this plugin is valid and we don't need to clean it up, just return.
@@ -753,10 +775,12 @@ func (s *Service) needsCleanup(ctx context.Context, pluginType types.PluginType)
 }
 
 // cleanup will cleanup the resources necessary to start the plugin
-func (s *Service) cleanup(ctx context.Context, pluginType types.PluginType) error {
+func (s *Service) cleanup(ctx context.Context, pluginType types.PluginType, plugin *types.PluginV1) error {
 	switch pluginType {
 	case types.PluginTypeOkta:
 		return s.cleanupOkta(ctx)
+	case types.PluginTypeAWSIdentityCenter:
+		return s.cleanupAWSIdentityCenter(ctx, plugin)
 	}
 
 	// If this plugin is valid and we don't need to clean it up, just return.
@@ -790,6 +814,30 @@ func (s *Service) isPluginOfTypeActive(ctx context.Context, pluginType types.Plu
 	}
 
 	return false, nil
+}
+
+// defaultCleanup runs cleanup without explicit user confirmation.
+func (s *Service) defaultCleanup(ctx context.Context, pluginType types.PluginType) error {
+	if pluginType == types.PluginTypeAWSIdentityCenter {
+		if err := s.checkResourceCleanupPermissions(ctx, pluginType); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.cleanupAWSIdentityCenter(ctx, nil /* plugin */))
+	}
+
+	return nil
+}
+
+// checkResourceCleanupPermissions checks delete access to plugin created resources that need cleanup.
+func (s *Service) checkResourceCleanupPermissions(ctx context.Context, pluginType types.PluginType) error {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if pluginType == types.PluginTypeAWSIdentityCenter {
+		return trace.Wrap(checkIdentityCenterResourceDeleteAccess(authCtx))
+	}
+	return nil
 }
 
 func isEntraIDPlugin(plugin *types.PluginV1) bool {

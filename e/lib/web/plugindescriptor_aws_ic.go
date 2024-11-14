@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -365,21 +364,6 @@ func (a awsICPluginDescriptor) getHTTPClient() (*http.Client, error) {
 		}
 	}
 	return client, nil
-}
-
-// awsICPluginPostDeletionCleanup deletes resources created by the Identity Center plugin
-// which are prevented deletion before the plugin itself is deleted.
-// Currently only deletes the SAML service provider.
-func awsICPluginPostDeletionCleanup(ctx context.Context, authClient authclient.ClientI, deletedPlugin *types.PluginV1) error {
-	serviceProviderName := deletedPlugin.Spec.GetAwsIc().SamlIdpServiceProviderName
-	if err := authClient.DeleteSAMLIdPServiceProvider(ctx, serviceProviderName); err != nil {
-		return trace.Wrap(fmt.Errorf(`Plugin is deleted but we were unable to remove SAML service provider: %q.
-To manually remove the service provider, run the command: 'tctl rm saml_idp_service_provider/%s'`,
-			err.Error(),
-			serviceProviderName,
-		))
-	}
-	return nil
 }
 
 // awsICPluginIdentityCenterClient creates a new Identity Center SDK client.

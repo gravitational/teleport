@@ -23,9 +23,9 @@ import (
 const (
 	Component = "AWS:IC"
 
-	// identityCenterDownstreamID indicates the downstream ID to be used by the
-	// Identity Center integration when storing provisioning records
-	identityCenterDownstreamID = services.DownstreamID("identitycenter")
+	// IdentityCenterDownstreamID indicates the downstream ID to be used by the
+	// Identity Center integration when storing provisioning records.
+	IdentityCenterDownstreamID = services.DownstreamID("identitycenter")
 )
 
 // Service is the configuration for the Identity Center service
@@ -62,7 +62,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	aclPredicate := makeAccessListAssignmentPredicate(config.RolesSvc)
 
 	provisioner, err := provisioning.NewService(provisioning.ServiceConfig{
-		DownstreamID:        identityCenterDownstreamID,
+		DownstreamID:        IdentityCenterDownstreamID,
 		SCIMClient:          config.Provisioning.SCIMClient,
 		StateSvc:            config.Provisioning.StateSvc,
 		StateSvcCache:       config.Provisioning.StateSvcCache,

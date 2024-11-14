@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -56,20 +57,26 @@ import (
 // copied from teleport/lib/web/apiserver_test.go and stripped down to just what
 // is needed for the test cases in this package.
 type webSuite struct {
-	ctx                  context.Context
-	cancel               context.CancelFunc
-	user                 string
-	webServer            *httptest.Server
-	webServerURL         *url.URL
-	testAuthServer       *auth.TestServer
-	webPlugin            *Plugin
-	authPlugin           *eauth.Plugin
-	proxyClient          *authclient.Client
-	clock                clockwork.FakeClock
-	accessGraphGrpcFile  *atomic.Int32
-	accessGraphGrpcQuery *atomic.Int32
-	accessGraphHTTPFile  *atomic.Int32
-	accessGraphHTTPQuery *atomic.Int32
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	user                  string
+	webServer             *httptest.Server
+	webServerURL          *url.URL
+	testAuthServer        *auth.TestServer
+	webPlugin             *Plugin
+	authPlugin            *eauth.Plugin
+	proxyClient           *authclient.Client
+	clock                 clockwork.FakeClock
+	accessGraphGrpcFile   *atomic.Int32
+	accessGraphGrpcQuery  *atomic.Int32
+	accessGraphHTTPFile   *atomic.Int32
+	accessGraphHTTPQuery  *atomic.Int32
+	identitycenterService identitycenterService
+}
+
+type identitycenterService struct {
+	identityCenter    services.IdentityCenter
+	provisioningState services.ProvisioningStates
 }
 
 type stubProxySettings struct{}
@@ -293,6 +300,17 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	require.NoError(t, err)
 	s.webPlugin.RegisterSAMLIdP(samlIdP)
 
+	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: s.testAuthServer.AuthServer.Backend,
+	})
+	require.NoError(t, err)
+	prService, err := local.NewProvisioningStateService(s.testAuthServer.AuthServer.Backend)
+	require.NoError(t, err)
+	s.identitycenterService = identitycenterService{
+		identityCenter:    icService,
+		provisioningState: prService,
+	}
+
 	t.Cleanup(func() {
 		s.cancel()
 		s.webServer.Close()
@@ -486,6 +504,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindDiscoveryConfig, services.RW()),
 		types.NewRule(types.KindAccessMonitoringRule, services.RW()),
 		types.NewRule(types.KindCrownJewel, services.RW()),
+		types.NewRule(types.KindIdentityCenter, services.RW()),
 	}
 	rules = append(rules, extraRules...)
 	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{

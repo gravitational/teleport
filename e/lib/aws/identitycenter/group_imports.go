@@ -98,7 +98,7 @@ func (svc *Service) emitImportStatus(ctx context.Context, status *types.AWSICGro
 // and if the group import has not successfully been imported previously. Because we want Teleport to
 // be the source of truth for Identity Center group and group members, repeated imports voids that.
 func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
-	existingList, err := accessListFromTeleport(ctx, s.accessListSvc)
+	existingList, err := ListICOriginatedAccessLists(ctx, s.accessListSvc)
 	if err != nil {
 		return trace.Wrap(err)
 	}

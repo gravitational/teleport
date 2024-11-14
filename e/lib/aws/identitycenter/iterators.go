@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -100,32 +101,6 @@ func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.
 	}
 }
 
-// accessListFromTeleport lists all existing Access Lists matching origin OriginAWSIdentityCenter.
-func accessListFromTeleport(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
-	outList := map[string]*accesslist.AccessList{}
-
-	var accessLists []*accesslist.AccessList
-	var pageToken string
-	var err error
-	for {
-		accessLists, pageToken, err = service.ListAccessLists(ctx, apidefaults.DefaultChunkSize, pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err, "listing existing Access Lists from Teleport")
-		}
-		for _, al := range accessLists {
-			if matchByOriginAWSIdentityCenterLabel(al) {
-				outList[al.GetName()] = al
-			}
-		}
-
-		if pageToken == "" {
-			break
-		}
-	}
-
-	return outList, nil
-}
-
 // listTeleportUsers returns a map with a key containing username for each users
 // that exist in Teleport user database.
 func listTeleportUsers(ctx context.Context, service UsersService) (map[string]struct{}, error) {
@@ -154,6 +129,61 @@ func listTeleportUsers(ctx context.Context, service UsersService) (map[string]st
 	out := make(map[string]struct{})
 	for _, u := range users {
 		out[u.GetName()] = struct{}{}
+	}
+
+	return out, nil
+}
+
+// ListICOriginatedAccessLists lists all Identity Center originated access lists.
+func ListICOriginatedAccessLists(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+	outList := map[string]*accesslist.AccessList{}
+
+	var accessLists []*accesslist.AccessList
+	var pageToken string
+	var err error
+	for {
+		accessLists, pageToken, err = service.ListAccessLists(ctx, apidefaults.DefaultChunkSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, al := range accessLists {
+			if matchByOriginAWSIdentityCenterLabel(al) {
+				outList[al.GetName()] = al
+			}
+		}
+
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return outList, nil
+}
+
+// ListICOriginatedRoles lists all Identity Center originated roles.
+func ListICOriginatedRoles(ctx context.Context, service RolesService) ([]*types.RoleV6, error) {
+	var pageKey string
+	var out []*types.RoleV6
+	for {
+		response, err := service.ListRoles(ctx, &proto.ListRolesRequest{
+			StartKey: pageKey,
+			Limit:    apidefaults.DefaultChunkSize,
+			Filter:   &types.RoleFilter{SkipSystemRoles: true},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, role := range response.Roles {
+			if matchByOriginAWSIdentityCenterLabel(role) {
+				out = append(out, role)
+			}
+		}
+
+		if response.NextKey == "" {
+			break
+		}
+		pageKey = response.NextKey
 	}
 
 	return out, nil

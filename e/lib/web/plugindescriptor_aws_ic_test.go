@@ -9,25 +9,31 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
+	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestAWSICCreatePlugin(t *testing.T) {
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 
-	installAWSICSAMLServiceProvider(t, wSuite.ctx, authClient)
+	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
 
 	awsIg, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: "existing-oidc-integration"},
+		types.Metadata{Name: icOIDCIntegrationName},
 		&types.AWSOIDCIntegrationSpecV1{
 			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
 			IssuerS3URI: "s3://my-bucket/my-prefix",
@@ -119,7 +125,7 @@ func TestAWSICCreatePlugin(t *testing.T) {
 func TestAWSICPluginPreValidation(t *testing.T) {
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
-	installAWSICSAMLServiceProvider(t, wSuite.ctx, authClient)
+	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
 
 	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "validate")
 
@@ -159,79 +165,138 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 	testServer.Close()
 }
 
-func TestAWSICDeletePlugin(t *testing.T) {
+func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
+
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
-
-	installAWSICOIDCIntegration(t, wSuite.ctx, authClient)
-	installAWSICPlugin(t, wSuite.ctx, aPack.clt, testServer.URL, aPack.csrfToken)
-
-	deletePluginEndPoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
-
-	resp, err := aPack.clt.Delete(wSuite.ctx, deletePluginEndPoint)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-	require.NoError(t, err)
-
-	// test both plugin and saml service provider is deleted
-	_, err = authClient.GetSAMLIdPServiceProvider(wSuite.ctx, newServcieProviderName)
-	require.True(t, trace.IsNotFound(err))
-	_, err = authClient.PluginsClient().GetPlugin(wSuite.ctx, &pluginspb.GetPluginRequest{
-		Name:        types.PluginTypeAWSIdentityCenter,
-		WithSecrets: false,
-	})
-	require.True(t, trace.IsNotFound(err))
-
-	// test a scenario where a SAML service provider may not exist but
-	// the plugin deletion should still succeed.
-	// manually creating the plugin in order to skip creating SAML service provider. This wont be
-	// true in production but will let us test the failed cleanup message.
-	_, err = authClient.PluginsClient().CreatePlugin(wSuite.ctx, newPlugin(t, testServer.URL))
-	require.NoError(t, err)
-
-	resp2, err := aPack.clt.Delete(wSuite.ctx, deletePluginEndPoint)
-	require.Error(t, err)
-	require.Equal(t, http.StatusInternalServerError, resp2.Code())
-
-	require.Contains(t, string(resp2.Bytes()), "doesn't exist")
-
-	_, err = authClient.PluginsClient().GetPlugin(wSuite.ctx, &pluginspb.GetPluginRequest{
-		Name:        types.PluginTypeAWSIdentityCenter,
-		WithSecrets: false,
-	})
-	require.True(t, trace.IsNotFound(err))
-}
-
-func newPlugin(t *testing.T, testServerURL string) *pluginspb.CreatePluginRequest {
-	inputs := installRequestValidURLValues(t, testServerURL)
-	return &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			Metadata: types.Metadata{
-				Name: types.PluginTypeAWSIdentityCenter,
-				Labels: map[string]string{
-					types.HostedPluginLabel: "true",
-				},
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_AwsIc{
-					AwsIc: &types.PluginAWSICSettings{
-						IntegrationName:         inputs.Get(awsICPluginOIDCIntegrationNameField),
-						Region:                  inputs.Get(awsICPluginICRegionField),
-						Arn:                     inputs.Get(awsICPluginICARNField),
-						AccessListDefaultOwners: []string{"user1", "user2"},
-						ProvisioningSpec: &types.AWSICProvisioningSpec{
-							BaseUrl: testServerURL,
-						},
-					},
-				},
-			},
-		},
+	ctx := wSuite.ctx
+	client := ictestenv.CleanupTestClient{
+		ICService:                wSuite.identitycenterService.identityCenter,
+		ProvisioningStateService: wSuite.identitycenterService.provisioningState,
+		SAMLIdPService:           authClient,
+		IntegrationService:       authClient,
+		AccessListService:        authClient.AccessListClient(),
+		RoleService:              authClient,
 	}
+	testData := ictestenv.NewDeletionData()
+
+	t.Run("cleanup before plugin is created", func(t *testing.T) {
+		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
+		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
+		createPluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin")
+
+		form := installRequestURLValues(t, testServer.URL, "" /* key to remove */)
+		form.Set("csrf_token", aPack.csrfToken)
+		resp, err := aPack.clt.PostForm(wSuite.ctx, createPluginEndpoint, form)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		// installing plugin does not immediately create identity center data. So it is safe
+		// to assert with existing data created with createICResources function.
+		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
+			SAMLlServiceProviderName: newServcieProviderName,
+			IntegrationName:          icOIDCIntegrationName,
+			IsCreateRequest:          true,
+			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
+			TestData:                 testData,
+			TestClient:               client,
+			ListICOriginatedAccessLists: func(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+				return identitycenter.ListICOriginatedAccessLists(ctx, client.AccessListService)
+			},
+			ListICOriginatedRoles: func(ctx context.Context, service services.Access) ([]*types.RoleV6, error) {
+				return identitycenter.ListICOriginatedRoles(ctx, client.RoleService)
+			},
+		})
+
+		plugin, err := authClient.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+			Name:        types.PluginTypeAWSIdentityCenter,
+			WithSecrets: false,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, plugin)
+		_, err = authClient.PluginsClient().DeletePlugin(ctx, &pluginspb.DeletePluginRequest{Name: plugin.GetName()})
+		require.NoError(t, err)
+	})
+
+	t.Run("plugin deletion prevented if user does not have access to all resources that requires deletion", func(t *testing.T) {
+		_, err := authClient.PluginsClient().CreatePlugin(ctx, ictestenv.NewPluginV1CreateRequest(icOIDCIntegrationName, newServcieProviderName))
+		require.NoError(t, err)
+
+		// "foo" is username of a user created with aPack. This user is
+		// assigned with editor role.
+		fooUserRole, err := authClient.GetRole(ctx, "editor")
+		require.NoError(t, err)
+		fooUserRole.SetRules(types.Deny, []types.Rule{{Resources: []string{types.KindIdentityCenter}, Verbs: []string{types.VerbDelete}}})
+		_, err = authClient.UpsertRole(ctx, fooUserRole)
+		require.NoError(t, err)
+
+		deletePluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
+		resp, err := aPack.clt.Delete(ctx, deletePluginEndpoint)
+		require.ErrorContains(t, err, "access denied")
+		require.Equal(t, http.StatusForbidden, resp.Code())
+
+		// revert role
+		fooUserRole.SetRules(types.Deny, []types.Rule{})
+		_, err = authClient.UpsertRole(ctx, fooUserRole)
+		require.NoError(t, err)
+
+		_, err = authClient.PluginsClient().DeletePlugin(ctx, &pluginspb.DeletePluginRequest{Name: types.PluginTypeAWSIdentityCenter})
+		require.NoError(t, err)
+	})
+
+	t.Run("cleanup after plugin is deleted", func(t *testing.T) {
+		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
+		installAWSICPlugin(t, ctx, aPack.clt, testServer.URL, aPack.csrfToken)
+		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
+
+		deletePluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
+		resp, err := aPack.clt.Delete(ctx, deletePluginEndpoint)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		_, err = authClient.PluginsClient().GetPlugin(wSuite.ctx, &pluginspb.GetPluginRequest{
+			Name:        types.PluginTypeAWSIdentityCenter,
+			WithSecrets: false,
+		})
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = authClient.GetSAMLIdPServiceProvider(ctx, newServcieProviderName)
+		require.True(t, trace.IsNotFound(err))
+		_, err = authClient.GetIntegration(ctx, icOIDCIntegrationName)
+		require.True(t, trace.IsNotFound(err))
+
+		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
+			SAMLlServiceProviderName: newServcieProviderName,
+			IntegrationName:          icOIDCIntegrationName,
+			IsCreateRequest:          false,
+			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
+			TestData:                 testData,
+			TestClient:               client,
+			ListICOriginatedAccessLists: func(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+				return identitycenter.ListICOriginatedAccessLists(ctx, client.AccessListService)
+			},
+			ListICOriginatedRoles: func(ctx context.Context, service services.Access) ([]*types.RoleV6, error) {
+				return identitycenter.ListICOriginatedRoles(ctx, client.RoleService)
+			},
+		})
+
+		needCleanupResp, err := authClient.PluginsClient().NeedsCleanup(ctx, &pluginspb.NeedsCleanupRequest{Type: types.PluginTypeAWSIdentityCenter})
+		require.NoError(t, err)
+		require.Empty(t, needCleanupResp.GetResourcesToCleanup())
+	})
+
+	t.Cleanup(func() {
+		testServer.Close()
+	})
 }
 
 func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack, *httptest.Server) {
 	t.Helper()
-	s := newWebSuite(t)
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 	testSPServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
@@ -243,6 +308,16 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack,
 	}))
 
 	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = awsICPluginDescriptor{testSPServer.Client()}
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+			Cloud: true,
+		},
+	})
 
 	return s, webPack, testSPServer
 }
@@ -331,8 +406,11 @@ type errorResp struct {
 	} `json:"error"`
 }
 
-const existingServcieProviderName = "existing-service-provider"
-const newServcieProviderName = "saml-sp-1"
+const (
+	existingServcieProviderName = "existing-service-provider"
+	newServcieProviderName      = "saml-sp-1"
+	icOIDCIntegrationName       = "ic-oidc-integration"
+)
 
 func installRequestValidURLValues(t *testing.T, testServerURL string) url.Values {
 	t.Helper()
@@ -341,7 +419,7 @@ func installRequestValidURLValues(t *testing.T, testServerURL string) url.Values
 		"type":                                      {types.PluginTypeAWSIdentityCenter},
 		awsICPluginICRegionField:                    {"ca-central-1"},
 		awsICPluginICARNField:                       {"arn:aws:sso:::instance/ssoins-8893885e0d4lllka"},
-		awsICPluginOIDCIntegrationNameField:         {"existing-oidc-integration"},
+		awsICPluginOIDCIntegrationNameField:         {icOIDCIntegrationName},
 		awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
 		awsICPluginSAMLServiceProviderNameField:     {newServcieProviderName},
 		awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
@@ -369,36 +447,4 @@ func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, t
 	resp, err := clt.PostForm(ctx, installPluginEndPoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
-}
-
-func installAWSICSAMLServiceProvider(t *testing.T, ctx context.Context, authClient authclient.ClientI) {
-	t.Helper()
-	sp, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: existingServcieProviderName,
-			Labels: map[string]string{
-				types.OriginLabel: common.OriginAWSIdentityCenter,
-			},
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor(existingServcieProviderName, fmt.Sprintf("https://%s/acs", existingServcieProviderName)),
-		},
-	)
-	require.NoError(t, err)
-	err = authClient.CreateSAMLIdPServiceProvider(ctx, sp)
-	require.NoError(t, err)
-}
-
-func installAWSICOIDCIntegration(t *testing.T, ctx context.Context, authClient authclient.ClientI) {
-	t.Helper()
-	awsOIDCIg, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: "existing-oidc-integration"},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
-			IssuerS3URI: "s3://my-bucket/my-prefix",
-		},
-	)
-	require.NoError(t, err)
-	_, err = authClient.CreateIntegration(ctx, awsOIDCIg)
-	require.NoError(t, err)
 }
