@@ -443,6 +443,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		domain:             s.cfg.Domain,
 		ttl:                windowsDesktopServiceCertTTL,
 		activeDirectorySID: s.cfg.SID,
+		omitCDP:            true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1226,7 +1227,8 @@ type generateCredentialsRequest struct {
 	// createUser specifies if Windows user should be created if missing
 	createUser bool
 	// groups are groups that user should be member of
-	groups []string
+	groups  []string
+	omitCDP bool
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1254,6 +1256,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
+		OmitCDP:            request.omitCDP,
 	})
 }
 
