@@ -41,3 +41,14 @@ func ValidatePortRange(port, endPort int) error {
 
 	return nil
 }
+
+// IsPortInRange checks if targetPort is between port and endPort (inclusive). If endPort is zero,
+// it checks if targetPort equals port. It assumes that the provided port range is valid (see
+// [ValidatePortRange]).
+func IsPortInRange(port, endPort, targetPort int) bool {
+	if endPort == 0 {
+		return targetPort == port
+	}
+
+	return targetPort >= port && targetPort <= endPort
+}
