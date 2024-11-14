@@ -342,6 +342,31 @@ async function fetchAwsIntegrationsWithApps(
   return { awsIntegrations, apps: resources as App[] };
 }
 
+export async function fetchAppServerForAwsConsoleCli({
+  awsIntegrations,
+  query,
+  clusterId,
+}: {
+  integrationName: string;
+  awsIntegrations: Integration[];
+  query: string;
+  clusterId: string;
+}) {
+  const resourceSvc = new ResourceService();
+
+  const { agents: resources } = await resourceSvc.fetchUnifiedResources(
+    clusterId,
+    {
+      query,
+      limit: awsIntegrations.length,
+      kinds: ['app'],
+      sort: { fieldName: 'name', dir: 'ASC' },
+    }
+  );
+
+  return resources;
+}
+
 const Heading = () => (
   <>
     <Header>Connect to your AWS Account</Header>

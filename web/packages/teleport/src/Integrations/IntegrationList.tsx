@@ -149,15 +149,25 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWSOIDC supports editing. */}
                     {item.kind === IntegrationKind.AwsOidc && (
-                      <MenuItem
-                        onClick={() =>
-                          props.integrationOps.onEditIntegration(item)
-                        }
-                      >
-                        Edit...
-                      </MenuItem>
+                      <>
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={cfg.getIntegrationStatusRoute(
+                            item.kind,
+                            item.name
+                          )}
+                        >
+                          View Status
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() =>
+                            props.integrationOps.onEditIntegration(item)
+                          }
+                        >
+                          Edit...
+                        </MenuItem>
+                      </>
                     )}
                     <MenuItem
                       onClick={() =>
@@ -254,13 +264,13 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   );
 };
 
-enum Status {
+export enum Status {
   Success,
   Warning,
   Error,
 }
 
-function getStatus(item: IntegrationLike): Status | null {
+export function getStatus(item: IntegrationLike): Status | null {
   if (item.resourceType === 'integration') {
     return Status.Success;
   }

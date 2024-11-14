@@ -66,6 +66,7 @@ import { NewLockView } from './LocksV2/NewLock';
 import { Discover } from './Discover';
 import { LockedAccessRequests } from './AccessRequests';
 import { Integrations } from './Integrations';
+import { IntegrationStatus } from './Integrations/IntegrationStatus';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { JoinTokens } from './JoinTokens/JoinTokens';
@@ -458,6 +459,22 @@ export class FeatureIntegrations implements TeleportFeature {
   }
 }
 
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.integrations;
+  }
+}
+
 export class FeatureIntegrationEnroll implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
@@ -700,6 +717,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureIntegrationStatus(),
     new FeatureClusters(),
     new FeatureTrust(),
 

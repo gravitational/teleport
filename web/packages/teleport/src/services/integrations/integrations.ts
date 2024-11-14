@@ -89,6 +89,10 @@ export const integrationService = {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
 
+  fetchPendingTasks(name: string): Promise<Integration> {
+    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
+  },
+
   fetchThumbprint(): Promise<string> {
     return api.get(cfg.api.thumbprintPath);
   },
@@ -408,7 +412,7 @@ export function makeIntegrations(json: any): Integration[] {
   return json.map(user => makeIntegration(user));
 }
 
-function makeIntegration(json: any): Integration {
+export function makeIntegration(json: any): Integration {
   json = json || {};
   const { name, subKind, awsoidc } = json;
   return {

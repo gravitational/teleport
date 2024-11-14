@@ -39,10 +39,12 @@ import type {
   PluginKind,
   Regions,
   AwsOidcPolicyPreset,
+  IntegrationKind,
 } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 import type { KubeResourceKind } from './services/kube/types';
+import { AwsResourceKind } from './Integrations/IntegrationStatus/Shared';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -194,6 +196,9 @@ const cfg = {
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
     integrationStatus: '/web/integrations/status/:type/:name',
+    integrationStatusTasks: '/web/integrations/status/:type/:name/tasks',
+    integrationStatusResources:
+      '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
@@ -313,6 +318,7 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationsTasksPath: '/v1/webapi/sites/:clusterId/tasks', // TODO(update)
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
@@ -522,12 +528,31 @@ const cfg = {
     return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
-  getIntegrationStatusRoute(type: PluginKind, name: string) {
+  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
+  },
+
+  getIntegrationStatusResourcesRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    resourceKind: AwsResourceKind // TODO define type here? or in integrations.ts
+  ) {
+    return generatePath(cfg.routes.integrationStatusResources, {
+      type,
+      name,
+      resourceKind,
+    });
   },
 
   getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
     return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
+  },
+
+  getIntegrationTasksRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationStatusTasks, {
+      type,
+      name,
+    });
   },
 
   getNodesRoute(clusterId: string) {
@@ -955,6 +980,12 @@ const cfg = {
     return generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
+    });
+  },
+
+  getIntegrationsTasksUrl(clusterId: string) {
+    return generatePath(cfg.api.integrationsTasksPath, {
+      clusterId,
     });
   },
 
