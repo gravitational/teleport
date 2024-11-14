@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, userEvent } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import {
@@ -46,7 +46,6 @@ import { ResourceSpec } from 'teleport/Discover/SelectResource';
 import { ResourceKind } from '../ResourceKind';
 
 import { AwsAccount } from './AwsAccount';
-import { findByText, fireEvent } from '@testing-library/react';
 
 beforeEach(() => {
   jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
