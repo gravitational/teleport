@@ -58,8 +58,18 @@ type Client interface {
 	CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
 }
 
+// ClientProvider is a function that creates a new AWS Identity Center SDK client.
+// Please note that the ClientProvider is not thread-safe and
+// should be used only in integration tests.
+var ClientProvider = nativeClientProvider
+
 // New creates a new AWS Identity Center SDK client.
 func New(config Config) (Client, error) {
+	c, err := ClientProvider(config)
+	return c, trace.Wrap(err)
+}
+
+func nativeClientProvider(config Config) (Client, error) {
 	if err := config.checkAndSetDefault(); err != nil {
 		return nil, trace.Wrap(err)
 	}
