@@ -11,11 +11,6 @@ Application Service instances periodically query the Teleport Auth Service for
 `app` resources, each of which includes the information that the Application
 Service needs to proxy an application. 
 
-Dynamic registration is useful for [managing pools of Application Service
-instances](../../agents/deploy-agents-terraform.mdx). And behind the scenes, the
-Teleport Discovery Service uses dynamic registration to [register Kubernetes
-applications](../enroll-kubernetes-applications.mdx).
-
 ## Required permissions
 
 In order to interact with dynamically registered applications, a user must have
