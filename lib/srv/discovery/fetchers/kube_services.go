@@ -233,6 +233,14 @@ func (f *KubeAppFetcher) Cloud() string {
 	return ""
 }
 
+func (f *KubeAppFetcher) IntegrationName() string {
+	return ""
+}
+
+func (f *KubeAppFetcher) DiscoveryConfigName() string {
+	return ""
+}
+
 func (f *KubeAppFetcher) FetcherType() string {
 	return types.KubernetesMatchersApp
 }

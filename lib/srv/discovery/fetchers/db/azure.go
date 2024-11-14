@@ -150,6 +150,20 @@ func (f *azureFetcher[DBType, ListClient]) FetcherType() string {
 	return f.cfg.Type
 }
 
+// IntegrationName returns the integration name.
+// There are no integrations supporting Azure Discovery fetchers, so this returns an empty string.
+func (f *azureFetcher[DBType, ListClient]) IntegrationName() string {
+	return ""
+}
+
+// DiscoveryConfigName is the name of the discovery config which originated the resource.
+// It is used to report stats for a given discovery config.
+// Might be empty when the fetcher is using static matchers:
+// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+func (f *azureFetcher[DBType, ListClient]) DiscoveryConfigName() string {
+	return ""
+}
+
 // Get returns Azure DB servers matching the watcher's selectors.
 func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, err := f.getDatabases(ctx)

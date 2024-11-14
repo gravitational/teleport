@@ -167,6 +167,13 @@ func (m *mockFetcher) FetcherType() string {
 	return "empty"
 }
 
+func (m *mockFetcher) IntegrationName() string {
+	return ""
+}
+
+func (m *mockFetcher) DiscoveryConfigName() string {
+	return ""
+}
 func (m *mockFetcher) Cloud() string {
 	return m.cloud
 }

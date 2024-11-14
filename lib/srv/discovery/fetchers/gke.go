@@ -148,6 +148,13 @@ func (a *gkeFetcher) Cloud() string {
 	return types.CloudGCP
 }
 
+func (a *gkeFetcher) IntegrationName() string {
+	return ""
+}
+func (a *gkeFetcher) DiscoveryConfigName() string {
+	return ""
+}
+
 func (a *gkeFetcher) String() string {
 	return fmt.Sprintf("gkeFetcher(ProjectID=%v, Location=%v, FilterLabels=%v)",
 		a.ProjectID, a.Location, a.FilterLabels)
