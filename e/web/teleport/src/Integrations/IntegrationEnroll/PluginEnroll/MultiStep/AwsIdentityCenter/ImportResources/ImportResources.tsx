@@ -156,7 +156,7 @@ export function AwsIcImportResources() {
 }
 
 const headerText =
-  'Preview Identity Center resources that will be imported to Teleport';
+  'Preview AWS IAM Identity Center resources that will be imported to Teleport';
 const subheaderText = `Configure default access list owner and preview accounts, user
                        groups and permission sets and permission assignments that will
                        be imported to Teleport.`;

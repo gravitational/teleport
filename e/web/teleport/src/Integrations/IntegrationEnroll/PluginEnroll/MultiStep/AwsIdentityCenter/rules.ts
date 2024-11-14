@@ -27,7 +27,7 @@ import { awsRegionMap } from 'teleport/services/integrations';
 /**
  * requiredAwsIdentityCenterRegion checks if the provided AWS Identity
  * region name is an officially supported AWS region.
- * @param region ARN of Identity Center instance.
+ * @param region ARN of AWS IAM Identity Center instance.
  * @returns ValidationResult
  */
 export const requiredAwsIdentityCenterRegion: Rule =
@@ -35,7 +35,7 @@ export const requiredAwsIdentityCenterRegion: Rule =
     if (!region) {
       return {
         valid: false,
-        message: 'Identity Center region is required',
+        message: 'AWS IAM Identity Center region is required',
       };
     }
 
@@ -43,7 +43,7 @@ export const requiredAwsIdentityCenterRegion: Rule =
     if (!officialRegions.includes(region)) {
       return {
         valid: false,
-        message: 'Identity Center region is not valid',
+        message: 'AWS IAM Identity Center region is not valid',
       };
     }
 
@@ -54,7 +54,7 @@ export const requiredAwsIdentityCenterRegion: Rule =
  * requiredAwsIdentityCenterInstanceArn checks if the provided AWS Identity
  * center instance ARN is of a valid format.
  * Reference format: arn:aws:sso:::instance/ssoins-99aa88aa22iiss99
- * @param instanceArn ARN of identity center instance.
+ * @param instanceArn ARN of AWS IAM Identity Center instance.
  * @returns ValidationResult
  */
 export const requiredAwsIdentityCenterInstanceArn: Rule =
@@ -62,7 +62,7 @@ export const requiredAwsIdentityCenterInstanceArn: Rule =
     if (!instanceArn) {
       return {
         valid: false,
-        message: 'Identity Center instance ARN required',
+        message: 'AWS IAM Identity Center instance ARN is required',
       };
     }
     const regex = new RegExp('^arn:aws.*:sso:::instance/ssoins-*');

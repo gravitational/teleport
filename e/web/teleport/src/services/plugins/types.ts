@@ -170,7 +170,7 @@ export enum PluginConfigBase {
 
 /**
  * PluginConfigAwsIc defines configuration field names used to
- * create AWS Identity Center plugin. Name format is an exact
+ * create AWS IAM Identity Center plugin. Name format is an exact
  * representation of the form names defined in the backend.
  */
 export enum PluginConfigAwsIc {
@@ -212,7 +212,7 @@ export type AwsIcAccounts = {
 
 /**
  * AwsIcGroupsWithAssignment defines
- * AWS identity center user groups with respective account
+ * AWS IAM Identity Center user groups with respective account
  * assignments.
  */
 export type AwsIcGroupsWithAssignment = {
@@ -221,7 +221,7 @@ export type AwsIcGroupsWithAssignment = {
 };
 
 /**
- * Assignments is an AWS identity center account assignment.
+ * Assignments is an AWS IAM Identity Center account assignment.
  */
 export type AwsIcPermissionAssignments = {
   permissionSetName: string;

@@ -70,10 +70,11 @@ export function AwsIcConfigureIdentitySource() {
 
   return (
     <Box minWidth="980px">
-      <Header header="Configure Teleport as an Identity Source for Identity Center" />
+      <Header header="Configure Teleport as an Identity Source for AWS IAM Identity Center" />
       <Text>
-        Update Identity Center with Teleport as an SAML identity provider and
-        add identity center as an SAML service provider in Teleport.
+        Update AWS IAM Identity Center with Teleport as an SAML identity
+        provider and add AWS IAM Identity Center as an SAML service provider in
+        Teleport.
       </Text>
       {validateSAMLIdPServiceProviderAttempt.status === 'error' && (
         <Box mt={3}>
@@ -92,10 +93,10 @@ export function AwsIcConfigureIdentitySource() {
             <>
               <StyledBox mb={4}>
                 <Text bold mb={1}>
-                  Step 1: Change identity source in AWS Identity Center
+                  Step 1: Change identity source in AWS IAM Identity Center
                 </Text>
                 <Text mb={2}>
-                  In the AWS Identity Center console, navigate to{' '}
+                  In the AWS IAM Identity Center console, navigate to{' '}
                   <Mark>Settings</Mark>. Under &nbsp;
                   <Mark>{`Settings > Identity source > Actions`}</Mark> menu,
                   select "Change identity source". Next, choose the "External
@@ -105,31 +106,31 @@ export function AwsIcConfigureIdentitySource() {
 
               <StyledBox mb={4}>
                 <Text bold mb={1}>
-                  Step 2: Add Identity Center SAML service provider metadata to
-                  Teleport
+                  Step 2: Add AWS IAM Identity Center SAML service provider
+                  metadata to Teleport
                 </Text>
                 <Flex flexDirection="column" gap={3}>
                   First, enter the SAML service provider name for Identity
                   Center.
                   <FieldInput
                     rule={requiredField(
-                      'Service provider name for AWS Identity Center is required'
+                      'Service provider name for AWS IAM Identity Center is required'
                     )}
                     maxWidth={500}
                     label="SAML service provider name"
                     onChange={e => setSAMLServiceProviderName(e.target.value)}
                     value={samlServiceProviderName}
-                    placeholder="Default SAML service provider name for Identity Center"
+                    placeholder="Default SAML service provider name for AWS IAM Identity Center"
                   />
                   <Text>
                     Next, from the external identity provider configuration page
-                    (Step 1), download the AWS Identity Center SAML service
+                    (Step 1), download the AWS IAM Identity Center SAML service
                     provider metadata file by clicking on a button named{' '}
                     <Mark>Download metadata file</Mark> and upload it below.
                   </Text>
                   <ButtonFileUpload
-                    text="Upload Identity Center Metadata File"
-                    errorMessage="AWS Identity Center SAML service provider metadata file is required"
+                    text="Upload AWS IAM Identity Center Metadata File"
+                    errorMessage="AWS IAM Identity Center SAML service provider metadata file is required"
                     accept=".xml"
                     onFileSelect={onFileSelect}
                     showValidationError={showFileValidationError}
@@ -142,8 +143,8 @@ export function AwsIcConfigureIdentitySource() {
 
               <StyledBox mb={2} width="980px">
                 <Text bold mb={1}>
-                  Step 3: Add Teleport SAML identity provider metadata to
-                  Identity Center
+                  Step 3: Add Teleport SAML identity provider metadata to AWS
+                  IAM Identity Center
                 </Text>
                 <Flex flexDirection="column" gap={3}>
                   <Text>First, download Teleport SAML IdP metadata file.</Text>
@@ -151,14 +152,14 @@ export function AwsIcConfigureIdentitySource() {
 
                   <Text>
                     Now go back to the external identity provider configuration
-                    page in the AWS Identity Center console again, and upload
-                    the Teleport SAML IdP metadata file by clicking on a button
-                    named <Mark>IdP SAML metadata</Mark>.
+                    page in the AWS IAM Identity Center console again, and
+                    upload the Teleport SAML IdP metadata file by clicking on a
+                    button named <Mark>IdP SAML metadata</Mark>.
                   </Text>
 
                   <Text>
                     Once the file is uploaded, click <Mark>Next</Mark> button in
-                    the Identity Center console to finish up configuring
+                    the AWS IAM Identity Center console to finish up configuring
                     external identity provider. After the configuration is
                     finished in the AWS, click on the <Mark>Next</Mark> button
                     below to configure SCIM integration.

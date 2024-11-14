@@ -121,7 +121,7 @@ export function AwsIcOidcIntegration() {
     nextStep();
   }
 
-  // AWS Identity Center plugin creates AWS OIDC integration with the
+  // AWS IAM Identity Center plugin creates AWS OIDC integration with the
   // same value for integration name and AWS IAM role name.
   function handleNameChange(e: string) {
     setIntegrationConfig({ ...integrationConfig, name: e, roleName: e });
@@ -148,20 +148,20 @@ export function AwsIcOidcIntegration() {
     <Box maxWidth="800px">
       <Header header="Configure AWS integration" />
       <Text>
-        The integration sets up Teleport as an OIDC identity provider for AWS
-        and creates an AWS role. Once configured, Teleport Identity Center
-        client uses the role to import Identity Center accounts, user groups and
-        permission sets from Identity Center and provision users, groups and
-        permission assignments to the Identity Center.
+        The integration sets up Teleport as an OIDC IdP for AWS and creates an
+        AWS IAM role. Once configured, Teleport AWS IAM Identity Center client
+        uses the IAM role to import accounts, user groups, permission sets and
+        permission assignments from AWS IAM Identity Center and provision users,
+        groups and permission assignments to the AWS IAM Identity Center.
       </Text>
-      {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for Identity Center */}
+      {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for AWS IAM Identity Center */}
       <Box mt={3}>
         {fetchIntegrationAttempt.status === 'error' && (
           <Danger>{fetchIntegrationAttempt.statusText}</Danger>
         )}
         {existingIntegrationName && (
-          <Info>{`OIDC Integration '${existingIntegrationName}' already created for AWS Identity Center plugin. You
-        only need to provide the Identity Center instance region and ARN below.`}</Info>
+          <Info>{`OIDC Integration '${existingIntegrationName}' already created for AWS IAM Identity Center plugin. You
+        only need to provide the AWS IAM Identity Center instance region and ARN below.`}</Info>
         )}
       </Box>
       {fetchIntegrationAttempt.status === 'processing' ? (
@@ -182,16 +182,16 @@ export function AwsIcOidcIntegration() {
                 <StyledBox mb={4}>
                   <Text bold>Step 1: Configure AWS Integration</Text>
                   <Text mt={1} mb={4}>
-                    Identity Center Region and ARN values can be obtained by
-                    navigating to <Mark>Settings &gt; Details</Mark> in the
-                    Identity Center dashboard.
+                    AWS IAM Identity Center Region and ARN values can be
+                    obtained by navigating to <Mark>Settings &gt; Details</Mark>{' '}
+                    in the AWS IAM Identity Center dashboard.
                   </Text>
                   <Flex flexDirection="column" gap={1} mb={4} maxWidth={500}>
                     <FieldInput
                       rule={requiredAwsIdentityCenterRegion}
                       onChange={e => setRegion(e.target.value)}
                       autoFocus={true}
-                      label="Enter Identity Center instance region"
+                      label="Enter AWS IAM Identity Center instance region"
                       value={region}
                       placeholder="ca-central-1"
                       toolTipContent={identityCenterRegionToolTip}
@@ -200,7 +200,7 @@ export function AwsIcOidcIntegration() {
                     <FieldInput
                       rule={requiredAwsIdentityCenterInstanceArn}
                       onChange={e => setArn(e.target.value)}
-                      label="Enter Identity Center instance ARN"
+                      label="Enter AWS IAM Identity Center instance ARN"
                       value={arn}
                       placeholder="arn:aws:sso:::instance/ssoins-xxxxx"
                       toolTipContent={identityCenterArnToolTip}
@@ -215,7 +215,7 @@ export function AwsIcOidcIntegration() {
                           )
                         )}
                         value={integrationConfig.name}
-                        label="Give this AWS integration a name"
+                        label="Give this AWS OIDC IdP integration a name"
                         placeholder="Integration Name"
                         onChange={e => handleNameChange(e.target.value)}
                         toolTipContent={iamRoleNameToolTip}
@@ -298,19 +298,19 @@ export function AwsIcOidcIntegration() {
 }
 
 const identityCenterRegionToolTip = `
-Identity Center Region value can
-be obtained from the Identity Center dashboard by navigating to
+AWS IAM Identity Center Region value can
+be obtained from the AWS IAM Identity Center dashboard by navigating to
 "Settings > Details".`;
 
 const identityCenterArnToolTip = `
-Identity Center ARN value can
-be obtained from Identity Center dashboard by navigating to
+AWS IAM Identity Center ARN value can
+be obtained from AWS IAM Identity Center dashboard by navigating to
 "Settings > Details".`;
 
 const iamRoleNameToolTip = `
 Teleport will use the name you enter below to create an OIDC
 identity provider and an IAM role in AWS with permissions
-required for Teleport Identity Center client.`;
+required for Teleport AWS IAM Identity Center client.`;
 
 const copyInstallationScriptText: React.ReactNode = (
   <>
@@ -327,7 +327,7 @@ const copyInstallationScriptText: React.ReactNode = (
     <Text mb={2}>
       The script will download and execute Teleport binary that configures
       Teleport as an OIDC identity provider for AWS and creates an IAM role with
-      permissions required for Teleport Identity Center client.
+      permissions required for Teleport AWS IAM Identity Center client.
     </Text>
   </>
 );

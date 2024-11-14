@@ -10,12 +10,12 @@ import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export const AwsIdentityCenterPlugin: CloudHostablePlugin = {
   type: 'aws-identity-center',
-  name: 'AWS Identity Center',
+  name: 'AWS IAM Identity Center',
   icon: 'aws',
   url: 'https://goteleport.com/docs/application-access/okta/guide/',
   cloudHostable: true,
   selfHostable: true,
-  fullName: 'AWS Identity Center',
+  fullName: 'AWS IAM Identity Center',
   views: () => {
     return [
       { title: 'AWS Integration', component: AwsIcOidcIntegration },
@@ -35,7 +35,7 @@ export const AwsIdentityCenterPlugin: CloudHostablePlugin = {
     return (
       <Text>
         It will take a while before all users, user groups and permission sets
-        are synced between Teleport and AWS Identity Center.
+        are synced between Teleport and AWS IAM Identity Center.
       </Text>
     );
   },
