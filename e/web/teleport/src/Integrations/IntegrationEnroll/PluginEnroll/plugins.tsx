@@ -1336,7 +1336,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     Description: () => (
       <Text>
         <P>
-          Integrating with Microsift Teams allows Teleport to send notifications
+          Integrating with Microsoft Teams allows Teleport to send notifications
           via Microsoft Teams about incoming access requests.
         </P>
       </Text>
