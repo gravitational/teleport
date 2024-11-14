@@ -319,6 +319,15 @@ spec:
       - 'arn:aws:iam::1234567890:role/ec2-full-access'
       - 'arn:aws:iam::0987654321:role/example-role'
 
+    # AWS account and permission set bindings for the Identity Center integration
+    account_assignments:
+    - # AWS identity center account ID
+      account: "<account_id>"
+      # name of the permission set in AWS
+      name: AdministratorAccess
+      # permission set ARN
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678 # permission set ARN
+
     # impersonate allows a user with this role to issue certificates on behalf
     # of other users and roles matching expressions below
     impersonate:
