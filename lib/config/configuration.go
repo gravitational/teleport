@@ -2730,8 +2730,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.DebugService.Enabled = false
 	}
 
-	// TODO(espadolini): allow this when the implementation is merged
-	if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
 		cfg.Proxy.QUICProxyPeering = true
 	}
 
