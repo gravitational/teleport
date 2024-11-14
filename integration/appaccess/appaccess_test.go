@@ -675,62 +675,50 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 func TestTCP(t *testing.T) {
 	pack := Setup(t)
 	evilUser, _ := pack.CreateUser(t)
-
-	rootWs := pack.CreateAppSession(t, CreateAppSessionParams{
-		Username:      pack.tc.Username,
-		ClusterName:   pack.rootAppClusterName,
-		AppPublicAddr: pack.rootTCPPublicAddr,
-	})
-	leafWs := pack.CreateAppSession(t, CreateAppSessionParams{
-		Username:      pack.tc.Username,
-		ClusterName:   pack.leafAppClusterName,
-		AppPublicAddr: pack.leafTCPPublicAddr,
-	})
+	sessionUsername := pack.tc.Username
 
 	tests := []struct {
 		description string
-		address     string
+		// tlsConfigParams carries information needed to create TLS config for a local proxy.
+		// tlsConfigParams.sessionID is automatically set from the session created within the test.
+		tlsConfigParams tlsConfigParams
 		outMessage  string
 		wantReadErr error
 	}{
 		{
 			description: "TCP app in root cluster",
-			address: pack.startLocalProxy(t, pack.makeTLSConfig(t, tlsConfigParams{
-				sessionID:   rootWs.GetName(),
-				username:    rootWs.GetUser(),
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
 				publicAddr:  pack.rootTCPPublicAddr,
 				clusterName: pack.rootAppClusterName,
-			})),
+			},
 			outMessage: pack.rootTCPMessage,
 		},
 		{
 			description: "TCP app in leaf cluster",
-			address: pack.startLocalProxy(t, pack.makeTLSConfig(t, tlsConfigParams{
-				sessionID:   leafWs.GetName(),
-				username:    leafWs.GetUser(),
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
 				publicAddr:  pack.leafTCPPublicAddr,
 				clusterName: pack.leafAppClusterName,
-			})),
+			},
 			outMessage: pack.leafTCPMessage,
 		},
 		{
 			description: "TCP app in root cluster, invalid session owner",
-			address: pack.startLocalProxy(t, pack.makeTLSConfig(t, tlsConfigParams{
-				sessionID:   rootWs.GetName(),
+			tlsConfigParams: tlsConfigParams{
 				username:    evilUser.GetName(),
 				publicAddr:  pack.rootTCPPublicAddr,
 				clusterName: pack.rootAppClusterName,
-			})),
+			},
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
 		},
 		{
 			description: "TCP app in leaf cluster, invalid session owner",
-			address: pack.startLocalProxy(t, pack.makeTLSConfig(t, tlsConfigParams{
-				sessionID:   leafWs.GetName(),
+			tlsConfigParams: tlsConfigParams{
 				username:    evilUser.GetName(),
 				publicAddr:  pack.leafTCPPublicAddr,
 				clusterName: pack.leafAppClusterName,
-			})),
+			},
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
 		},
 	}
@@ -739,7 +727,18 @@ func TestTCP(t *testing.T) {
 		test := test
 		t.Run(test.description, func(t *testing.T) {
 			t.Parallel()
-			conn, err := net.Dial("tcp", test.address)
+
+			ws := pack.CreateAppSession(t, CreateAppSessionParams{
+				Username:      sessionUsername,
+				ClusterName:   test.tlsConfigParams.clusterName,
+				AppPublicAddr: test.tlsConfigParams.publicAddr,
+			})
+
+			test.tlsConfigParams.sessionID = ws.GetName()
+
+			localProxyAddress := pack.startLocalProxy(t, pack.makeTLSConfig(t, test.tlsConfigParams))
+
+			conn, err := net.Dial("tcp", localProxyAddress)
 			require.NoError(t, err)
 
 			buf := make([]byte, 1024)
