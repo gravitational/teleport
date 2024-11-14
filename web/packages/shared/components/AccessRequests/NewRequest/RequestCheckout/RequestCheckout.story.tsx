@@ -196,7 +196,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
     'namespace3',
     'namespace4',
   ],
-  bulkToggleKubeResources: () => null,
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
