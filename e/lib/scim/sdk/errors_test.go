@@ -66,7 +66,7 @@ func TestDecodeError(t *testing.T) {
 				resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			}
 
-			test.expectation(t, decoreError(resp))
+			test.expectation(t, decodeError(resp))
 		})
 	}
 }

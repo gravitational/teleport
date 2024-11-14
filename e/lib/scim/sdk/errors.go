@@ -35,8 +35,7 @@ func FormatErrorResponse(statusCode int, detail string) ([]byte, error) {
 	return json.Marshal(&response)
 }
 
-func decoreError(resp *http.Response) error {
-	// TODO: fix typo in name
+func decodeError(resp *http.Response) error {
 	var errResp ErrorResponse
 	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 		return trace.BadParameter("unexpected status code: %v", resp.StatusCode)

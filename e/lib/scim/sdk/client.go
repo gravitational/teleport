@@ -184,7 +184,7 @@ func (c *client) ListUsers(ctx context.Context, queryOptions ...QueryOption) (*L
 	switch resp.StatusCode {
 	case http.StatusOK:
 	default:
-		return nil, decoreError(resp)
+		return nil, decodeError(resp)
 	}
 
 	var listResp ListUserResponse
@@ -215,7 +215,7 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 	switch resp.StatusCode {
 	case http.StatusCreated:
 	default:
-		return nil, decoreError(resp)
+		return nil, decodeError(resp)
 	}
 
 	var out User
@@ -251,7 +251,7 @@ func (c *client) UpdateUser(ctx context.Context, user *User) (*User, error) {
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 	default:
-		return nil, decoreError(resp)
+		return nil, decodeError(resp)
 	}
 
 	var out User
@@ -282,7 +282,7 @@ func (c *client) CreateGroup(ctx context.Context, group *Group) (*Group, error) 
 	switch resp.StatusCode {
 	case http.StatusCreated:
 	default:
-		return nil, decoreError(resp)
+		return nil, decodeError(resp)
 	}
 
 	var out Group
@@ -332,7 +332,7 @@ func (c *client) ReplaceGroupName(ctx context.Context, group *Group) error {
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent:
 	default:
-		return decoreError(resp)
+		return decodeError(resp)
 	}
 
 	return nil
@@ -384,7 +384,7 @@ func (c *client) ReplaceGroupMembers(ctx context.Context, id string, members []*
 		switch resp.StatusCode {
 		case http.StatusOK, http.StatusNoContent:
 		default:
-			return decoreError(resp)
+			return decodeError(resp)
 		}
 		// See https://docs.aws.amazon.com/singlesignon/latest/developerguide/patchgroup.html
 		// * A maximum of 100 membership changes are allowed in a single request.
@@ -433,7 +433,7 @@ func (c *client) ListGroups(ctx context.Context, queryOptions ...QueryOption) (*
 	switch resp.StatusCode {
 	case http.StatusOK:
 	default:
-		return nil, decoreError(resp)
+		return nil, decodeError(resp)
 	}
 
 	var listResp ListGroupResponse
@@ -484,7 +484,7 @@ func (c *client) deleteResource(ctx context.Context, resourceType, id string) er
 		return trace.NotFound("resource not found")
 
 	default:
-		return decoreError(resp)
+		return decodeError(resp)
 	}
 }
 
