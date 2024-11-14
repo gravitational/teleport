@@ -30,7 +30,6 @@
       "e-teleport/*": ["e/web/teleport/src/*"],
       "gen-proto-js/*": ["gen/proto/js/*"],
       "gen-proto-ts/*": ["gen/proto/ts/*"],
-      "access-graph": ["e/web/teleport/src/AccessGraph/Loader.tsx"],
     }
   },
   "include": [

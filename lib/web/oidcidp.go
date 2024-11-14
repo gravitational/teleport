@@ -38,7 +38,7 @@ const (
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration
 func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
-	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,10 +48,10 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.OIDCIdPCA)
+	return h.jwks(r.Context(), types.OIDCIdPCA, true)
 }
 
-func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType) (*JWKSResponse, error) {
+func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType, includeBlankKeyID bool) (*JWKSResponse, error) {
 	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,8 +82,10 @@ func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType) (*JWKSRes
 
 		// Return an additional copy of the same JWK
 		// with KeyID set to the empty string for compatibility.
-		jwk.KeyID = ""
-		resp.Keys = append(resp.Keys, jwk)
+		if includeBlankKeyID {
+			jwk.KeyID = ""
+			resp.Keys = append(resp.Keys, jwk)
+		}
 	}
 	return &resp, nil
 }

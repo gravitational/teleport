@@ -317,7 +317,7 @@ func TestMarshalPolicyDocument(t *testing.T) {
 				Principals: map[string]SliceOrString{
 					"Federated": {"arn:aws:iam::123456789012:oidc-provider/proxy.example.com"},
 				},
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"StringEquals": {
 						"proxy.example.com:aud": SliceOrString{"discover.teleport"},
 					},
@@ -353,8 +353,8 @@ func TestIAMPolicy(t *testing.T) {
 	policy := NewPolicyDocument()
 
 	// Add a new action/resource.
-	alreadyExisted := policy.Ensure(EffectAllow, "action-1", "resource-1")
-	require.False(t, alreadyExisted)
+	updated := policy.EnsureResourceAction(EffectAllow, "action-1", "resource-1", nil)
+	require.True(t, updated)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -367,8 +367,8 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Add the same action/resource.
-	alreadyExisted = policy.Ensure(EffectAllow, "action-1", "resource-1")
-	require.True(t, alreadyExisted)
+	updated = policy.EnsureResourceAction(EffectAllow, "action-1", "resource-1", nil)
+	require.False(t, updated)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -381,8 +381,8 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Add a new resource to existing action.
-	alreadyExisted = policy.Ensure(EffectAllow, "action-1", "resource-2")
-	require.False(t, alreadyExisted)
+	updated = policy.EnsureResourceAction(EffectAllow, "action-1", "resource-2", nil)
+	require.True(t, updated)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -395,8 +395,8 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Add another action/resource.
-	alreadyExisted = policy.Ensure(EffectAllow, "action-2", "resource-3")
-	require.False(t, alreadyExisted)
+	updated = policy.EnsureResourceAction(EffectAllow, "action-2", "resource-3", nil)
+	require.True(t, updated)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -414,7 +414,7 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Delete existing resource action.
-	policy.Delete(EffectAllow, "action-1", "resource-1")
+	policy.DeleteResourceAction(EffectAllow, "action-1", "resource-1", nil)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -432,7 +432,7 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Delete last resource from first action, statement should get removed as well.
-	policy.Delete(EffectAllow, "action-1", "resource-2")
+	policy.DeleteResourceAction(EffectAllow, "action-1", "resource-2", nil)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -445,7 +445,7 @@ func TestIAMPolicy(t *testing.T) {
 	}, policy)
 
 	// Delete last resource action, policy should be empty.
-	policy.Delete(EffectAllow, "action-2", "resource-3")
+	policy.DeleteResourceAction(EffectAllow, "action-2", "resource-3", nil)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 	}, policy)
@@ -466,7 +466,7 @@ func TestIAMPolicy(t *testing.T) {
 			},
 		},
 	}
-	policy.Delete(EffectAllow, "action-1", "resource-1")
+	policy.DeleteResourceAction(EffectAllow, "action-1", "resource-1", nil)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 	}, policy)
@@ -487,7 +487,7 @@ func TestIAMPolicy(t *testing.T) {
 			},
 		},
 	}
-	policy.Delete(EffectAllow, "action-1", "resource-2")
+	policy.DeleteResourceAction(EffectAllow, "action-1", "resource-2", nil)
 	require.Equal(t, &PolicyDocument{
 		Version: PolicyVersion,
 		Statements: []*Statement{
@@ -532,6 +532,19 @@ func TestPolicyEnsureStatements(t *testing.T) {
 			Actions:   []string{"action-1"},
 			Resources: []string{"resource-3"},
 		},
+		// Existing action with different condition and new principals
+		&Statement{
+			Effect:  EffectAllow,
+			Actions: []string{"action-1"},
+			Principals: StringOrMap{
+				"Federated": []string{"arn:aws:iam::123456789012:oidc-provider/example.com"},
+			},
+			Conditions: Conditions{
+				"StringEquals": StringOrMap{
+					"example.com:aud": []string{"discover.teleport"},
+				},
+			},
+		},
 		// New actions and new resources.
 		&Statement{
 			Effect:    EffectAllow,
@@ -564,6 +577,18 @@ func TestPolicyEnsureStatements(t *testing.T) {
 				Effect:    EffectAllow,
 				Actions:   []string{"action-2"},
 				Resources: []string{"resource-1", "resource-4"},
+			},
+			{
+				Effect:  EffectAllow,
+				Actions: []string{"action-1"},
+				Principals: StringOrMap{
+					"Federated": []string{"arn:aws:iam::123456789012:oidc-provider/example.com"},
+				},
+				Conditions: Conditions{
+					"StringEquals": StringOrMap{
+						"example.com:aud": []string{"discover.teleport"},
+					},
+				},
 			},
 			{
 				Effect:    EffectAllow,
@@ -931,13 +956,13 @@ func TestEqualStatement(t *testing.T) {
 		{
 			name: "different number of conditions",
 			statementA: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
 					"StringLike":            {"s3:prefix": []string{"janedoe/*"}},
 				},
 			},
 			statementB: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3601"}},
 				},
 			},
@@ -946,12 +971,12 @@ func TestEqualStatement(t *testing.T) {
 		{
 			name: "different conditions",
 			statementA: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
 				},
 			},
 			statementB: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3601"}},
 				},
 			},
@@ -960,12 +985,12 @@ func TestEqualStatement(t *testing.T) {
 		{
 			name: "different condition values",
 			statementA: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600", "3601"}},
 				},
 			},
 			statementB: &Statement{
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
 				},
 			},
@@ -990,7 +1015,7 @@ func TestEqualStatement(t *testing.T) {
 				},
 				Actions:   []string{"s3:GetObject"},
 				Resources: []string{"arn:aws:s3:::my-bucket/my-prefix/*"},
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"StringLike": {"s3:prefix": []string{"my-prefix/*"}},
 				},
 			},
@@ -1001,7 +1026,7 @@ func TestEqualStatement(t *testing.T) {
 				},
 				Actions:   []string{"s3:GetObject"},
 				Resources: []string{"arn:aws:s3:::my-bucket/my-prefix/*"},
-				Conditions: map[string]map[string]SliceOrString{
+				Conditions: map[string]StringOrMap{
 					"StringLike": {"s3:prefix": []string{"my-prefix/*"}},
 				},
 			},

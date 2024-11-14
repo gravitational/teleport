@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -37,6 +38,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -193,6 +195,12 @@ type crownjewelsGetter interface {
 	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
 
+type userTasksGetter interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -221,6 +229,7 @@ type cacheCollections struct {
 	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
+	userTasks                collectionReader[userTasksGetter]
 	crownJewels              collectionReader[crownjewelsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
@@ -254,6 +263,8 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
+	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -653,6 +664,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindUserTask:
+			if c.UserTasks == nil {
+				return nil, trace.BadParameter("missing parameter user tasks")
+			}
+			collections.userTasks = &genericCollection[*usertasksv1.UserTask, userTasksGetter, userTasksExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.userTasks
 		case types.KindDiscoveryConfig:
 			if c.DiscoveryConfigs == nil {
 				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
@@ -764,6 +784,24 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.accessGraphSettings
+		case types.KindAutoUpdateConfig:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateConfigs = &genericCollection[*autoupdate.AutoUpdateConfig, autoUpdateConfigGetter, autoUpdateConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateConfigs
+		case types.KindAutoUpdateVersion:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateVersions = &genericCollection[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter, autoUpdateVersionExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateVersions
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1270,6 +1308,76 @@ type clusterNameGetter interface {
 }
 
 var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
+
+type autoUpdateConfigExecutor struct{}
+
+func (autoUpdateConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateConfig, error) {
+	config, err := cache.AutoUpdateService.GetAutoUpdateConfig(ctx)
+	return []*autoupdate.AutoUpdateConfig{config}, trace.Wrap(err)
+}
+
+func (autoUpdateConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateConfig) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateConfig(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoUpdateConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoUpdateConfigExecutor) isSingleton() bool { return true }
+
+func (autoUpdateConfigExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateConfigGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateConfigGetter interface {
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateConfig, autoUpdateConfigGetter] = autoUpdateConfigExecutor{}
+
+type autoUpdateVersionExecutor struct{}
+
+func (autoUpdateVersionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateVersion, error) {
+	version, err := cache.AutoUpdateService.GetAutoUpdateVersion(ctx)
+	return []*autoupdate.AutoUpdateVersion{version}, trace.Wrap(err)
+}
+
+func (autoUpdateVersionExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateVersion) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateVersion(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateVersionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) isSingleton() bool { return true }
+
+func (autoUpdateVersionExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateVersionGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateVersionGetter interface {
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
 
 type userExecutor struct{}
 
@@ -2430,6 +2538,51 @@ func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGett
 }
 
 var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
+
+type userTasksExecutor struct{}
+
+func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
+	var resources []*usertasksv1.UserTask
+	var nextToken string
+	for {
+		var page []*usertasksv1.UserTask
+		var err error
+		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (userTasksExecutor) upsert(ctx context.Context, cache *Cache, resource *usertasksv1.UserTask) error {
+	_, err := cache.userTasksCache.UpsertUserTask(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (userTasksExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.userTasksCache.DeleteAllUserTasks(ctx)
+}
+
+func (userTasksExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.userTasksCache.DeleteUserTask(ctx, resource.GetName())
+}
+
+func (userTasksExecutor) isSingleton() bool { return false }
+
+func (userTasksExecutor) getReader(cache *Cache, cacheOK bool) userTasksGetter {
+	if cacheOK {
+		return cache.userTasksCache
+	}
+	return cache.Config.UserTasks
+}
+
+var _ executor[*usertasksv1.UserTask, userTasksGetter] = userTasksExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}

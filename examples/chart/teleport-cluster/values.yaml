@@ -49,7 +49,7 @@ teleportVersionOverride: ""
 # connection, but will accept it if present. This mode is considered insecure
 # and should only be used for testing purposes.
 #
-# See https://goteleport.com/docs/ver/14.x/management/security/proxy-protocol/
+# See https://goteleport.com/docs/admin-guides/management/security/proxy-protocol/
 # for more information.
 #
 # proxyProtocol: on

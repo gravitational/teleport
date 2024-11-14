@@ -123,6 +123,10 @@ export type SshOptions = {
    * (by adding the `--no-resume` option).
    */
   noResume: boolean;
+  /**
+   * Enables agent forwarding when running `tsh ssh` by adding the --forward-agent option.
+   */
+  forwardAgent: boolean;
 };
 
 export type TerminalOptions = {

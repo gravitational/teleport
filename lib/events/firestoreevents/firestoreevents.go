@@ -19,6 +19,7 @@
 package firestoreevents
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,6 +41,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -200,6 +203,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	}
 	cfg.ProjectID = projectIDParamString
 
+	cfg.DatabaseID = url.Query().Get("databaseID")
+
 	eventRetentionPeriodParamString := url.Query().Get(eventRetentionPeriodPropertyKey)
 	if eventRetentionPeriodParamString == "" {
 		cfg.RetentionPeriod = defaultEventRetentionPeriod
@@ -284,7 +289,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	})
 	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
-	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
+	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -560,13 +565,22 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 	)
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("firestoreevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("firestoreevents backend does not support streaming export"))
+}
+
 type searchEventsFilter struct {
 	eventTypes []string
 	condition  utils.FieldsCondition
 }
 
 func (l *Log) getIndexParent() string {
-	return "projects/" + l.ProjectID + "/databases/(default)/collectionGroups/" + l.CollectionName
+	database := cmp.Or(l.Config.DatabaseID, "(default)")
+	return "projects/" + l.ProjectID + "/databases/" + database + "/collectionGroups/" + l.CollectionName
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {

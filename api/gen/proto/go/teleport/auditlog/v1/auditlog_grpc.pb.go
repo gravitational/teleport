@@ -35,6 +35,8 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	AuditLogService_StreamUnstructuredSessionEvents_FullMethodName = "/teleport.auditlog.v1.AuditLogService/StreamUnstructuredSessionEvents"
 	AuditLogService_GetUnstructuredEvents_FullMethodName           = "/teleport.auditlog.v1.AuditLogService/GetUnstructuredEvents"
+	AuditLogService_ExportUnstructuredEvents_FullMethodName        = "/teleport.auditlog.v1.AuditLogService/ExportUnstructuredEvents"
+	AuditLogService_GetEventExportChunks_FullMethodName            = "/teleport.auditlog.v1.AuditLogService/GetEventExportChunks"
 )
 
 // AuditLogServiceClient is the client API for AuditLogService service.
@@ -47,6 +49,12 @@ type AuditLogServiceClient interface {
 	// GetUnstructuredEvents gets events from the audit log in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the events as JSON.
 	GetUnstructuredEvents(ctx context.Context, in *GetUnstructuredEventsRequest, opts ...grpc.CallOption) (*EventsUnstructured, error)
+	// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+	// performance over ordering and filtering, and is intended for bulk export of events.
+	ExportUnstructuredEvents(ctx context.Context, in *ExportUnstructuredEventsRequest, opts ...grpc.CallOption) (AuditLogService_ExportUnstructuredEventsClient, error)
+	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+	GetEventExportChunks(ctx context.Context, in *GetEventExportChunksRequest, opts ...grpc.CallOption) (AuditLogService_GetEventExportChunksClient, error)
 }
 
 type auditLogServiceClient struct {
@@ -98,6 +106,70 @@ func (c *auditLogServiceClient) GetUnstructuredEvents(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *auditLogServiceClient) ExportUnstructuredEvents(ctx context.Context, in *ExportUnstructuredEventsRequest, opts ...grpc.CallOption) (AuditLogService_ExportUnstructuredEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AuditLogService_ServiceDesc.Streams[1], AuditLogService_ExportUnstructuredEvents_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &auditLogServiceExportUnstructuredEventsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuditLogService_ExportUnstructuredEventsClient interface {
+	Recv() (*ExportEventUnstructured, error)
+	grpc.ClientStream
+}
+
+type auditLogServiceExportUnstructuredEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *auditLogServiceExportUnstructuredEventsClient) Recv() (*ExportEventUnstructured, error) {
+	m := new(ExportEventUnstructured)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *auditLogServiceClient) GetEventExportChunks(ctx context.Context, in *GetEventExportChunksRequest, opts ...grpc.CallOption) (AuditLogService_GetEventExportChunksClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AuditLogService_ServiceDesc.Streams[2], AuditLogService_GetEventExportChunks_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &auditLogServiceGetEventExportChunksClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuditLogService_GetEventExportChunksClient interface {
+	Recv() (*EventExportChunk, error)
+	grpc.ClientStream
+}
+
+type auditLogServiceGetEventExportChunksClient struct {
+	grpc.ClientStream
+}
+
+func (x *auditLogServiceGetEventExportChunksClient) Recv() (*EventExportChunk, error) {
+	m := new(EventExportChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AuditLogServiceServer is the server API for AuditLogService service.
 // All implementations must embed UnimplementedAuditLogServiceServer
 // for forward compatibility
@@ -108,6 +180,12 @@ type AuditLogServiceServer interface {
 	// GetUnstructuredEvents gets events from the audit log in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the events as JSON.
 	GetUnstructuredEvents(context.Context, *GetUnstructuredEventsRequest) (*EventsUnstructured, error)
+	// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+	// performance over ordering and filtering, and is intended for bulk export of events.
+	ExportUnstructuredEvents(*ExportUnstructuredEventsRequest, AuditLogService_ExportUnstructuredEventsServer) error
+	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+	GetEventExportChunks(*GetEventExportChunksRequest, AuditLogService_GetEventExportChunksServer) error
 	mustEmbedUnimplementedAuditLogServiceServer()
 }
 
@@ -120,6 +198,12 @@ func (UnimplementedAuditLogServiceServer) StreamUnstructuredSessionEvents(*Strea
 }
 func (UnimplementedAuditLogServiceServer) GetUnstructuredEvents(context.Context, *GetUnstructuredEventsRequest) (*EventsUnstructured, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUnstructuredEvents not implemented")
+}
+func (UnimplementedAuditLogServiceServer) ExportUnstructuredEvents(*ExportUnstructuredEventsRequest, AuditLogService_ExportUnstructuredEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method ExportUnstructuredEvents not implemented")
+}
+func (UnimplementedAuditLogServiceServer) GetEventExportChunks(*GetEventExportChunksRequest, AuditLogService_GetEventExportChunksServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetEventExportChunks not implemented")
 }
 func (UnimplementedAuditLogServiceServer) mustEmbedUnimplementedAuditLogServiceServer() {}
 
@@ -173,6 +257,48 @@ func _AuditLogService_GetUnstructuredEvents_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuditLogService_ExportUnstructuredEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExportUnstructuredEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuditLogServiceServer).ExportUnstructuredEvents(m, &auditLogServiceExportUnstructuredEventsServer{stream})
+}
+
+type AuditLogService_ExportUnstructuredEventsServer interface {
+	Send(*ExportEventUnstructured) error
+	grpc.ServerStream
+}
+
+type auditLogServiceExportUnstructuredEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *auditLogServiceExportUnstructuredEventsServer) Send(m *ExportEventUnstructured) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _AuditLogService_GetEventExportChunks_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetEventExportChunksRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuditLogServiceServer).GetEventExportChunks(m, &auditLogServiceGetEventExportChunksServer{stream})
+}
+
+type AuditLogService_GetEventExportChunksServer interface {
+	Send(*EventExportChunk) error
+	grpc.ServerStream
+}
+
+type auditLogServiceGetEventExportChunksServer struct {
+	grpc.ServerStream
+}
+
+func (x *auditLogServiceGetEventExportChunksServer) Send(m *EventExportChunk) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // AuditLogService_ServiceDesc is the grpc.ServiceDesc for AuditLogService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -189,6 +315,16 @@ var AuditLogService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamUnstructuredSessionEvents",
 			Handler:       _AuditLogService_StreamUnstructuredSessionEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ExportUnstructuredEvents",
+			Handler:       _AuditLogService_ExportUnstructuredEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetEventExportChunks",
+			Handler:       _AuditLogService_GetEventExportChunks_Handler,
 			ServerStreams: true,
 		},
 	},

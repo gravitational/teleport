@@ -165,9 +165,9 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 	for {
 		err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  s.cfg.Backend,
-				LockName: "spiffe_federation_syncer",
-				TTL:      time.Minute,
+				Backend:            s.cfg.Backend,
+				LockNameComponents: []string{"spiffe_federation_syncer"},
+				TTL:                time.Minute,
 				// It doesn't matter too much if the syncer isn't running for
 				// a short period of time so we can take a relaxed approach to
 				// retrying to grab the lock.

@@ -199,6 +199,9 @@ const (
 	// ComponentSession is an active session.
 	ComponentSession = "session"
 
+	// ComponentHostUsers represents host user management.
+	ComponentHostUsers = "hostusers"
+
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
@@ -540,6 +543,10 @@ const (
 	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
+	// HomeDirNotAccessible is returned when a the "teleport checkhomedir" command has
+	// found the user's home directory, but the user does NOT have permissions to
+	// access it.
+	HomeDirNotAccessible = 253
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.

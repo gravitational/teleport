@@ -59,7 +59,7 @@ func main() {
 
 	reference, err := parseAndRender(chartPath)
 	if err != nil {
-		log.Errorf("failed parsing chart and rendering refence: %s", err)
+		log.Errorf("failed parsing chart and rendering reference: %s", err)
 		os.Exit(1)
 	}
 

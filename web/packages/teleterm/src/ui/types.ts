@@ -64,7 +64,8 @@ export interface IAppContext {
   headlessAuthenticationService: HeadlessAuthenticationService;
   tshd: TshdClient;
   vnet: VnetClient;
-
+  /** Exposes Electron's webUtils.getPathForFile. */
+  getPathForFile: (file: File) => string;
   pullInitialState(): Promise<void>;
 
   /**

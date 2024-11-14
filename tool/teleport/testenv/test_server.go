@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -257,6 +258,10 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
 	}
+
+	if cfg.Auth.Enabled && cfg.Apps.Enabled {
+		waitForApps(t, auth, cfg.Apps.Apps)
+	}
 }
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
@@ -291,6 +296,34 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 		case <-ctx.Done():
 			t.Fatal("Databases not registered after 10s")
+		}
+	}
+}
+
+func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			var registered int
+			for _, app := range apps {
+				for _, a := range all {
+					if a.GetName() == app.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(apps) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("Apps not registered after 10s")
 		}
 	}
 }
@@ -420,6 +453,11 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
 }
 
 // IsEnterpriseBuild returns false for [cliModules].
@@ -658,7 +696,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	t.Helper()
 
 	cfg := process.Config
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 
 	identity, err := storage.ReadLocalIdentity(

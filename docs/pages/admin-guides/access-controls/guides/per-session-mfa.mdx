@@ -56,26 +56,8 @@ Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 To enforce MFA checks for all roles, edit your cluster authentication
-configuration:
-
-<Tabs>
-<TabItem label="Static configuration">
-
-Update `teleport.yaml` on the Auth Server to include the following content:
-
-```yaml
-auth_service:
-  authentication:
-    # require per-session MFA cluster-wide
-    require_session_mfa: yes
-```
-
-</TabItem>
-<TabItem label="Dynamic resources">
+configuration.
 
 Edit your `cluster_auth_preference` resource:
 
@@ -95,35 +77,6 @@ version: v2
 ```
 
 Apply your changes by saving and closing the file in your editor.
-
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise">
-
-Edit your `cluster_auth_preference` resource:
-
-```code
-$ tctl edit cap
-```
-
-Ensure that the resource contains the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  require_session_mfa: true
-version: v2
-```
-
-Apply your changes by saving and closing the file in your editor.
-
-</TabItem>
-
-</Tabs>
 
 ### Per role
 

@@ -231,6 +231,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// UserTasks is a service that manages UserTasks.
+	UserTasks services.UserTasks
+
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
@@ -339,9 +342,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -1102,6 +1105,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 

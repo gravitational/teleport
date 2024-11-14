@@ -324,6 +324,10 @@ export type AwsRdsDatabase = {
   subnets: string[];
   // vpcId is the AWS VPC ID for the DB.
   vpcId: string;
+  /**
+   * securityGroups is a list of AWS security group IDs attached to the DB.
+   */
+  securityGroups: string[];
   // region is the AWS cloud region that this database is from.
   region: Regions;
   // status contains this Instance status.
@@ -424,6 +428,19 @@ export type AwsEksCluster = {
    * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
    */
   joinLabels: Label[];
+
+  /**
+   * AuthenticationMode is the cluster's configured authentication mode.
+   * You can read more about the Authentication Modes here: https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
+   */
+  authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
+
+  /**
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
+   * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
+   * in order to deploy the helm chart.
+   */
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {
@@ -595,12 +612,30 @@ export type SecurityGroupRule = {
   toPort: string;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   cidrs: Cidr[];
+  // Groups is a list of rules that allow another security group referenced
+  // by ID.
+  groups: GroupIdRule[];
 };
 
 export type Cidr = {
-  // CIDR is the IP range using CIDR notation.
+  /**
+   * CIDR is the IP range using CIDR notation.
+   */
   cidr: string;
-  // Description contains a small text describing the CIDR.
+  /**
+   *  Description contains a small text describing the CIDR.
+   */
+  description: string;
+};
+
+export type GroupIdRule = {
+  /**
+   * GroupId is the ID of the security group that is allowed by the rule.
+   */
+  groupId: string;
+  /**
+   * Description contains a small text describing the rule.
+   */
   description: string;
 };
 

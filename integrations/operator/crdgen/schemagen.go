@@ -280,6 +280,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
+		// Skip the ignored fields
 		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
 			continue
 		}
@@ -296,11 +297,17 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 			continue
 		}
 
-		var err error
-		schema.Properties[jsonName], err = generator.prop(field)
+		prop, err := generator.prop(field)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// If the field has custom additional description, we append it.
+		if desc, ok := additionalDescription[message.Name()][field.Name()]; ok {
+			prop.Description = prop.Description + " " + desc
+		}
+
+		schema.Properties[jsonName] = prop
 	}
 	schema.built = true
 

@@ -256,8 +256,6 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		pageSize = int(s.pageLimit)
 	}
 
-	limit := pageSize + 1
-
 	var resources []T
 	var lastKey backend.Key
 	if err := backend.IterateRange(
@@ -265,7 +263,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		s.backend,
 		rangeStart,
 		rangeEnd,
-		limit,
+		pageSize+1,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
 				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
@@ -275,12 +273,12 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 				if matcher(resource) {
 					lastKey = item.Key
 					resources = append(resources, resource)
-				}
-				if len(resources) == pageSize {
-					break
+					if len(resources) >= pageSize+1 {
+						return true, nil
+					}
 				}
 			}
-			return limit == len(resources), nil
+			return false, nil
 		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -498,14 +496,14 @@ func (s *Service[T]) MakeKey(name string) backend.Key {
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
-func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+func (s *Service[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:       s.backend,
-				LockName:      lockName,
-				TTL:           ttl,
-				RetryInterval: s.runWhileLockedRetryInterval,
+				Backend:            s.backend,
+				LockNameComponents: lockNameComponents,
+				TTL:                ttl,
+				RetryInterval:      s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)

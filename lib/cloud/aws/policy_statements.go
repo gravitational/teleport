@@ -161,7 +161,7 @@ func StatementForAWSAppAccess() *Statement {
 			"sts:AssumeRole",
 		},
 		Resources: allResources,
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
 			},
@@ -198,7 +198,7 @@ func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, aud
 		Principals: map[string]SliceOrString{
 			"Federated": []string{federatedARN},
 		},
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				federatedAudience: audiences,
 			},

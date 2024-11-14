@@ -183,6 +183,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionCommandResultEvent:
+		e = &events.DatabaseSessionCommandResult{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPermissionsUpdateEvent:
@@ -270,6 +272,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
@@ -427,7 +431,19 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.StaticHostUserUpdate{}
 	case StaticHostUserDeleteEvent:
 		e = &events.StaticHostUserDelete{}
+	case CrownJewelCreateEvent:
+		e = &events.CrownJewelCreate{}
+	case CrownJewelUpdateEvent:
+		e = &events.CrownJewelUpdate{}
+	case CrownJewelDeleteEvent:
+		e = &events.CrownJewelDelete{}
 
+	case UserTaskCreateEvent:
+		e = &events.UserTaskCreate{}
+	case UserTaskUpdateEvent:
+		e = &events.UserTaskUpdate{}
+	case UserTaskDeleteEvent:
+		e = &events.UserTaskDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

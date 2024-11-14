@@ -111,4 +111,6 @@ export type ElectronGlobals = {
   readonly setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
   ) => void;
+  /** Exposes Electron's webUtils.getPathForFile. */
+  getPathForFile(file: File): string;
 };

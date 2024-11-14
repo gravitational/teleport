@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -279,12 +280,12 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
+func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
 	// to the RBAC filter anyway.
-	if tracker.GetKind() == types.KindSSHSession {
+	if tracker.GetSessionKind() == types.SSHSessionKind {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
 			Kind:           tracker.GetSessionKind(),
@@ -435,7 +436,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
+	ok := a.filterSessionTracker(joinerRoles, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -462,7 +463,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -490,7 +491,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -2221,11 +2222,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
-func emitTokenEvent(
-	ctx context.Context,
-	e apievents.Emitter,
-	roles types.SystemRoles,
-	joinMethod types.JoinMethod,
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
 ) {
 	userMetadata := authz.ClientUserMetadata(ctx)
 	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
@@ -2233,9 +2230,14 @@ func emitTokenEvent(
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
 		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      token.GetSafeName(),
+			Expires:   token.Expiry(),
+			UpdatedBy: userMetadata.GetUser(),
+		},
 		UserMetadata: userMetadata,
-		Roles:        roles,
-		JoinMethod:   joinMethod,
+		Roles:        token.GetRoles(),
+		JoinMethod:   token.GetJoinMethod(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
@@ -2259,12 +2261,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2281,7 +2282,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
@@ -3772,7 +3773,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6013,6 +6014,26 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 	return outEvents, lastKey, nil
 }
 
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return a.alog.ExportUnstructuredEvents(ctx, req)
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return a.alog.GetEventExportChunks(ctx, req)
+}
+
 // SearchSessionEvents allows searching session audit events with pagination support.
 func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) (outEvents []apievents.AuditEvent, lastKey string, err error) {
 	if req.Cond != nil {
@@ -7018,6 +7039,16 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
@@ -7054,6 +7085,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
 		return trace.Wrap(err)
 	}
 

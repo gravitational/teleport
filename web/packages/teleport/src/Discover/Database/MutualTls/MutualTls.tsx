@@ -156,9 +156,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
             },
           ]}
         />
-        <Text mt={1}>
-          Restart the database server to apply the configuration.
-        </Text>
+        <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/#step-25-create-a-certificatekey-pair" />
       </Box>
     );
   }
@@ -247,9 +245,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
-                  <Text mt={1}>
-                    Restart the database server to apply the configuration.
-                  </Text>
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -280,9 +276,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
-                  <Text mt={1}>
-                    Restart the database server to apply the configuration.
-                  </Text>
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -302,3 +296,14 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 }
+
+const RestartDatabaseText = ({ link }: { link: string }) => (
+  <Text mt={1}>
+    Restart the database server to apply the configuration. The certificate is
+    valid for 90 days so this will require installing an{' '}
+    <Link href={link} target="_blank">
+      updated certificate
+    </Link>{' '}
+    and restarting the database server before that to continue access.
+  </Text>
+);

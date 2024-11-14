@@ -37,7 +37,7 @@ import (
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
 func ThumbprintIdP(ctx context.Context, publicAddress string) (string, error) {
-	issuer, err := oidc.IssuerFromPublicAddress(publicAddress)
+	issuer, err := oidc.IssuerFromPublicAddress(publicAddress, "")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -153,7 +153,7 @@ with that command executed.
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -457,12 +457,12 @@ Below is the list of the supported config properties.
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
-| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                                                                |
+| `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
 | `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
 | `terminal.shell` | Default user shell on macOS/Linux, `pwsh.exe`/`powershell.exe` on Windows | A default terminal shell. Can be set to `custom` to take the shell path from `terminal.customShell`. It is best to configure it through UI (right click on a terminal tab > Default Shell). |
-| `terminal.customShell` | "" | Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…). |
+| `terminal.customShell` |  | Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…). |
 | `terminal.rightClick`         | `menu` on macOS/Linux<br/>`copyPaste` on Windows | `paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.                                                         |
-| `terminal.copyOnSelect`       | false | Automatically copies selected text to the clipboard.                                                                                                                                                                      |
+| `terminal.copyOnSelect`       | `false` | Automatically copies selected text to the clipboard.                                                                                                                                                                      |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
@@ -476,8 +476,10 @@ Below is the list of the supported config properties.
 | `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+Shift+E` on Windows/Linux                                                             | Shortcut to open the cluster selector.                                                                     |
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
-| `headless.skipConfirm`        | false                                                                                                                | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
-| `ssh.noResume`                | false                                                                                                                | Disables SSH connection resumption.                                                                        |
+| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `ssh.noResume`                | `false`                                                                                                              | Disables SSH connection resumption.                                                                        |
+| `ssh.forwardAgent`            | `true`                                                                                                               | Enables agent forwarding.                                                                                  |
+| `sshAgent.addKeysToAgent`     | `auto`                                                                                                               | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
 
 <Admonition
   type="note"

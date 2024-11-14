@@ -44,6 +44,10 @@ func TestString(t *testing.T) {
 			uri.NewClusterURI("teleport.sh").AppendDB("dbhost1"),
 			"/clusters/teleport.sh/dbs/dbhost1",
 		},
+		{
+			uri.NewClusterURI("teleport.sh").AppendKube("kube-cluster-name").AppendKubeResourceNamespace("namespace-name"),
+			"/clusters/teleport.sh/kubes/kube-cluster-name/namespaces/namespace-name",
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,6 +175,52 @@ func TestGetKubeName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := tt.in.GetKubeName()
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
+func TestGetKubeResourceNamespace(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uri.ResourceURI
+		out  string
+	}{
+		{
+			name: "returns root cluster namespace name",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s").AppendKubeResourceNamespace("default"),
+			out:  "default",
+		},
+		{
+			name: "returns leaf cluster namespace name",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s").AppendKubeResourceNamespace("default"),
+			out:  "default",
+		},
+		{
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given root cluster non-kube resource namespace URI",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster non-kube resource namespace URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetKubeResourceNamespace()
 			require.Equal(t, tt.out, out)
 		})
 	}

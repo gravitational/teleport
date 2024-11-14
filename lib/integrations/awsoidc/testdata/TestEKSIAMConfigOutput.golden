@@ -1,0 +1,26 @@
+"eks-iam" will perform the following action:
+
+Attach an inline IAM policy named "EKSAccess" to IAM role "integrationRole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "eks:ListClusters",
+                    "eks:DescribeCluster",
+                    "eks:ListAccessEntries",
+                    "eks:CreateAccessEntry",
+                    "eks:DeleteAccessEntry",
+                    "eks:AssociateAccessPolicy",
+                    "eks:TagResource"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "EKSAccess",
+    "RoleName": "integrationRole"
+}
+

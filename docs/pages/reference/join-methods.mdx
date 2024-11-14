@@ -265,8 +265,6 @@ The IAM join method is available to any Teleport process running anywhere with a
 such as an EC2 instance with an attached IAM role. No specific permissions or IAM policy is required: an
 IAM role with no attached policies is sufficient. No IAM credentials are required on the Teleport Auth Service.
 
-Support for joining a cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
-
 This is the recommended method to join workload running on AWS.
 
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
@@ -302,10 +300,9 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 ### Azure managed identity: `azure`
 
-The Azure join method is available in Teleport 12.1+. It is available to any
-Teleport process running in an Azure Virtual Machine. Support for joining a
-cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy
-is available in Teleport 13.0+.
+The Azure join method is available to any Teleport process running in an 
+Azure Virtual Machine. Support for joining a cluster with the Proxy Service
+behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
@@ -385,9 +382,6 @@ clusters in Kubernetes.
 
 This method should be preferred when available as tokens are revoked as soon as
 the pod enters the `Terminated` state.
-
-The Kubernetes in-cluster join method is available in self-hosted versions of
-Teleport 12+.
 
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 

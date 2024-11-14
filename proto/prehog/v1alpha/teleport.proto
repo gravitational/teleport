@@ -778,6 +778,7 @@ enum CTA {
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
+  CTA_OKTA_SCIM = 13;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -1033,6 +1034,8 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
+  INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1281,6 +1284,27 @@ message AccessGraphAWSScanEvent {
   uint64 total_accounts = 11;
 }
 
+// AccessGraphAccessPathChangedEvent is emitted when the Crown Jewel functionality
+// is enabled and the Access Graph access path is changed.
+message AccessGraphAccessPathChangedEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
+// Crown Jewel Resource.
+message AccessGraphCrownJewelCreateEvent {}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1374,6 +1398,63 @@ message DatabaseUserPermissionsUpdateEvent {
   // How many total table permissions were given to the user.
   // For example {SELECT,UPDATE} on ten tables gives a total of twenty.
   int32 num_tables_permissions = 4;
+}
+
+// SessionRecordingAccessEvent is emitted when the user accesses a session
+// recording.
+//
+// PostHog event: tp.recording.access
+message SessionRecordingAccessEvent {
+  // session_type is type of the session, should be
+  // "ssh"/"k8s"/"db"/"app"/"desktop" (matching the values for
+  // api/types.SessionKind).
+  //
+  // PostHog property: tp.session_type
+  string session_type = 1;
+
+  // user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // format is the format the session recording was accessed.
+  // One of text/json/yaml/pty. pty being the interactive session player.
+  //
+  // PostHog property: tp.recording.format
+  string format = 3;
+}
+
+// UserTaskStateEvent is emitted when a UserTask state changes.
+// This can happen when the Task is created, when it's manually
+// resolved by the user or when it changes back to being open
+// when the issue happens again.
+//
+// PostHog event: tp.usertask.state
+message UserTaskStateEvent {
+  // task_type is the identifier for the type of task.
+  // Eg, discover-ec2
+  //
+  // PostHog property: tp.usertask.task_type
+  string task_type = 1;
+
+  // issue_type is the identifier for the type of issue that occurred.
+  //
+  // PostHog property: tp.usertask.issue_type
+  string issue_type = 2;
+
+  // state identifies the new state for this task.
+  // One of: OPEN, RESOLVED
+  //
+  // PostHog property: tp.usertask.state
+  string state = 3;
+
+  // instances_count contains the number of instances that were affected by the issue
+  // This field is only present for the following task_types:
+  // - discover-ec2
+  //
+  // PostHog property: tp.usertask.discover_ec2.instances_count
+  int32 instances_count = 4;
 }
 
 message SubmitEventRequest {
@@ -1522,6 +1603,16 @@ message SubmitEventRequest {
     AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
 
     AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+
+    AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90;
+
+    AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
+
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    SessionRecordingAccessEvent session_recording_access = 93;
+
+    UserTaskStateEvent user_task_state = 94;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -42,6 +42,18 @@ func GetEffectiveMode(dt *types.DeviceTrust) string {
 	return dt.Mode
 }
 
+// GetEnforcementMode returns the configured device trust mode, disregarding the
+// provenance of the binary if the mode is set.
+// Used for device enforcement checks. Guarantees that OSS binaries paired with
+// an Enterprise Auth will correctly enforce device trust.
+func GetEnforcementMode(dt *types.DeviceTrust) string {
+	// If absent use the defaults from GetEffectiveMode.
+	if dt == nil || dt.Mode == "" {
+		return GetEffectiveMode(dt)
+	}
+	return dt.Mode
+}
+
 // ValidateConfigAgainstModules verifies the device trust configuration against
 // the current modules.
 // This method exists to provide feedback to users about invalid configurations,

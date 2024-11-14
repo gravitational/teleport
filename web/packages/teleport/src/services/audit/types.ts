@@ -311,6 +311,15 @@ export const eventCodes = {
   STATIC_HOST_USER_CREATE: 'SHU001I',
   STATIC_HOST_USER_UPDATE: 'SHU002I',
   STATIC_HOST_USER_DELETE: 'SHU003I',
+  CROWN_JEWEL_CREATE: 'CJ001I',
+  CROWN_JEWEL_UPDATE: 'CJ002I',
+  CROWN_JEWEL_DELETE: 'CJ003I',
+  USER_TASK_CREATE: 'UT001I',
+  USER_TASK_UPDATE: 'UT002I',
+  USER_TASK_DELETE: 'UT003I',
+  PLUGIN_CREATE: 'PG001I',
+  PLUGIN_UPDATE: 'PG002I',
+  PLUGIN_DELETE: 'PG003I',
 } as const;
 
 /**
@@ -1715,6 +1724,42 @@ export type RawEvents = {
   [eventCodes.STATIC_HOST_USER_DELETE]: RawEvent<
     typeof eventCodes.STATIC_HOST_USER_DELETE,
     HasName
+  >;
+  [eventCodes.CROWN_JEWEL_CREATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_CREATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_UPDATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_DELETE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_CREATE]: RawEvent<
+    typeof eventCodes.USER_TASK_CREATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_UPDATE]: RawEvent<
+    typeof eventCodes.USER_TASK_UPDATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_DELETE]: RawEvent<
+    typeof eventCodes.USER_TASK_DELETE,
+    HasName
+  >;
+  [eventCodes.PLUGIN_CREATE]: RawEvent<
+    typeof eventCodes.PLUGIN_CREATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_UPDATE]: RawEvent<
+    typeof eventCodes.PLUGIN_UPDATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_DELETE]: RawEvent<
+    typeof eventCodes.PLUGIN_DELETE,
+    Merge<HasName, { user: string }>
   >;
 };
 

@@ -19,10 +19,13 @@
 package athena
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -30,15 +33,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -63,6 +71,7 @@ type querier struct {
 	querierConfig
 
 	athenaClient athenaClient
+	s3Getter     s3Getter
 }
 
 type athenaClient interface {
@@ -71,11 +80,18 @@ type athenaClient interface {
 	GetQueryResults(ctx context.Context, params *athena.GetQueryResultsInput, optFns ...func(*athena.Options)) (*athena.GetQueryResultsOutput, error)
 }
 
+type s3Getter interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
 type querierConfig struct {
 	tablename               string
 	database                string
 	workgroup               string
 	queryResultsS3          string
+	locationS3Bucket        string
+	locationS3Prefix        string
 	getQueryResultsInterval time.Duration
 	// getQueryResultsInitialDelay allows to set custom getQueryResultsInitialDelay.
 	// If not provided, default will be used.
@@ -134,6 +150,7 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}
 	return &querier{
 		athenaClient:  athena.NewFromConfig(*cfg.awsCfg),
+		s3Getter:      s3.NewFromConfig(*cfg.awsCfg),
 		querierConfig: cfg,
 	}, nil
 }
@@ -205,6 +222,228 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
+}
+
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	startTime := req.Date.AsTime()
+	if startTime.IsZero() {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'date'"))
+	}
+
+	if req.Chunk == "" {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'chunk'"))
+	}
+
+	date := startTime.Format(time.DateOnly)
+
+	var cursor athenaExportCursor
+
+	if req.Cursor != "" {
+		if err := cursor.Decode(req.Cursor); err != nil {
+			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+		}
+	}
+
+	events := q.streamEventsFromChunk(ctx, date, req.Chunk)
+
+	events = stream.Skip(events, int(cursor.pos))
+
+	return stream.FilterMap(events, func(e eventParquet) (*auditlogpb.ExportEventUnstructured, bool) {
+		cursor.pos++
+		event, err := auditEventFromParquet(e)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": req.Chunk,
+				"pos":   cursor.pos,
+			}).Warn("skipping export of audit event due to failed decoding")
+			return nil, false
+		}
+
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": req.Chunk,
+				"pos":   cursor.pos,
+			}).Warn("skipping export of audit event due to failed conversion to unstructured event")
+			return nil, false
+		}
+
+		return &auditlogpb.ExportEventUnstructured{
+			Event:  unstructuredEvent,
+			Cursor: cursor.Encode(),
+		}, true
+	})
+}
+
+// athenaExportCursors follow the format a1:<pos>.
+type athenaExportCursor struct {
+	pos int64
+}
+
+func (c *athenaExportCursor) Encode() string {
+	return fmt.Sprintf("a1:%d", c.pos)
+}
+
+func (c *athenaExportCursor) Decode(key string) error {
+	parts := strings.Split(key, ":")
+	if len(parts) != 2 {
+		return trace.BadParameter("invalid key format")
+	}
+	if parts[0] != "a1" {
+		return trace.BadParameter("unsupported cursor format (expected a1, got %q)", parts[0])
+	}
+	pos, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.pos = pos
+	return nil
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	dt := req.Date.AsTime()
+	if dt.IsZero() {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.BadParameter("missing required parameter 'date'"))
+	}
+
+	date := dt.Format(time.DateOnly)
+
+	prefix := fmt.Sprintf("%s/%s/", q.locationS3Prefix, date)
+
+	var continuationToken *string
+	firstPage := true
+
+	return stream.PageFunc(func() ([]*auditlogpb.EventExportChunk, error) {
+		if !firstPage && continuationToken == nil {
+			// no more pages available.
+			return nil, io.EOF
+		}
+
+		firstPage = false
+
+		rsp, err := q.s3Getter.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(q.locationS3Bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			var nsk *s3types.NoSuchKey
+			if continuationToken == nil && errors.As(err, &nsk) {
+				log.WithFields(log.Fields{
+					"date":  date,
+					"error": err,
+				}).Debug("no event chunks found for date")
+				// no pages available
+				return nil, io.EOF
+			}
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+			}).Error("failed to list event chunk objects in S3")
+			return nil, trace.Wrap(err)
+		}
+
+		continuationToken = rsp.NextContinuationToken
+
+		chunks := make([]*auditlogpb.EventExportChunk, 0, len(rsp.Contents))
+
+		for _, obj := range rsp.Contents {
+			fullKey := aws.ToString(obj.Key)
+
+			if !strings.HasSuffix(fullKey, ".parquet") {
+				log.WithFields(log.Fields{
+					"key":  fullKey,
+					"date": date,
+				}).Debug("skipping non-parquet s3 file")
+				continue
+			}
+
+			chunkID := strings.TrimSuffix(strings.TrimPrefix(fullKey, prefix), ".parquet")
+			if chunkID == "" {
+				log.WithFields(log.Fields{
+					"key":  fullKey,
+					"date": date,
+				}).Warn("skipping empty parquet file name")
+				continue
+			}
+
+			chunks = append(chunks, &auditlogpb.EventExportChunk{
+				Chunk: chunkID,
+			})
+		}
+
+		return chunks, nil
+	})
+}
+
+func (q *querier) streamEventsFromChunk(ctx context.Context, date, chunk string) stream.Stream[eventParquet] {
+	data, err := q.readEventChunk(ctx, date, chunk)
+	if err != nil {
+		return stream.Fail[eventParquet](err)
+	}
+
+	reader := parquet.NewGenericReader[eventParquet](bytes.NewReader(data))
+
+	closer := func() {
+		reader.Close()
+	}
+
+	return stream.Func(func() (eventParquet, error) {
+		// conventional wisdom says that we should use a larger persistent buffer here
+		// but in loadtesting this API was abserved having almost twice the throughput
+		// with a single element local buf variable instead.
+		var buf [1]eventParquet
+		_, err := reader.Read(buf[:])
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return eventParquet{}, io.EOF
+			}
+			return eventParquet{}, trace.Wrap(err)
+		}
+		return buf[0], nil
+	}, closer)
+}
+
+func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byte, error) {
+	getObjectInput := &s3.GetObjectInput{
+		Bucket: aws.String(q.locationS3Bucket),
+		Key:    aws.String(fmt.Sprintf("%s/%s/%s.parquet", q.locationS3Prefix, date, chunk)),
+	}
+	getObjectOutput, err := q.s3Getter.GetObject(ctx, getObjectInput)
+	if err != nil {
+		var nsk *s3types.NoSuchKey
+		if errors.As(err, &nsk) {
+			log.WithFields(log.Fields{
+				"date":  date,
+				"chunk": chunk,
+				"error": err,
+			}).Debug("event chunk not found")
+			return nil, trace.NotFound("event chunk %q not found", chunk)
+		}
+		log.WithFields(log.Fields{
+			"error": err,
+			"date":  date,
+		}).Error("failed to get event chunk")
+		return nil, trace.Wrap(err)
+	}
+
+	defer getObjectOutput.Body.Close()
+
+	// ideally we'd start streaming events immediately without waiting for the read to
+	// complete. in practice thats tricky since the parquet reader wants methods that aren't
+	// typically available on lazy readers. we may be able to eek out a bit more performance by
+	// implementing a custom wrapper that lazily loads all bytes into an unlimited size buffer
+	// so that we can support methods like Seek and ReadAt, which aren't available on buffered
+	// readers with fixed sizes.
+	return io.ReadAll(getObjectOutput.Body)
 }
 
 func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey *keyset, from, to time.Time) bool {
@@ -725,8 +964,18 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			}
 			// A single event is larger than the max page size - the best we can
 			// do is try to trim it.
-			if t, ok := event.(trimmableEvent); ok {
-				event = t.TrimToMaxSize(events.MaxEventBytesInResponse)
+			event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+			// Check to make sure the trimmed event is small enough.
+			fields, err = events.ToEventFields(event)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			marshalledEvent, err := utils.FastMarshal(&fields)
+			if err != nil {
+				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
+			}
+			if len(marshalledEvent)+rb.totalSize <= events.MaxEventBytesInResponse {
 				events.MetricQueriedTrimmedEvents.Inc()
 				// Exact rb.totalSize doesn't really matter since the response is
 				// already size limited.
@@ -734,6 +983,7 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				rb.output = append(rb.output, event)
 				return true, nil
 			}
+
 			// Failed to trim the event to size. The only options are to return
 			// a response with 0 events, skip this event, or return an error.
 			//

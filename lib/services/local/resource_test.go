@@ -230,6 +230,7 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 	if withSecrets {
 		auth := localAuthSecretsTestCase(t)
 		user.SetLocalAuth(&auth)
+		user.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_TOTP)
 	}
 	return &user
 }

@@ -225,14 +225,12 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	// event may need to be trimmed again on the querier side, but this is an
 	// attempt to preserve as much of the event as possible in case we add the
 	// ability to query very large events in the future.
-	if t, ok := in.(trimmableEvent); ok {
-		prevSize := in.Size()
-		// Trim to 3/4 the max size because base64 has 33% overhead.
-		// The TrimToMaxSize implementations have a 10% buffer already.
-		in = t.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
-		if in.Size() != prevSize {
-			events.MetricStoredTrimmedEvents.Inc()
-		}
+	prevSize := in.Size()
+	// Trim to 3/4 the max size because base64 has 33% overhead.
+	// The TrimToMaxSize implementations have a 10% buffer already.
+	in = in.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
+	if in.Size() != prevSize {
+		events.MetricStoredTrimmedEvents.Inc()
 	}
 
 	oneOf, err := apievents.ToOneOf(in)

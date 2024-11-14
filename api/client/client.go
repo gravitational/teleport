@@ -59,11 +59,13 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
+	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -87,6 +89,7 @@ import (
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -2515,6 +2518,58 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC ti
 	return response.Items, response.LastKey, nil
 }
 
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (c *Client) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	events, err := c.grpc.ExportUnstructuredEvents(ctx, req)
+	if err != nil {
+		cancel()
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return stream.Func[*auditlogpb.ExportEventUnstructured](func() (*auditlogpb.ExportEventUnstructured, error) {
+		event, err := events.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trace.Wrap(err)
+		}
+		return event, nil
+	}, cancel)
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (c *Client) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	chunks, err := c.grpc.GetEventExportChunks(ctx, req)
+	if err != nil {
+		cancel()
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return stream.Func[*auditlogpb.EventExportChunk](func() (*auditlogpb.EventExportChunk, error) {
+		chunk, err := chunks.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trace.Wrap(err)
+		}
+		return chunk, nil
+	}, cancel)
+}
+
 // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
 // This method is used by the Teleport event-handler plugin to receive events
 // from the auth server wihout having to support the Protobuf event schema.
@@ -2924,6 +2979,112 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
+}
+
+// CreateAutoUpdateConfig creates AutoUpdateConfig resource.
+func (c *Client) CreateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateConfig gets AutoUpdateConfig resource.
+func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateConfig updates AutoUpdateConfig resource.
+func (c *Client) UpdateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateConfig updates or creates AutoUpdateConfig resource.
+func (c *Client) UpsertAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateConfig deletes AutoUpdateConfig resource.
+func (c *Client) DeleteAutoUpdateConfig(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	return trace.Wrap(err)
+}
+
+// CreateAutoUpdateVersion creates AutoUpdateVersion resource.
+func (c *Client) CreateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateVersion gets AutoUpdateVersion resource.
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateVersion updates AutoUpdateVersion resource.
+func (c *Client) UpdateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateVersion updates or creates AutoUpdateVersion resource.
+func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateVersion deletes AutoUpdateVersion resource.
+func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	return trace.Wrap(err)
 }
 
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
@@ -4024,6 +4185,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 			SearchKeywords:      req.SearchKeywords,
 			PredicateExpression: req.PredicateExpression,
 			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UsePreviewAsRoles:   req.UsePreviewAsRoles,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
@@ -4728,6 +4890,14 @@ func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 // (as per the default gRPC behavior).
 func (c *Client) UserLoginStateClient() *userloginstate.Client {
 	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
+}
+
+// UserTasksServiceClient returns a UserTask client.
+// Clients connecting to older Teleport versions, still get a UserTask client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
+	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

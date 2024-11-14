@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -77,7 +78,8 @@ func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDevic
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(
-	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
+	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt,
+) (*TestDevice, error) {
 	dev := &TestDevice{} // Remaining parameters set during registration
 	for _, opt := range opts {
 		opt(dev)
@@ -101,21 +103,21 @@ type authClientI interface {
 	AddMFADeviceSync(context.Context, *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 }
 
-func (d *TestDevice) registerDevice(
-	ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
-	// Re-authenticate using MFA.
-	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
+func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
+	mfaCeremony := &mfa.Ceremony{
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return authenticator.SolveAuthn(chal)
+			})
 		},
+		CreateAuthenticateChallenge: authClient.CreateAuthenticateChallenge,
+	}
+
+	authnSolved, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authnSolved, err := authenticator.SolveAuthn(authnChal)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -213,7 +215,6 @@ func (d *TestDevice) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFAReg
 	default:
 		return nil, trace.BadParameter("unexpected challenge type: %T", c.Request)
 	}
-
 }
 
 func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {

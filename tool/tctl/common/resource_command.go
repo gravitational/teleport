@@ -42,6 +42,8 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -51,6 +53,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -168,6 +171,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindPlugin:                   rc.createPlugin,
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
 		types.KindStaticHostUser:           rc.createStaticHostUser,
+		types.KindUserTask:                 rc.createUserTask,
+		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
+		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -184,6 +190,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessGraphSettings:     rc.updateAccessGraphSettings,
 		types.KindPlugin:                  rc.updatePlugin,
 		types.KindStaticHostUser:          rc.updateStaticHostUser,
+		types.KindUserTask:                rc.updateUserTask,
+		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
+		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 	}
 	rc.config = config
 
@@ -706,6 +715,14 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
@@ -739,6 +756,14 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -797,6 +822,14 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -963,6 +996,28 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	resource, err := services.UnmarshalUserTask(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.UserTasksServiceClient()
+	if rc.force {
+		if _, err := c.UpsertUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been updated\n", resource.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
 func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
 	if err != nil {
@@ -989,6 +1044,18 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalUserTask(resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UserTasksServiceClient().UpdateUserTask(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1758,6 +1825,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
+
+	case types.KindUserTask:
+		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
 
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
@@ -2775,6 +2848,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return &integrationCollection{integrations: resources}, nil
+	case types.KindUserTask:
+		userTasksClient := client.UserTasksClient()
+		if rc.ref.Name != "" {
+			uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
+		}
+
+		var tasks []*usertasksv1.UserTask
+		nextToken := ""
+		for {
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tasks = append(tasks, resp...)
+
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &userTaskCollection{items: tasks}, nil
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
 		if rc.ref.Name != "" {
@@ -2995,6 +3093,41 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			nextToken = token
 		}
 		return &staticHostUserCollection{items: hostUsers}, nil
+	case types.KindAutoUpdateConfig:
+		config, err := client.GetAutoUpdateConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateConfigCollection{config}, nil
+	case types.KindAutoUpdateVersion:
+		version, err := client.GetAutoUpdateVersion(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAccessMonitoringRule:
+		if rc.ref.Name != "" {
+			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
+		}
+
+		var rules []*accessmonitoringrulesv1pb.AccessMonitoringRule
+		nextToken := ""
+		for {
+			resp, token, err := client.AccessMonitoringRuleClient().ListAccessMonitoringRules(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			rules = append(rules, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &accessMonitoringRuleCollection{items: rules}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3056,10 +3189,15 @@ func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc s
 	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
 		return trace.AlreadyExists("non-default %s already exists", resDesc)
 	}
-	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
+}
+
+func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
+	managedByStatic := storedRes.Origin() == types.OriginConfigFile
+	if managedByStatic && !confirm {
 		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
-If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
 	}
 	return nil
 }
@@ -3338,5 +3476,67 @@ func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Println("access_graph_settings has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateConfig(ctx, config)
+	} else {
+		_, err = client.CreateAutoUpdateConfig(ctx, config)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_config has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_config has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateVersion(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateVersion(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_version has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
 	return nil
 }

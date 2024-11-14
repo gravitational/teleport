@@ -160,6 +160,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -1183,10 +1184,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		})
 
 		process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
-	}
-
-	if process.Config.Proxy.Enabled {
-		process.RegisterFunc("update.aws-oidc.deploy.service", process.initAWSOIDCDeployServiceUpdater)
 	}
 
 	serviceStarted := false
@@ -2333,7 +2330,7 @@ func (process *TeleportProcess) initAuthService() error {
 	})
 
 	process.RegisterFunc("auth.server_info", func() error {
-		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
 	})
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
@@ -2427,11 +2424,13 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
+	cfg.UserTasks = services.UserTasks
 	cfg.UserLoginStates = services.UserLoginStates
 	cfg.Users = services.Identity
 	cfg.WebSession = services.Identity.WebSessions()
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
+	cfg.AutoUpdateService = services.AutoUpdateService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2456,6 +2455,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DynamicAccess = client
 	cfg.Events = client
 	cfg.Integrations = client
+	cfg.UserTasks = client.UserTasksServiceClient()
 	cfg.KubeWaitingContainers = client
 	cfg.Kubernetes = client
 	cfg.Notifications = client
@@ -2475,6 +2475,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WebSession = client.WebSessions()
 	cfg.WebToken = client.WebTokens()
 	cfg.WindowsDesktops = client
+	cfg.AutoUpdateService = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2538,6 +2539,7 @@ type combinedDiscoveryClient struct {
 	authclient.ClientI
 	discoveryConfigClient
 	eksClustersEnroller
+	services.UserTasks
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
@@ -2546,6 +2548,7 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 		ClientI:               clt,
 		discoveryConfigClient: clt.DiscoveryConfigClient(),
 		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
+		UserTasks:             clt.UserTasksServiceClient(),
 	}
 
 	// if caching is disabled, return access point
@@ -2828,7 +2831,7 @@ func (process *TeleportProcess) initSSH() error {
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
 		// read the host UUID:
-		serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+		serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3660,11 +3663,12 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 }
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
-// this means it will do four things:
+// this means it will do several things:
 //  1. serve a web UI
 //  2. proxy SSH connections to nodes running with 'node' role
 //  3. take care of reverse tunnels
 //  4. optionally proxy kubernetes connections
+//  5. optionally check for automatic upgrades for deployments created by AWS OIDC integrations
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -3688,6 +3692,10 @@ func (process *TeleportProcess) initProxy() error {
 		}
 
 		return nil
+	})
+	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
+		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels)
+		return trace.Wrap(err)
 	})
 	return nil
 }
@@ -4300,7 +4308,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// read the host UUID:
-	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+	serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4487,6 +4495,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
+			FeatureWatchInterval:      utils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4747,7 +4756,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if cfg.Proxy.SSHAddr.Addr != "" {
 			sshListenerAddr = cfg.Proxy.SSHAddr.Addr
 		}
-		logger.InfoContext(process.ExitContext(), " Stating SSH proxy service", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", sshListenerAddr)
+		logger.InfoContext(process.ExitContext(), " Starting SSH proxy service", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", sshListenerAddr)
 
 		// start ssh server
 		go func() {
@@ -5936,8 +5945,8 @@ func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
 // initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
-	process.logger.DebugContext(process.ExitContext(), "Initializing auth backend.", "backend", process.Config.Auth.StorageConfig.Type)
 	bc := process.Config.Auth.StorageConfig
+	process.logger.DebugContext(process.ExitContext(), "Initializing auth backend.", "type", bc.Type)
 	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6299,7 +6308,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
 		}
-	} else if kubeBackend != nil && utils.HostUUIDExistsLocally(cfg.DataDir) {
+	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
 		// This case is used when loading a Teleport pre-11 agent with storage attached.
 		// In this case, we have to copy the "host_uuid" from the agent to the secret
 		// in case storage is removed later.
@@ -6338,14 +6347,14 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 	}
 	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
 	// not found in secret.
-	hostID, err := utils.ReadHostUUID(dataDir)
+	hostID, err := hostid.ReadFile(dataDir)
 	return hostID, trace.Wrap(err)
 }
 
 // persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
 func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
-	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}
@@ -6364,7 +6373,7 @@ func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBa
 // loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
 // the expected key: `/host_uuid`.
 func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
-	item, err := kubeBackend.Get(ctx, backend.NewKey(utils.HostUUIDFile))
+	item, err := kubeBackend.Get(ctx, backend.NewKey(hostid.FileName))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -6377,7 +6386,7 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend,
 	_, err := kubeBackend.Put(
 		ctx,
 		backend.Item{
-			Key:   backend.NewKey(utils.HostUUIDFile),
+			Key:   backend.NewKey(hostid.FileName),
 			Value: []byte(id),
 		},
 	)

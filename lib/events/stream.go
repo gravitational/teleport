@@ -399,10 +399,8 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	event := pe.GetAuditEvent()
 	messageSize := event.Size()
 	if messageSize > MaxProtoMessageSizeBytes {
-		switch v := event.(type) {
-		case messageSizeTrimmer:
-			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
-		default:
+		event = event.TrimToMaxSize(MaxProtoMessageSizeBytes)
+		if event.Size() > MaxProtoMessageSizeBytes {
 			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
 		}
 	}

@@ -22,10 +22,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/protoadapt"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/runtime/protoiface"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -98,6 +104,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	DatabaseSessionEndEvent:                        &apievents.DatabaseSessionEnd{},
 	DatabaseSessionQueryEvent:                      &apievents.DatabaseSessionQuery{},
 	DatabaseSessionQueryFailedEvent:                &apievents.DatabaseSessionQuery{},
+	DatabaseSessionCommandResultEvent:              &apievents.DatabaseSessionCommandResult{},
 	DatabaseSessionMalformedPacketEvent:            &apievents.DatabaseSessionMalformedPacket{},
 	DatabaseSessionPermissionsUpdateEvent:          &apievents.DatabasePermissionUpdate{},
 	DatabaseSessionUserCreateEvent:                 &apievents.DatabaseUserCreate{},
@@ -145,6 +152,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	PrivilegeTokenCreateEvent:                      &apievents.UserTokenCreate{},
 	WindowsDesktopSessionStartEvent:                &apievents.WindowsDesktopSessionStart{},
 	WindowsDesktopSessionEndEvent:                  &apievents.WindowsDesktopSessionEnd{},
+	DesktopRecordingEvent:                          &apievents.DesktopRecording{},
 	DesktopClipboardSendEvent:                      &apievents.DesktopClipboardSend{},
 	DesktopClipboardReceiveEvent:                   &apievents.DesktopClipboardReceive{},
 	SessionConnectEvent:                            &apievents.SessionConnect{},
@@ -199,6 +207,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AuthPreferenceUpdateEvent:                   &apievents.AuthPreferenceUpdate{},
 	ClusterNetworkingConfigUpdateEvent:          &apievents.ClusterNetworkingConfigUpdate{},
 	SessionRecordingConfigUpdateEvent:           &apievents.SessionRecordingConfigUpdate{},
+	AccessGraphSettingsUpdateEvent:              &apievents.AccessGraphSettingsUpdate{},
 	DatabaseSessionSpannerRPCEvent:              &apievents.SpannerRPC{},
 	UnknownEvent:                                &apievents.Unknown{},
 	DatabaseSessionCassandraBatchEvent:          &apievents.CassandraBatch{},
@@ -217,6 +226,15 @@ var eventsMap = map[string]apievents.AuditEvent{
 	PluginCreateEvent:                           &apievents.PluginCreate{},
 	PluginUpdateEvent:                           &apievents.PluginUpdate{},
 	PluginDeleteEvent:                           &apievents.PluginDelete{},
+	StaticHostUserCreateEvent:                   &apievents.StaticHostUserCreate{},
+	StaticHostUserUpdateEvent:                   &apievents.StaticHostUserUpdate{},
+	StaticHostUserDeleteEvent:                   &apievents.StaticHostUserDelete{},
+	CrownJewelCreateEvent:                       &apievents.CrownJewelCreate{},
+	CrownJewelUpdateEvent:                       &apievents.CrownJewelUpdate{},
+	CrownJewelDeleteEvent:                       &apievents.CrownJewelDelete{},
+	UserTaskCreateEvent:                         &apievents.UserTaskCreate{},
+	UserTaskUpdateEvent:                         &apievents.UserTaskUpdate{},
+	UserTaskDeleteEvent:                         &apievents.UserTaskDelete{},
 }
 
 // TestJSON tests JSON marshal events
@@ -609,7 +627,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "rejected subsystem",
-			json: `{"ei":0,"cluster_name":"test","addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","login":"alice","name":"proxy","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
+			json: `{"ei":0,"cluster_name":"test","addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","forwarded_by":"abc","login":"alice","name":"proxy","server_id":"123","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
 			event: apievents.Subsystem{
 				Metadata: apievents.Metadata{
 					ID:          "3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc",
@@ -625,6 +643,10 @@ func TestJSON(t *testing.T) {
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  "127.0.0.1:57518",
 					RemoteAddr: "127.0.0.1:3022",
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID:    "123",
+					ForwardedBy: "abc",
 				},
 				Name:  "proxy",
 				Error: "some error",
@@ -986,4 +1008,147 @@ func TestEvents(t *testing.T) {
 			require.IsType(t, eventType, auditEvent, "FromEventFields did not convert the event type correctly")
 		})
 	}
+}
+
+func TestTrimToMaxSize(t *testing.T) {
+	t.Parallel()
+
+	for eventName, eventMsg := range eventsMap {
+		t.Run(eventName, func(t *testing.T) {
+			// clone the message to avoid modifying the original in the global map
+			event := proto.Clone(toV2Proto(t, eventMsg))
+			setProtoFields(event)
+
+			auditEvent := protoadapt.MessageV1Of(event).(apievents.AuditEvent)
+			size := auditEvent.Size()
+			maxSize := int(float32(size) * 0.8)
+
+			trimmedAuditEvent := auditEvent.TrimToMaxSize(maxSize)
+			if trimmedAuditEvent.Size() == auditEvent.Size() {
+				t.Skipf("skipping %s, event does not have any fields to trim", eventName)
+			}
+			trimmedEvent := toV2Proto(t, trimmedAuditEvent)
+
+			require.NotEqual(t, auditEvent, trimmedEvent)
+			require.LessOrEqual(t, trimmedAuditEvent.Size(), maxSize)
+			if trimmedAuditEvent.Size() != maxSize {
+				t.Logf("original event: %s\ntrimmed event: %s", protojson.Format(event), protojson.Format(trimmedEvent))
+			}
+
+			// ensure Metadata hasn't been trimmed
+			require.Equal(t, auditEvent.GetID(), trimmedAuditEvent.GetID())
+			require.Equal(t, auditEvent.GetCode(), trimmedAuditEvent.GetCode())
+			require.Equal(t, auditEvent.GetType(), trimmedAuditEvent.GetType())
+			require.Equal(t, auditEvent.GetClusterName(), trimmedAuditEvent.GetClusterName())
+		})
+	}
+}
+
+type testingVal interface {
+	Helper()
+	require.TestingT
+}
+
+func setProtoFields(msg proto.Message) {
+	m := msg.ProtoReflect()
+	fields := m.Descriptor().Fields()
+
+	for i := 0; i < fields.Len(); i++ {
+		fd := fields.Get(i)
+		if m.Has(fd) {
+			continue
+		}
+
+		if fd.IsList() {
+			// Handle repeated fields
+			listValue := m.Mutable(fd).List()
+			if fd.Kind() == protoreflect.MessageKind {
+				listMsg := listValue.AppendMutable().Message()
+				setProtoFields(listMsg.Interface())
+			} else {
+				listValue.Append(getDefaultValue(m, fd))
+			}
+			continue
+		}
+
+		switch fd.Kind() {
+		case protoreflect.MessageKind:
+			if fd.IsMap() {
+				// Handle map values
+				mapValue := m.Mutable(fd).Map()
+				keyDesc := fd.MapKey()
+				valueDesc := fd.MapValue()
+
+				keyVal := getDefaultValue(m, keyDesc).MapKey()
+				var valueVal protoreflect.Value
+
+				if valueDesc.Kind() == protoreflect.MessageKind {
+					valueMsg := mapValue.NewValue().Message()
+					setProtoFields(valueMsg.Interface())
+					valueVal = protoreflect.ValueOfMessage(valueMsg)
+				} else {
+					valueVal = getDefaultValue(m, valueDesc)
+				}
+
+				mapValue.Set(keyVal, valueVal)
+			} else {
+				// Handle singular message fields
+				nestedMsg := m.Mutable(fd).Message()
+				setProtoFields(nestedMsg.Interface())
+			}
+		default:
+			m.Set(fd, getDefaultValue(m, fd))
+		}
+	}
+}
+
+const metadataString = "some metadata"
+
+var (
+	eventString = strings.Repeat("umai", 170)
+)
+
+func getDefaultValue(m protoreflect.Message, fd protoreflect.FieldDescriptor) protoreflect.Value {
+	strVal := metadataString
+	msgName := string(m.Descriptor().Name())
+	// set shorter strings for metadata fields which won't be trimmed
+	if msgName == "CommandMetadata" || !strings.Contains(msgName, "Metadata") {
+		strVal = eventString
+	}
+
+	switch fd.Kind() {
+	case protoreflect.BoolKind:
+		return protoreflect.ValueOfBool(true)
+	case protoreflect.Int32Kind, protoreflect.Int64Kind:
+		return protoreflect.ValueOfInt64(6)
+	case protoreflect.Uint32Kind, protoreflect.Uint64Kind:
+		return protoreflect.ValueOfUint64(7)
+	case protoreflect.FloatKind, protoreflect.DoubleKind:
+		return protoreflect.ValueOfFloat64(3.14)
+	case protoreflect.StringKind:
+		return protoreflect.ValueOfString(strVal)
+	case protoreflect.BytesKind:
+		return protoreflect.ValueOfBytes([]byte(strVal))
+	case protoreflect.EnumKind:
+		enumValues := fd.Enum().Values()
+		if enumValues.Len() > 0 {
+			return protoreflect.ValueOfEnum(enumValues.Get(0).Number())
+		}
+	case protoreflect.MessageKind:
+		// Handle singular message fields
+		nestedMsg := m.NewField(fd).Message()
+		setProtoFields(nestedMsg.Interface())
+		return protoreflect.ValueOfMessage(nestedMsg)
+	default:
+		panic(fmt.Sprintf("unhandled field kind: %s", fd.Kind()))
+	}
+	return protoreflect.Value{} // This should never happen
+}
+
+func toV2Proto(t testingVal, e apievents.AuditEvent) protoreflect.ProtoMessage {
+	t.Helper()
+
+	pm, ok := e.(protoiface.MessageV1)
+	require.True(t, ok)
+	return protoadapt.MessageV2Of(pm)
 }

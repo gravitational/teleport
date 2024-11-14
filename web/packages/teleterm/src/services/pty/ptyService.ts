@@ -43,7 +43,10 @@ export function createPtyService(
       const { processOptions, creationStatus, shell } = await buildPtyOptions({
         settings: runtimeSettings,
         options: {
-          ssh: { noResume: configService.get('ssh.noResume').value },
+          ssh: {
+            noResume: configService.get('ssh.noResume').value,
+            forwardAgent: configService.get('ssh.forwardAgent').value,
+          },
           customShellPath: configService.get('terminal.customShell').value,
           windowsPty,
         },

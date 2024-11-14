@@ -916,7 +916,7 @@ const (
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
 func prependPrefix(key backend.Key) string {
-	return keyPrefix + string(key)
+	return keyPrefix + key.String()
 }
 
 // trimPrefix removes leading 'teleport' from the key

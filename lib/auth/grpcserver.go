@@ -69,6 +69,7 @@ import (
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertaskv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -97,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	"github.com/gravitational/teleport/lib/auth/userprovisioning/userprovisioningv2"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
+	"github.com/gravitational/teleport/lib/auth/usertasks/usertasksv1"
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/vnetconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -109,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -3405,7 +3408,6 @@ func (g *GRPCServer) StreamSessionEvents(req *authpb.StreamSessionEventsRequest,
 	}
 
 	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionID), int64(req.StartIndex))
-
 	for {
 		select {
 		case event, more := <-c:
@@ -5320,6 +5322,20 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	integrationv1pb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
+	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
+		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
+		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Emitter:       cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
+
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5335,6 +5351,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5440,7 +5457,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	autoUpdateServiceServer, err := autoupdatev1.NewService(autoupdatev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5536,6 +5553,46 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 		Items:   unstructuredEvents,
 		LastKey: lastkey,
 	}, nil
+}
+
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (g *GRPCServer) ExportUnstructuredEvents(req *auditlogpb.ExportUnstructuredEventsRequest, stream auditlogpb.AuditLogService_ExportUnstructuredEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	events := auth.ServerWithRoles.ExportUnstructuredEvents(stream.Context(), req)
+
+	for events.Next() {
+		if err := stream.Send(events.Item()); err != nil {
+			events.Done()
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(events.Done())
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (g *GRPCServer) GetEventExportChunks(req *auditlogpb.GetEventExportChunksRequest, stream auditlogpb.AuditLogService_GetEventExportChunksServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	chunks := auth.ServerWithRoles.GetEventExportChunks(stream.Context(), req)
+
+	for chunks.Next() {
+		if err := stream.Send(chunks.Item()); err != nil {
+			chunks.Done()
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(chunks.Done())
 }
 
 // StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.

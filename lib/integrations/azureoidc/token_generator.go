@@ -70,7 +70,7 @@ func GenerateEntraOIDCToken(ctx context.Context, cache Cache, manager KeyStoreMa
 		return "", trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, cache)
+	issuer, err := oidc.IssuerForCluster(ctx, cache, "")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

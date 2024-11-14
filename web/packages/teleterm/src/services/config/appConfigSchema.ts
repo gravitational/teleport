@@ -188,6 +188,21 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
+    'ssh.forwardAgent': z
+      .boolean()
+      .default(true)
+      .describe(
+        "Enables agent forwarding when connecting to SSH nodes. It's the equivalent of the forward-agent flag in tsh ssh."
+      ),
+    'sshAgent.addKeysToAgent': z
+      .enum(['auto', 'no', 'yes', 'only'])
+      .default('auto')
+      .describe(
+        'Controls how keys are added to a local SSH agent. ' +
+          "'auto' adds the keys only if the agent supports SSH certificates, " +
+          "'no' never attempts to add them, 'yes' always attempts to add them, " +
+          "'only' always attempts to add the keys to the agent but it does not save them on disk."
+      ),
   });
 };
 

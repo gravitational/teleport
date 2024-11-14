@@ -45,6 +45,7 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  SecurityGroupRule,
   ListEksClustersResponse,
   EnrollEksClustersResponse,
   EnrollEksClustersRequest,
@@ -438,9 +439,10 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
-    subnets: aws?.rds?.subnets,
+    subnets: aws?.rds?.subnets ?? [],
     resourceId: aws?.rds?.resource_id,
     vpcId: aws?.rds?.vpc_id,
+    securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
   };
@@ -469,8 +471,22 @@ function makeSecurityGroup(json: any): SecurityGroup {
     name,
     id,
     description,
-    inboundRules: inboundRules ?? [],
-    outboundRules: outboundRules ?? [],
+    inboundRules: inboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
+    outboundRules:
+      outboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
+  };
+}
+
+function makeSecurityGroupRule(json: any): SecurityGroupRule {
+  json = json ?? {};
+  const { ipProtocol, fromPort, toPort, cidrs, groups } = json;
+
+  return {
+    ipProtocol,
+    fromPort,
+    toPort,
+    cidrs: cidrs ?? [],
+    groups: groups ?? [],
   };
 }
 

@@ -21,6 +21,8 @@ import { useAttempt } from 'shared/hooks';
 
 import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
@@ -30,6 +32,13 @@ export default function useUsers({
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const [showMauInfo, setShowMauInfo] = useState(
+    ctx.getFeatureFlags().billing &&
+      cfg.isUsageBasedBilling &&
+      !storageService.getUsersMauAcknowledged()
+  );
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -119,6 +128,11 @@ export default function useUsers({
     return items.map(r => r.name);
   }
 
+  function onDismissUsersMauNotice() {
+    storageService.setUsersMAUAcknowledged();
+    setShowMauInfo(false);
+  }
+
   useEffect(() => {
     attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
@@ -143,6 +157,8 @@ export default function useUsers({
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
   };
 }
 

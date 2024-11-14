@@ -21,6 +21,7 @@ package mfa_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -39,19 +40,21 @@ func TestCLIPrompt(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range []struct {
-		name         string
-		stdin        string
-		challenge    *proto.MFAAuthenticateChallenge
-		expectErr    error
-		expectStdOut string
-		expectResp   *proto.MFAAuthenticateResponse
+		name                  string
+		stdin                 string
+		challenge             *proto.MFAAuthenticateChallenge
+		expectErr             error
+		expectStdOut          string
+		expectResp            *proto.MFAAuthenticateResponse
+		makeWebauthnLoginFunc func(stdin *prompt.FakeReader) mfa.WebauthnLoginFunc
 	}{
 		{
 			name:         "OK empty challenge",
 			expectStdOut: "",
 			challenge:    &proto.MFAAuthenticateChallenge{},
 			expectResp:   &proto.MFAAuthenticateResponse{},
-		}, {
+		},
+		{
 			name:         "OK webauthn",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -62,7 +65,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK totp",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			stdin:        "123456",
@@ -76,7 +80,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK webauthn or totp choose webauthn",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -88,7 +93,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK webauthn or totp choose totp",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			stdin:        "123456",
@@ -103,21 +109,24 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "NOK no webauthn response",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no totp response",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP: &proto.TOTPChallenge{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no webauthn or totp response",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -125,6 +134,102 @@ func TestCLIPrompt(t *testing.T) {
 				TOTP:              &proto.TOTPChallenge{},
 			},
 			expectErr: context.DeadlineExceeded,
+		},
+		{
+			name: "OK otp and webauthn with PIN",
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP:              &proto.TOTPChallenge{},
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			expectStdOut: `Tap any security key or enter a code from a OTP device
+Detected security key tap
+Enter your security key PIN:
+`,
+			expectResp: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: &webauthnpb.CredentialAssertionResponse{
+						RawId: []byte{1, 2, 3, 4, 5},
+					},
+				},
+			},
+			makeWebauthnLoginFunc: func(stdin *prompt.FakeReader) mfa.WebauthnLoginFunc {
+				return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					ack, err := prompt.PromptTouch()
+					if err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+
+					// Ack first (so the OTP goroutine stops)...
+					if err := ack(); err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+
+					// ...then send the PIN to stdin...
+					const pin = "1234"
+					stdin.AddString(pin)
+
+					// ...then prompt for the PIN.
+					switch got, err := prompt.PromptPIN(); {
+					case err != nil:
+						return nil, "", trace.Wrap(err)
+					case got != pin:
+						return nil, "", errors.New("invalid PIN")
+					}
+
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: &webauthnpb.CredentialAssertionResponse{
+								RawId: []byte{1, 2, 3, 4, 5},
+							},
+						},
+					}, "", nil
+				}
+			},
+		},
+		{
+			name: "OK webauthn with PIN",
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP:              nil, // no TOTP challenge
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			stdin: "1234",
+			expectStdOut: `Tap any security key
+Detected security key tap
+Enter your security key PIN:
+`,
+			expectResp: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: &webauthnpb.CredentialAssertionResponse{
+						RawId: []byte{1, 2, 3, 4, 5},
+					},
+				},
+			},
+			makeWebauthnLoginFunc: func(_ *prompt.FakeReader) mfa.WebauthnLoginFunc {
+				return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					ack, err := prompt.PromptTouch()
+					if err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+					if err := ack(); err != nil {
+						return nil, "", trace.Wrap(err)
+					}
+
+					switch got, err := prompt.PromptPIN(); {
+					case err != nil:
+						return nil, "", trace.Wrap(err)
+					case got != "1234":
+						return nil, "", errors.New("invalid PIN")
+					}
+
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: &webauthnpb.CredentialAssertionResponse{
+								RawId: []byte{1, 2, 3, 4, 5},
+							},
+						},
+					}, "", nil
+				}
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -141,25 +246,32 @@ func TestCLIPrompt(t *testing.T) {
 			prompt.SetStdin(stdin)
 
 			cfg := mfa.NewPromptConfig("proxy.example.com")
-			cfg.AllowStdinHijack = true
 			cfg.WebauthnSupported = true
-			cfg.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-				if _, err := prompt.PromptTouch(); err != nil {
-					return nil, "", trace.Wrap(err)
-				}
+			if tc.makeWebauthnLoginFunc != nil {
+				cfg.WebauthnLoginFunc = tc.makeWebauthnLoginFunc(stdin)
+			} else {
+				cfg.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					if _, err := prompt.PromptTouch(); err != nil {
+						return nil, "", trace.Wrap(err)
+					}
 
-				if tc.expectResp.GetWebauthn() == nil {
-					<-ctx.Done()
-					return nil, "", trace.Wrap(ctx.Err())
-				}
+					if tc.expectResp.GetWebauthn() == nil {
+						<-ctx.Done()
+						return nil, "", trace.Wrap(ctx.Err())
+					}
 
-				return tc.expectResp, "", nil
+					return tc.expectResp, "", nil
+				}
 			}
 
 			buffer := make([]byte, 0, 100)
 			out := bytes.NewBuffer(buffer)
 
-			prompt := mfa.NewCLIPrompt(cfg, out)
+			prompt := mfa.NewCLIPrompt(&mfa.CLIPromptConfig{
+				PromptConfig:     *cfg,
+				Writer:           out,
+				AllowStdinHijack: true,
+			})
 			resp, err := prompt.Run(ctx, tc.challenge)
 
 			if tc.expectErr != nil {

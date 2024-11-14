@@ -387,13 +387,31 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var (
+		appInfo *appInfo
+		app     types.Application
+	)
+	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	app, err := appInfo.GetApp(cf.Context, tc)
-	if err != nil {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		app, err = appInfo.GetApp(cf.Context, clusterClient.AuthClient)
+		return trace.Wrap(err)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 

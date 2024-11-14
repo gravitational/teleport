@@ -18,8 +18,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import { Text, Box, ResourceIcon } from 'design';
 
 import cfg from 'teleport/config';
 import {
@@ -55,7 +54,7 @@ export function IntegrationTiles({
         data-testid="tile-aws-oidc"
       >
         <Box mt={3} mb={2}>
-          <AWSIcon size={80} />
+          <ResourceIcon name="aws" width="80px" />
         </Box>
         <Text>
           Amazon Web Services
@@ -88,7 +87,7 @@ export function IntegrationTiles({
           data-testid="tile-external-audit-storage"
         >
           <Box mt={3} mb={2}>
-            <AWSIcon size={80} />
+            <ResourceIcon name="aws" width="80px" />
           </Box>
           <Text>AWS External Audit Storage</Text>
           {renderExternalAuditStorageBadge(

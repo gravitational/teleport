@@ -19,6 +19,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func mustParseURL(t *testing.T, urlString string) *url.URL {
@@ -28,6 +30,9 @@ func mustParseURL(t *testing.T, urlString string) *url.URL {
 }
 
 func Test_CheckChannelURL(t *testing.T) {
+	b := &Bot{
+		log: utils.NewSlogLoggerForTests(),
+	}
 	tests := []struct {
 		name             string
 		url              string
@@ -70,10 +75,22 @@ func Test_CheckChannelURL(t *testing.T) {
 			expectedUserData: nil,
 			validURL:         false,
 		},
+		{
+			name: "troubleshoot",
+			url:  "https://teams.microsoft.com/l/channel/19%3A0cb90b248ba740a9adb4c732f227f3bc%40thread.tacv2/Teleport-MsTeams-Nara?groupId=4030a14f-55c5-4da5-9d98-b318f7c41481&tenantId=ff882432-09b0-437b-bd22-ca13c0037ded",
+			expectedUserData: &Channel{
+				Name:   "Teleport-MsTeams-Nara",
+				Group:  "4030a14f-55c5-4da5-9d98-b318f7c41481",
+				Tenant: "ff882432-09b0-437b-bd22-ca13c0037ded",
+				URL:    *mustParseURL(t, "https://teams.microsoft.com/l/channel/19%3A0cb90b248ba740a9adb4c732f227f3bc%40thread.tacv2/Teleport-MsTeams-Nara?groupId=4030a14f-55c5-4da5-9d98-b318f7c41481&tenantId=ff882432-09b0-437b-bd22-ca13c0037ded"),
+				ChatID: "19:0cb90b248ba740a9adb4c732f227f3bc@thread.tacv2",
+			},
+			validURL: true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			data, ok := checkChannelURL(tc.url)
+			data, ok := b.checkChannelURL(tc.url)
 			require.Equal(t, tc.validURL, ok)
 			if tc.validURL {
 				require.Equal(t, tc.expectedUserData, data)

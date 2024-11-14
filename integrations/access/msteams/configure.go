@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	guideURL = "https://goteleport.com/docs/enterprise/workflow/"
+	guideURL = "https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/"
 )
 
 var (

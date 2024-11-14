@@ -96,7 +96,7 @@ export function DocumentTerminal(props: {
                 {
                   serverUri: doc.serverUri,
                   login: doc.login,
-                  source: file.path,
+                  source: ctx.getPathForFile(file),
                   destination: destinationPath,
                 },
                 abortController

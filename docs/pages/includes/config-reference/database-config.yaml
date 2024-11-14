@@ -5,8 +5,6 @@ db_service:
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
   resources:
-    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
-    # to learn more on database labels.
   - labels:
       "*": "*"
     # Optional AWS role that the Database Service will assume to access the

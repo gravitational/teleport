@@ -1,0 +1,189 @@
+---
+title: "Teleport Terraform Provider"
+description: Reference documentation of the Teleport Terraform provider.
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
+The Teleport Terraform provider allows Terraform users to configure Teleport
+from Terraform.
+
+This section is the Teleport Terraform Provider reference.
+It lists all the supported resources and their fields.
+
+<Admonition type="tip">
+To get started with the Terraform provider, you must start with [the installation
+guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
+Once you got a working provider, we recommend you to follow the
+["Managing users and roles with IaC"](
+../../admin-guides/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
+</Admonition>
+
+The provider exposes Teleport resources both as Terraform data-sources and Terraform resources.
+Data-sources are used by Terraform to fetch information from Teleport, while resources are used
+to create resources in Teleport.
+
+{/* Note: the awkward `resource-index` file names are here because `data-sources`
+is reserved by the generator for the catch-all resource template */}
+
+- [list of supported resources](./resources/resources.mdx)
+- [list of supported data-sources](./data-sources/data-sources.mdx)
+
+## Example Usage
+
+<Tabs>
+<TabItem label="self-hosted">
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 15.0"
+    }
+  }
+}
+
+provider "teleport" {
+  # Update addr to point to Teleport Auth/Proxy
+  # addr              = "auth.example.com:3025"
+  addr               = "proxy.example.com:443"
+  identity_file_path = "terraform-identity/identity"
+}
+```
+
+</TabItem>
+<TabItem label="cloud">
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 15.0"
+    }
+  }
+}
+
+provider "teleport" {
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
+  addr               = "mytenant.teleport.sh:443"
+  identity_file_path = "terraform-identity/identity"
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Connection methods
+
+This section lists the different ways of passing credentials to the Terraform provider.
+You can find which method fits your use case in
+the [Teleport Terraform provider setup
+page](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+
+### With an identity file
+
+With this connection method, you must provide an identity file.This file allows Terraform to connect both via the Proxy
+Service (ports 443 or 3080) and via the Auth Service (port 3025). This is the recommended way of passing credentials to
+the Terraform provider.
+
+The identity file can be obtained via several ways:
+
+### Obtaining an identity file locally with `tctl`
+
+Since 16.2, you can use `tctl` and your local credentials to create a temporary bot and load its identity
+in your shell's environment variables:
+
+```code
+$ eval "$(tctl terraform env)"
+🔑 Detecting if MFA is required
+This is an admin-level action and requires MFA to complete
+Tap any security key
+Detected security key tap
+⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+🤖 Using the temporary bot to obtain certificates
+🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+```
+
+You can find more information in
+the ["Run the Terraform provider locally" guide](../../admin-guides/infrastructure-as-code/terraform-provider/local.mdx)
+
+#### Obtaining an identity file via `tbot`
+
+`tbot` relies on [MachineID](../../enroll-resources/machine-id/introduction.mdx) to obtain and automatically renew
+short-lived credentials. Such credentials are harder to exfiltrate, and you can control more precisely who has access to
+which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
+
+You can follow [the Terraform Provider
+guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to setup `tbot`
+and have Terraform use its identity.
+
+#### Obtaining an identity file via `tctl auth sign`
+
+You can obtain an identity file with the command
+
+```code
+$ tctl auth sign --user terraform --format file -o identity.pem
+```
+
+This auth method has the following limitations:
+- Such credentials are high-privileged and long-lived. They must be protected and rotated.
+- This auth method does not work against Teleport clusters with MFA set to `webauthn`.
+  On such clusters, Teleport will reject any long-lived certificate and require
+  [an additional MFA challenge for administrative actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
+
+### With a token (native MachineID)
+
+Starting with 16.2, the Teleport Terraform provider can natively use MachineID (without `tbot`) to join a Teleport
+cluster. The Terraform Provider will rely on its runtime (AWS, GCP, Kubernetes, CI/CD system) to prove its identity to
+Teleport.
+
+You can use any [delegated join method](../join-methods.mdx#delegated-join-methods) by setting
+both `join_method` and `join_token` in the provider configuration.
+
+This setup is described in more details in
+the ["Run the Teleport Terraform provider in CI or Cloud" guide](../../admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud.mdx).
+
+### With key, certificate, and CA certificate
+
+With this connection method, you must provide a TLS key, a TLS certificate, and the Teleport Auth Service TLS CA certificates.
+Those can be obtained with the command:
+
+```code
+$ tctl auth sign --user terraform --format=tls -o terraform.pem
+```
+
+This auth method has the following limitations:
+- The provider can only connect to the Auth directly (port 3025). On most clusters, only the proxy is publicly exposed.
+- Such credentials are high-privileged and long-lived. They must be protected and rotated.
+- This auth method does not work against Teleport clusters with MFA set to `webauthn`.
+  On such clusters, Teleport will reject any long-lived certificate and require
+  [an additional MFA challenge for administrative actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
+
+{/*  schema generated by tfplugindocs */}
+## Schema
+
+### Optional
+
+- `addr` (String) host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `TF_TELEPORT_ADDR`.
+- `audience_tag` (String) Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `TF_TELEPORT_JOIN_AUDIENCE_TAG`.
+- `cert_base64` (String) Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.
+- `cert_path` (String) Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.
+- `dial_timeout_duration` (String) DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.
+- `identity_file` (String, Sensitive) Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.
+- `identity_file_base64` (String, Sensitive) Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.
+- `identity_file_path` (String) Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.
+- `join_method` (String) Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_METHOD`.
+- `join_token` (String) Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_TOKEN`.
+- `key_base64` (String, Sensitive) Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.
+- `key_path` (String) Path to Teleport auth key file. This can also be set with the environment variable `TF_TELEPORT_KEY`.
+- `profile_dir` (String) Teleport profile path. This can also be set with the environment variable `TF_TELEPORT_PROFILE_PATH`.
+- `profile_name` (String) Teleport profile name. This can also be set with the environment variable `TF_TELEPORT_PROFILE_NAME`.
+- `retry_base_duration` (String) Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_BASE_DURATION`.
+- `retry_cap_duration` (String) Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_CAP_DURATION`.
+- `retry_max_tries` (String) Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `TF_TELEPORT_RETRY_MAX_TRIES`.
+- `root_ca_base64` (String) Base64 encoded Root CA. This can also be set with the environment variable `TF_TELEPORT_CA_BASE64`.
+- `root_ca_path` (String) Path to Teleport Root CA. This can also be set with the environment variable `TF_TELEPORT_ROOT_CA`.
+

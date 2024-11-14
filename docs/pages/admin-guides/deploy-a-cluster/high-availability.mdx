@@ -296,7 +296,7 @@ pod or virtual machine in your group.
 
 If you plan to run Teleport on Kubernetes, the `teleport-cluster` Helm chart
 deploys the Auth Service and Proxy Service pools for you. To see how to use this
-Helm chart, read our [Helm Deployments](helm-deployments.mdx) documentation.
+Helm chart, read our [Helm Deployments](helm-deployments/helm-deployments.mdx) documentation.
 
 </Notice>
 
@@ -353,7 +353,7 @@ Create a configuration file and provide it to each of your Proxy Service
 instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
-to follow a more specific [deployment guide](deployments.mdx) for your
+to follow a more specific [deployment guide](deployments/deployments.mdx) for your
 environment. 
 
 #### `proxy_service` and `auth_service`
@@ -467,7 +467,7 @@ Create a configuration file and provide it to each of your Auth Service
 instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
-to follow a more specific [deployment guide](deployments.mdx) for your
+to follow a more specific [deployment guide](deployments/deployments.mdx) for your
 environment.
 
 #### `storage`
@@ -540,8 +540,8 @@ deployment, read about how to design your own deployment on Kubernetes or a
 cluster of virtual machines in your cloud of choice:
 
 - [High-availability Teleport Deployments on Kubernetes with
-  Helm](helm-deployments.mdx)
-- [Reference Deployments](deployments.mdx) for running Teleport on a cluster of
+  Helm](helm-deployments/helm-deployments.mdx)
+- [Reference Deployments](deployments/deployments.mdx) for running Teleport on a cluster of
   virtual machines
 
 ### Ensure high performance
@@ -550,7 +550,7 @@ You should also get familiar with how to ensure that your Teleport deployment is
 performing as expected:
 
 - [Scaling a Teleport cluster](../management/operations/scaling.mdx)
-- [Monitoring a Teleport cluster](../management/diagnostics.mdx)
+- [Monitoring a Teleport cluster](../management/diagnostics/diagnostics.mdx)
 
 ### Deploy Teleport services
 

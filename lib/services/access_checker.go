@@ -182,7 +182,11 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles() []string
+	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
+
+	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+	// that allowed requesting to the requested Kubernetes resource kind.
+	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
@@ -1009,6 +1013,11 @@ type HostUsersInfo struct {
 	GID string
 	// Shell is the default login shell for a host user
 	Shell string
+	// TakeOwnership determines whether or not an existing user should be
+	// taken over by teleport. This currently only applies to 'static' mode
+	// users, 'keep' mode users still need to assign 'teleport-keep' in the
+	// Groups slice in order to take ownership.
+	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
@@ -1030,6 +1039,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		createHostUserMode := role.GetOptions().CreateHostUserMode
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		createHostUser := role.GetOptions().CreateHostUser
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF

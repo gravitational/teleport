@@ -324,7 +324,7 @@ func TestConfigReading(t *testing.T) {
 				},
 			},
 			Storage: backend.Config{
-				Type: "bolt",
+				Type: "sqlite",
 			},
 			DataDir: "/path/to/data",
 			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
@@ -1541,7 +1541,7 @@ func makeConfigFixture() string {
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
-	conf.Storage.Type = "bolt"
+	conf.Storage.Type = "sqlite"
 	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
@@ -3670,9 +3670,9 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
@@ -4346,6 +4346,53 @@ func TestDiscoveryConfig(t *testing.T) {
 				},
 				ProjectIDs: []string{"p1", "p2"},
 			}},
+		},
+		{
+			desc:          "GCP section is filled with wildcard project ids",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"*"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs: []string{"*"},
+			}},
+		},
+		{
+			desc:          "GCP section mixes wildcard and specific project ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "*"},
+					},
+				}
+			},
 		},
 		{
 			desc:          "GCP section is filled with installer",

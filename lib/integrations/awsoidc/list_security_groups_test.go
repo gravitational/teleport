@@ -284,6 +284,10 @@ func TestConvertSecurityGroup(t *testing.T) {
 							ToPort:     aws.Int32(22),
 							IpProtocol: aws.String("tcp"),
 							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+							UserIdGroupPairs: []ec2Types.UserIdGroupPair{{
+								GroupId:     aws.String("sg-123"),
+								Description: aws.String("allowed from another sg"),
+							}},
 						},
 					},
 					IpPermissionsEgress: []ec2Types.IpPermission{
@@ -300,6 +304,10 @@ func TestConvertSecurityGroup(t *testing.T) {
 							IpRanges: []ec2Types.IpRange{{
 								CidrIp:      aws.String("0.0.0.0/0"),
 								Description: aws.String("Everything"),
+							}},
+							UserIdGroupPairs: []ec2Types.UserIdGroupPair{{
+								GroupId:     aws.String("sg-456"),
+								Description: aws.String("allowed to another sg"),
 							}},
 						},
 					},
@@ -333,6 +341,7 @@ func TestConvertSecurityGroup(t *testing.T) {
 							FromPort:   22,
 							ToPort:     22,
 							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+							Groups:     []GroupIDRule{{GroupId: "sg-123", Description: "allowed from another sg"}},
 						},
 					},
 					OutboundRules: []SecurityGroupRule{
@@ -352,6 +361,7 @@ func TestConvertSecurityGroup(t *testing.T) {
 								CIDR:        "0.0.0.0/0",
 								Description: "Everything",
 							}},
+							Groups: []GroupIDRule{{GroupId: "sg-456", Description: "allowed to another sg"}},
 						},
 					},
 				},

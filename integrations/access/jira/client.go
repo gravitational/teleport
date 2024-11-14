@@ -99,6 +99,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 		Transport: &http.Transport{
 			MaxConnsPerHost:     jiraMaxConns,
 			MaxIdleConnsPerHost: jiraMaxConns,
+			Proxy:               http.ProxyFromEnvironment,
 		}}).
 		SetBaseURL(conf.URL).
 		SetBasicAuth(conf.Username, conf.APIToken).

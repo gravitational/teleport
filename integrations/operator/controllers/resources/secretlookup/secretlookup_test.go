@@ -53,7 +53,7 @@ func TestLookupSecret(t *testing.T) {
 			Type:       v1.SecretTypeOpaque,
 		}
 	}
-	okAnnotations := map[string]string{AllowInclusionAnnotation: strings.Join([]string{"other-cr-name", crName}, ", ")}
+	okAnnotations := map[string]string{AllowLookupAnnotation: strings.Join([]string{"other-cr-name", crName}, ", ")}
 	okSecret := secretWithAnnotations(okAnnotations)
 
 	// Test setup: defining test cases
@@ -107,7 +107,7 @@ func TestLookupSecret(t *testing.T) {
 		{
 			name:    "secret annotations don't allow inclusion",
 			input:   fmt.Sprintf("secret://%s/%s", secretName, keyName),
-			secrets: v1.SecretList{Items: []v1.Secret{secretWithAnnotations(map[string]string{AllowInclusionAnnotation: "not-the-right-cr"})}},
+			secrets: v1.SecretList{Items: []v1.Secret{secretWithAnnotations(map[string]string{AllowLookupAnnotation: "not-the-right-cr"})}},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "does not contain")
 			},
@@ -192,7 +192,7 @@ func Test_isInclusionAllowed(t *testing.T) {
 			secret: v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						AllowInclusionAnnotation: "",
+						AllowLookupAnnotation: "",
 					},
 				},
 			},
@@ -203,7 +203,7 @@ func Test_isInclusionAllowed(t *testing.T) {
 			secret: v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						AllowInclusionAnnotation: "foo, bar",
+						AllowLookupAnnotation: "foo, bar",
 					},
 				},
 			},
@@ -214,7 +214,7 @@ func Test_isInclusionAllowed(t *testing.T) {
 			secret: v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						AllowInclusionAnnotation: crName,
+						AllowLookupAnnotation: crName,
 					},
 				},
 			},
@@ -225,7 +225,7 @@ func Test_isInclusionAllowed(t *testing.T) {
 			secret: v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						AllowInclusionAnnotation: strings.Join([]string{"foo", "bar", crName}, ", "),
+						AllowLookupAnnotation: strings.Join([]string{"foo", "bar", crName}, ", "),
 					},
 				},
 			},
@@ -236,7 +236,7 @@ func Test_isInclusionAllowed(t *testing.T) {
 			secret: v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						AllowInclusionAnnotation: "*",
+						AllowLookupAnnotation: "*",
 					},
 				},
 			},

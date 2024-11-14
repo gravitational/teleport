@@ -37,6 +37,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -160,18 +162,11 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	}
 
 	if len(line) > l.MaxScanTokenSize {
-		switch {
-		case canReduceMessageSize(event):
-			line, err = l.trimSizeAndMarshal(event)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			MetricStoredTrimmedEvents.Inc()
-		default:
-			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
-			l.WithFields(fields).Warnf("Got a event that exceeded max allowed size.")
-			return trace.BadParameter("event size %v exceeds max entry size %v", len(line), l.MaxScanTokenSize)
+		line, err = l.trimSizeAndMarshal(event)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		MetricStoredTrimmedEvents.Inc()
 	}
 
 	// log it to the main log file:
@@ -179,17 +174,8 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	return trace.ConvertSystemError(err)
 }
 
-func canReduceMessageSize(event apievents.AuditEvent) bool {
-	_, ok := event.(messageSizeTrimmer)
-	return ok
-}
-
 func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
-	s, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, trace.BadParameter("invalid event type %T", event)
-	}
-	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
+	sEvent := event.TrimToMaxSize(l.MaxScanTokenSize)
 	line, err := utils.FastMarshal(sEvent)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,10 +184,6 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 		return nil, trace.BadParameter("event %T reached max FileLog entry size limit, current size %v", event, len(line))
 	}
 	return line, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 // SearchEvents is a flexible way to find events.
@@ -375,6 +357,14 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 	}
 	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
 	return events, lastKey, trace.Wrap(err)
+}
+
+func (l *FileLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("FileLog does not implement ExportUnstructuredEvents"))
+}
+
+func (l *FileLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("FileLog does not implement GetEventExportChunks"))
 }
 
 type searchEventsFilter struct {

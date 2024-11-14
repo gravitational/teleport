@@ -43,7 +43,7 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 - An existing Teleport cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](infrastructure-as-code/terraform-provider.mdx) and
+  Terraform provider](infrastructure-as-code/terraform-provider/terraform-provider.mdx) and
   [Kubernetes
   operator](infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx), in
   addition to custom scripts that use the [Teleport API](api/api.mdx)
@@ -72,13 +72,22 @@ migrating from Teleport Enterprise to Teleport Community Edition.
    Teleport](deploy-a-cluster/deploy-a-cluster.mdx).
 
 1. Ensure you are running Teleport Enterprise agents with versions that are
-   lower than the new Teleport Enterprise account version. To check the
-   versions of your Teleport Enterprise agents, you can use the `tctl` command
+   the same major or just one major version lower than the new Teleport
+   Enterprise account version. To check the  versions of your Teleport 
+   Enterprise agents, you can use the `tctl` command
    to list the inventory of connected agents and their version:
 
    ```code  
+   # check for older versions
    $ tctl inventory ls --older-than=<version>
+   # check for newer versions
+   $ tctl inventory ls --newer-than=<version>
    ```
+
+1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to 
+   [Set up Automatic Agent Updates](../upgrading/automatic-agent-updates.mdx) to
+   incorporate this into your migration.
+
 
 Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
@@ -220,6 +229,22 @@ To migrate Teleport agents:
 
 1. Stop Teleport services on each Agent (if applicable).
 
+1. If you are using Teleport repositories to install on Linux
+   update the repository channel to `stable/cloud` for Teleport
+   Enterprise (Cloud). For self-hosted Teleport Enterprise you can use the major version
+   `stable/v(=teleport.major_version=)` or if you are using automatic
+   upgrades the `stable/rolling` channel has all released versions.
+
+
+1. If you are using Teleport Community Edition, [uninstall Teleport](./management/admin/uninstall-teleport.mdx)
+   and install the enterprise edition of the `teleport` binary. You can confirm if the binary
+   is correct by running `teleport version`. The output will contain the words
+   `Teleport Enterprise`. The enterprise edition of the `teleport`
+   binary should be used when connecting to Teleport Enterprise (Cloud) or
+   Teleport Enterprise (Self-Hosted).
+
+
+
 1. Update the `proxy_server` or `auth_servers` field in each Agent configuration
    file to point to the address of your new Teleport Enterprise cluster. By
    default, on Linux servers, the configuration is located in the
@@ -270,6 +295,8 @@ To migrate Teleport agents:
    # delete the state secret
    kubectl -n <namespace> delete secret <release-name>-0-state
    ```
+   The settings for the new Teleport Kubernetes Agent should have the 
+   `enterprise` value set to true.
 
 ### Migrate Machine ID Bots
 
@@ -281,7 +308,7 @@ In general, you can migrate a Machine ID Bot using the following steps:
 1. Restart `tbot`.
 
 To learn how to restart and configure a Machine ID Bot in your infrastructure,
-read the [full documentation](../enroll-resources/machine-id/deployment.mdx) on deploying a
+read the [full documentation](../enroll-resources/machine-id/deployment/deployment.mdx) on deploying a
 Machine ID Bot.
 
 ### Access Request plugins and the Event Handler
@@ -303,8 +330,8 @@ In general, you can migrate Teleport plugins using the following steps:
 
 For specific plugins running in your infrastructure, read the full documentation
 on:
-- [Access Request plugins](access-controls/access-request-plugins.mdx)
-- The [Teleport Event Handler](management/export-audit-events.mdx)
+- [Access Request plugins](access-controls/access-request-plugins/access-request-plugins.mdx)
+- The [Teleport Event Handler](management/export-audit-events/export-audit-events.mdx)
 
 ## Step 4/4. Verify end user access and performance
 

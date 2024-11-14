@@ -37,9 +37,6 @@ import (
 
 // AWSClientRequest contains the required fields to set up an AWS service client.
 type AWSClientRequest struct {
-	// IntegrationName is the integration name that is going to issue an API Call.
-	IntegrationName string
-
 	// Token is the token used to issue the API Call.
 	Token string
 
@@ -55,10 +52,6 @@ type AWSClientRequest struct {
 
 // CheckAndSetDefaults checks if the required fields are present.
 func (req *AWSClientRequest) CheckAndSetDefaults() error {
-	if req.IntegrationName == "" {
-		return trace.BadParameter("integration name is required")
-	}
-
 	if req.Token == "" {
 		return trace.BadParameter("token is required")
 	}
@@ -177,15 +170,15 @@ func (j IdentityToken) GetIdentityToken() ([]byte, error) {
 	return []byte(j), nil
 }
 
-type callerIdentityGetter interface {
+// CallerIdentityGetter is a subset of [sts.Client] that can be used to information about the caller identity.
+type CallerIdentityGetter interface {
 	// GetCallerIdentity returns information about the caller identity.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
-// checkAccountID is a helper func that check if the current caller account ID
-// matches the expected account ID, in order to check that the command was run
-// in the expected AWS account.
-func checkAccountID(ctx context.Context, clt callerIdentityGetter, wantAccountID string) error {
+// CheckAccountID is a helper func that check if the current caller account ID
+// matches the expected account ID.
+func CheckAccountID(ctx context.Context, clt CallerIdentityGetter, wantAccountID string) error {
 	if wantAccountID == "" {
 		return nil
 	}

@@ -1,6 +1,7 @@
 # AuthPreference resource
 
 resource "teleport_auth_preference" "example" {
+  version = "v2"
   metadata = {
     description = "Auth preference"
     labels = {

@@ -222,6 +222,7 @@ export default class MainProcess {
       `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
       `--agents-dir=${agentsDir}`,
       `--installation-id=${settings.installationId}`,
+      `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
     if (settings.insecure) {

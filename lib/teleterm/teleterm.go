@@ -53,8 +53,9 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		Clock:              clock,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		AddKeysToAgent:     cfg.AddKeysToAgent,
 	})
 	if err != nil {
 		return trace.Wrap(err)

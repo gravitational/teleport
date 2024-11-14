@@ -214,6 +214,15 @@ message SecurityGroupRuleCIDR {
   string description = 2;
 }
 
+// SecurityGroupRuleGroupID has an allowed security group ID and a description
+// for the rule.
+message SecurityGroupRuleGroupID {
+  // GroupID is the allowed security group ID.
+  string group_id = 1;
+  // Description contains a small text describing the allowed security group.
+  string description = 2;
+}
+
 // SecurityGroupRule is a representation of a SecurityGroupRule.
 // Either for Inbound or Outbound rules.
 message SecurityGroupRule {
@@ -228,6 +237,9 @@ message SecurityGroupRule {
   int32 to_port = 3;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   repeated SecurityGroupRuleCIDR cidrs = 4;
+  // GroupIds is a list of rules that allow another security group referenced
+  // by ID.
+  repeated SecurityGroupRuleGroupID group_ids = 5;
 }
 
 // SecurityGroup is a representation of a SecurityGroup
@@ -503,6 +515,13 @@ message EKSCluster {
   // Known values are:
   // CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
   string status = 6;
+  // EndpointPublicAccess indicates whether this EKS Cluster is accessible publicly.
+  // If only private access is available, then the EKS Cluster can't be enrolled from Teleport Cloud.
+  bool endpoint_public_access = 7;
+  // AuthenticationMode is the allowed authentication mode for the cluster.
+  // Known values are:
+  // API | API_AND_CONFIG_MAP | CONFIG_MAP
+  string authentication_mode = 8;
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
@@ -517,8 +536,13 @@ message ListEKSClustersResponse {
 // PingRequest is a request for doing an health check against the configured integration.
 message PingRequest {
   // Integration is the AWS OIDC Integration name.
-  // Required.
+  // Required if ARN is empty.
   string integration = 1;
+
+  // The AWS Role ARN to be used when generating the token.
+  // This is used to test another ARN before saving the Integration.
+  // Required if integration is empty.
+  string role_arn = 2;
 }
 
 // PingResponse contains the response for the Ping operation.

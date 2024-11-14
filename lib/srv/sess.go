@@ -19,11 +19,13 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
 	"path"
@@ -66,10 +68,6 @@ const (
 	PresenceMaxDifference  = time.Minute
 )
 
-// SessionControlsInfoBroadcast is sent in tandem with session creation
-// to inform any joining users about the session controls.
-const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
-
 const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
@@ -86,13 +84,31 @@ var serverSessions = prometheus.NewGauge(
 	},
 )
 
+func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
+	var modeCtrl bytes.Buffer
+	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	modeCtrl.WriteString("Teleport > Controls\r\n")
+	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+	if m == types.SessionModeratorMode {
+		modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+	}
+	_, err := w.Write(modeCtrl.Bytes())
+	if err != nil {
+		return fmt.Errorf("could not write bytes: %w", err)
+	}
+	return nil
+}
+
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
 type SessionRegistry struct {
 	SessionRegistryConfig
 
-	// log holds the structured logger
+	// deprecated: log holds the legacy logrus structured logger
 	log *log.Entry
+
+	// logger holds the structured logger
+	logger *slog.Logger
 
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
@@ -173,6 +189,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
+		logger:   slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
 		sudoers:  cfg.Srv.GetHostSudoers(),
@@ -277,15 +294,19 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 // If the returned closer is not nil, it must be called at the end of the session to
 // clean up the local user.
 func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	ctx := s.Srv.Context()
+	log := s.logger.With("host_username", identityContext.Login)
+
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
 		return false, nil, nil
 	}
 
 	if !s.Srv.GetCreateHostUser() || s.users == nil {
-		s.log.Debug("Not creating host user: node has disabled host user creation.")
+		log.DebugContext(ctx, "Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
+	log.DebugContext(ctx, "Attempting to upsert host user")
 	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if trace.IsAccessDenied(accessErr) {
 		existsErr := s.users.UserExists(identityContext.Login)
@@ -304,16 +325,17 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil {
-		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
+		log.DebugContext(ctx, "Error creating user", "error", err)
 
 		if errors.Is(err, unmanagedUserErr) {
-			log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
 			return false, nil, nil
 		}
 
 		if !trace.IsAlreadyExists(err) {
 			return false, nil, trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Host user already exists")
 	}
 
 	return true, userCloser, nil
@@ -397,7 +419,9 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return trace.Wrap(err)
 	}
 
-	canStart, _, err := sess.checkIfStart()
+	sess.mu.Lock()
+	canStart, _, err := sess.checkIfStartUnderLock()
+	sess.mu.Unlock()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -484,7 +508,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		sess.fileTransferReq = nil
 
 		sess.BroadcastMessage("file transfer request %s denied due to %s attempting to transfer files", req.ID, scx.Identity.TeleportUser)
-		_ = s.NotifyFileTransferRequest(req, FileTransferDenied, scx)
+		_ = s.notifyFileTransferRequestUnderLock(req, FileTransferDenied, scx)
 
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
@@ -517,9 +541,9 @@ const (
 	FileTransferDenied FileTransferRequestEvent = "file_transfer_request_deny"
 )
 
-// NotifyFileTransferRequest is called to notify all members of a party that a file transfer request has been created/approved/denied.
+// notifyFileTransferRequestUnderLock is called to notify all members of a party that a file transfer request has been created/approved/denied.
 // The notification is a global ssh request and requires the client to update its UI state accordingly.
-func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
+func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
 		s.log.Debugf("Unable to notify %s, no session found in context.", res)
@@ -1058,7 +1082,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
-	for _, p := range s.parties {
+	for _, p := range s.getParties() {
 		if len(notifyPartyPayload) == 0 {
 			s.log.Warnf("No join event to send to %v", p.sconn.RemoteAddr())
 			continue
@@ -1076,10 +1100,10 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	}
 }
 
-// emitSessionLeaveEvent emits a session leave event to both the Audit Log as
+// emitSessionLeaveEventUnderLock emits a session leave event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 // Must be called under session Lock.
-func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
+func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionLeaveEvent,
@@ -1273,7 +1297,9 @@ func (s *session) launch() {
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
 func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *party) error {
-	canStart, _, err := s.checkIfStart()
+	s.mu.Lock()
+	canStart, _, err := s.checkIfStartUnderLock()
+	s.mu.Unlock()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1291,7 +1317,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1534,11 +1559,8 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 }
 
 func (s *session) broadcastResult(r ExecResult) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
-	for _, p := range s.parties {
+	for _, p := range s.getParties() {
 		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
 			s.log.Infof("Failed to send exit status for %v: %v", r.Command, err)
 		}
@@ -1546,7 +1568,7 @@ func (s *session) broadcastResult(r ExecResult) {
 }
 
 func (s *session) String() string {
-	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
+	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.getParties()))
 }
 
 // removePartyUnderLock removes the party from the in-memory map that holds all party members
@@ -1572,9 +1594,9 @@ func (s *session) removePartyUnderLock(p *party) error {
 
 	// Emit session leave event to both the Audit Log and over the
 	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(p.ctx)
+	s.emitSessionLeaveEventUnderLock(p.ctx)
 
-	canRun, policyOptions, err := s.checkIfStart()
+	canRun, policyOptions, err := s.checkIfStartUnderLock()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1799,7 +1821,7 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	} else {
 		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
 	}
-	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, FileTransferUpdate, scx)
+	err = s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 
 	return trace.Wrap(err)
 }
@@ -1842,7 +1864,7 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisi
 	} else {
 		eventType = FileTransferUpdate
 	}
-	err = s.registry.NotifyFileTransferRequest(s.fileTransferReq, eventType, scx)
+	err = s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, eventType, scx)
 
 	return trace.Wrap(err)
 }
@@ -1875,12 +1897,15 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 	s.fileTransferReq = nil
 
 	s.BroadcastMessage("%s denied file transfer request %s", scx.Identity.TeleportUser, req.ID)
-	err := s.registry.NotifyFileTransferRequest(req, FileTransferDenied, scx)
+	err := s.registry.notifyFileTransferRequestUnderLock(req, FileTransferDenied, scx)
 
 	return trace.Wrap(err)
 }
 
-func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
+// checkIfStartUnderLock determines if any moderation policies associated with
+// the session are satisfied.
+// Must be called under session Lock.
+func (s *session) checkIfStartUnderLock() (bool, auth.PolicyOptions, error) {
 	var participants []auth.SessionAccessContext
 
 	for _, party := range s.parties {
@@ -1919,7 +1944,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	}
 
 	if len(s.parties) == 0 {
-		canStart, _, err := s.checkIfStart()
+		canStart, _, err := s.checkIfStartUnderLock()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1941,16 +1966,23 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	// Send the participant mode and controls to the additional participant
+	if s.login != p.login {
+		err := MsgParticipantCtrls(p.ch, mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
 	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {
@@ -1965,7 +1997,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	}
 
 	if s.tracker.GetState() == types.SessionState_SessionStatePending {
-		canStart, _, err := s.checkIfStart()
+		canStart, _, err := s.checkIfStartUnderLock()
 		if err != nil {
 			return trace.Wrap(err)
 		}

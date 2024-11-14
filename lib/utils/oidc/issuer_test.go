@@ -32,6 +32,7 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		addr     string
+		path     string
 		expected string
 	}{
 		{
@@ -40,9 +41,21 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 			expected: "https://127.0.0.1.nip.io:3080",
 		},
 		{
+			name:     "valid host:port with path",
+			addr:     "127.0.0.1.nip.io:3080",
+			path:     "/workload-identity",
+			expected: "https://127.0.0.1.nip.io:3080/workload-identity",
+		},
+		{
 			name:     "valid ip:port",
 			addr:     "127.0.0.1:3080",
 			expected: "https://127.0.0.1:3080",
+		},
+		{
+			name:     "valid ip:port with path",
+			addr:     "127.0.0.1:3080",
+			path:     "/workload-identity",
+			expected: "https://127.0.0.1:3080/workload-identity",
 		},
 		{
 			name:     "removes 443 port",
@@ -54,9 +67,15 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 			addr:     "localhost",
 			expected: "https://localhost",
 		},
+		{
+			name:     "only host with path",
+			addr:     "localhost",
+			path:     "/workload-identity",
+			expected: "https://localhost/workload-identity",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := IssuerFromPublicAddress(tt.addr)
+			got, err := IssuerFromPublicAddress(tt.addr, tt.path)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
 		})
@@ -79,6 +98,7 @@ func TestIssuerForCluster(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct {
 		name           string
+		path           string
 		mockProxies    []types.Server
 		mockErr        error
 		checkErr       require.ErrorAssertionFunc
@@ -92,6 +112,16 @@ func TestIssuerForCluster(t *testing.T) {
 				}},
 			},
 			expectedIssuer: "https://127.0.0.1.nip.io",
+		},
+		{
+			name: "valid with subpath",
+			path: "/workload-identity",
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io/workload-identity",
 		},
 		{
 			name: "only the second server has a valid public address",
@@ -121,7 +151,7 @@ func TestIssuerForCluster(t *testing.T) {
 				proxies:   tt.mockProxies,
 				returnErr: tt.mockErr,
 			}
-			issuer, err := IssuerForCluster(ctx, clt)
+			issuer, err := IssuerForCluster(ctx, clt, tt.path)
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
 			}

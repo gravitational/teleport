@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 func TestMain(m *testing.M) {
@@ -195,8 +196,8 @@ func TestDynamicClientReuse(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
@@ -538,6 +539,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
 			},
 		},
 		{
@@ -1167,7 +1178,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			dataDir := t.TempDir()
 			// write host_uuid file to temp dir.
 			if len(tt.args.hostIDContent) > 0 {
-				err := utils.WriteHostUUID(dataDir, tt.args.hostIDContent)
+				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
 				require.NoError(t, err)
 			}
 
@@ -1775,12 +1786,16 @@ func TestInitDatabaseService(t *testing.T) {
 
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.DataDir = t.TempDir()
+			cfg.DebugService = servicecfg.DebugConfig{
+				Enabled: false,
+			}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
 			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}

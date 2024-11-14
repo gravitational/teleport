@@ -58,8 +58,7 @@ import (
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir is the directory where teleport stores its permanent state
-	// (in case of auth server backed by BoltDB) or local state, e.g. keys
+	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
 
 	// Hostname is a node host name
@@ -551,7 +550,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StorageConfig.Params = make(backend.Params)
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
@@ -651,6 +650,15 @@ func ValidateConfig(cfg *Config) error {
 
 	if cfg.DataDir == "" {
 		return trace.BadParameter("config: please supply data directory")
+	}
+
+	if cfg.Auth.Enabled {
+		if cfg.Auth.StorageConfig.Params.GetString(defaults.BackendPath) == "" {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
 	}
 
 	for i := range cfg.Auth.Authorities {

@@ -37,6 +37,9 @@ type PluginConfiguration interface {
 	GetRecipients() RawRecipientsMap
 	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
 	GetPluginType() types.PluginType
+	// GetTeleportUser returns the name of the teleport user that acts as the
+	// access request approver.
+	GetTeleportUser() string
 }
 
 type BaseConfig struct {
@@ -44,6 +47,9 @@ type BaseConfig struct {
 	Recipients RawRecipientsMap   `toml:"role_to_recipients"`
 	Log        logger.Config      `toml:"log"`
 	PluginType types.PluginType
+	// TeleportUser is the name of the teleport user that acts as the
+	// access request approver.
+	TeleportUser string
 }
 
 func (c BaseConfig) GetRecipients() RawRecipientsMap {
@@ -88,6 +94,12 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 // GetPluginType returns the type of plugin this config is for.
 func (c BaseConfig) GetPluginType() types.PluginType {
 	return c.PluginType
+}
+
+// GetTeleportUser returns the name of the teleport user that acts as the
+// access request approver.
+func (c BaseConfig) GetTeleportUser() string {
+	return c.TeleportUser
 }
 
 // GenericAPIConfig holds common configuration use by a messaging service.

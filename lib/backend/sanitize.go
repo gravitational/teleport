@@ -41,8 +41,8 @@ var denyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(^|/)\.\.?(/|$)`),
 }
 
-// isKeySafe checks if the passed in key conforms to whitelist
-func isKeySafe(s Key) bool {
+// IsKeySafe checks if the passed in key conforms to whitelist
+func IsKeySafe(s Key) bool {
 	return allowPattern.Match(s) && !denyPatternsMatch(s) && utf8.Valid(s)
 }
 
@@ -74,7 +74,7 @@ func NewSanitizer(backend Backend) *Sanitizer {
 
 // GetRange returns query range
 func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
-	if !isKeySafe(startKey) {
+	if !IsKeySafe(startKey) {
 		return nil, trace.BadParameter(errorMessage, startKey)
 	}
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
@@ -82,7 +82,7 @@ func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit in
 
 // Create creates item if it does not exist
 func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
-	if !isKeySafe(i.Key) {
+	if !IsKeySafe(i.Key) {
 		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 	return s.backend.Create(ctx, i)
@@ -91,7 +91,7 @@ func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
-	if !isKeySafe(i.Key) {
+	if !IsKeySafe(i.Key) {
 		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 
@@ -100,7 +100,7 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 
 // Update updates value in the backend
 func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
-	if !isKeySafe(i.Key) {
+	if !IsKeySafe(i.Key) {
 		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 
@@ -110,7 +110,7 @@ func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 // ConditionalUpdate updates the value in the backend if the revision of the [Item] matches
 // the stored revision.
 func (s *Sanitizer) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
-	if !isKeySafe(i.Key) {
+	if !IsKeySafe(i.Key) {
 		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 
@@ -119,7 +119,7 @@ func (s *Sanitizer) ConditionalUpdate(ctx context.Context, i Item) (*Lease, erro
 
 // Get returns a single item or not found error
 func (s *Sanitizer) Get(ctx context.Context, key Key) (*Item, error) {
-	if !isKeySafe(key) {
+	if !IsKeySafe(key) {
 		return nil, trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.Get(ctx, key)
@@ -128,7 +128,7 @@ func (s *Sanitizer) Get(ctx context.Context, key Key) (*Item, error) {
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) (*Lease, error) {
-	if !isKeySafe(expected.Key) {
+	if !IsKeySafe(expected.Key) {
 		return nil, trace.BadParameter(errorMessage, expected.Key)
 	}
 
@@ -137,7 +137,7 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 
 // Delete deletes item by key
 func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
-	if !isKeySafe(key) {
+	if !IsKeySafe(key) {
 		return trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.Delete(ctx, key)
@@ -145,7 +145,7 @@ func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
 func (s *Sanitizer) ConditionalDelete(ctx context.Context, key Key, revision string) error {
-	if !isKeySafe(key) {
+	if !IsKeySafe(key) {
 		return trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.ConditionalDelete(ctx, key, revision)
@@ -155,7 +155,7 @@ func (s *Sanitizer) ConditionalDelete(ctx context.Context, key Key, revision str
 func (s *Sanitizer) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	// we only validate the start key, since we often compute the end key
 	// in order to delete a bunch of related entries
-	if !isKeySafe(startKey) {
+	if !IsKeySafe(startKey) {
 		return trace.BadParameter(errorMessage, startKey)
 	}
 
@@ -164,7 +164,7 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey, endKey Key) error
 
 func (s *Sanitizer) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
 	for _, ca := range condacts {
-		if !isKeySafe(ca.Key) {
+		if !IsKeySafe(ca.Key) {
 			return "", trace.BadParameter(errorMessage, ca.Key)
 		}
 	}
@@ -177,7 +177,7 @@ func (s *Sanitizer) AtomicWrite(ctx context.Context, condacts []ConditionalActio
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
 func (s *Sanitizer) KeepAlive(ctx context.Context, lease Lease, expires time.Time) error {
-	if !isKeySafe(lease.Key) {
+	if !IsKeySafe(lease.Key) {
 		return trace.BadParameter(errorMessage, lease.Key)
 	}
 	return s.backend.KeepAlive(ctx, lease, expires)
@@ -186,7 +186,7 @@ func (s *Sanitizer) KeepAlive(ctx context.Context, lease Lease, expires time.Tim
 // NewWatcher returns a new event watcher
 func (s *Sanitizer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	for _, prefix := range watch.Prefixes {
-		if !isKeySafe(prefix) {
+		if !IsKeySafe(prefix) {
 			return nil, trace.BadParameter(errorMessage, prefix)
 		}
 	}

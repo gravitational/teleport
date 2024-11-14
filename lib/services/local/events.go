@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -93,6 +94,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
+		case types.KindAutoUpdateConfig:
+			parser = newAutoUpdateConfigParser()
+		case types.KindAutoUpdateVersion:
+			parser = newAutoUpdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -178,6 +183,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindUserTask:
+			parser = newUserTaskParser()
 		case types.KindDiscoveryConfig:
 			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
@@ -696,6 +703,72 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return clusterName, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateConfigParser() *autoUpdateConfigParser {
+	return &autoUpdateConfigParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateConfigPrefix)),
+	}
+}
+
+type autoUpdateConfigParser struct {
+	baseParser
+}
+
+func (p *autoUpdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateConfig)
+		return h, nil
+	case types.OpPut:
+		autoUpdateConfig, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateConfig), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateVersionParser() *autoUpdateVersionParser {
+	return &autoUpdateVersionParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateVersionPrefix)),
+	}
+}
+
+type autoUpdateVersionParser struct {
+	baseParser
+}
+
+func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateVersion, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateVersion)
+		return h, nil
+	case types.OpPut:
+		autoUpdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateVersion), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1691,6 +1764,34 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserTaskParser() *userTaskParser {
+	return &userTaskParser{
+		baseParser: newBaseParser(backend.NewKey(userTasksKey)),
+	}
+}
+
+type userTaskParser struct {
+	baseParser
+}
+
+func (p *userTaskParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserTask, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalUserTask(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

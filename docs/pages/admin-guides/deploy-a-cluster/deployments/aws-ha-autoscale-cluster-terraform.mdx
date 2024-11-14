@@ -350,6 +350,49 @@ The default is `local`.
 
 See the [Teleport authentication reference](../../../reference/access-controls/authentication.mdx) for more information.
 
+### default_tags
+
+```code
+$ export TF_VAR_default_tags='{"key":"value", "env":"dev"}'
+```
+
+This value can be used to control the default tags applied to all resources,
+including resources created dynamically by the AWS Auto Scaling Groups (ASG).
+The default is no tags.
+
+### enable\_auth\_asg\_instance\_refresh
+
+```code
+$ export TF_VAR_enable_auth_asg_instance_refresh="false"
+```
+
+This variable can be used to enable automatic instance refresh on the Teleport
+**auth server** AWS Autoscaling Group (ASG) - the refresh is triggered by
+changes to the launch template or configuration.
+Enable the auth ASG instance refresh with caution - upgrading the version of
+Teleport will trigger an instance refresh and **auth servers must be scaled down
+to only one instance** before upgrading your Teleport cluster.
+
+### enable\_proxy\_asg\_instance\_refresh
+
+```code
+$ export TF_VAR_enable_proxy_asg_instance_refresh="false"
+```
+
+This variable can be used to enable automatic instance refresh on the Teleport
+**proxy server** AWS Autoscaling Group (ASG) - the refresh is triggered by
+changes to the launch template or configuration.
+
+### enable\_node\_asg\_instance\_refresh
+
+```code
+$ export TF_VAR_enable_node_asg_instance_refresh="false"
+```
+
+This variable can be used to enable automatic instance refresh on the Teleport
+**node server** AWS Autoscaling Group (ASG) - the refresh is triggered by
+changes to the launch template or configuration.
+
 ## Reference deployment defaults
 
 ### Instances
@@ -794,7 +837,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/join-services-to-your-cluster.mdx)
+  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
 
 ### Getting the SSH Service join token
 

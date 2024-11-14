@@ -34,6 +34,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	WorkloadIdentityService_SignX509SVIDs_FullMethodName = "/teleport.machineid.v1.WorkloadIdentityService/SignX509SVIDs"
+	WorkloadIdentityService_SignJWTSVIDs_FullMethodName  = "/teleport.machineid.v1.WorkloadIdentityService/SignJWTSVIDs"
 )
 
 // WorkloadIdentityServiceClient is the client API for WorkloadIdentityService service.
@@ -43,6 +44,8 @@ type WorkloadIdentityServiceClient interface {
 	// SignX509SVIDs generates signed x509 SVIDs based on the SVIDs provided in
 	// the request.
 	SignX509SVIDs(ctx context.Context, in *SignX509SVIDsRequest, opts ...grpc.CallOption) (*SignX509SVIDsResponse, error)
+	// SignJWTSVIDs generates signed JWT SVIDs based on the requested SVIDs.
+	SignJWTSVIDs(ctx context.Context, in *SignJWTSVIDsRequest, opts ...grpc.CallOption) (*SignJWTSVIDsResponse, error)
 }
 
 type workloadIdentityServiceClient struct {
@@ -62,6 +65,15 @@ func (c *workloadIdentityServiceClient) SignX509SVIDs(ctx context.Context, in *S
 	return out, nil
 }
 
+func (c *workloadIdentityServiceClient) SignJWTSVIDs(ctx context.Context, in *SignJWTSVIDsRequest, opts ...grpc.CallOption) (*SignJWTSVIDsResponse, error) {
+	out := new(SignJWTSVIDsResponse)
+	err := c.cc.Invoke(ctx, WorkloadIdentityService_SignJWTSVIDs_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkloadIdentityServiceServer is the server API for WorkloadIdentityService service.
 // All implementations must embed UnimplementedWorkloadIdentityServiceServer
 // for forward compatibility
@@ -69,6 +81,8 @@ type WorkloadIdentityServiceServer interface {
 	// SignX509SVIDs generates signed x509 SVIDs based on the SVIDs provided in
 	// the request.
 	SignX509SVIDs(context.Context, *SignX509SVIDsRequest) (*SignX509SVIDsResponse, error)
+	// SignJWTSVIDs generates signed JWT SVIDs based on the requested SVIDs.
+	SignJWTSVIDs(context.Context, *SignJWTSVIDsRequest) (*SignJWTSVIDsResponse, error)
 	mustEmbedUnimplementedWorkloadIdentityServiceServer()
 }
 
@@ -78,6 +92,9 @@ type UnimplementedWorkloadIdentityServiceServer struct {
 
 func (UnimplementedWorkloadIdentityServiceServer) SignX509SVIDs(context.Context, *SignX509SVIDsRequest) (*SignX509SVIDsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignX509SVIDs not implemented")
+}
+func (UnimplementedWorkloadIdentityServiceServer) SignJWTSVIDs(context.Context, *SignJWTSVIDsRequest) (*SignJWTSVIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignJWTSVIDs not implemented")
 }
 func (UnimplementedWorkloadIdentityServiceServer) mustEmbedUnimplementedWorkloadIdentityServiceServer() {
 }
@@ -111,6 +128,24 @@ func _WorkloadIdentityService_SignX509SVIDs_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkloadIdentityService_SignJWTSVIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignJWTSVIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkloadIdentityServiceServer).SignJWTSVIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkloadIdentityService_SignJWTSVIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkloadIdentityServiceServer).SignJWTSVIDs(ctx, req.(*SignJWTSVIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkloadIdentityService_ServiceDesc is the grpc.ServiceDesc for WorkloadIdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -121,6 +156,10 @@ var WorkloadIdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SignX509SVIDs",
 			Handler:    _WorkloadIdentityService_SignX509SVIDs_Handler,
+		},
+		{
+			MethodName: "SignJWTSVIDs",
+			Handler:    _WorkloadIdentityService_SignJWTSVIDs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

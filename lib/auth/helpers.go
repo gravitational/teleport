@@ -67,6 +67,8 @@ import (
 type TestAuthServerConfig struct {
 	// ClusterName is cluster name
 	ClusterName string
+	// ClusterID is the cluster ID; optional - sets to random UUID string if not present
+	ClusterID string
 	// Dir is directory for local backend
 	Dir string
 	// AcceptedUsage is an optional list of restricted
@@ -276,6 +278,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
+		ClusterID:   cfg.ClusterID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -323,6 +326,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			AppSession:              svces.Identity,
 			Apps:                    svces.Apps,
 			ClusterConfig:           svces.ClusterConfiguration,
+			AutoUpdateService:       svces.AutoUpdateService,
 			CrownJewels:             svces.CrownJewels,
 			DatabaseObjects:         svces.DatabaseObjects,
 			DatabaseServices:        svces.DatabaseServices,
@@ -346,6 +350,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			StaticHostUsers:         svces.StaticHostUser,
 			Trust:                   svces.TrustInternal,
 			UserGroups:              svces.UserGroups,
+			UserTasks:               svces.UserTasks,
 			UserLoginStates:         svces.UserLoginStates,
 			Users:                   svces.Identity,
 			WebSession:              svces.Identity.WebSessions(),

@@ -61,6 +61,10 @@ type Features struct {
 	SupportType proto.SupportType
 	// Entitlements reflect Cloud Entitlements including access and limits
 	Entitlements map[entitlements.EntitlementKind]EntitlementInfo
+	// CloudAnonymizationKey is the key used to anonymize usage events in a cluster.
+	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
+	// license file).
+	CloudAnonymizationKey []byte
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -128,6 +132,7 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
+		CloudAnonymizationKey:      f.CloudAnonymizationKey,
 	}
 
 	// remove setLegacyLogic in v18
@@ -290,6 +295,8 @@ type Modules interface {
 	EnableAccessGraph()
 	// EnableAccessMonitoring enables the usage of access monitoring.
 	EnableAccessMonitoring()
+	// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+	LicenseExpiry() time.Time
 }
 
 const (
@@ -377,6 +384,12 @@ func (p *defaultModules) IsOSSBuild() bool {
 // PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
+}
+
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+// Returns the zero value for time.Time for OSS.
+func (p *defaultModules) LicenseExpiry() time.Time {
+	return time.Time{}
 }
 
 // Features returns supported features for default modules which is applied for OSS users

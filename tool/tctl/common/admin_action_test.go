@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
@@ -170,6 +171,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 			},
 			"tctl bots rm": {
 				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -1022,7 +1029,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		promptCfg.WebauthnSupported = true
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.
@@ -1067,7 +1077,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),

@@ -20,6 +20,7 @@ package config
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -121,6 +122,10 @@ type SPIFFEWorkloadAPIService struct {
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
 	// Attestors is the configuration for the workload attestation process.
 	Attestors workloadattest.Config `yaml:"attestors"`
+	// JWTSVIDTTL specifies how long that JWT SVIDs issued by this SPIFFE
+	// Workload API server are valid for. If unspecified, this falls back to
+	// the globally configured default.
+	JWTSVIDTTL time.Duration `yaml:"jwt_svid_ttl,omitempty"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {

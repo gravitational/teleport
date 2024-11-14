@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -32,13 +33,24 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-// PromptConfig contains common mfa prompt config options.
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [wancli.Login].
+type WebauthnLoginFunc func(
+	ctx context.Context,
+	origin string,
+	assertion *wantypes.CredentialAssertion,
+	prompt wancli.LoginPrompt,
+	opts *wancli.LoginOpts,
+) (*proto.MFAAuthenticateResponse, string, error)
+
+// PromptConfig contains common mfa prompt config options shared by
+// different implementations of [mfa.Prompt].
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
-	WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	WebauthnLoginFunc WebauthnLoginFunc
 	// AllowStdinHijack allows stdin hijack during MFA prompts.
 	// Stdin hijack provides a better login UX, but it can be difficult to reason
 	// about and is often a source of bugs.
@@ -147,6 +159,9 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 			// Surface error immediately.
 			return nil, trace.Wrap(resp.Err)
 		case err != nil:
+			log.
+				WithError(err).
+				Debug("MFA goroutine failed, continuing so other goroutines have a chance to succeed")
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.

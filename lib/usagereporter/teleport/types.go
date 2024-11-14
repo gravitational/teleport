@@ -20,6 +20,7 @@ package usagereporter
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -145,9 +146,31 @@ func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 }
 
 func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadata, userMD UserMetadata) *prehogv1a.IntegrationEnrollMetadata {
+	// Some enums are out of sync and need to be mapped manually
+	var prehogKind prehogv1a.IntegrationEnrollKind
+	switch u.Kind {
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_SERVICENOW:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_SERVICENOW
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_ENTRA_ID:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_ENTRA_ID
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES
+	default:
+		prehogKind = prehogv1a.IntegrationEnrollKind(u.Kind)
+	}
 	return &prehogv1a.IntegrationEnrollMetadata{
 		Id:       u.Id,
-		Kind:     prehogv1a.IntegrationEnrollKind(u.Kind),
+		Kind:     prehogKind,
 		UserName: userMD.Username,
 	}
 }
@@ -1023,6 +1046,48 @@ func (e *AccessGraphAWSScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews a diff of a Crown Jewel change.
+type UIAccessGraphCrownJewelDiffViewEvent prehogv1a.UIAccessGraphCrownJewelDiffViewEvent
+
+// Anonymize anonymizes the event.
+func (e *UIAccessGraphCrownJewelDiffViewEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiAccessGraphCrownJewelDiffView{
+			UiAccessGraphCrownJewelDiffView: &prehogv1a.UIAccessGraphCrownJewelDiffViewEvent{
+				AffectedResourceSource: e.AffectedResourceSource,
+				AffectedResourceType:   e.AffectedResourceType,
+			},
+		},
+	}
+}
+
+// AccessGraphAccessPathChangedEvent is emitted when a Crown Jewel Access Path changes.
+type AccessGraphAccessPathChangedEvent prehogv1a.AccessGraphAccessPathChangedEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphAccessPathChangedEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphAccessPathChanged{
+			AccessGraphAccessPathChanged: &prehogv1a.AccessGraphAccessPathChangedEvent{
+				AffectedResourceType:   strings.ToLower(e.AffectedResourceType),
+				AffectedResourceSource: strings.ToLower(e.AffectedResourceSource),
+			},
+		},
+	}
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates a crown jewel object in Teleport.
+type AccessGraphCrownJewelCreateEvent prehogv1a.AccessGraphCrownJewelCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphCrownJewelCreateEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphCrownJewelCreate{
+			AccessGraphCrownJewelCreate: &prehogv1a.AccessGraphCrownJewelCreateEvent{},
+		},
+	}
+}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1181,6 +1246,22 @@ func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 				IpSansCount:  u.IpSansCount,
 				DnsSansCount: u.DnsSansCount,
 				SvidType:     u.SvidType,
+			},
+		},
+	}
+}
+
+// UserTaskStateEvent is an event emitted when the state of a User Task changes.
+type UserTaskStateEvent prehogv1a.UserTaskStateEvent
+
+func (u *UserTaskStateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UserTaskState{
+			UserTaskState: &prehogv1a.UserTaskStateEvent{
+				TaskType:       u.TaskType,
+				IssueType:      u.IssueType,
+				State:          u.State,
+				InstancesCount: u.InstancesCount,
 			},
 		},
 	}
@@ -1676,6 +1757,37 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalSamlProviders: e.AccessGraphAwsScanEvent.TotalSamlProviders,
 			TotalOidcProviders: e.AccessGraphAwsScanEvent.TotalOidcProviders,
 			TotalAccounts:      e.AccessGraphAwsScanEvent.TotalAccounts,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView:
+		data := e.UiAccessGraphCrownJewelDiffView
+		if data.AffectedResourceType == "" {
+			return nil, trace.BadParameter("affected resource type is empty")
+		}
+		if data.AffectedResourceSource == "" {
+			return nil, trace.BadParameter("affected resource source is empty")
+		}
+		ret := &UIAccessGraphCrownJewelDiffViewEvent{
+			AffectedResourceSource: data.AffectedResourceSource,
+			AffectedResourceType:   data.AffectedResourceType,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UserTaskStateEvent:
+		data := e.UserTaskStateEvent
+		if data.TaskType == "" {
+			return nil, trace.BadParameter("task type is empty")
+		}
+		if data.IssueType == "" {
+			return nil, trace.BadParameter("issue type is empty")
+		}
+		if data.State == "" {
+			return nil, trace.BadParameter("state is empty")
+		}
+		ret := &UserTaskStateEvent{
+			TaskType:       data.TaskType,
+			IssueType:      data.IssueType,
+			State:          data.State,
+			InstancesCount: data.InstancesCount,
 		}
 		return ret, nil
 	default:

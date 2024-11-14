@@ -259,6 +259,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -279,6 +280,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -299,6 +301,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -338,6 +341,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -384,6 +388,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -1114,6 +1119,7 @@ func TestTrackingSession(t *testing.T) {
 				id:  rsession.NewID(),
 				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1519,6 +1525,7 @@ func TestUpsertHostUser(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{createHostUser: c.createHostUser},
 				},
@@ -1592,6 +1599,7 @@ func TestWriteSudoersFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{hostSudoers: c.hostSudoers},
 				},
@@ -1640,6 +1648,10 @@ func (f *fakeServer) GetHostSudoers() HostSudoers {
 
 func (f *fakeServer) GetInfo() types.Server {
 	return nil
+}
+
+func (f *fakeServer) Context() context.Context {
+	return context.Background()
 }
 
 type fakeAccessChecker struct {

@@ -26,10 +26,10 @@ import (
 
 // AutoUpdateServiceGetter defines only read-only service methods.
 type AutoUpdateServiceGetter interface {
-	// GetAutoUpdateConfig gets the autoupdate configuration from the backend.
+	// GetAutoUpdateConfig gets the AutoUpdateConfig singleton resource.
 	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
 
-	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	// GetAutoUpdateVersion gets the AutoUpdateVersion singleton resource.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
@@ -37,27 +37,27 @@ type AutoUpdateServiceGetter interface {
 type AutoUpdateService interface {
 	AutoUpdateServiceGetter
 
-	// CreateAutoUpdateConfig creates an auto update configuration.
+	// CreateAutoUpdateConfig creates the AutoUpdateConfig singleton resource.
 	CreateAutoUpdateConfig(ctx context.Context, config *autoupdate.AutoUpdateConfig) (*autoupdate.AutoUpdateConfig, error)
 
-	// UpdateAutoUpdateConfig updates an auto update configuration.
+	// UpdateAutoUpdateConfig updates the AutoUpdateConfig singleton resource.
 	UpdateAutoUpdateConfig(ctx context.Context, config *autoupdate.AutoUpdateConfig) (*autoupdate.AutoUpdateConfig, error)
 
-	// UpsertAutoUpdateConfig sets an auto update configuration.
+	// UpsertAutoUpdateConfig sets the AutoUpdateConfig singleton resource.
 	UpsertAutoUpdateConfig(ctx context.Context, c *autoupdate.AutoUpdateConfig) (*autoupdate.AutoUpdateConfig, error)
 
-	// DeleteAutoUpdateConfig deletes the auto update configuration from the backend.
+	// DeleteAutoUpdateConfig deletes the AutoUpdateConfig singleton resource.
 	DeleteAutoUpdateConfig(ctx context.Context) error
 
-	// CreateAutoUpdateVersion creates an auto update version.
+	// CreateAutoUpdateVersion creates the AutoUpdateVersion singleton resource.
 	CreateAutoUpdateVersion(ctx context.Context, config *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error)
 
-	// UpdateAutoUpdateVersion updates an auto update version.
+	// UpdateAutoUpdateVersion updates the AutoUpdateVersion singleton resource.
 	UpdateAutoUpdateVersion(ctx context.Context, config *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error)
 
-	// UpsertAutoUpdateVersion sets an auto update version.
+	// UpsertAutoUpdateVersion sets the AutoUpdateVersion singleton resource.
 	UpsertAutoUpdateVersion(ctx context.Context, c *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error)
 
-	// DeleteAutoUpdateVersion deletes the auto update version from the backend.
+	// DeleteAutoUpdateVersion deletes the AutoUpdateVersion singleton resource.
 	DeleteAutoUpdateVersion(ctx context.Context) error
 }

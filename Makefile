@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.4.0
+VERSION=16.4.7
 
 DOCKER_IMAGE ?= teleport
 
@@ -755,18 +755,6 @@ RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
-RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
-$(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
-	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
-#
-# Downloads and builds changelog from source.
-# PHONY is set so that we rely on Go's mod cache and not Make's cache.
-#
-CHANGELOG := $(TOOLINGDIR)/bin/changelog
-.PHONY: $(CHANGELOG)
-$(CHANGELOG):
-	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.2
-
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
 
@@ -1486,7 +1474,7 @@ derive:
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
 	@if ! git diff --quiet; then \
-		echo 'Please run make derive.'; \
+		./build.assets/please-run.sh "derived functions" "make derive"; \
 		exit 1; \
 	fi
 
@@ -1521,14 +1509,15 @@ endif
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! git diff --quiet; then \
-		echo 'Please run make grpc.'; \
+		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		echo 'This must be run from a repo with no unstaged commits.'; \
+		@echo 'This must be run from a repo with no unstaged commits.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1537,7 +1526,12 @@ must-start-clean/host:
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! git diff --quiet; then \
-		echo 'Please run make -C integrations/operator manifests.'; \
+		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
+		exit 1; \
+	fi
+	$(MAKE) -C integrations/operator crd-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "operator CRD docs" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 	$(MAKE) -C integrations/operator crd-docs
@@ -1552,8 +1546,7 @@ crds-up-to-date: must-start-clean/host
 terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
 	@if ! git diff --quiet; then \
-		echo 'Please run make -C integrations/terraform docs.'; \
-		git diff; \
+		./build.assets/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
 		exit 1; \
 	fi
 
@@ -1727,14 +1720,15 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
-# usage: make -s changelog
-# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
 .PHONY: changelog
-changelog: $(CHANGELOG)
-	@$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+changelog:
+	@go run $(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
@@ -1746,11 +1740,13 @@ changelog: $(CHANGELOG)
 # does not match version set it will fail to create a release. If tag doesn't exist it
 # will also fail to create a release.
 #
-# For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
+# For more information on release notes generation see: 
+#   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
+RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
-create-github-release: $(RELEASE_NOTES_GEN)
+create-github-release:
 	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \

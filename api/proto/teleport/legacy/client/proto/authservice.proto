@@ -438,6 +438,12 @@ message PingResponse {
 
   reserved 6; // LicenseWarnings, jsontag "license_warnings"
   reserved "LicenseWarnings";
+
+  // LicenseExpiry is the expiry date of the enterprise license, if applicable.
+  google.protobuf.Timestamp LicenseExpiry = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "licenseExpiry"
+  ];
 }
 
 // ProductType is the type of product.
@@ -555,6 +561,8 @@ message Features {
   // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
   // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
   bool AccessMonitoringConfigured = 36;
+  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
+  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement

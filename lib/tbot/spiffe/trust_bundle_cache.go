@@ -20,6 +20,7 @@ package spiffe
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -37,6 +39,8 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -115,6 +119,44 @@ func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 		bundles[v.TrustDomain().IDString()] = MarshalX509Bundle(v.X509Bundle())
 	}
 	return bundles
+}
+
+// MarshaledJWKSBundles returns a map of trust domain names to their JWT-SVID
+// signing keys encoded in the RFC 7517 JWKS format. If includeLocal is true,
+// the local trust domain will be included in the output.
+func (b *BundleSet) MarshaledJWKSBundles(includeLocal bool) (map[string][]byte, error) {
+	bundles := make(map[string][]byte)
+	if includeLocal {
+		marshaled, err := b.Local.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling local trust bundle")
+		}
+		bundles[b.Local.TrustDomain().IDString()] = marshaled
+	}
+	for _, v := range b.Federated {
+		marshaled, err := v.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(
+				err,
+				"marshaling federated trust bundle (%s)",
+				v.TrustDomain().Name(),
+			)
+		}
+		bundles[v.TrustDomain().IDString()] = marshaled
+	}
+	return bundles, nil
+}
+
+// GetJWTBundleForTrustDomain returns the JWT bundle for the given trust domain.
+// Implements the jwtbundle.Source interface.
+func (b *BundleSet) GetJWTBundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*jwtbundle.Bundle, error) {
+	if trustDomain.Name() == b.Local.TrustDomain().Name() {
+		return b.Local.JWTBundle(), nil
+	}
+	if bundle, ok := b.Federated[trustDomain.Name()]; ok {
+		return bundle.JWTBundle(), nil
+	}
+	return nil, trace.NotFound("trust domain %q not found", trustDomain.Name())
 }
 
 type eventsWatcher interface {
@@ -610,6 +652,8 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 	}
 
 	bundle := spiffebundle.New(td)
+
+	// Add X509 authorities to the trust bundle.
 	for _, certBytes := range services.GetTLSCerts(ca) {
 		block, _ := pem.Decode(certBytes)
 		cert, err := x509.ParseCertificate(block.Bytes)
@@ -617,6 +661,22 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 			return nil, trace.Wrap(err, "parsing cert")
 		}
 		bundle.AddX509Authority(cert)
+	}
+
+	// Add JWT authorities to the trust bundle.
+	for _, keyPair := range ca.GetTrustedJWTKeyPairs() {
+		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing public key")
+		}
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, trace.BadParameter("unsupported key format %T", pubKey)
+		}
+		kid := jwt.KeyID(rsaPubKey)
+		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
+			return nil, trace.Wrap(err, "adding JWT authority to bundle")
+		}
 	}
 
 	return bundle, nil

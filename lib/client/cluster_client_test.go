@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -191,7 +192,8 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Nil(t, key)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
-		}, {
+		},
+		{
 			name:        "db no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params: ReissueParams{
@@ -315,7 +317,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			clt := &ClusterClient{
 				tc: &TeleportClient{
 					localAgent: agent,
-					Config:     Config{SiteName: "test"},
+					Config: Config{
+						SiteName: "test",
+						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+							return test.prompt
+						},
+					},
 				},
 				ProxyClient: &proxy.Client{},
 				AuthClient: fakeAuthClient{
@@ -370,7 +377,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 			ctx := context.Background()
 
-			key, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params, test.prompt)
+			key, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params)
 			test.assertion(t, key, mfaRequired, err)
 		})
 	}

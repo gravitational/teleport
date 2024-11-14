@@ -35,9 +35,9 @@ const (
 	secretScheme = "secret"
 	secretPrefix = secretScheme + "://"
 
-	// AllowInclusionAnnotation is the annotation a secret must wear for the operator to allow looking up its content
+	// AllowLookupAnnotation is the annotation a secret must wear for the operator to allow looking up its content
 	// when reconciling a resource. Its value is either a comma-separated list of allowed resources, or a '*'.
-	AllowInclusionAnnotation = "resources.teleport.dev/allow-inclusion-from-cr"
+	AllowLookupAnnotation = "resources.teleport.dev/allow-lookup-from-cr"
 )
 
 // IsNeeded checks if a string starts with "secret://" and needs a secret lookup.
@@ -89,13 +89,13 @@ func Try(ctx context.Context, clt kclient.Client, name, namespace, uri string) (
 }
 
 // isInclusionAllowed checks if the secret allows inclusion from the CR.
-// The secret must wear the AllowInclusionAnnotation and the annotation must either
+// The secret must wear the AllowLookupAnnotation and the annotation must either
 // explicitly allow the resource, or allow any resource ("*").
 func isInclusionAllowed(secret *corev1.Secret, name string) error {
 	secretName := secret.Name
-	annotation, ok := secret.Annotations[AllowInclusionAnnotation]
+	annotation, ok := secret.Annotations[AllowLookupAnnotation]
 	if !ok {
-		return trace.BadParameter("secret %q doesn't have the %q annotation", secretName, AllowInclusionAnnotation)
+		return trace.BadParameter("secret %q doesn't have the %q annotation", secretName, AllowLookupAnnotation)
 	}
 	if annotation == types.Wildcard {
 		return nil
@@ -106,5 +106,5 @@ func isInclusionAllowed(secret *corev1.Secret, name string) error {
 			return nil
 		}
 	}
-	return trace.AccessDenied("secret %q have the annotation %q but it does not contain %q", secretName, AllowInclusionAnnotation, name)
+	return trace.AccessDenied("secret %q have the annotation %q but it does not contain %q", secretName, AllowLookupAnnotation, name)
 }

@@ -19,8 +19,10 @@
 package tags
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	athenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
@@ -67,6 +69,9 @@ func (d AWSTags) ToECSTags() []ecstypes.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(ecsTags, func(a, b ecstypes.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return ecsTags
 }
 
@@ -79,6 +84,9 @@ func (d AWSTags) ToEC2Tags() []ec2types.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(ec2Tags, func(a, b ec2types.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return ec2Tags
 }
 
@@ -125,6 +133,9 @@ func (d AWSTags) ToIAMTags() []iamtypes.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(iamTags, func(a, b iamtypes.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return iamTags
 }
 
@@ -137,6 +148,9 @@ func (d AWSTags) ToS3Tags() []s3types.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(s3Tags, func(a, b s3types.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return s3Tags
 }
 
@@ -149,6 +163,9 @@ func (d AWSTags) ToAthenaTags() []athenatypes.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(athenaTags, func(a, b athenatypes.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return athenaTags
 }
 
@@ -161,6 +178,9 @@ func (d AWSTags) ToSSMTags() []ssmtypes.Tag {
 			Value: &v,
 		})
 	}
+	slices.SortFunc(ssmTags, func(a, b ssmtypes.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
 	return ssmTags
 }
 

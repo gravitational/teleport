@@ -21,6 +21,7 @@
 package web
 
 import (
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
@@ -125,6 +126,9 @@ const (
 	IncludedResourceModeRequestable = "requestable"
 	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
 	IncludedResourceModeAll = "all"
+	// DefaultFeatureWatchInterval is the default time in which the feature watcher
+	// should ping the auth server to check for updated features
+	DefaultFeatureWatchInterval = time.Minute * 5
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -154,12 +158,8 @@ type Handler struct {
 	// userConns tracks amount of current active connections with user certificates.
 	userConns atomic.Int32
 
-	// ClusterFeatures contain flags for supported and unsupported features.
-	// Note: This field can become stale since it's only set on initial proxy
-	// startup. To get the latest feature flags you'll need to ping from the
-	// auth server.
-	// https://github.com/gravitational/teleport/issues/39161
-	ClusterFeatures proto.Features
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
@@ -172,6 +172,10 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
+
+	// featureWatcherReady is a chan that the feature watcher closes
+	// to signal it is ready. Used in tests.
+	featureWatcherReady chan struct{}
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -315,6 +319,10 @@ type Config struct {
 
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
+
+	// FeatureWatchInterval is the interval between pings to the auth server
+	// to fetch new cluster features
+	FeatureWatchInterval time.Duration
 }
 
 // SetDefaults ensures proper default values are set if
@@ -329,6 +337,8 @@ func (c *Config) SetDefaults() {
 	if c.PresenceChecker == nil {
 		c.PresenceChecker = client.RunPresenceTask
 	}
+
+	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
 type APIHandler struct {
@@ -452,10 +462,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
-		ClusterFeatures:      cfg.ClusterFeatures,
+		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
+		featureWatcherReady:  make(chan struct{}),
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -875,7 +886,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-	h.GET("/webapi/sites/:site/pods", h.WithClusterAuth(h.clusterKubePodsGet))
+	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -997,6 +1008,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SPIFFE Federation Trust Bundle
 	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
+	h.GET("/workload-identity/jwt-jwks.json", h.WithLimiter(h.getSPIFFEJWKS))
+	h.GET("/workload-identity/.well-known/openid-configuration", h.WithLimiter(h.getSPIFFEOIDCDiscoveryDocument))
 
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
@@ -1004,6 +1017,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
 	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
 	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
+
+	// User Tasks CRUD
+	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
+	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
+	h.GET("/webapi/sites/:site/usertask/:name", h.WithClusterAuth(h.userTaskGet))
+	h.PUT("/webapi/sites/:site/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
@@ -1174,17 +1193,12 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	pingResp, err := clt.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	features := pingResp.GetServerFeatures()
-	entitlement := modules.GetProtoEntitlement(features, entitlements.AccessMonitoring)
+	features := h.GetClusterFeatures()
+	entitlement := modules.GetProtoEntitlement(&features, entitlements.AccessMonitoring)
 	// ensure entitlement is set & feature is configured
 	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), features, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1207,6 +1221,13 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	pingResp, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !pingResp.LicenseExpiry.IsZero() {
+		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
 	}
 
 	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
@@ -1689,14 +1710,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.ClusterFeatures
-	// ping server to get cluster features since h.ClusterFeatures may be stale
-	pingResponse, err := h.GetProxyClient().Ping(r.Context())
-	if err != nil {
-		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
-	} else {
-		clusterFeatures = *pingResponse.ServerFeatures
-	}
+	clusterFeatures := h.GetClusterFeatures()
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
@@ -1810,7 +1824,6 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
 		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
 		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
-
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
@@ -1887,7 +1900,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.JWTSigner)
+	return h.jwks(r.Context(), types.JWTSigner, true)
 }
 
 func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2023,9 +2036,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			logger.Debug("GitHub WebSession created with device web token")
 			// if a device web token is present, we must send the user to the device authorize page
 			// to upgrade the session.
-			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
-			// session with device trust. Once it does, append a redirect_url here as a query parameter
-			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+			redirectPath, err := BuildDeviceWebRedirectPath(dwt, res.ClientRedirectURL)
+			if err != nil {
+				logger.WithError(err).Debug("Invalid device web token.")
+			}
+			return redirectPath
 		}
 		return res.ClientRedirectURL
 	}
@@ -2054,6 +2069,28 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	return redirectURL.String()
 }
 
+// BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.
+// It takes a DeviceWebToken and an optional client redirect URL as input.
+// The function formats a redirect path with the device ID and token from the provided DeviceWebToken.
+// If the clientRedirectURL is provided, it's appended to the redirect path
+// as a query parameter named "redirect_uri".
+// Will always at least return "/web" path.
+func BuildDeviceWebRedirectPath(dwt *types.DeviceWebToken, clientRedirectURL string) (string, error) {
+	const basePath = "/web"
+
+	if dwt == nil {
+		return basePath, trace.BadParameter("DeviceWebToken cannot be nil")
+	}
+	if dwt.Id == "" || dwt.Token == "" {
+		return basePath, trace.BadParameter("DeviceWebToken ID and Token cannot be empty")
+	}
+	redirectPath := fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+	if clientRedirectURL != "" {
+		redirectPath = fmt.Sprintf("%s?redirect_uri=%s", redirectPath, clientRedirectURL)
+	}
+	return redirectPath, nil
+}
+
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
@@ -2074,9 +2111,12 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	feats := modules.GetModules().Features()
-	teleportPackage := teleport.ComponentTeleport
+	teleportPackage := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
-		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+		teleportPackage = types.PackageNameEnt
+		if h.cfg.FIPS {
+			teleportPackage = types.PackageNameEntFIPS
+		}
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.

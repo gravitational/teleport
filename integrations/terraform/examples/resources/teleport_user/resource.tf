@@ -1,6 +1,7 @@
 # Teleport User resource
 
 resource "teleport_user" "example" {
+  version = "v2"
   # Tells Terraform that the role could not be destroyed while this user exists
   depends_on = [
     teleport_role.example
