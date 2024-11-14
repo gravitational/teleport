@@ -106,6 +106,14 @@ type Pack struct {
 	rootTCPTwoWayMessage    string
 	rootTCPTwoWayAppURI     string
 
+	rootTCPMultiPortAppName      string
+	rootTCPMultiPortPublicAddr   string
+	rootTCPMultiPortMessageAlpha string
+	rootTCPMultiPortMessageBeta  string
+	rootTCPMultiPortAppURI       string
+	rootTCPMultiPortAppPortAlpha uint16
+	rootTCPMultiPortAppPortBeta  uint16
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -136,6 +144,14 @@ type Pack struct {
 	leafTCPPublicAddr string
 	leafTCPMessage    string
 	leafTCPAppURI     string
+
+	leafTCPMultiPortAppName      string
+	leafTCPMultiPortPublicAddr   string
+	leafTCPMultiPortMessageAlpha string
+	leafTCPMultiPortMessageBeta  string
+	leafTCPMultiPortAppURI       string
+	leafTCPMultiPortAppPortAlpha uint16
+	leafTCPMultiPortAppPortBeta  uint16
 
 	headerAppName        string
 	headerAppPublicAddr  string
@@ -368,6 +384,7 @@ type CreateAppSessionParams struct {
 	Username      string
 	ClusterName   string
 	AppPublicAddr string
+	AppTargetPort uint16
 }
 
 func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) types.WebSession {
@@ -383,8 +400,9 @@ func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) typ
 			Traits:     accessInfo.Traits,
 			SessionTTL: time.Hour,
 		},
-		PublicAddr:  params.AppPublicAddr,
-		ClusterName: params.ClusterName,
+		PublicAddr:    params.AppPublicAddr,
+		ClusterName:   params.ClusterName,
+		AppTargetPort: params.AppTargetPort,
 	})
 	require.NoError(t, err)
 
@@ -492,6 +510,7 @@ type tlsConfigParams struct {
 	publicAddr  string
 	clusterName string
 	pinnedIP    string
+	targetPort  uint16
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
@@ -516,6 +535,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, params tlsConfigParams) *tls.Config {
 			Username:    params.username,
 			TTL:         time.Hour,
 			PublicAddr:  params.publicAddr,
+			TargetPort:  params.targetPort,
 			ClusterName: params.clusterName,
 			SessionID:   params.sessionID,
 			PinnedIP:    params.pinnedIP,
@@ -733,6 +753,19 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 				PublicAddr: p.rootTCPTwoWayPublicAddr,
 			},
 			{
+				Name:       p.rootTCPMultiPortAppName,
+				URI:        p.rootTCPMultiPortAppURI,
+				PublicAddr: p.rootTCPMultiPortPublicAddr,
+				TCPPorts: []servicecfg.PortRange{
+					servicecfg.PortRange{
+						Port: p.rootTCPMultiPortAppPortAlpha,
+					},
+					servicecfg.PortRange{
+						Port: p.rootTCPMultiPortAppPortBeta,
+					},
+				},
+			},
+			{
 				Name:       p.jwtAppName,
 				URI:        p.jwtAppURI,
 				PublicAddr: p.jwtAppPublicAddr,
@@ -884,6 +917,19 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 				Name:       p.leafTCPAppName,
 				URI:        p.leafTCPAppURI,
 				PublicAddr: p.leafTCPPublicAddr,
+			},
+			{
+				Name:       p.leafTCPMultiPortAppName,
+				URI:        p.leafTCPMultiPortAppURI,
+				PublicAddr: p.leafTCPMultiPortPublicAddr,
+				TCPPorts: []servicecfg.PortRange{
+					servicecfg.PortRange{
+						Port: p.leafTCPMultiPortAppPortAlpha,
+					},
+					servicecfg.PortRange{
+						Port: p.leafTCPMultiPortAppPortBeta,
+					},
+				},
 			},
 			{
 				Name:       "dumper-leaf",

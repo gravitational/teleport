@@ -732,6 +732,7 @@ func TestTCP(t *testing.T) {
 				Username:      sessionUsername,
 				ClusterName:   test.tlsConfigParams.clusterName,
 				AppPublicAddr: test.tlsConfigParams.publicAddr,
+				AppTargetPort: test.tlsConfigParams.targetPort,
 			})
 
 			test.tlsConfigParams.sessionID = ws.GetName()
