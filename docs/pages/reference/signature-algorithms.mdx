@@ -230,10 +230,13 @@ upgrade when a new CA has been added in the new version.
 ### My YubiHSM2 authentication key does not have capabilites for ECDSA keys, what do I do?
 
 Our [YubiHSM2 guide](../../admin-guides/deploy-a-cluster/hsm.mdx) recommends
-creating an "authentication key" to be used by the Teleport Auth Service to
-authenticate with the YubiHSM2.
+creating an
+[authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+to be used by the Teleport Auth Service to authenticate with the YubiHSM2.
 The example in the original version of that guide created an authentication key
-without the necessary "capabilities" to create and sign with ECDSA keys.
+without the necessary
+[capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability)
+to create and sign with ECDSA keys.
 Before upgrading to v17 and/or switching your algorithm suite, we recommend
 creating a new authentication key with the necessary capabilities and updating
 your Auth Service configuration to use the new key.
