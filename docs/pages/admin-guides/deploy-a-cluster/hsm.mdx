@@ -189,8 +189,10 @@ to use.
    DEBU[0000] takeoff                                       TLS=false listen="localhost:12345" pid=73502
    ```
 
-1. Use `yubihsm-shell` to create a new authentication key to be used by
-   Teleport with the necessary capabilities.
+1. Use `yubihsm-shell` to create a new
+   [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+   to be used by Teleport with the necessary
+   [capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability).
 
    YubiHSM2 comes with a factory default authentication key at slot 1 with password
    `password`. We recommend replacing this or changing the password as soon as
