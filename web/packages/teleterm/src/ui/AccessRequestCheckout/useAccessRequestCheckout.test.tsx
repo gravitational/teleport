@@ -335,17 +335,11 @@ test('updating kube namespaces', async () => {
     wrapper,
   });
 
-  // useAccessRequestCheckout has an effect which fires each time pendingAccessRequestRequest is
-  // updated. This means that after every call to updateNamespacesForKubeCluster we have to wait for
-  // fetchResourceRolesAttempt to finish, otherwise we get errors about state updates not being
-  // wrapped in act.
-  const waitForFetchingResourceRoles = () =>
-    waitFor(() => {
-      expect(result.current.fetchResourceRolesAttempt.status).toEqual(
-        'success'
-      );
-    });
-  await waitForFetchingResourceRoles();
+  // Fetching resource roles is done from an effect, let's wait for it to avoid errors about state
+  // updates not being wrapped in act.
+  await waitFor(() => {
+    expect(result.current.fetchResourceRolesAttempt.status).toEqual('success');
+  });
 
   const kubeItem: PendingListKubeClusterWithOriginalItem = {
     kind: 'kube_cluster',
@@ -361,7 +355,7 @@ test('updating kube namespaces', async () => {
   };
 
   // Test order of request are retained.
-  act(() =>
+  await act(async () =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -389,14 +383,13 @@ test('updating kube namespaces', async () => {
       kubeItem
     )
   );
-  await waitForFetchingResourceRoles();
   let savedRequestIds = result.current.pendingAccessRequests
     .filter(r => r.kind === 'namespace')
     .map(r => r.subResourceName);
   expect(savedRequestIds).toEqual(['n3', 'n2', 'n1']);
 
   // Test order of request are retained a second time.
-  act(() =>
+  await act(async () =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -424,15 +417,15 @@ test('updating kube namespaces', async () => {
       kubeItem
     )
   );
-  await waitForFetchingResourceRoles();
   savedRequestIds = result.current.pendingAccessRequests
     .filter(r => r.kind === 'namespace')
     .map(r => r.subResourceName);
   expect(savedRequestIds).toEqual(['n2', 'n1', 'n3']);
 
   // Test empty request clears request.
-  act(() => result.current.updateNamespacesForKubeCluster([], kubeItem));
-  await waitForFetchingResourceRoles();
+  await act(async () =>
+    result.current.updateNamespacesForKubeCluster([], kubeItem)
+  );
   savedRequestIds = result.current.pendingAccessRequests
     .filter(r => r.kind === 'namespace')
     .map(r => r.subResourceName);
