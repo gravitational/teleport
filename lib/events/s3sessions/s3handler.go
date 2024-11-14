@@ -157,6 +157,8 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 
+	s.Endpoint = endpoint.CreateURI(s.Endpoint, s.Insecure)
+
 	return nil
 }
 
