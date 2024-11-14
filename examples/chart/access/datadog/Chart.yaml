@@ -1,4 +1,4 @@
-.version: &version "16.4.7"
+.version: &version "16.4.7-dev.forrest.5"
 
 apiVersion: v2
 name: teleport-plugin-datadog
