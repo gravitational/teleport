@@ -821,6 +821,7 @@ func (e *NonRetryableError) Unwrap() error {
 }
 
 // IsNonRetryableError checks if the provided error is a NonRetryableError.
+// Equivalent to `errors.As(err, new(*NonRetryableError))`.
 func IsNonRetryableError(err error) bool {
 	return errors.As(err, new(*NonRetryableError))
 }
