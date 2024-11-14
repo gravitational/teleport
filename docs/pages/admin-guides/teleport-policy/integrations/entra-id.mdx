@@ -48,19 +48,19 @@ how to set up Access Graph.
 To verify that Access Graph is set up correctly for your cluster, sign in to the Teleport Web UI and navigate to the Management tab.
 If enabled, the Access Graph menu item will appear in the Permission Management section.
 
-## Entra ID integration setup
+## Step 1/3. Choose a setup method
 
 To begin onboarding, select your preferred setup method. Teleport offers various methods based on your cluster
 configuration and user requirements.
 
-### Automatic Setup with Teleport as OIDC Provider for Entra ID
+### Automatic setup with Teleport as an OIDC Provider for Entra ID
 
 <Notice type="tip">
 This method is recommended and is required if you are a Teleport Enterprise (Cloud) customer.
 </Notice>
 
 This method is suitable for Teleport clusters that are publicly accessible and lack Azure credentials on Auth
-server nodes or pods.
+Service nodes or pods.
 
 In this setup, Teleport is configured as an OpenID Connect (OIDC) identity provider, establishing a trusted
 connection with an Entra ID application created during setup. This trust allows Teleport to authenticate using
@@ -71,7 +71,7 @@ identities.
 - Direct bidirectional connectivity between Teleport and Azure is necessary for Azure to validate the OIDC
 tokens issued by Teleport.
 
-### Automatic Setup with System Credentials for Entra ID Authentication
+### Automatic setup with system credentials for Entra ID authentication
 
 Designed for air-gapped Teleport clusters that are not publicly accessible, this setup accommodates environments
 where Azure cannot validate OIDC tokens issued by Teleport.
@@ -86,23 +86,23 @@ These credentials must have the following Entra ID permissions:
 **Requirements:**
 - Unidirectional connectivity from Teleport to Azure infrastructure.
 
-### Manual Setup
+### Manual setup
 
 This setup describes how to manually configure Entra ID integration without relying on automated scripts 
 to setup Entra ID Application.
 
 This guide covers the 
-[**Automatic Setup with Teleport as OIDC Provider for Entra ID**](./entra-id.mdx#automatic-setup-with-teleport-as-oidc-provider-for-entra-id)
+[**Automatic Setup with Teleport as OIDC Provider for Entra ID**](./entra-id.mdx#automatic-setup-with-teleport-as-an-oidc-provider-for-entra-id)
 and [**Automatic Setup with System Credentials**](./entra-id.mdx#automatic-setup-with-system-credentials-for-entra-id-authentication)
 setup but has a limitation of not being possible to enable the [Teleport Policy](../teleport-policy.mdx) integration.
 
-## Step 1/2. Configure Entra ID integration
+## Step 2/3. Configure the Entra ID integration
 
 
 <Tabs>
 <TabItem label="Teleport as OIDC provider" >
 
-### Start Integration onboarding 
+### Start integration onboarding 
 
 To start the onboarding process, access the Teleport Web UI,
 navigate to the "Access Management" tab, and choose "Enroll New Integration", then pick "Microsoft Entra ID".
@@ -150,7 +150,7 @@ Back in the Teleport Web UI, fill out the required data and click "Finish".
 
 <TabItem label="Automatic setup with system credentials" >
 
-### Assign permissions to Azure Identity of your Auth Service VMs
+### Assign permissions to the Azure identity of your Auth Service VMs
 
 To set up the Azure Identity with the necessary permissions:
 
@@ -217,7 +217,7 @@ Your identity principal `<Var name="Principal ID" />` now has the necessary perm
 Directories, and Policies.
 
 
-### Setup Entra ID and Teleport resources
+### Set up Entra ID and Teleport resources
 
 The Teleport `tctl` command provides an interactive guide to set up and configure Entra ID integration for air-gapped clusters.
 
@@ -248,7 +248,7 @@ Be sure to follow each step in the `tctl plugins install entraid` guide closely 
 
 <TabItem label="Manual setup" >
 
-### Assign permissions to Azure Identity of your Auth Service VMs
+### Assign permissions to the Azure identity of your Auth Service VMs
 
 This step configures the Azure Identity on your Auth Service machine with the required Entra ID permissions.
 
@@ -321,7 +321,7 @@ Your identity principal `<Var name="Principal ID" />` now has the necessary perm
 Directories, and Policies.
 
 
-### Setup Entra ID Application
+### Set up an Entra ID application
 
 In this step, you will manually configure an Entra ID Enterprise Application to be used by the Teleport Auth Connector.
 
@@ -398,7 +398,22 @@ $web = @{
 
 # Update the application with the web properties and identifier URI.
 # This enables SAML-based authentication and includes security group claims.
-Update-MgApplication -ApplicationId $objectId -Web $web -GroupMembershipClaims "SecurityGroup" -IdentifierUris @($acsURL)
+Update-MgApplication -ApplicationId $objectId -Web $web -IdentifierUris @($acsURL)
+# Define optional claims for the application to include group membership claims.
+$optionalClaims = [Microsoft.Graph.PowerShell.Models.MicrosoftGraphOptionalClaims]::DeserializeFromDictionary(@{
+	AccessToken = @(
+      @{ Name = 'groups' }
+   )
+   IdToken = @(
+	  @{ Name = 'groups' }
+   )
+   Saml2Token = @(
+      @{ Name = 'groups' }
+   )
+})
+
+Update-MgApplication -ApplicationId $objectId -GroupMembershipClaims "SecurityGroup" -OptionalClaims $optionalClaims
+
 
 # Retrieve the tenant ID for display purposes.
 $tenant = Get-AzTenant
@@ -483,7 +498,7 @@ foreach ($appRole in $appRoles) {
 
 </Details>
 
-### Setup Teleport resources
+### Set up Teleport resources
 
 The Teleport `tctl` command provides an interactive guide to set up and configure Entra ID integration for air-gapped clusters.
 
@@ -519,7 +534,7 @@ Follow the detailed instructions provided by the `tctl plugins install entraid` 
     </TabItem>
 </Tabs>
 
-## Step 2/2. Analyze Entra ID directory in Teleport Access Graph
+## Step 3/3. Analyze Entra ID directory in Teleport Access Graph
 
 Shortly after the integration onboarding is finished,
 your Entra ID directory will be imported into your Teleport cluster and Access Graph.
