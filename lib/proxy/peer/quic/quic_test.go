@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/quic-go/quic-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -121,7 +122,7 @@ func TestCertificateVerification(t *testing.T) {
 			},
 		},
 		{
-			name: "bad server",
+			name: "bad server certificate",
 			serverCert: newCert(t, wrongCA, tlsca.Identity{
 				Username: "correctproxy.testcluster",
 				Groups:   []string{string(types.RoleProxy)},
@@ -148,7 +149,10 @@ func TestCertificateVerification(t *testing.T) {
 				var transportError *quic.TransportError
 				require.ErrorAs(t, err, &transportError, msgAndArgs...)
 				require.True(t, transportError.Remote, msgAndArgs...)
-				const quicAlertUnknownCA quic.TransportErrorCode = 48 + 0x100
+				// RFC 8446 (TLS 1.3) section 6 (Alert Protocol)
+				const alertUnknownCA = 48
+				// quic-go surfaces TLS alerts as error code 0x100 plus the alert code
+				const quicAlertUnknownCA quic.TransportErrorCode = alertUnknownCA + 0x100
 				require.Equal(t, quicAlertUnknownCA, transportError.ErrorCode, msgAndArgs...)
 			},
 		},
@@ -166,7 +170,10 @@ func TestCertificateVerification(t *testing.T) {
 				var transportError *quic.TransportError
 				require.ErrorAs(t, err, &transportError, msgAndArgs...)
 				require.True(t, transportError.Remote, msgAndArgs...)
-				const quicAlertBadCertificate quic.TransportErrorCode = 42 + 0x100
+				// RFC 8446 (TLS 1.3) section 6 (Alert Protocol)
+				const alertBadCertificate = 42
+				// quic-go surfaces TLS alerts as error code 0x100 plus the alert code
+				const quicAlertBadCertificate quic.TransportErrorCode = alertBadCertificate + 0x100
 				require.Equal(t, quicAlertBadCertificate, transportError.ErrorCode, msgAndArgs...)
 			},
 		},
@@ -213,7 +220,7 @@ func TestCertificateVerification(t *testing.T) {
 	}
 }
 
-func TestBasic(t *testing.T) {
+func TestBasicFunctionality(t *testing.T) {
 	t.Parallel()
 
 	hostCA := newCA(t)
@@ -261,90 +268,94 @@ func TestBasic(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	require.NoError(t, client.Ping(context.Background()))
-
-	conn, err := client.Dial(
-		uuid.NewString()+".testcluster",
-		&utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "1.2.3.4:56",
-		}, &utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "7.8.9.0:12",
-		},
-		types.NodeTunnel,
-	)
-	if err == nil {
-		_ = conn.Close()
-	}
-	require.ErrorAs(t, err, new(*trace.NotImplementedError))
-
-	server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
-		return nil, trace.NotFound("nope")
-	})
-	conn, err = client.Dial(
-		uuid.NewString()+".testcluster",
-		&utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "1.2.3.4:56",
-		}, &utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "7.8.9.0:12",
-		},
-		types.NodeTunnel,
-	)
-	if err == nil {
-		_ = conn.Close()
-	}
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	pipeClose := make(chan struct{})
-	server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
-		if clusterName != "echo" {
-			return nil, trace.BadParameter("expected echo cluster")
-		}
-		if request.ServerID != "echo.echo" {
-			return nil, trace.NotFound("only echo.echo is here")
-		}
-		if request.ConnType != "echo" {
-			return nil, trace.CompareFailed("the only conntype is echo")
-		}
-		p1, p2 := net.Pipe()
-		go func() {
-			defer close(pipeClose)
-			defer p2.Close()
-			io.Copy(p2, p2)
-		}()
-		return p1, nil
+	t.Run("ping", func(t *testing.T) {
+		require.NoError(t, client.Ping(context.Background()))
 	})
 
-	conn, err = client.Dial(
-		"echo.echo",
-		&utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "1.2.3.4:56",
-		}, &utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "7.8.9.0:12",
-		},
-		"echo",
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = conn.Close() })
+	clientDialRandomNode := func() (net.Conn, error) {
+		return client.Dial(
+			uuid.NewString()+".testcluster",
+			&utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        "1.2.3.4:56",
+			}, &utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        "7.8.9.0:12",
+			},
+			types.NodeTunnel,
+		)
+	}
 
-	n, err := conn.Write([]byte("abcd"))
-	require.NoError(t, err)
-	require.Equal(t, 4, n)
+	t.Run("error translation", func(t *testing.T) {
+		conn, err := clientDialRandomNode()
+		if !assert.Error(t, err) {
+			_ = conn.Close()
+			t.FailNow()
+		}
+		require.ErrorAs(t, err, new(*trace.NotImplementedError))
 
-	buf := make([]byte, 4)
-	n, err = io.ReadFull(conn, buf)
-	require.NoError(t, err)
-	require.Equal(t, 4, n)
-	require.Equal(t, "abcd", string(buf))
+		server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
+			return nil, trace.NotFound("nope")
+		})
+		conn, err = clientDialRandomNode()
+		if !assert.Error(t, err) {
+			_ = conn.Close()
+			t.FailNow()
+		}
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+	})
 
-	require.NoError(t, conn.Close())
-	t.Log("closed")
-	<-pipeClose
+	t.Run("successful dial", func(t *testing.T) {
+		pipeClosed := make(chan struct{})
+		server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
+			if clusterName != "echo" {
+				return nil, trace.BadParameter("expected echo cluster")
+			}
+			if request.ServerID != "echo.echo" {
+				return nil, trace.NotFound("only echo.echo is here")
+			}
+			if request.ConnType != "echo" {
+				return nil, trace.CompareFailed("the only conntype is echo")
+			}
+			p1, p2 := net.Pipe()
+			go func() {
+				defer close(pipeClosed)
+				defer p2.Close()
+				// send all the data received from the pipe back to the pipe, until
+				// the other end of the pipe is closed
+				io.Copy(p2, p2)
+			}()
+			return p1, nil
+		})
+
+		conn, err := client.Dial(
+			"echo.echo",
+			&utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        "1.2.3.4:56",
+			}, &utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        "7.8.9.0:12",
+			},
+			"echo",
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = conn.Close() })
+
+		n, err := conn.Write([]byte("abcd"))
+		require.NoError(t, err)
+		require.Equal(t, 4, n)
+
+		buf := make([]byte, 4)
+		n, err = io.ReadFull(conn, buf)
+		require.NoError(t, err)
+		require.Equal(t, 4, n)
+		require.Equal(t, "abcd", string(buf))
+
+		require.NoError(t, conn.Close())
+		t.Log("closed")
+		<-pipeClosed
+	})
 }
 
 func newTransport(t *testing.T) *quic.Transport {
@@ -386,7 +397,7 @@ func newCert(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity) tls.Ce
 	clock := clockwork.NewRealClock()
 
 	request := tlsca.CertificateRequest{
-		Clock:     clockwork.NewRealClock(),
+		Clock:     clock,
 		PublicKey: key.Public(),
 		Subject:   subj,
 		NotAfter:  clock.Now().Add(time.Hour),
