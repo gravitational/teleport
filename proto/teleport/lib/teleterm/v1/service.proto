@@ -82,6 +82,9 @@ service TerminalService {
   rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
   // GetSuggestedAccessLists returns suggested access lists for an access request.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+  // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+  // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+  rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
 
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
@@ -306,6 +309,35 @@ message GetSuggestedAccessListsRequest {
 
 message GetSuggestedAccessListsResponse {
   repeated accesslist.v1.AccessList access_lists = 1;
+}
+
+message ListKubernetesResourcesRequest {
+  string cluster_uri = 1;
+  // ResourceType is the Kubernetes resource that is going to be retrieved.
+  string resource_type = 2;
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 3;
+  // NextKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string next_key = 4;
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string predicate_expression = 5;
+  // SearchKeywords is a string containing search keywords to match against resource field values.
+  string search_keywords = 6;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 7;
+  // Cluster is the Kubernetes Cluster to request the resources.
+  string kubernetes_cluster = 8;
+  // Namespace is the Kubernetes namespace where the resources must be located.
+  // To search on every Kubernetes Namespace, do not define the value.
+  string kubernetes_namespace = 9;
+}
+
+message ListKubernetesResourcesResponse {
+  repeated KubeResource resources = 1;
+  string next_key = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.

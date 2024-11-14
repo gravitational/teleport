@@ -653,7 +653,6 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	host := "localhost"
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -759,7 +758,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
-	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase)
+	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase, cf.LocalProxyTunnel)
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -777,7 +776,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	opts = append(opts, dbcmd.WithLogger(log))
+	opts = append(opts,
+		dbcmd.WithLogger(log),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
+	)
 
 	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
@@ -1674,8 +1676,13 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 	return &out
 }
 
-func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase) *dbLocalProxyRequirement {
+func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase, tunnelFlag bool) *dbLocalProxyRequirement {
 	r := getDBLocalProxyRequirement(tc, route)
+	// Forces local proxy tunnel when --tunnel is on.
+	if !r.tunnel && tunnelFlag {
+		r.addLocalProxyWithTunnel(dbConnectRequireReasonTunnelFlag)
+	}
+	// Forces local proxy when cluster has TLS routing enabled.
 	if !r.localProxy && tc.TLSRoutingEnabled {
 		r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 	}
@@ -1849,6 +1856,12 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+)
+
+const (
+	// dbConnectRequireReasonTunnelFlag is the reason used in local proxy
+	// requirement calculation when --tunnel flag is specified.
+	dbConnectRequireReasonTunnelFlag = "--tunnel flag is specified"
 )
 
 var (

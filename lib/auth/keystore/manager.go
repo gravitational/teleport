@@ -215,8 +215,8 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = gcpBackend
 		usableSigningBackends = []backend{gcpBackend, softwareBackend}
-	case cfg.AWSKMS != (servicecfg.AWSKMSConfig{}):
-		awsBackend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, opts)
+	case cfg.AWSKMS != nil:
+		awsBackend, err := newAWSKMSKeystore(ctx, cfg.AWSKMS, opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

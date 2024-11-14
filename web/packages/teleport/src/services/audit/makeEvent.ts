@@ -1831,7 +1831,7 @@ export const formatters: Formatters = {
       affected_resource_name,
       affected_resource_source,
     }) =>
-      `${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed an access path`,
+      `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
@@ -1948,6 +1948,48 @@ export const formatters: Formatters = {
     desc: 'Crown Jewel Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_CREATE]: {
+    type: 'user_task.create',
+    desc: 'User Task Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_UPDATE]: {
+    type: 'user_task.update',
+    desc: 'User Task Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_DELETE]: {
+    type: 'user_task.delete',
+    desc: 'User Task Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a user task [${name}]`;
+    },
+  },
+  [eventCodes.PLUGIN_CREATE]: {
+    type: 'plugin.create',
+    desc: 'Plugin Created',
+    format: ({ user, name, plugin_type }) => {
+      return `User [${user}] created a plugin [${name}] of type [${plugin_type}]`;
+    },
+  },
+  [eventCodes.PLUGIN_UPDATE]: {
+    type: 'plugin.update',
+    desc: 'Plugin Updated',
+    format: ({ user, name, plugin_type }) => {
+      return `User [${user}] updated a plugin [${name}] of type [${plugin_type}]`;
+    },
+  },
+  [eventCodes.PLUGIN_DELETE]: {
+    type: 'plugin.delete',
+    desc: 'Plugin Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a plugin [${name}]`;
     },
   },
   [eventCodes.UNKNOWN]: {

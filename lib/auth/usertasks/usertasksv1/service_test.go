@@ -23,17 +23,24 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -81,7 +88,7 @@ func TestServiceAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter)
+					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter, &libevents.DiscardEmitter{})
 					err := callMethod(t, service, tt.name)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
@@ -108,10 +115,11 @@ func TestServiceAccess(t *testing.T) {
 	})
 }
 
-func TestUsageEvents(t *testing.T) {
+func TestEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	testReporter := &mockUsageReporter{}
-	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter)
+	auditEventsSink := eventstest.NewChannelEmitter(10)
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink)
 	ctx := context.Background()
 
 	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
@@ -123,7 +131,7 @@ func TestUsageEvents(t *testing.T) {
 			AccountId: "123456789012",
 			Region:    "us-east-1",
 			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-123": &usertasksv1.DiscoverEC2Instance{
+				"i-123": {
 					InstanceId:      "i-123",
 					DiscoveryConfig: "dc01",
 					DiscoveryGroup:  "dg01",
@@ -132,11 +140,13 @@ func TestUsageEvents(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	userTaskName := ut1.GetMetadata().GetName()
 
 	_, err = service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
 	require.NoError(t, err)
 	// Usage reporting happens when user task is created, so we expect to see an event.
 	require.Len(t, testReporter.emittedEvents, 1)
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "create", "", ""))
 
 	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
 		InstanceId:      "i-345",
@@ -147,12 +157,86 @@ func TestUsageEvents(t *testing.T) {
 	require.NoError(t, err)
 	// State was not updated, so usage events must not increase.
 	require.Len(t, testReporter.emittedEvents, 1)
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "OPEN"))
 
 	ut1.Spec.State = "RESOLVED"
 	_, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
 	require.NoError(t, err)
 	// State was updated, so usage events include this new usage report.
 	require.Len(t, testReporter.emittedEvents, 2)
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "RESOLVED"))
+
+	_, err = service.DeleteUserTask(ctx, &usertasksv1.DeleteUserTaskRequest{Name: userTaskName})
+	require.NoError(t, err)
+	// No usage report for deleted resources.
+	require.Len(t, testReporter.emittedEvents, 2)
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "delete", "", ""))
+}
+
+func auditEventFor(resourceName, eventType, oldState, newState string) any {
+	status := apievents.Status{
+		Success: true,
+	}
+	userMetadata := apievents.UserMetadata{
+		UserKind: apievents.UserKind_USER_KIND_HUMAN,
+	}
+	resourceMetadata := apievents.ResourceMetadata{
+		Name:      resourceName,
+		UpdatedBy: "llama",
+	}
+	userTaskMetadata := apievents.UserTaskMetadata{
+		TaskType:    "discover-ec2",
+		IssueType:   "ec2-ssm-invocation-failure",
+		Integration: "my-integration",
+	}
+
+	var evt any
+	switch eventType {
+	case "create":
+		evt = &apievents.UserTaskCreate{
+			Status:           status,
+			ResourceMetadata: resourceMetadata,
+			UserMetadata:     userMetadata,
+			UserTaskMetadata: userTaskMetadata,
+			Metadata: apievents.Metadata{
+				Type: libevents.UserTaskCreateEvent,
+				Code: libevents.UserTaskCreateCode,
+			},
+		}
+	case "update":
+		evt = &apievents.UserTaskUpdate{
+			Status:           status,
+			ResourceMetadata: resourceMetadata,
+			UserMetadata:     userMetadata,
+			UserTaskMetadata: userTaskMetadata,
+			Metadata: apievents.Metadata{
+				Type: libevents.UserTaskUpdateEvent,
+				Code: libevents.UserTaskUpdateCode,
+			},
+			CurrentUserTaskState: oldState,
+			UpdatedUserTaskState: newState,
+		}
+	case "delete":
+		evt = &apievents.UserTaskDelete{
+			Status:           status,
+			ResourceMetadata: resourceMetadata,
+			UserMetadata:     userMetadata,
+			Metadata: apievents.Metadata{
+				Type: libevents.UserTaskDeleteEvent,
+				Code: libevents.UserTaskDeleteCode,
+			},
+		}
+	}
+	return evt
+}
+
+func consumeAssertEvent(t *testing.T, q <-chan apievents.AuditEvent, expectedEvent any) {
+	select {
+	case evt := <-q:
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for user task create event")
+	}
 }
 
 // callMethod calls a method with given name in the UserTask service
@@ -182,7 +266,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter) *Service {
+func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter, emitter apievents.Emitter) *Service {
 	t.Helper()
 
 	b, err := memory.New(memory.Config{})
@@ -199,6 +283,11 @@ func newService(t *testing.T, checker services.AccessChecker, usageReporter usag
 		return &authz.Context{
 			User:    user,
 			Checker: checker,
+			Identity: authz.LocalUser{
+				Identity: tlsca.Identity{
+					Username: user.GetName(),
+				},
+			},
 		}, nil
 	})
 
@@ -207,6 +296,7 @@ func newService(t *testing.T, checker services.AccessChecker, usageReporter usag
 		Backend:       backendService,
 		Cache:         backendService,
 		UsageReporter: func() usagereporter.UsageReporter { return usageReporter },
+		Emitter:       emitter,
 	})
 	require.NoError(t, err)
 	return service

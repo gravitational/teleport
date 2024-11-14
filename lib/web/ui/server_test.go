@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 func TestStripProtocolAndPort(t *testing.T) {
@@ -339,7 +340,7 @@ func TestMakeClusterHiddenLabels(t *testing.T) {
 	type testCase struct {
 		name           string
 		clusters       []types.KubeCluster
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 		roleSet        services.RoleSet
 	}
 
@@ -352,7 +353,7 @@ func TestMakeClusterHiddenLabels(t *testing.T) {
 					"label2":                 "value2",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "label2",
@@ -379,7 +380,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 		name           string
 		clusterName    string
 		servers        []types.Server
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 	}
 
 	testCases := []testCase{
@@ -392,7 +393,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",
@@ -432,7 +433,7 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 
 	outputDb := MakeDatabase(inputDb, nil, nil, false)
 
-	require.Equal(t, []Label{
+	require.Equal(t, []ui.Label{
 		{
 			Name:  "label",
 			Value: "value1",
@@ -452,7 +453,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	require.NoError(t, err)
 
 	desktop := MakeDesktop(windowsDesktop, nil, false)
-	labels := []Label{
+	labels := []ui.Label{
 		{
 			Name:  "label3",
 			Value: "value2",
@@ -475,7 +476,7 @@ func TestMakeDesktopServiceHiddenLabel(t *testing.T) {
 	}
 
 	desktopService := MakeDesktopService(windowsDesktopService)
-	labels := []Label{
+	labels := []ui.Label{
 		{
 			Name:  "label3",
 			Value: "value2",
@@ -490,7 +491,7 @@ func TestSortedLabels(t *testing.T) {
 		name           string
 		clusterName    string
 		servers        []types.Server
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 	}
 
 	testCases := []testCase{
@@ -506,7 +507,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",
@@ -538,7 +539,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "anotherone",
@@ -565,7 +566,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",

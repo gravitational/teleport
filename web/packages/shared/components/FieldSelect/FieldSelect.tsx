@@ -122,6 +122,11 @@ export function FieldSelectAsync({
   noOptionsMessage,
   loadOptions,
   inputId = 'select',
+  onMenuClose,
+  onMenuOpen,
+  defaultOptions,
+  closeMenuOnSelect = true,
+  hideSelectedOptions = true,
   ...styles
 }: AsyncSelectProps & FieldProps) {
   const [attempt, runAttempt] = useAsync(loadOptions);
@@ -160,12 +165,16 @@ export function FieldSelectAsync({
           return noOptionsMessage();
         }}
         maxMenuHeight={maxMenuHeight}
-        defaultOptions={true}
+        defaultOptions={defaultOptions ? defaultOptions : true}
         placeholder={placeholder}
         isMulti={isMulti}
         autoFocus={autoFocus}
         isDisabled={isDisabled}
         elevated={elevated}
+        onMenuClose={onMenuClose}
+        onMenuOpen={onMenuOpen}
+        closeMenuOnSelect={closeMenuOnSelect}
+        hideSelectedOptions={hideSelectedOptions}
       />
     </Box>
   );

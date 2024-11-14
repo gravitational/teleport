@@ -815,6 +815,13 @@ const (
 	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
 	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
 	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
+
+	// UserTaskCreateEvent is emitted when a user task resource is created.
+	UserTaskCreateEvent = "user_task.create"
+	//UserTaskUpdateEvent is emitted when a user task resource is updated.
+	UserTaskUpdateEvent = "user_task.update"
+	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
+	UserTaskDeleteEvent = "user_task.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

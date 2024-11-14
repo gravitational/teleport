@@ -69,6 +69,10 @@ export type AsyncProps = Omit<Props, 'options'> & {
   defaultMenuIsOpen?: boolean;
   loadOptions(input: string, o?: Option[]): Promise<Option[] | void>;
   noOptionsMessage(): string;
+  onMenuClose?(): void;
+  onMenuOpen?(): void;
+  closeMenuOnSelect?: boolean;
+  hideSelectedOptions?: boolean;
 };
 
 /**

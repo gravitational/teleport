@@ -554,7 +554,17 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
 
-	userMetadata := req.Identity.GetUserMetadata()
+	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
+	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userMetadata := identity.GetUserMetadata()
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 

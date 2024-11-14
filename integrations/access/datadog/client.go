@@ -75,6 +75,7 @@ func NewDatadogClient(conf DatadogConfig, webProxyAddr string, statusSink common
 		Transport: &http.Transport{
 			MaxConnsPerHost:     datadogMaxConns,
 			MaxIdleConnsPerHost: datadogMaxConns,
+			Proxy:               http.ProxyFromEnvironment,
 		}}).
 		SetBaseURL(apiEndpoint).
 		SetHeader("Accept", "application/json").

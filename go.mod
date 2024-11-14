@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.22.8
+go 1.22.9
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.9.0
@@ -82,6 +82,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.13.1
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
 	github.com/evanphx/json-patch v5.9.0+incompatible
+	github.com/fatih/color v1.17.0
 	github.com/fsouza/fake-gcs-server v1.48.0
 	github.com/fxamacker/cbor/v2 v2.6.0
 	github.com/ghodss/yaml v1.0.0
@@ -313,7 +314,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
-	github.com/fatih/color v1.16.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.7.0

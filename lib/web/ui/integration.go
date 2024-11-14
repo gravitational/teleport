@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -213,7 +214,7 @@ type AWSOIDCDeployServiceRequest struct {
 
 	// DatabaseAgentMatcherLabels are the labels to be used when deploying a Database Service.
 	// Those are the resource labels that the Service will monitor and proxy connections to.
-	DatabaseAgentMatcherLabels []Label `json:"databaseAgentMatcherLabels"`
+	DatabaseAgentMatcherLabels []ui.Label `json:"databaseAgentMatcherLabels"`
 }
 
 // AWSOIDCDeployServiceResponse contains the resources that were used to deploy a Teleport Service.
@@ -514,4 +515,12 @@ type AWSOIDCPingResponse struct {
 	ARN string `json:"arn"`
 	// UserID is the unique identifier of the calling entity.
 	UserID string `json:"userId"`
+}
+
+// AWSOIDCPingRequest contains ping request fields.
+type AWSOIDCPingRequest struct {
+	// RoleARN is optional, and used for cases such as
+	// pinging to check validity before upserting an
+	// AWS OIDC integration.
+	RoleARN string `json:"roleArn,omitempty"`
 }

@@ -326,6 +326,21 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
@@ -849,6 +864,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -1670,6 +1700,21 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
@@ -2193,6 +2238,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array

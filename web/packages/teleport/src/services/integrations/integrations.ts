@@ -439,10 +439,10 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
-    subnets: aws?.rds?.subnets,
+    subnets: aws?.rds?.subnets ?? [],
     resourceId: aws?.rds?.resource_id,
     vpcId: aws?.rds?.vpc_id,
-    securityGroups: aws?.rds?.security_groups,
+    securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
   };

@@ -2658,6 +2658,14 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// RequestKubernetesResource is the Kubernetes resource identifier used
+// in access request settings.
+// Modeled after existing message KubernetesResource.
+message RequestKubernetesResource {
+  // kind specifies the Kubernetes Resource type.
+  string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+}
+
 // ResourceID is a unique identifier for a teleport resource.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
@@ -3385,6 +3393,15 @@ message AccessRequestConditions {
   int64 MaxDuration = 7 [
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
+  ];
+
+  // kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". This field can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  repeated RequestKubernetesResource kubernetes_resources = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
 }
 
@@ -6216,8 +6233,33 @@ message PluginEntraIDSyncSettings {
   // DefaultOwners are the default owners for all imported access lists.
   repeated string default_owners = 1;
 
-  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin.
   string sso_connector_id = 2;
+
+  // credentials_source specifies the source of the credentials used for authentication with Azure.
+  EntraIDCredentialsSource credentials_source = 3;
+
+  // tenant_id refers to the Azure Directory that this plugin synchronizes with.
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the Entra integration when utilized.
+  string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
+}
+
+// EntraIDCredentialsSource defines the credentials source for Entra ID.
+enum EntraIDCredentialsSource {
+  // ENTRAID_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not specified.
+  // Due to legacy reasons, UNKNOWN is handled as OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // ENTRAID_CREDENTIALS_SOURCE_OIDC indicates that the plugin will authenticate with Azure/Entra ID using OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_OIDC = 1;
+  // ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin will rely on system-provided credentials
+  // for authentication with Azure Entra ID, especially for clusters with no internet access.
+  ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.
@@ -7362,6 +7404,12 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // PollInterval is the frequency at which to poll for AWS resources
+  google.protobuf.Duration PollInterval = 2 [
+    (gogoproto.jsontag) = "poll_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.

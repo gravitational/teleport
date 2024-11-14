@@ -176,10 +176,16 @@ func TestEC2Watcher(t *testing.T) {
 
 	present := ec2.Instance{
 		InstanceId: aws.String("instance-present"),
-		Tags: []*ec2.Tag{{
-			Key:   aws.String("teleport"),
-			Value: aws.String("yes"),
-		}},
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("Present"),
+			},
+		},
 		State: &ec2.InstanceState{
 			Name: aws.String(ec2.InstanceStateNameRunning),
 		},
@@ -356,6 +362,74 @@ func TestMakeEvents(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.insts.MakeEvents()
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestToEC2Instances(t *testing.T) {
+	sampleInstance := &ec2.Instance{
+		InstanceId: aws.String("instance-001"),
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("MyInstanceName"),
+			},
+		},
+		State: &ec2.InstanceState{
+			Name: aws.String(ec2.InstanceStateNameRunning),
+		},
+	}
+
+	sampleInstanceWithoutName := &ec2.Instance{
+		InstanceId: aws.String("instance-001"),
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+		},
+		State: &ec2.InstanceState{
+			Name: aws.String(ec2.InstanceStateNameRunning),
+		},
+	}
+
+	for _, tt := range []struct {
+		name     string
+		input    []*ec2.Instance
+		expected []EC2Instance
+	}{
+		{
+			name:  "with name",
+			input: []*ec2.Instance{sampleInstance},
+			expected: []EC2Instance{{
+				InstanceID: "instance-001",
+				Tags: map[string]string{
+					"Name":     "MyInstanceName",
+					"teleport": "yes",
+				},
+				InstanceName:     "MyInstanceName",
+				OriginalInstance: *sampleInstance,
+			}},
+		},
+		{
+			name:  "without name",
+			input: []*ec2.Instance{sampleInstanceWithoutName},
+			expected: []EC2Instance{{
+				InstanceID: "instance-001",
+				Tags: map[string]string{
+					"teleport": "yes",
+				},
+				OriginalInstance: *sampleInstanceWithoutName,
+			}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToEC2Instances(tt.input)
 			require.Equal(t, tt.expected, got)
 		})
 	}
