@@ -112,12 +112,7 @@ export class AccessRequestsService {
 
       // Validate each namespace uri's.
       namespaceUris.forEach(namespaceUri => {
-        const namespaceKubeResource = resources.get(
-          routing.getKubeUri(
-            routing.parseKubeResourceNamespaceUri(namespaceUri).params
-          )
-        );
-        if (namespaceKubeResource.resource.uri != kubeClusterUri) {
+        if (!routing.belongsToKube(kubeClusterUri, namespaceUri)) {
           throw new Error(
             'Only namespace belonging to the same requested kube cluster can be updated'
           );
