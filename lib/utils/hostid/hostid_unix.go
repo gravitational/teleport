@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,6 +50,16 @@ func ReadOrCreateFile(dataDir string) (string, error) {
 	hostUUIDFileLock := GetPath(dataDir) + ".lock"
 	const iterationLimit = 3
 
+	backoff, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  100 * time.Millisecond,
+		Driver: retryutils.NewLinearDriver(100 * time.Millisecond),
+		Max:    time.Second,
+		Jitter: retryutils.FullJitter,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	for i := 0; i < iterationLimit; i++ {
 		if read, err := ReadFile(dataDir); err == nil {
 			return read, nil
@@ -57,7 +68,7 @@ func ReadOrCreateFile(dataDir string) (string, error) {
 		}
 
 		// Checking error instead of the usual uuid.New() in case uuid generation
-		// fails due to not enough randomness. It's been known to happen happen when
+		// fails due to not enough randomness. It's been known to happen when
 		// Teleport starts very early in the node initialization cycle and /dev/urandom
 		// isn't ready yet.
 		rawID, err := uuid.NewRandom()
@@ -91,12 +102,14 @@ func ReadOrCreateFile(dataDir string) (string, error) {
 		id, err := writeFile(rawID.String())
 		if err != nil {
 			if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
-				time.Sleep(10 * time.Millisecond)
+				backoff.Inc()
+				<-backoff.After()
 				continue
 			}
 
 			return "", trace.Wrap(err)
 		}
+		backoff.Reset()
 
 		return id, nil
 	}
