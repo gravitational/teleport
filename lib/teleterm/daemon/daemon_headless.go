@@ -30,7 +30,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
@@ -84,10 +83,10 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 
 	maxBackoffDuration := defaults.MaxWatcherBackoff
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(maxBackoffDuration / 10),
+		First:  retryutils.FullJitter(maxBackoffDuration / 10),
 		Step:   maxBackoffDuration / 5,
 		Max:    maxBackoffDuration,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  s.cfg.Clock,
 	})
 	if err != nil {
