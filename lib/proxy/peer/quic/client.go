@@ -102,21 +102,21 @@ func NewClientConn(config ClientConnConfig) (*ClientConn, error) {
 			return cert, nil
 		},
 		VerifyPeerCertificate: internal.VerifyPeerCertificateIsSpecificProxy(config.PeerID + "." + config.ClusterName),
-		NextProtos:            []string{quicNextProto},
+		NextProtos:            []string{nextProto},
 		ServerName:            apiutils.EncodeClusterName(config.ClusterName),
 		ClientSessionCache:    tls.NewLRUClientSessionCache(0),
 		MinVersion:            tls.VersionTLS13,
 	}
 
 	quicConfig := &quic.Config{
-		MaxStreamReceiveWindow:     quicMaxReceiveWindow,
-		MaxConnectionReceiveWindow: quicMaxReceiveWindow,
+		MaxStreamReceiveWindow:     maxReceiveWindow,
+		MaxConnectionReceiveWindow: maxReceiveWindow,
 
 		MaxIncomingStreams:    -1,
 		MaxIncomingUniStreams: -1,
 
-		MaxIdleTimeout:  quicMaxIdleTimeout,
-		KeepAlivePeriod: quicKeepAlivePeriod,
+		MaxIdleTimeout:  maxIdleTimeout,
+		KeepAlivePeriod: keepAlivePeriod,
 
 		TokenStore: quic.NewLRUTokenStore(10, 10),
 	}
@@ -245,7 +245,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(sizedReqBuf)-4 > quicMaxMessageSize {
+	if len(sizedReqBuf)-4 > maxMessageSize {
 		log.WarnContext(context.Background(), "refusing to send oversized dial request (this is a bug)")
 		return nil, trace.LimitExceeded("oversized dial request")
 	}
@@ -258,7 +258,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 	tlsConfig := c.tlsConfig.Clone()
 	tlsConfig.RootCAs = rootCAs
 
-	deadline := time.Now().Add(quicDialTimeout)
+	deadline := time.Now().Add(dialTimeout)
 	dialCtx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
@@ -400,7 +400,7 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(sizedReqBuf)-4 > quicMaxMessageSize {
+	if len(sizedReqBuf)-4 > maxMessageSize {
 		log.WarnContext(context.Background(), "refusing to send oversized ping request (this is a bug)")
 		return trace.LimitExceeded("oversized ping request")
 	}
@@ -413,7 +413,7 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 	tlsConfig := c.tlsConfig.Clone()
 	tlsConfig.RootCAs = rootCAs
 
-	deadline := time.Now().Add(quicDialTimeout)
+	deadline := time.Now().Add(dialTimeout)
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 
@@ -480,7 +480,7 @@ func sendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection) (_ 
 	if err := binary.Read(stream, binary.LittleEndian, &respSize); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	if respSize > quicMaxMessageSize {
+	if respSize > maxMessageSize {
 		return nil, nil, trace.LimitExceeded("oversized response message")
 	}
 	respBuf := make([]byte, respSize)
