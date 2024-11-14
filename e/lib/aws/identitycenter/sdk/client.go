@@ -193,6 +193,7 @@ func (c *client) ListGroups(ctx context.Context) ([]*Group, error) {
 	for {
 		groups, err := c.identityStoreClient.ListGroups(ctx, &identitystore.ListGroupsInput{
 			IdentityStoreId: descResp.IdentityStoreId,
+			NextToken:       nextToken,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -381,6 +382,7 @@ func (c *client) ListUsers(ctx context.Context) ([]*User, error) {
 	for {
 		resp, err := c.identityStoreClient.ListUsers(ctx, &identitystore.ListUsersInput{
 			IdentityStoreId: descResp.IdentityStoreId,
+			NextToken:       nextToken,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
