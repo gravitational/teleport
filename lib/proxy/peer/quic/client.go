@@ -340,11 +340,12 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 		select {
 		case <-earlyConn.HandshakeComplete():
 		case <-earlyConn.Context().Done():
+			err := context.Cause(earlyConn.Context())
 			log.DebugContext(conn.Context(),
 				"failed to complete handshake after exchanging 0-RTT dial request",
 				"error", err,
 			)
-			return nil, trace.Wrap(context.Cause(earlyConn.Context()))
+			return nil, trace.Wrap(err)
 		}
 	}
 
