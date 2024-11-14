@@ -40,7 +40,7 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 // PromptConstructor is a function that creates a new MFA prompt.
 type PromptConstructor func(...PromptOpt) Prompt
 
-// PromptConfig contains common mfa prompt config options.
+// PromptConfig contains universal mfa prompt config options.
 type PromptConfig struct {
 	// PromptReason is an optional message to share with the user before an MFA Prompt.
 	// It is intended to provide context about why the user is being prompted where it may

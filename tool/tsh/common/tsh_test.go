@@ -2283,6 +2283,183 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSSHCommand tests that a user can access a single SSH node and run commands.
+func TestSSHCommands(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	accessRoleName := "access"
+	sshHostname := "test-ssh-server"
+
+	accessUser, err := types.NewUser(accessRoleName)
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{accessRoleName})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Username})
+
+	traits := map[string][]string{
+		constants.TraitLogins: {user.Username},
+	}
+	accessUser.SetTraits(traits)
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname(sshHostname),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithSSHLabel(accessRoleName, "true"),
+		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.DisableCreateHostUser = true
+		}),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
+			return
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	tmpHomePath := t.TempDir()
+	rootAuth := rootServer.GetAuthServer()
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", rootProxyAddr.String(),
+		"--user", user.Username,
+	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []string
+		expected  string
+		shouldErr bool
+	}{
+		{
+			// Test that a simple echo works.
+			name:     "ssh simple command",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo",
+				"this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test that commands can be prefixed with a double dash.
+			name:     "ssh command with double dash",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"--",
+				"echo",
+				"this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test that a double dash is not removed from the middle of a command.
+			name:     "ssh command with double dash in the middle",
+			expected: "-- this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo",
+				"--",
+				"this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test that quoted commands work (e.g. `tsh ssh 'echo test'`)
+			name:     "ssh command literal",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test that a double dash is passed as-is in a quoted command (which should fail).
+			name:     "ssh command literal with double dash err",
+			expected: "",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"-- echo this is a test message",
+			},
+			shouldErr: true,
+		},
+		{
+			// Test that a double dash is not removed from the middle of a quoted command.
+			name:     "ssh command literal with double dash in the middle",
+			expected: "-- this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "-- this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test tsh ssh -- hostname command
+			name:     "delimiter before host and command",
+			expected: "this is a test message",
+			args: []string{
+				"--", sshHostname, "echo", "this is a test message",
+			},
+			shouldErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		ctx := context.Background()
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
+			args := append(
+				[]string{
+					"ssh",
+					"--insecure",
+					"--proxy", rootProxyAddr.String(),
+				},
+				test.args...,
+			)
+
+			err := Run(ctx, args, setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.OverrideStdout = stdout
+					conf.overrideStderr = stderr
+					return nil
+				},
+			)
+
+			if test.shouldErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, strings.TrimSpace(stdout.String()))
+				require.Empty(t, stderr.String())
+			}
+		})
+	}
+}
+
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
@@ -6046,4 +6223,118 @@ func TestResolve(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInteractiveCompatibilityFlags verifies that "tsh ssh -t" and "tsh ssh -T"
+// behave similar to OpenSSH.
+func TestInteractiveCompatibilityFlags(t *testing.T) {
+	// Require the "tty" program exist somewhere in $PATH, otherwise fail.
+	tty, err := exec.LookPath("tty")
+	require.NoError(t, err)
+
+	// Create roles and users that will be used in test.
+	local, err := user.Current()
+	require.NoError(t, err)
+	nodeAccess, err := types.NewRole("foo", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{local.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	user, err := types.NewUser("bar@example.com")
+	require.NoError(t, err)
+	user.SetRoles([]string{"access", "foo"})
+
+	// Create Auth, Proxy, and Node Service used in tests.
+	hostname := uuid.NewString()
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, nodeAccess, user),
+		withConfig(func(cfg *servicecfg.Config) {
+			cfg.Hostname = hostname
+			cfg.SSH.Enabled = true
+			cfg.SSH.Addr = utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort("127.0.0.1", ports.Pop()),
+			}
+		}))
+
+	// Extract Auth Service and Proxy Service address.
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Run "tsh login".
+	home := t.TempDir()
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String()},
+		setHomePath(home),
+		setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	// Test compatibility with OpenSSH "-T" and "-t" flags. Note that multiple
+	// -t options is still not supported.
+	//
+	// From "man 1 ssh".
+	//
+	//  -T      Disable pseudo-terminal allocation.
+	//  -t      Force pseudo-terminal allocation. This can be used to execute
+	//          arbitrary screen-based programs on a remote machine, which can
+	//          be very useful, e.g. when implementing menu services. Multiple
+	//          -t options force tty allocation, even if ssh has no local tty.
+	tests := []struct {
+		name        string
+		flag        string
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name: "disable pseudo-terminal allocation",
+			flag: "-T",
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				var exiterr *exec.ExitError
+				if errors.As(err, &exiterr) {
+					require.Equal(t, 1, exiterr.ExitCode())
+				} else {
+					require.Fail(t, "Non *exec.ExitError type: %T.", err)
+				}
+			},
+		},
+		{
+			name:        "force pseudo-terminal allocation",
+			flag:        "-t",
+			assertError: require.NoError,
+		},
+	}
+
+	// Turn the binary running tests into a fake "tsh" binary so it can
+	// re-execute itself.
+	t.Setenv(types.HomeEnvVar, home)
+	t.Setenv(tshBinMainTestEnv, "1")
+	tshBin, err := os.Executable()
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
+			tt.assertError(t, err)
+		})
+	}
+}
+
+// TestVersionCompatibilityFlags verifies that "tsh ssh -V" returns Teleport
+// version similar to OpenSSH.
+func TestVersionCompatibilityFlags(t *testing.T) {
+	t.Setenv(tshBinMainTestEnv, "1")
+	tshBin, err := os.Executable()
+	require.NoError(t, err)
+
+	output, err := exec.Command(tshBin, "ssh", "-V").CombinedOutput()
+	require.NoError(t, err, output)
+	require.Equal(t, "Teleport CLI", string(bytes.TrimSpace(output)))
 }

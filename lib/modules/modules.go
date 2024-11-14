@@ -91,6 +91,10 @@ type Features struct {
 	AccessRequests AccessRequestsFeature
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
+	// CloudAnonymizationKey is the key used to anonymize usage events in a cluster.
+	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
+	// license file).
+	CloudAnonymizationKey []byte
 
 	// AccessGraph enables the usage of access graph.
 	// NOTE: this is a legacy flag that is currently used to signal
@@ -174,6 +178,7 @@ type PolicyFeature struct {
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
+		CloudAnonymizationKey:   f.CloudAnonymizationKey,
 		ProductType:             proto.ProductType(f.ProductType),
 		Kubernetes:              f.Kubernetes,
 		App:                     f.App,

@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 func TestMain(m *testing.M) {
@@ -1173,7 +1174,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			dataDir := t.TempDir()
 			// write host_uuid file to temp dir.
 			if len(tt.args.hostIDContent) > 0 {
-				err := utils.WriteHostUUID(dataDir, tt.args.hostIDContent)
+				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
 				require.NoError(t, err)
 			}
 

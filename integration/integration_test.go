@@ -4852,7 +4852,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 
 						// Reading the display may fail if the session is not fully initialized
 						// and the write to stdin is swallowed.
-						var display string
+						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
@@ -4861,7 +4861,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 							assert.Eventually(t, func() bool {
 								output, err := os.ReadFile(tmpFile.Name())
 								if err == nil && len(output) != 0 {
-									display = strings.TrimSpace(string(output))
+									display <- strings.TrimSpace(string(output))
 									return true
 								}
 								return false
@@ -4869,7 +4869,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						}, 10*time.Second, time.Second)
 
 						// Make a new connection to the XServer proxy to confirm that forwarding is working.
-						serverDisplay, err := x11.ParseDisplay(display)
+						serverDisplay, err := x11.ParseDisplay(<-display)
 						require.NoError(t, err)
 
 						conn, err := serverDisplay.Dial()
@@ -4969,6 +4969,13 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			server.SetSubKind(types.SubKindOpenSSHNode)
 			_, err = clt.UpsertNode(context.Background(), server)
 			require.NoError(t, err)
+
+			// Wait for the node to be visible before continuing.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
+				assert.NoError(t, err)
+				assert.Len(t, found, 2)
+			}, 10*time.Second, 100*time.Millisecond)
 
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 

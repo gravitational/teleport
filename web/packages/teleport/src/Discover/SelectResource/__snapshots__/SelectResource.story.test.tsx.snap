@@ -396,7 +396,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -437,7 +437,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -478,7 +478,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -519,7 +519,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -561,7 +561,7 @@ exports[`render with URL loc state set to "server" 1`] = `
     <a
       class="c23 c14"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -602,7 +602,48 @@ exports[`render with URL loc state set to "server" 1`] = `
     <a
       class="c23 c14"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c16 c7"
+      >
+        <div
+          class="c17 c18"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c20"
+        >
+          <div
+            class="c21"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c24"
+            color="text.main"
+          >
+            RDS SQL Server
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c23 c14"
+      data-testid="1"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/redshift-serverless"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -643,7 +684,7 @@ exports[`render with URL loc state set to "server" 1`] = `
     <a
       class="c23 c14"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -671,47 +712,6 @@ exports[`render with URL loc state set to "server" 1`] = `
             font-size="12px"
           >
             Azure
-          </div>
-          <div
-            class="c24"
-            color="text.main"
-          >
-            SQL Server
-          </div>
-        </div>
-      </div>
-    </a>
-    <a
-      class="c23 c14"
-      data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c16 c7"
-      >
-        <div
-          class="c17 c18"
-          width="24px"
-        >
-          <img
-            class="c19"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c20"
-        >
-          <div
-            class="c21"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Microsoft
           </div>
           <div
             class="c24"
@@ -1256,7 +1256,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -1297,7 +1297,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -1584,7 +1584,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -1625,7 +1625,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -1667,7 +1667,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/azure-redis"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-redis"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1708,7 +1708,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/cassandra-self-hosted"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1749,7 +1749,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/mysql-cloudsql"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1790,7 +1790,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/postgres-cloudsql"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1831,7 +1831,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/cockroachdb-self-hosted"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1872,7 +1872,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/dynamic-registration"
+      href="https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1913,7 +1913,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/aws-dynamodb"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/aws-dynamodb"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1954,7 +1954,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/redis-aws"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/redis-aws"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -1995,7 +1995,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/elastic"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/elastic"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2036,7 +2036,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/ha"
+      href="https://goteleport.com/docs/enroll-resources/database-access/guides/ha"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2077,7 +2077,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/aws-cassandra-keyspaces"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2159,7 +2159,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/mongodb-self-hosted"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2200,7 +2200,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/mongodb-atlas"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2234,7 +2234,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2275,7 +2275,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2316,7 +2316,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/rds-proxy-mysql"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2357,7 +2357,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/rds-proxy-postgres"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2398,7 +2398,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/rds-proxy-sqlserver"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2439,7 +2439,48 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/redis"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS SQL Server
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/redis"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2480,7 +2521,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/redis-cluster"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2521,7 +2562,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/postgres-redshift"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/postgres-redshift"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2562,7 +2603,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/redshift-serverless"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2603,7 +2644,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/snowflake"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-managed-databases/snowflake"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2637,7 +2678,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
+      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -2665,47 +2706,6 @@ exports[`render with all access 1`] = `
             font-size="12px"
           >
             Azure
-          </div>
-          <div
-            class="c18"
-            color="text.main"
-          >
-            SQL Server
-          </div>
-        </div>
-      </div>
-    </a>
-    <a
-      class="c17 c7"
-      data-testid="1"
-      href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Microsoft
           </div>
           <div
             class="c18"
@@ -3484,7 +3484,7 @@ exports[`render with no access 1`] = `
           <div
             class="c17"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -3618,7 +3618,7 @@ exports[`render with no access 1`] = `
           <div
             class="c17"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -4497,6 +4497,52 @@ exports[`render with no access 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c19"
+            color="text.main"
+          >
+            RDS SQL Server
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c18 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
             Self-Hosted
           </div>
           <div
@@ -4683,7 +4729,7 @@ exports[`render with no access 1`] = `
           <div
             class="c17"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -4773,52 +4819,6 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </a>
-    <a
-      class="c18 c7"
-      data-testid="1"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c8 c9"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c10 c11"
-      >
-        <div
-          class="c12 c13"
-          width="24px"
-        >
-          <img
-            class="c14"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c15"
-        >
-          <div
-            class="c16"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Microsoft
-          </div>
-          <div
-            class="c19"
-            color="text.main"
-          >
-            SQL Server
-          </div>
-        </div>
-      </div>
-    </a>
     <div
       class="c7"
       data-testid="4"
@@ -4856,7 +4856,7 @@ exports[`render with no access 1`] = `
           <div
             class="c17"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -5346,7 +5346,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -5387,7 +5387,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -5510,7 +5510,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -5551,7 +5551,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -6739,6 +6739,52 @@ exports[`render with partial access 1`] = `
             color="text.slightlyMuted"
             font-size="12px"
           >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="text.main"
+          >
+            RDS SQL Server
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c19"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c20 c21"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
             Self-Hosted
           </div>
           <div
@@ -6963,52 +7009,6 @@ exports[`render with partial access 1`] = `
             font-size="12px"
           >
             Azure
-          </div>
-          <div
-            class="c18"
-            color="text.main"
-          >
-            SQL Server
-          </div>
-        </div>
-      </div>
-    </a>
-    <a
-      class="c17 c19"
-      data-testid="1"
-      rel="noreferrer"
-      style="text-decoration: none;"
-      target="_blank"
-    >
-      <div
-        class="c20 c21"
-        data-testid="tooltip"
-      >
-        Lacking Permissions
-      </div>
-      <div
-        class="c9 c10"
-      >
-        <div
-          class="c11 c12"
-          width="24px"
-        >
-          <img
-            class="c13"
-            height="24px"
-            src="file_stub"
-            width="23.9px"
-          />
-        </div>
-        <div
-          class="c14"
-        >
-          <div
-            class="c15"
-            color="text.slightlyMuted"
-            font-size="12px"
-          >
-            Microsoft
           </div>
           <div
             class="c18"

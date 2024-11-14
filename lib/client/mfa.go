@@ -34,7 +34,14 @@ type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.newPromptConfig(opts...)
 
-	var prompt mfa.Prompt = libmfa.NewCLIPrompt(cfg, tc.Stderr)
+	var prompt mfa.Prompt = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+		PromptConfig:     *cfg,
+		Writer:           tc.Stderr,
+		PreferOTP:        tc.PreferOTP,
+		AllowStdinHijack: tc.AllowStdinHijack,
+		StdinFunc:        tc.StdinFunc,
+	})
+
 	if tc.MFAPromptConstructor != nil {
 		prompt = tc.MFAPromptConstructor(cfg)
 	}
@@ -50,10 +57,6 @@ func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenti
 func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptConfig {
 	cfg := libmfa.NewPromptConfig(tc.WebProxyAddr, opts...)
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
-	cfg.PreferOTP = tc.PreferOTP
-	cfg.AllowStdinHijack = tc.AllowStdinHijack
-	cfg.StdinFunc = tc.StdinFunc
-
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true

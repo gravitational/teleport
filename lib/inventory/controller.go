@@ -105,7 +105,7 @@ type controllerOptions struct {
 	maxKeepAliveErrs   int
 	authID             string
 	onConnectFunc      func(string)
-	onDisconnectFunc   func(string)
+	onDisconnectFunc   func(string, int)
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -127,11 +127,11 @@ func (options *controllerOptions) SetDefaults() {
 	}
 
 	if options.onConnectFunc == nil {
-		options.onConnectFunc = func(s string) {}
+		options.onConnectFunc = func(string) {}
 	}
 
 	if options.onDisconnectFunc == nil {
-		options.onDisconnectFunc = func(s string) {}
+		options.onDisconnectFunc = func(string, int) {}
 	}
 }
 
@@ -154,12 +154,12 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing
-// instance disconnects from the inventory control stream. The value
-// provided to the callback is the keep alive type of the disconnected
-// resource. The callback should return quickly so as not to prevent
-// processing of heartbeats.
-func WithOnDisconnect(f func(heartbeatKind string)) ControllerOption {
+// WithOnDisconnect sets a function to be called every time an existing instance
+// disconnects from the inventory control stream. The values provided to the
+// callback are the keep alive type of the disconnected resource, as well as a
+// count of how many resources disconnected at once. The callback should return
+// quickly so as not to prevent processing of heartbeats.
+func WithOnDisconnect(f func(heartbeatKind string, amount int)) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.onDisconnectFunc = f
 	}
@@ -200,7 +200,7 @@ type Controller struct {
 	usageReporter              usagereporter.UsageReporter
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
-	onDisconnectFunc           func(string)
+	onDisconnectFunc           func(string, int)
 	closeContext               context.Context
 	cancel                     context.CancelFunc
 }
@@ -324,7 +324,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
-			log.WithField("apps", len(handle.appServers)).Debug("Cleaning up resources in response to instance termination")
+			log.WithFields(log.Fields{
+				"apps":      len(handle.appServers),
+				"server_id": handle.Hello().ServerID,
+			}).Debug("Cleaning up resources in response to instance termination")
 			for _, app := range handle.appServers {
 				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
 					log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
@@ -341,11 +344,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		handle.ticker.Stop()
 
 		if handle.sshServer != nil {
-			c.onDisconnectFunc(constants.KeepAliveNode)
+			c.onDisconnectFunc(constants.KeepAliveNode, 1)
 		}
 
-		for range handle.appServers {
-			c.onDisconnectFunc(constants.KeepAliveApp)
+		if len(handle.appServers) > 0 {
+			c.onDisconnectFunc(constants.KeepAliveApp, len(handle.appServers))
 		}
 
 		clear(handle.appServers)
@@ -677,6 +680,7 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 
 				if shouldRemove {
 					c.testEvent(appKeepAliveDel)
+					c.onDisconnectFunc(constants.KeepAliveApp, 1)
 					delete(handle.appServers, name)
 				}
 			} else {

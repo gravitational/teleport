@@ -210,6 +210,8 @@ const mockEKSClusters: AwsEksCluster[] = [
     status: 'active',
     labels: [],
     joinLabels: [],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
 ];
 

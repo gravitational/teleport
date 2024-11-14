@@ -19,7 +19,6 @@
 package servicecfg
 
 import (
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -180,7 +179,14 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
-	Slack *oauth2.ClientCredentials
+	SlackCredentials *OAuthClientCredentials
+}
+
+// OAuthClientCredentials stores the client_id and client_secret
+// of an OAuth application.
+type OAuthClientCredentials struct {
+	ClientID     string
+	ClientSecret string
 }
 
 // KeystoreConfig configures the auth keystore.

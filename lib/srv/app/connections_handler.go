@@ -755,6 +755,9 @@ func (c *ConnectionsHandler) deleteConnAuth(conn net.Conn) {
 // for Teleport application proxy servers.
 func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
+	if log == nil {
+		log = logrus.StandardLogger()
+	}
 
 	// Require clients to present a certificate
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert

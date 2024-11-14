@@ -144,11 +144,14 @@ func TestSSHServerBasics(t *testing.T) {
 		expectAddr: wantAddr,
 	}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
@@ -282,6 +285,9 @@ func TestSSHServerBasics(t *testing.T) {
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
 
+	// verify that metrics have been updated correctly
+	require.Zero(t, 0, rc.count())
+
 	// verify that the peer address of the control stream was used to override
 	// zero-value IPs for heartbeats.
 	auth.mu.Lock()
@@ -305,11 +311,14 @@ func TestAppServerBasics(t *testing.T) {
 
 	auth := &fakeAuth{}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
@@ -500,6 +509,9 @@ func TestAppServerBasics(t *testing.T) {
 	// always *before* closure is propagated to downstream handle, hence being safe to load
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
@@ -897,7 +909,6 @@ func TestGoodbye(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
-
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -1007,4 +1018,38 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 			require.Failf(t, "timeout waiting for events", "expect=%+v", options.expect)
 		}
 	}
+}
+
+type resourceCounter struct {
+	mu sync.Mutex
+	c  map[string]int
+}
+
+func (r *resourceCounter) onConnect(typ string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ]++
+}
+
+func (r *resourceCounter) onDisconnect(typ string, amount int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ] -= amount
+}
+
+func (r *resourceCounter) count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var count int
+	for _, v := range r.c {
+		count += v
+	}
+	return count
 }

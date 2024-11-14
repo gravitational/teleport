@@ -471,9 +471,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
 		}),
-		inventory.WithOnDisconnect(func(s string) {
+		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
-				g.Dec()
+				g.Sub(float64(c))
 			} else {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
@@ -1202,30 +1202,6 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	return nil
 }
 
-func (a *Server) periodicSyncUpgradeWindowStartHour() {
-	checkInterval := interval.New(interval.Config{
-		Duration:      time.Minute * 3,
-		FirstDuration: utils.FullJitter(time.Second * 30),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer checkInterval.Stop()
-
-	for {
-		select {
-		case <-checkInterval.Next():
-			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
-				if a.closeCtx.Err() == nil {
-					// we run this periodic at a fairly high frequency, so errors are just
-					// logged but otherwise ignored.
-					log.Warnf("Failed to sync upgrade window start hour: %v", err)
-				}
-			}
-		case <-a.closeCtx.Done():
-			return
-		}
-	}
-}
-
 // periodicIntervalKey is used to uniquely identify the subintervals registered with
 // the interval.MultiInterval instance that we use for managing periodics operations.
 
@@ -1426,7 +1402,7 @@ func (a *Server) runPeriodicOperations() {
 			case dynamicLabelsCheckKey:
 				go a.syncDynamicLabelsAlert(a.closeCtx)
 			case upgradeWindowCheckKey:
-				go a.periodicSyncUpgradeWindowStartHour()
+				go a.syncUpgradeWindowStartHour(a.closeCtx)
 			case roleCountKey:
 				go a.tallyRoles(a.closeCtx)
 			}
@@ -1902,13 +1878,20 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 }
 
 // GetAnonymizationKey returns the anonymization key that identifies this client.
-// It falls back to the cluster ID if the anonymization key is not set in license file.
+// The anonymization key may be any of the following, in order of precedence:
+// - (Teleport Cloud) a key provided by the Teleport Cloud API
+// - a key embedded in the license file
+// - the cluster's UUID
 func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
-		return a.GetClusterID(ctx, opts...)
+	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
+		return string(key), nil
 	}
 
-	return string(a.license.AnonymizationKey), nil
+	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
+		return string(a.license.AnonymizationKey), nil
+	}
+	id, err := a.GetClusterID(ctx, opts...)
+	return id, trace.Wrap(err)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.

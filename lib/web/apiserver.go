@@ -21,6 +21,7 @@
 package web
 
 import (
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
@@ -126,6 +127,9 @@ const (
 	// Example values:
 	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
+	// DefaultFeatureWatchInterval is the default time in which the feature watcher
+	// should ping the auth server to check for updated features
+	DefaultFeatureWatchInterval = time.Minute * 5
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -162,10 +166,6 @@ type Handler struct {
 	userConns atomic.Int32
 
 	// ClusterFeatures contain flags for supported and unsupported features.
-	// Note: This field can become stale since it's only set on initial proxy
-	// startup. To get the latest feature flags you'll need to ping from the
-	// auth server.
-	// https://github.com/gravitational/teleport/issues/39161
 	ClusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
@@ -325,6 +325,10 @@ type Config struct {
 
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
+
+	// FeatureWatchInterval is the interval between pings to the auth server
+	// to fetch new cluster features
+	FeatureWatchInterval time.Duration
 }
 
 // SetDefaults ensures proper default values are set if
@@ -339,6 +343,8 @@ func (c *Config) SetDefaults() {
 	if c.PresenceChecker == nil {
 		c.PresenceChecker = client.RunPresenceTask
 	}
+
+	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
 type APIHandler struct {
@@ -668,6 +674,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
 	}
+
+	go h.startFeatureWatcher()
 
 	return &APIHandler{
 		handler:    h,
@@ -1692,14 +1700,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.ClusterFeatures
-	// ping server to get cluster features since h.ClusterFeatures may be stale
-	pingResponse, err := h.GetProxyClient().Ping(r.Context())
-	if err != nil {
-		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
-	} else {
-		clusterFeatures = *pingResponse.ServerFeatures
-	}
+	clusterFeatures := h.GetClusterFeatures()
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""

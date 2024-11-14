@@ -188,3 +188,43 @@ tests:
       - equal:
           path: metadata.labels.baz
           value: overridden
+
+  - it: should use default serviceAccount name for auth predeploy job SA when not set in values
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME
+
+  - it: should use serviceAccount.name for auth predeploy job SA when set in values
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccount:
+        name: helm-test-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa
+
+  - it: should use default serviceAccount name for proxy predeploy job SA when not set in values
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-proxy
+
+  - it: should use serviceAccount.name for proxy predeploy job SA when set in values
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccount:
+        name: helm-test-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa-proxy
