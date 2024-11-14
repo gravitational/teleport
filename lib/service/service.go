@@ -4776,7 +4776,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 				logger.InfoContext(process.ExitContext(), "starting QUIC peer proxy service", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
 				err := peerQUICServer.Serve(peerQUICTransport)
-				if err != nil {
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) {
 					return trace.Wrap(err)
 				}
 
