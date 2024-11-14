@@ -568,6 +568,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.ghaIDTokenJWKSValidator == nil {
+		as.ghaIDTokenJWKSValidator = githubactions.ValidateTokenWithJWKS
+	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
 			spacelift.IDTokenValidatorConfig{
