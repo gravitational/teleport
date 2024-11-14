@@ -215,6 +215,30 @@ tests:
             secret:
               secretName: license
 
+  - it: should use enterprise image and mount license with custom secret name when enterprise is set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+      licenseSecretName: enterprise-license
+      teleportVersionOverride: 12.2.1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: enterprise-license
+
   - it: should use OSS image and not mount license when enterprise is not set in values
     template: auth/deployment.yaml
     set:

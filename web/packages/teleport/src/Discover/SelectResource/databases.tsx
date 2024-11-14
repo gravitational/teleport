@@ -445,8 +445,10 @@ export const DATABASES: ResourceSpec[] = [
 export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
   switch (engine) {
     case DatabaseEngine.Postgres:
+    case DatabaseEngine.AuroraPostgres:
       return 'postgres';
     case DatabaseEngine.MySql:
+    case DatabaseEngine.AuroraMysql:
       return 'mysql';
   }
 
