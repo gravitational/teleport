@@ -197,8 +197,11 @@ export function useIntegrations() {
     });
   }
 
-  function editIntegration(req: EditableIntegrationFields) {
-    return integrationOps.edit(req).then(updatedIntegration => {
+  async function editIntegration(
+    integration: Integration,
+    req: EditableIntegrationFields
+  ) {
+    return integrationOps.edit(integration, req).then(updatedIntegration => {
       const updatedItems = items.map(item => {
         if (
           item.resourceType === 'integration' &&
