@@ -180,7 +180,16 @@ func (r *IneligibleStatusReconciler) Close() error {
 func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (nextExpirationTime time.Duration, err error) {
 	r.logger.DebugContext(ctx, "Reconciling memberships")
 	defer func() {
-		r.logger.DebugContext(ctx, "AccessList reconciliation complete", "next_expiration_time", nextExpirationTime, "error", err)
+		log := r.logger.With("next_expiration_time", nextExpirationTime)
+		if trace.IsCompareFailed(err) {
+			log.DebugContext(ctx, "AccessList reconciliation failed due CAS failure, retrying")
+			return
+		}
+		if err != nil {
+			r.logger.DebugContext(ctx, "AccessList reconciliation failed", "error", err)
+			return
+		}
+		r.logger.DebugContext(ctx, "AccessList reconciliation complete")
 	}()
 	// get all users
 	users, err := getAllUsers(ctx, r.cache, 0 /* use the default page size */)
