@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Flex, H2 } from 'design';
+import { Box, Flex, H2, ResourceIcon } from 'design';
 import styled from 'styled-components';
 import { P } from 'design/Text/Text';
 
@@ -29,8 +29,10 @@ export const IntegrationTile = styled(Flex)<{
   text-decoration: none;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   position: relative;
   border-radius: 4px;
+  padding: 15px 10px 6px 10px;
   height: 170px;
   width: 170px;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
@@ -60,3 +62,17 @@ export const NoCodeIntegrationDescription = () => (
     </P>
   </Box>
 );
+
+/**
+ * IntegrationIcon wraps ResourceIcon with css required for integration
+ * and plugin tiles.
+ */
+export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
+  display: inline-block;
+  height: 100%;
+  ${({ size }) =>
+    size &&
+    `
+    max-height: ${size}px;
+  `}
+`;
