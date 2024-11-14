@@ -219,6 +219,16 @@ func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provision
 		return trace.BadParameter("unsupported principal type: %s", state.Spec.PrincipalType)
 	}
 
+	if trace.IsNotFound(err) {
+		// This can happen if the remote resource has already been deleted
+		// manually from within the downstream system. While this situation *is*
+		// unexpected, there really isn't anything sensible to do but acknowledge
+		// that the remote resource no longer exists (which is what we wanted in
+		// the first place) and carry on.
+		log.WarnContext(ctx, "Deleted principal did non-exist")
+		return nil
+	}
+
 	return trace.Wrap(err, "deprovisioning principal")
 }
 

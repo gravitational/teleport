@@ -468,10 +468,14 @@ func (c *client) deleteResource(ctx context.Context, resourceType, id string) er
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent:
+		return nil
+
+	case http.StatusNotFound:
+		return trace.NotFound("resource not found")
+
 	default:
 		return decoreError(resp)
 	}
-	return nil
 }
 
 func (c *client) do(ctx context.Context, u *url.URL, httpMethod string, r io.Reader) (*http.Response, error) {

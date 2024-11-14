@@ -97,7 +97,7 @@ func (s *ClientMock) DeleteGroup(ctx context.Context, id string) error {
 	defer s.Mu.Unlock()
 
 	if _, exists := s.Groups[id]; !exists {
-		return trace.BadParameter("group with ID %q not found", id)
+		return trace.NotFound("group with ID %q not found", id)
 	}
 	delete(s.Groups, id)
 	return nil
