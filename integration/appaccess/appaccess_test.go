@@ -291,7 +291,7 @@ func testClientCert(p *Pack, t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			desc:          "root cluster, valid TLS config, success",
+			desc: "root cluster, valid TLS config, success",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   rootWs.GetName(),
 				username:    rootWs.GetUser(),
@@ -302,7 +302,7 @@ func testClientCert(p *Pack, t *testing.T) {
 			outMessage:    p.rootMessage,
 		},
 		{
-			desc:          "leaf cluster, valid TLS config, success",
+			desc: "leaf cluster, valid TLS config, success",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   leafWs.GetName(),
 				username:    leafWs.GetUser(),
@@ -318,7 +318,7 @@ func testClientCert(p *Pack, t *testing.T) {
 			outStatusCode: http.StatusForbidden,
 		},
 		{
-			desc:          "root cluster, invalid session owner",
+			desc: "root cluster, invalid session owner",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   rootWs.GetName(),
 				username:    evilUser.GetName(),
@@ -329,7 +329,7 @@ func testClientCert(p *Pack, t *testing.T) {
 			outMessage:    "",
 		},
 		{
-			desc:          "leaf cluster, invalid session owner",
+			desc: "leaf cluster, invalid session owner",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   leafWs.GetName(),
 				username:    evilUser.GetName(),
@@ -340,7 +340,7 @@ func testClientCert(p *Pack, t *testing.T) {
 			outMessage:    "",
 		},
 		{
-			desc:          "root cluster, valid TLS config with pinned IP, success",
+			desc: "root cluster, valid TLS config with pinned IP, success",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   rootWs.GetName(),
 				username:    rootWs.GetUser(),
@@ -352,7 +352,7 @@ func testClientCert(p *Pack, t *testing.T) {
 			outMessage:    p.rootMessage,
 		},
 		{
-			desc:          "root cluster, valid TLS config with wrong pinned IP",
+			desc: "root cluster, valid TLS config with wrong pinned IP",
 			inTLSConfig: p.makeTLSConfig(t, tlsConfigParams{
 				sessionID:   rootWs.GetName(),
 				username:    rootWs.GetUser(),
@@ -682,8 +682,8 @@ func TestTCP(t *testing.T) {
 		// tlsConfigParams carries information needed to create TLS config for a local proxy.
 		// tlsConfigParams.sessionID is automatically set from the session created within the test.
 		tlsConfigParams tlsConfigParams
-		outMessage  string
-		wantReadErr error
+		outMessage      string
+		wantReadErr     error
 	}{
 		{
 			description: "TCP app in root cluster",
@@ -720,6 +720,69 @@ func TestTCP(t *testing.T) {
 				clusterName: pack.leafAppClusterName,
 			},
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
+		},
+		{
+			description: "multi-port TCP app in root cluster",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPMultiPortPublicAddr,
+				clusterName: pack.rootAppClusterName,
+				targetPort:  pack.rootTCPMultiPortAppPortAlpha,
+			},
+			outMessage: pack.rootTCPMultiPortMessageAlpha,
+		},
+		{
+			description: "multi-port TCP app in root cluster, other port",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPMultiPortPublicAddr,
+				clusterName: pack.rootAppClusterName,
+				targetPort:  pack.rootTCPMultiPortAppPortBeta,
+			},
+			outMessage: pack.rootTCPMultiPortMessageBeta,
+		},
+		{
+			description: "multi-port TCP app in leaf cluster",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.leafTCPMultiPortPublicAddr,
+				clusterName: pack.leafAppClusterName,
+				targetPort:  pack.leafTCPMultiPortAppPortAlpha,
+			},
+			outMessage: pack.leafTCPMultiPortMessageAlpha,
+		},
+		{
+			description: "multi-port TCP app in leaf cluster, other port",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.leafTCPMultiPortPublicAddr,
+				clusterName: pack.leafAppClusterName,
+				targetPort:  pack.leafTCPMultiPortAppPortBeta,
+			},
+			outMessage: pack.leafTCPMultiPortMessageBeta,
+		},
+		{
+			// This simulates an older client with no TargetPort connecting to a newer app agent.
+			description: "multi-port TCP app in root cluster, no target port",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPMultiPortPublicAddr,
+				clusterName: pack.rootAppClusterName,
+			},
+			// Such client should still be proxied to the first port found in TCP ports of the app.
+			outMessage: pack.rootTCPMultiPortMessageAlpha,
+		},
+		{
+			description: "multi-port TCP app, port not in spec",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPMultiPortPublicAddr,
+				clusterName: pack.rootAppClusterName,
+				// 42 should not be handed out to a non-root user when creating a listener on port 0, so
+				// it's unlikely that 42 is going to end up in the app spec.
+				targetPort: uint16(42),
+			},
+			wantReadErr: io.EOF,
 		},
 	}
 
