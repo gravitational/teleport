@@ -985,6 +985,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	//the purpose of tests.
+	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
