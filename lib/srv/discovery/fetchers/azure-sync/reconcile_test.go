@@ -88,10 +88,10 @@ func TestReconcileResults(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		upserts, deletes := ReconcileResults(test.oldResults, test.newResults)
-		require.ElementsMatch(t, upserts.Resources, test.expectedUpserts.Resources)
-		require.ElementsMatch(t, deletes.Resources, test.expectedDeletes.Resources)
+	for _, tt := range tests {
+		upserts, deletes := ReconcileResults(tt.oldResults, tt.newResults)
+		require.ElementsMatch(t, upserts.Resources, tt.expectedUpserts.Resources)
+		require.ElementsMatch(t, deletes.Resources, tt.expectedDeletes.Resources)
 	}
 
 }

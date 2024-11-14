@@ -26,14 +26,8 @@ import (
 )
 
 func (a *Fetcher) fetchVirtualMachines(ctx context.Context) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
-	// Get the VM client
-	cli, err := a.CloudClients.GetAzureVirtualMachinesClient(a.GetSubscriptionID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Fetch the VMs
-	vms, err := cli.ListVirtualMachines(ctx, "*")
+	vms, err := a.vmClient.ListVirtualMachines(ctx, "*")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
