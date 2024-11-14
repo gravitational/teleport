@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -190,10 +191,13 @@ func TestEndpoints(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			handler, err := NewHandler(context.Background(), Config{
-				Region:          "us-west-1",
-				Path:            "/test/",
-				Bucket:          "teleport-unit-tests",
-				Endpoint:        server.URL,
+				Region: "us-west-1",
+				Path:   "/test/",
+				Bucket: "teleport-unit-tests",
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
 				UseFIPSEndpoint: fips,
 				Insecure:        true,
 				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
