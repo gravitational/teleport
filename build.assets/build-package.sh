@@ -316,9 +316,18 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         done
     fi
 
+    # build the component plist
+    # make it non-relocatable
+    # disable version checking to allow for easier downgrading
+    component_plist="${PACKAGE_TEMPDIR}/${BUNDLE_ID}-component.plist"
+    pkgbuild --analyze --root "${PACKAGE_TEMPDIR}/${TAR_PATH}" "$component_plist"
+    plutil -replace BundleIsRelocatable -bool NO "$component_plist"
+    plutil -replace BundleIsVersionChecked -bool NO "$component_plist"
+
     # build the package for OS X
     pkgbuild \
         --root ${PACKAGE_TEMPDIR}/${TAR_PATH} \
+        --component-plist "$component_plist" \
         --identifier ${BUNDLE_ID} \
         --version ${TELEPORT_VERSION} \
         --install-location /usr/local/bin \
