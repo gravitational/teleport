@@ -298,7 +298,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: retryutils.NewJitter(),
+		Jitter: retryutils.DefaultJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

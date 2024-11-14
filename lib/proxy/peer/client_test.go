@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -144,7 +145,13 @@ func TestCAChange(t *testing.T) {
 
 	// dial server and send a test data frame
 	const supportsQUICFalse = false
-	conn, err := client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
+	conn, err := client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -162,7 +169,13 @@ func TestCAChange(t *testing.T) {
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
+	conn, err = client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -174,7 +187,13 @@ func TestCAChange(t *testing.T) {
 	// RootCAs.
 	currentServerCA.Store(newServerCA)
 
-	conn, err = client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
+	conn, err = client.connect(connectParams{
+		peerID:       "s1",
+		peerAddr:     ts.GetPeerAddr(),
+		peerHost:     "s1",
+		peerGroup:    "",
+		supportsQUIC: supportsQUICFalse,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -208,7 +227,7 @@ func TestBackupClient(t *testing.T) {
 	require.True(t, dialCalled)
 }
 
-func waitForGRPCConns(t *testing.T, conns map[string]clientConn, d time.Duration) {
+func waitForGRPCConns(t *testing.T, conns map[string]internal.ClientConn, d time.Duration) {
 	require.Eventually(t, func() bool {
 		for _, conn := range conns {
 			// panic if we hit a non-grpc client conn

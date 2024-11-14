@@ -32,7 +32,6 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -162,10 +161,10 @@ func NewDateExporter(cfg DateExporterConfig) (*DateExporter, error) {
 	}
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(cfg.MaxBackoff / 16),
+		First:  retryutils.FullJitter(cfg.MaxBackoff / 16),
 		Driver: retryutils.NewExponentialDriver(cfg.MaxBackoff / 16),
 		Max:    cfg.MaxBackoff,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -267,8 +266,8 @@ func (e *DateExporter) run(ctx context.Context) {
 
 	poll := interval.New(interval.Config{
 		Duration:      e.cfg.PollInterval,
-		FirstDuration: utils.FullJitter(e.cfg.PollInterval / 2),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.FullJitter(e.cfg.PollInterval / 2),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer poll.Stop()
 

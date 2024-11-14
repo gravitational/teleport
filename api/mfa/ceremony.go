@@ -56,16 +56,8 @@ type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.Create
 // req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
 // the moderated session mfa ceremony which uses a custom stream rpc to create challenges.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	switch {
-	case c.CreateAuthenticateChallenge == nil:
+	if c.CreateAuthenticateChallenge == nil {
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
-	case req == nil:
-		// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
-		// its own req or uses a different rpc, e.g. moderated sessions.
-	case req.ChallengeExtensions == nil:
-		return nil, trace.BadParameter("missing challenge extensions")
-	case req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
-		return nil, trace.BadParameter("mfa challenge scope must be specified")
 	}
 
 	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
@@ -78,6 +70,14 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods", "error", err)
 		} else {
 			defer ssoMFACeremony.Close()
+
+			// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
+			// its own req or uses a different e.g. login. We should still provide the sso client
+			// redirect URL in case the custom CreateAuthenticateChallenge handles it.
+			if req == nil {
+				req = new(proto.CreateAuthenticateChallengeRequest)
+			}
+
 			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
 			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}

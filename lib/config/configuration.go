@@ -1752,6 +1752,9 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		if fc.Discovery.AccessGraph.PollInterval > 0 {
+			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
+		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
@@ -2725,6 +2728,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if clf.DisableDebugService {
 		cfg.DebugService.Enabled = false
+	}
+
+	// TODO(espadolini): allow this when the implementation is merged
+	if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+		cfg.Proxy.QUICProxyPeering = true
 	}
 
 	return nil

@@ -78,7 +78,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServerMetadata(),
+			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted
@@ -169,7 +169,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := serverCtx.GetServerMetadata()
+		serverMeta := serverCtx.GetServer().TargetMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
