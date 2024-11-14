@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -95,18 +96,37 @@ type Watcher struct {
 	ctx context.Context
 	// resourcesC is a channel where fetched resourcess are sent.
 	resourcesC chan (types.ResourcesWithLabels)
+	// preFetchHookFn is called before starting a new poll.
+	preFetchHookFn func()
+}
+
+// Option is a functional option for the Watcher.
+type Option func(*Watcher)
+
+// WithPreFetchHookFn sets a function that gets called before each new iteration.
+func WithPreFetchHookFn(f func()) Option {
+	return func(w *Watcher) {
+		w.preFetchHookFn = f
+	}
 }
 
 // NewWatcher returns a new instance of a common discovery watcher.
-func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
+func NewWatcher(ctx context.Context, config WatcherConfig, options ...Option) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Watcher{
-		cfg:        config,
-		ctx:        ctx,
-		resourcesC: make(chan types.ResourcesWithLabels),
-	}, nil
+	watcher := &Watcher{
+		cfg:            config,
+		ctx:            ctx,
+		resourcesC:     make(chan types.ResourcesWithLabels),
+		preFetchHookFn: func() {},
+	}
+
+	for _, opt := range options {
+		opt(watcher)
+	}
+
+	return watcher, nil
 }
 
 // Start starts fetching cloud resources and sending them to the channel.
@@ -139,6 +159,8 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
+	w.preFetchHookFn()
+
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
 		fetchersLock        sync.Mutex
@@ -163,29 +185,41 @@ func (w *Watcher) fetchAndSend() {
 				return nil
 			}
 
+			fetcherLabels := make(map[string]string, 0)
+
+			if lFetcher.IntegrationName() != "" {
+				// Add the integration name to the static labels for each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryIntegrationName] = lFetcher.IntegrationName()
+			}
+			if lFetcher.DiscoveryConfigName() != "" {
+				// Add the discovery config name to the static labels of each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.DiscoveryConfigName()
+			}
+
+			if w.cfg.DiscoveryGroup != "" {
+				// Add the discovery group name to the static labels of each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
+			}
+
+			// Set the discovery type label to provide information about the
+			// matcher type that matched the resource.
+			if t := lFetcher.FetcherType(); t != "" {
+				fetcherLabels[types.DiscoveryTypeLabel] = t
+			}
+
+			// Set the origin label to provide information where resource comes from
+			fetcherLabels[types.OriginLabel] = w.cfg.Origin
+			if c := lFetcher.Cloud(); c != "" {
+				fetcherLabels[types.CloudLabel] = c
+			}
+
 			for _, r := range resources {
 				staticLabels := r.GetStaticLabels()
 				if staticLabels == nil {
 					staticLabels = make(map[string]string)
 				}
 
-				if w.cfg.DiscoveryGroup != "" {
-					// Add the discovery group name to the static labels of each resource.
-					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
-				}
-
-				// Set the origin label to provide information where resource comes from
-				staticLabels[types.OriginLabel] = w.cfg.Origin
-				if c := lFetcher.Cloud(); c != "" {
-					staticLabels[types.CloudLabel] = c
-				}
-
-				// Set the discovery type label to provide information about the
-				// matcher type that matched the resource.
-				if t := lFetcher.FetcherType(); t != "" {
-					staticLabels[types.DiscoveryTypeLabel] = t
-				}
-
+				maps.Copy(staticLabels, fetcherLabels)
 				r.SetStaticLabels(staticLabels)
 			}
 

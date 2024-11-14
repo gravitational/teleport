@@ -1100,8 +1100,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			wantEvents: 2,
 		},
@@ -1129,8 +1129,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/teleport-role", "arn:aws:iam::123456789012:role/teleport-role2"},
 			expectedExternalIDs:  []string{"external-id", "external-id2"},
@@ -1147,15 +1147,15 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[2], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[2], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			wantEvents: 2,
 		},
 		{
 			name: "1 cluster in auth server not updated + import 1 prod cluster from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			awsMatchers: []types.AWSMatcher{
 				{
@@ -1165,16 +1165,16 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
-			clustersNotUpdated: []string{mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup).GetName()},
+			clustersNotUpdated: []string{mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}).GetName()},
 			wantEvents:         1,
 		},
 		{
 			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			awsMatchers: []types.AWSMatcher{
 				{
@@ -1184,8 +1184,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			clustersNotUpdated: []string{},
 			wantEvents:         2,
@@ -1193,7 +1193,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		{
 			name: "1 cluster in auth that belongs to a different discovery group + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], rewriteDiscoveryLabelsParams{discoveryGroup: otherDiscoveryGroup}),
 			},
 			awsMatchers: []types.AWSMatcher{
 				{
@@ -1203,9 +1203,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], rewriteDiscoveryLabelsParams{discoveryGroup: otherDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			clustersNotUpdated: []string{},
 			wantEvents:         2,
@@ -1214,7 +1214,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			name: "1 cluster in auth that must be updated + import 1 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
 				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})),
 			},
 			awsMatchers: []types.AWSMatcher{
 				{
@@ -1224,8 +1224,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			clustersNotUpdated: []string{},
 			wantEvents:         1,
@@ -1234,8 +1234,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			name: "2 clusters in auth that matches but one must be updated +  import 2 prod clusters, 1 from EKS and other from AKS",
 			existingKubeClusters: []types.KubeCluster{
 				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			awsMatchers: []types.AWSMatcher{
 				{
@@ -1254,12 +1254,12 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
-			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup).GetName()},
+			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}).GetName()},
 			wantEvents:         2,
 		},
 		{
@@ -1274,8 +1274,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			wantEvents: 2,
 		},
@@ -1291,9 +1291,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[4], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[4], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 			},
 			wantEvents: 3,
 		},
@@ -1700,17 +1700,19 @@ var eksMockClusters = []*eks.Cluster{
 	},
 }
 
-func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryParams rewriteDiscoveryLabelsParams) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.AWSMatcherEKS)
+	discoveryParams.matcherType = types.AWSMatcherEKS
+	rewriteCloudResource(t, cluster, discoveryParams)
 	return cluster
 }
 
-func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
+func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryParams rewriteDiscoveryLabelsParams) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.AzureMatcherKubernetes)
+	discoveryParams.matcherType = types.AzureMatcherKubernetes
+	rewriteCloudResource(t, cluster, discoveryParams)
 	return cluster
 }
 
@@ -1812,10 +1814,11 @@ var gkeMockClusters = []gcp.GKECluster{
 	},
 }
 
-func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
+func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryParams rewriteDiscoveryLabelsParams) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.GCPMatcherKubernetes)
+	discoveryParams.matcherType = types.GCPMatcherKubernetes
+	rewriteCloudResource(t, cluster, discoveryParams)
 	return cluster
 }
 
@@ -1838,11 +1841,16 @@ func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, locatio
 
 func TestDiscoveryDatabase(t *testing.T) {
 	const (
-		mainDiscoveryGroup = "main"
+		mainDiscoveryGroup  = "main"
+		integrationName     = "my-integration"
+		discoveryConfigName = "my-discovery-config"
 	)
-	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", mainDiscoveryGroup)
-	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
-	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", mainDiscoveryGroup)
+	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
+	_, awsRedshiftDBWithIntegration := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName})
+	_, awsRedshiftDBWithIntegrationAndDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfig: discoveryConfigName})
+	_, awsRedshiftDBWithDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfig: discoveryConfigName})
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
+	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
 
 	role := types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
 	awsRDSDBWithRole := awsRDSDB.Copy()
@@ -1851,7 +1859,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
-			header.Metadata{Name: uuid.NewString()},
+			header.Metadata{Name: discoveryConfigName},
 			discoveryconfig.Spec{
 				DiscoveryGroup: discoveryGroup,
 				AWS:            m.AWS,
@@ -2047,7 +2055,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		},
 		{
 			name:            "discover AWS database using dynamic matchers",
-			expectDatabases: []types.Database{awsRedshiftDB},
+			expectDatabases: []types.Database{awsRedshiftDBWithDiscoveryConfig},
 			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
 				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
 					AWS: []types.AWSMatcher{{
@@ -2078,14 +2086,14 @@ func TestDiscoveryDatabase(t *testing.T) {
 		},
 		{
 			name:            "running in integrations-only-mode with a dynamic matcher with an integration, must find 1 database",
-			expectDatabases: []types.Database{awsRedshiftDB},
+			expectDatabases: []types.Database{awsRedshiftDBWithIntegrationAndDiscoveryConfig},
 			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
 				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
 					AWS: []types.AWSMatcher{{
 						Types:       []string{types.AWSMatcherRedshift},
 						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 						Regions:     []string{"us-east-1"},
-						Integration: "xyz",
+						Integration: integrationName,
 					}},
 				})
 				return []*discoveryconfig.DiscoveryConfig{dc1}
@@ -2099,9 +2107,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Types:       []string{types.AWSMatcherRedshift},
 				Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:     []string{"us-east-1"},
-				Integration: "xyz",
+				Integration: integrationName,
 			}},
-			expectDatabases: []types.Database{awsRedshiftDB},
+			expectDatabases: []types.Database{awsRedshiftDBWithIntegration},
 			wantEvents:      1,
 		},
 	}
@@ -2212,8 +2220,10 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	const mainDiscoveryGroup = "main"
 
 	clock := clockwork.NewFakeClock()
+	dc1Name := uuid.NewString()
+	dc2Name := uuid.NewString()
 
-	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfig: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
 	testCloudClients := &cloud.TestCloudClients{
 		STS: &mocks.STSMock{},
@@ -2277,7 +2287,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
 		// Create a Dynamic matcher
 		dc1, err := discoveryconfig.NewDiscoveryConfig(
-			header.Metadata{Name: uuid.NewString()},
+			header.Metadata{Name: dc1Name},
 			discoveryconfig.Spec{
 				DiscoveryGroup: "another-discovery-group",
 				AWS: []types.AWSMatcher{{
@@ -2301,8 +2311,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
 		// Create a Dynamic matcher
-		dc1, err := discoveryconfig.NewDiscoveryConfig(
-			header.Metadata{Name: uuid.NewString()},
+		dc2, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: dc2Name},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
 				AWS: []types.AWSMatcher{{
@@ -2315,7 +2325,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Zero(t, reporter.DiscoveryFetchEventCount())
-		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc1)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc2)
 		require.NoError(t, err)
 
 		// Check for new resource in reconciler
@@ -2345,7 +2355,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
-			err = tlsServer.Auth().DiscoveryConfigs.DeleteDiscoveryConfig(ctx, dc1.GetName())
+			err = tlsServer.Auth().DiscoveryConfigs.DeleteDiscoveryConfig(ctx, dc2.GetName())
 			require.NoError(t, err)
 
 			currentEmittedEvents := reporter.DiscoveryFetchEventCount()
@@ -2364,7 +2374,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	})
 }
 
-func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (*rds.DBInstance, types.Database) {
+func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
 	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
@@ -2378,11 +2388,12 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRDS)
+	discoveryParams.matcherType = types.AWSMatcherRDS
+	rewriteCloudResource(t, database, discoveryParams)
 	return instance, database
 }
 
-func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup string) (*redshift.Cluster, types.Database) {
+func makeRedshiftCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*redshift.Cluster, types.Database) {
 	t.Helper()
 	cluster := &redshift.Cluster{
 		ClusterIdentifier:   aws.String(name),
@@ -2396,11 +2407,12 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 
 	database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRedshift)
+	discoveryParams.matcherType = types.AWSMatcherRedshift
+	rewriteCloudResource(t, database, discoveryParams)
 	return cluster, database
 }
 
-func makeAzureRedisServer(t *testing.T, name, subscription, group, region string, discoveryGroup string) (*armredis.ResourceInfo, types.Database) {
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string, discoveryParams rewriteDiscoveryLabelsParams) (*armredis.ResourceInfo, types.Database) {
 	t.Helper()
 	resourceInfo := &armredis.ResourceInfo{
 		Name:     to.Ptr(name),
@@ -2415,7 +2427,8 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := common.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AzureMatcherRedis)
+	discoveryParams.matcherType = types.AzureMatcherRedis
+	rewriteCloudResource(t, database, discoveryParams)
 	return resourceInfo, database
 }
 
@@ -3040,8 +3053,8 @@ func TestServer_onCreate(t *testing.T) {
 
 	t.Run("onCreate update kube", func(t *testing.T) {
 		// With cloud origin and an empty discovery group, it should update.
-		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */)
-		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{})
+		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.NoError(t, err)
 		require.True(t, accessPoint.updatedKube)
 
@@ -3049,7 +3062,7 @@ func TestServer_onCreate(t *testing.T) {
 		// non-cloud origin. It should not update.
 		accessPoint.updatedKube = false
 		accessPoint.kube.SetOrigin(types.OriginDynamic)
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 
@@ -3057,22 +3070,22 @@ func TestServer_onCreate(t *testing.T) {
 		// an empty origin. It should not update.
 		accessPoint.updatedKube = false
 		accessPoint.kube.SetOrigin("")
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 
 		// Reset the update flag and set the registered kube cluster to have
 		// a non-empty discovery group. It should not update.
 		accessPoint.updatedKube = false
-		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
-		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "non-empty"})
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: "test-cluster"}))
 		require.Error(t, err)
 		require.False(t, accessPoint.updatedKube)
 	})
 
 	t.Run("onCreate update database", func(t *testing.T) {
-		_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
-		_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
+		_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: "test"})
+		_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{})
 
 		// With cloud origin and an empty discovery group, it should update.
 		accessPoint.database = awsRedshiftDBEmptyDiscoveryGroup
@@ -3350,13 +3363,30 @@ func (m fakeWatcher) Error() error {
 	return nil
 }
 
+type rewriteDiscoveryLabelsParams struct {
+	matcherType     string
+	discoveryConfig string
+	discoveryGroup  string
+	integration     string
+}
+
 // rewriteCloudResource is a test helper func that rewrites an expected cloud
 // resource to include all the metadata we expect to be added by discovery.
-func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryGroup, matcherType string) {
+func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryParams rewriteDiscoveryLabelsParams) {
 	r.SetOrigin(types.OriginCloud)
 	staticLabels := r.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	staticLabels[types.DiscoveryTypeLabel] = matcherType
+	if discoveryParams.matcherType != "" {
+		staticLabels[types.DiscoveryTypeLabel] = discoveryParams.matcherType
+	}
+	if discoveryParams.discoveryConfig != "" {
+		staticLabels[types.TeleportInternalDiscoveryConfigName] = discoveryParams.discoveryConfig
+	}
+	if discoveryParams.discoveryGroup != "" {
+		staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryParams.discoveryGroup
+	}
+	if discoveryParams.integration != "" {
+		staticLabels[types.TeleportInternalDiscoveryIntegrationName] = discoveryParams.integration
+	}
 	r.SetStaticLabels(staticLabels)
 
 	switch r := r.(type) {
@@ -3365,9 +3395,9 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryGro
 		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")
 		switch cloudLabel {
 		case types.CloudAWS:
-			common.ApplyAWSDatabaseNameSuffix(r, matcherType)
+			common.ApplyAWSDatabaseNameSuffix(r, discoveryParams.matcherType)
 		case types.CloudAzure:
-			common.ApplyAzureDatabaseNameSuffix(r, matcherType)
+			common.ApplyAzureDatabaseNameSuffix(r, discoveryParams.matcherType)
 		case types.CloudGCP:
 			require.FailNow(t, "GCP database discovery is not supported", cloudLabel)
 		default:
