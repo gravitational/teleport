@@ -110,8 +110,5 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 }
 
 func compareAccounts(a, b services.IdentityCenterAccount) int {
-	if equal.AccountEqual(a.Account, b.Account) {
-		return services.Equal
-	}
-	return services.Different
+	return services.EqualFromBool(equal.AccountEqual(a.Account, b.Account))
 }

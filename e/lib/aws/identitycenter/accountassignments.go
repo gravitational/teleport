@@ -127,8 +127,5 @@ func newAccountAssignment(acct services.IdentityCenterAccount, ps *identitycente
 }
 
 func compareAccountAssignments(a, b services.IdentityCenterAccountAssignment) int {
-	if equal.AccountAssignmentEqual(a.AccountAssignment, b.AccountAssignment) {
-		return services.Equal
-	}
-	return services.Different
+	return services.EqualFromBool(equal.AccountAssignmentEqual(a.AccountAssignment, b.AccountAssignment))
 }

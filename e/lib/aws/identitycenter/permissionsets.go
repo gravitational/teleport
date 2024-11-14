@@ -108,8 +108,5 @@ func (svc *Service) reconcilePermissionSets(ctx context.Context, oldPermissionSe
 }
 
 func comparePermissionSets(a, b *identitycenterv1.PermissionSet) int {
-	if equal.PermissionSetEqual(a, b) {
-		return services.Equal
-	}
-	return services.Different
+	return services.EqualFromBool(equal.PermissionSetEqual(a, b))
 }
