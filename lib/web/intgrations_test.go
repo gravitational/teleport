@@ -68,7 +68,7 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 			require.Equal(t, 200, createResp.Code())
 
 			// check origin label stored in backend
-			intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
+			intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName, false)
 			require.NoError(t, err)
 			require.Equal(t, test.audience, intgrationResource.GetAWSOIDCIntegrationSpec().Audience)
 
