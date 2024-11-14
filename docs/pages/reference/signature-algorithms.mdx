@@ -220,12 +220,16 @@ we'd have to support, and could create the possibility for insecure combinations
 
 If you are using a PKCS#11 HSM that does not support ECDSA keys, we recommend
 you continue to use the `legacy` algorithm suite.
-For an existing cluster it's possible you could switch to the `hsm-v1` suite and
-users and hosts could begin to use new key algorithms while your CAs continue to
-use their existing RSA keys, but whenever a new CA key is generated it may fail
-if the CA uses non-RSA keys.
-New CA keys may be generated if a CA rotation is initiated, or during a version
-upgrade when a new CA has been added in the new version.
+
+If you have a strong need to have users and hosts use Ed25519 and/or ECDSA keys,
+you could switch to the `hsm-v1` suite, but whenever a new CA key is generated
+it may fail if the CA uses non-RSA keys.
+This may cause the Auth Service to terminate with an error after trying to
+generate the key.
+New CA keys may be generated the first time a new Auth Service starts, when a CA
+rotation is initiated, or during a version upgrade when a new CA has been added
+in the new version.
+For these reasons we recommend continuing to use the `legacy` algorithm suite.
 
 ### My YubiHSM2 authentication key does not have capabilites for ECDSA keys, what do I do?
 
