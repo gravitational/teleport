@@ -85,7 +85,13 @@ export function AccessGraph() {
 
   return (
     <Suspense fallback={<AccessGraphLoading />}>
-      <Flex width="100%" height="100%" overflow="hidden" flexDirection="column">
+      <Flex
+        data-scrollbar="default"
+        width="100%"
+        height="100%"
+        overflowY="auto"
+        flexDirection="column"
+      >
         <Graph
           clusterId={clusterId}
           awsOnboardingEnabled={true}
