@@ -365,22 +365,43 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources(newResources);
   }
 
-  function bulkToggleResources(resources: PendingListItem[]) {
+  function updateNamespacesForKubeCluster(
+    resources: PendingListItem[],
+    kubeCluster: PendingListItem
+  ) {
     const newResources: ResourceMap = deepCopyResourceMap(addedResources);
 
-    resources.forEach(resource => {
-      const { id, val } = getResourceIdAndVal({
+    // Validate each namespaces.
+    const requestedResources = resources.map(resource => {
+      if (resource.kind !== 'namespace') {
+        throw new Error(
+          `Only kube "namespace" kind can be updated, got kind ${resource.kind}`
+        );
+      }
+      if (resource.id != kubeCluster.name) {
+        throw new Error(
+          'Only namespace belonging to the same requested kube cluster can be updated'
+        );
+      }
+      return getResourceIdAndVal({
         resourceKind: resource.kind,
         resourceName: resource.id,
         subResourceName: resource.subResourceName,
         teleportClusterName: clusterId,
       });
+    });
 
-      if (newResources[resource.kind][id]) {
-        delete newResources[resource.kind][id];
-      } else {
-        newResources[resource.kind][id] = val;
+    const requestedNamespaceIds = requestedResources.map(r => r.id);
+
+    // Delete existing namespace ids.
+    Object.keys(newResources['namespace'] || []).forEach(id => {
+      if (!requestedNamespaceIds.includes(id)) {
+        delete newResources['namespace'][id];
       }
+    });
+
+    requestedResources.forEach(resource => {
+      newResources['namespace'][resource.id] = resource.val;
     });
 
     setAddedResources(newResources);
@@ -582,7 +603,7 @@ export function useNewRequest(ctx: Ctx) {
     fetchUsage,
     usage,
     ctx,
-    bulkToggleResources,
+    updateNamespacesForKubeCluster,
   };
 }
 

@@ -142,7 +142,7 @@ function NewRequest(props: State) {
     usage,
     fetchUsage,
     ctx,
-    bulkToggleResources,
+    updateNamespacesForKubeCluster,
     numAddedResources,
   } = props;
   const { setEnforceMinWidth } = useContentMinWidthContext();
@@ -472,7 +472,7 @@ function NewRequest(props: State) {
             reset={clearAddedResources}
             selectedResource={selectedResource}
             isResourceRequest={isResourceRequest}
-            bulkToggleKubeResources={items => bulkToggleResources(items)}
+            updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
         )}
       </Transition>

@@ -48,7 +48,7 @@ export function UnifiedResourcesE() {
     addedResources,
     clearAddedResources,
     setAddedResources,
-    bulkToggleResources,
+    updateNamespacesForKubeCluster,
   } = useNewRequest(ctx);
   const {
     clearAttempt,
@@ -210,7 +210,7 @@ export function UnifiedResourcesE() {
                   </Box>
                 )}
                 SuccessComponent={SuccessActionComponent}
-                bulkToggleKubeResources={items => bulkToggleResources(items)}
+                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
               />
             </CheckoutWrapper>
           </>

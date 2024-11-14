@@ -9,10 +9,7 @@ import {
   PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
-import {
-  isKubeClusterWithNamespaces,
-  KubeNamespaceRequest,
-} from 'shared/components/AccessRequests/NewRequest/kube';
+import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
 import KubeService from 'teleport/services/kube';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
@@ -204,13 +201,13 @@ export function useRequestCheckout({
     }));
   }
 
-  async function fetchKubeNamespaces({
-    kubeCluster,
-    search,
-  }: KubeNamespaceRequest): Promise<string[]> {
+  async function fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListItem
+  ): Promise<string[]> {
     const kubeSvc = new KubeService();
     const namespaces = await kubeSvc.fetchKubernetesResources(clusterId, {
-      kubeCluster,
+      kubeCluster: kubeCluster.id,
       search,
       limit: 50,
       searchAsRoles: 'yes',

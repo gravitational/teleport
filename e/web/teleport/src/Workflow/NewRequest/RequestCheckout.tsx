@@ -26,7 +26,7 @@ export const RequestCheckout = forwardRef<
     | 'userGroupFetchAttempt'
     | 'reset'
     | 'isResourceRequest'
-    | 'bulkToggleKubeResources'
+    | 'updateNamespacesForKubeCluster'
   > & {
     selectedResource: RequestableResourceKind;
     addedResources: ResourceMap;
