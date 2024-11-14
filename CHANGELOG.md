@@ -2,7 +2,20 @@
 
 ## 17.0.0 (11/xx/2024)
 
-### ** Not yet released **
+### Other changes
+
+#### Stricter node hostname requirements
+
+In a future version of Teleport 17, new node hostnames will have stricter
+requirements. Hostnames will only be allowed to consist of alphanumeric
+characters and the symbols '.' and '-'. A notification will be sent when
+nodes with invalid hostnames are detected. In Teleport 18 all existing nodes
+with invalid hostnames will have their hostnames changed to a unique
+valid hostname. They will still be dialable by their UUID or public address
+but will not be dialable through Teleport by their original hostname. Nodes
+with invalid hostnames should be updated to comply with the new hostname
+requirements to avoid Teleport changing the hostnames to comply with the
+new requirements.
 
 * Refreshed the Web UI and Teleport Connect UI design [#46812](https://github.com/gravitational/teleport/pull/46812)
 
