@@ -137,6 +137,7 @@ func TestUpdater_Update(t *testing.T) {
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		linkedVersion     string
 		requestGroup      string
 		syncCalls         int
 		reloadCalls       int
@@ -161,6 +162,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -232,14 +234,15 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Enabled: true,
 				},
 			},
 			inWindow:   true,
 			installErr: errors.New("install error"),
 
-			errMatch: "install error",
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			errMatch:          "install error",
 		},
 		{
 			name: "version already installed in window",
@@ -288,6 +291,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -330,6 +334,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -358,6 +363,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         2,
 			reloadCalls:       0,
@@ -383,6 +389,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         2,
 			reloadCalls:       2,
@@ -479,12 +486,12 @@ func TestUpdater_Update(t *testing.T) {
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.linkedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
@@ -493,6 +500,8 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertCalls)
 
 			if tt.cfg == nil {
+				_, err := os.Stat(cfgPath)
+				require.Error(t, err)
 				return
 			}
 
@@ -516,6 +525,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		cfg              *UpdateConfig // nil -> file not present
 		tryLinkSystemErr error
 
+		syncCalls          int
 		tryLinkSystemCalls int
 		errMatch           string
 	}{
@@ -530,6 +540,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			},
 
 			tryLinkSystemCalls: 0,
+			syncCalls:          0,
 		},
 		{
 			name: "updates disabled",
@@ -542,6 +553,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			},
 
 			tryLinkSystemCalls: 1,
+			syncCalls:          1,
 		},
 		{
 			name: "already linked",
@@ -555,6 +567,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			tryLinkSystemErr: ErrLinked,
 
 			tryLinkSystemCalls: 1,
+			syncCalls:          0,
 		},
 		{
 			name: "link error",
@@ -568,11 +581,13 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			tryLinkSystemErr: errors.New("bad"),
 
 			tryLinkSystemCalls: 1,
+			syncCalls:          0,
 			errMatch:           "bad",
 		},
 		{
 			name:               "no config",
 			tryLinkSystemCalls: 1,
+			syncCalls:          1,
 		},
 	}
 
@@ -602,26 +617,24 @@ func TestUpdater_LinkPackage(t *testing.T) {
 					return tt.tryLinkSystemErr
 				},
 			}
+			var syncCalls int
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return nil
+				},
+			}
 
 			ctx := context.Background()
 			err = updater.LinkPackage(ctx)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			require.Equal(t, tt.tryLinkSystemCalls, tryLinkSystemCalls)
-
-			if tt.cfg == nil {
-				return
-			}
-			data, err := os.ReadFile(cfgPath)
-			require.NoError(t, err)
-			if golden.ShouldSet() {
-				golden.Set(t, data)
-			}
-			require.Equal(t, string(golden.Get(t)), string(data))
+			require.Equal(t, tt.syncCalls, syncCalls)
 		})
 	}
 }
@@ -641,6 +654,7 @@ func TestUpdater_Enable(t *testing.T) {
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		linkedVersion     string
 		requestGroup      string
 		syncCalls         int
 		reloadCalls       int
@@ -663,6 +677,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -688,6 +703,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
+			linkedVersion:     "new-version",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -706,6 +722,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -726,13 +743,13 @@ func TestUpdater_Enable(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-				},
 			},
 			installErr: errors.New("install error"),
 
-			errMatch: "install error",
+			installedVersion:  "16.3.0",
+			linkedVersion:     "",
+			installedTemplate: cdnURITemplate,
+			errMatch:          "install error",
 		},
 		{
 			name: "version already installed",
@@ -746,6 +763,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       0,
 		},
@@ -762,6 +780,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -779,6 +798,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			removedVersion:    "",
 			syncCalls:         1,
 			reloadCalls:       0,
@@ -788,6 +808,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -796,6 +817,7 @@ func TestUpdater_Enable(t *testing.T) {
 			flags:             FlagEnterprise | FlagFIPS,
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -810,6 +832,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
@@ -821,6 +844,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
@@ -918,18 +942,24 @@ func TestUpdater_Enable(t *testing.T) {
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.linkedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
 			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertCalls)
+
+			if tt.cfg == nil && err != nil {
+				_, err := os.Stat(cfgPath)
+				require.Error(t, err)
+				return
+			}
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)

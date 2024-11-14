@@ -1,9 +1,9 @@
 version: v1
 kind: update_config
 spec:
-    proxy: ""
+    proxy: localhost
     group: ""
-    url_template: ""
+    url_template: http://example.com
     enabled: true
 status:
     active_version: ""

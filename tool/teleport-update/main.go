@@ -62,10 +62,6 @@ const (
 	versionsDirName = "versions"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
-	// defaultLinkDir is the default location where Teleport binaries and services are linked.
-	defaultLinkDir = "/usr/local"
-	// systemInstallDir is the location where packaged Teleport binaries and services are installed.
-	systemInstallDir = "/usr/local/teleport-system"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -102,8 +98,8 @@ func Run(args []string) error {
 		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
-	app.Flag("link-dir", "Directory to create system symlinks to binaries and services.").
-		Default(defaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
+		Default(autoupdate.DefaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 
@@ -193,7 +189,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
-		SystemDir:   systemInstallDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -226,7 +222,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
-		SystemDir:   systemInstallDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -259,7 +255,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
-		SystemDir:   systemInstallDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -292,7 +288,7 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
-		SystemDir:   systemInstallDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {

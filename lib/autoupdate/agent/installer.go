@@ -56,7 +56,7 @@ const (
 )
 
 var (
-	// serviceDir contains the path to the Teleport SystemD service dir within the version directory.
+	// serviceDir contains the relative path to the Teleport SystemD service dir.
 	serviceDir = filepath.Join("lib", "systemd", "system")
 	// serviceName contains the name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
@@ -371,7 +371,7 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		prefix += "-ent"
 	}
 	return []utils.ExtractPath{
-		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "lib/systemd/system/teleport.service", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: filepath.Join(serviceDir, serviceName), DirMode: systemDirMode},
 		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "install"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},
@@ -659,7 +659,7 @@ func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
 
 // tryLinks create binary and service links for files in binDir and svcDir if links are not already present.
 // Existing links that point to files outside binDir or svcDir, as well as existing non-link files, will error.
-// tryLinks will not attempt to create any links if linking may result in an error.
+// tryLinks will not attempt to create any links if linking could result in an error.
 // However, concurrent changes to links may result in an error with partially-complete linking.
 func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) error {
 	// ensure target directories exist before trying to create links
@@ -700,19 +700,19 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 		return trace.Errorf("no binaries available to link")
 	}
 
-	// validate that we can create the systemd service file before attempting linking
-
-	src := filepath.Join(svcDir, serviceName)
-	dst := filepath.Join(li.LinkServiceDir, serviceName)
-	err = tryCopy(dst, src, maxServiceFileSize)
-	if err != nil && !errors.Is(err, os.ErrExist) {
-		return trace.Errorf("error writing %s: %w", serviceName, err)
-	}
-
+	// link binaries that are missing links
 	for _, link := range links {
 		if err := os.Symlink(link.oldname, link.newname); err != nil {
 			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(link.oldname), err)
 		}
+	}
+
+	// if any binaries are linked from binDir, always link the service from svcDir
+	src := filepath.Join(svcDir, serviceName)
+	dst := filepath.Join(li.LinkServiceDir, serviceName)
+	_, err = forceCopy(dst, src, maxServiceFileSize)
+	if err != nil && !errors.Is(err, os.ErrExist) {
+		return trace.Errorf("error writing %s: %w", serviceName, err)
 	}
 
 	return nil
@@ -745,40 +745,6 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 		return false, trace.Errorf("refusing to replace link at %s: %w", newname, ErrLinked)
 	}
 	return false, nil
-}
-
-// tryCopy attempts to atomically copy a file from src to dst.
-// tryCopy errors if a file or directory already exists at dst.
-// tryCopy returns ErrLinked if a regular file smaller than n with different data already exists.
-// tryCopy returns os.ErrExist if a regular file smaller than n with the same contents exists.
-// The src and any dst file must be smaller than n, or tryCopy errors.
-func tryCopy(dst, src string, n int64) error {
-	srcData, err := readFileN(src, n)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fi, err := os.Lstat(dst)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return trace.Wrap(err)
-	}
-	if err == nil { // dst exists
-		if !fi.Mode().IsRegular() {
-			return trace.Errorf("refusing to replace irregular file at %s", dst)
-		}
-		dstData, err := readFileN(dst, n)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if bytes.Equal(srcData, dstData) {
-			return os.ErrExist
-		}
-		return trace.Errorf("refusing to replace file at %s: %w", dst, ErrLinked)
-	}
-	err = renameio.WriteFile(dst, srcData, configFileMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // versionDir returns the storage directory for a Teleport version.

@@ -42,12 +42,27 @@ import (
 )
 
 const (
+	// DefaultLinkDir is the default location where Teleport is linked.
+	DefaultLinkDir = "/usr/local"
+	// DefaultSystemDir is the location where packaged Teleport binaries and services are installed.
+	DefaultSystemDir = "/usr/local/teleport-system"
+)
+
+const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
 	reservedFreeDisk = 10_000_000 // 10 MB
+)
+
+// Log keys
+const (
+	targetVersionKey = "target_version"
+	activeVersionKey = "active_version"
+	backupVersionKey = "backup_version"
+	errorKey         = "error"
 )
 
 const (
@@ -57,14 +72,6 @@ const (
 	// UpdateConfig metadata
 	updateConfigVersion = "v1"
 	updateConfigKind    = "update_config"
-)
-
-// Log keys
-const (
-	targetVersionKey = "target_version"
-	activeVersionKey = "active_version"
-	backupVersionKey = "backup_version"
-	errorKey         = "error"
 )
 
 // UpdateConfig describes the update.yaml file schema.
@@ -124,10 +131,10 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		cfg.Log = slog.Default()
 	}
 	if cfg.LinkDir == "" {
-		cfg.LinkDir = "/usr/local"
+		cfg.LinkDir = DefaultLinkDir
 	}
 	if cfg.SystemDir == "" {
-		cfg.SystemDir = "/usr/local/teleport-system"
+		cfg.SystemDir = DefaultSystemDir
 	}
 	if cfg.VersionsDir == "" {
 		cfg.VersionsDir = filepath.Join(libdefaults.DataDir, "versions")
@@ -142,9 +149,9 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			LinkBinDir: filepath.Join(cfg.LinkDir, "bin"),
 			// For backwards-compatibility with symlinks created by package-based installs, we always
 			// link into /lib/systemd/system, even though, e.g., /usr/local/lib/systemd/system would work.
-			LinkServiceDir:          "/lib/systemd/system",
+			LinkServiceDir:          filepath.Join("/", serviceDir),
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
-			SystemServiceDir:        filepath.Join(cfg.SystemDir, "lib", "systemd", "system"),
+			SystemServiceDir:        filepath.Join(cfg.SystemDir, serviceDir),
 			HTTP:                    client,
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
@@ -636,6 +643,10 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 		return nil
 	} else if err != nil {
 		return trace.Errorf("failed to link system package installation: %w", err)
+	}
+	// TODO(sclevine): only if systemd files change
+	if err := u.Process.Sync(ctx); err != nil {
+		return trace.Errorf("failed to validate configuration for packaged installation of Teleport: %w", err)
 	}
 	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
 	return nil
