@@ -119,38 +119,37 @@ import (
 )
 
 const (
-	// quicMaxIdleTimeout is the arbitrary timeout after which a QUIC connection
+	// maxIdleTimeout is the arbitrary timeout after which a QUIC connection
 	// that hasn't received data is presumed to be lost to the aether.
-	quicMaxIdleTimeout = 30 * time.Second
-	// quicKeepAlivePeriod is the interval of QUIC keepalive packets sent if the
+	maxIdleTimeout = 30 * time.Second
+	// keepAlivePeriod is the interval of QUIC keepalive packets sent if the
 	// connection is otherwise idle.
-	quicKeepAlivePeriod = 5 * time.Second
+	keepAlivePeriod = 5 * time.Second
 
-	quicMaxReceiveWindow   = quicvarint.Max
-	quicMaxIncomingStreams = 1 << 60 // maximum allowed value as per the quic-go docs
+	maxReceiveWindow   = quicvarint.Max
+	maxIncomingStreams = 1 << 60 // maximum allowed value as per the quic-go docs
 
-	// quicNextProto is the ALPN indicator for the current version of the QUIC
-	// proxy peering protocol.
-	quicNextProto = "teleport-peer-v1alpha"
+	// nextProto is the ALPN indicator for the current version of the QUIC proxy
+	// peering protocol.
+	nextProto = "teleport-peer-v1alpha"
 
-	// quicMaxMessageSize is the maximum accepted size (in protobuf binary
-	// format) for the request and response messages exchanged as part of the
-	// dialing.
-	quicMaxMessageSize = 128 * 1024
+	// maxMessageSize is the maximum accepted size (in protobuf binary format)
+	// for the request and response messages exchanged as part of the dialing.
+	maxMessageSize = 128 * 1024
 
-	// quicTimestampGraceWindow is the maximum time difference between local
-	// time and reported time in a 0-RTT request. Clients should not keep trying
-	// to use a request after this much time has passed.
-	quicTimestampGraceWindow = time.Minute
-	// quicNoncePersistence is the shortest time for which a nonce will be kept
-	// in memory to prevent 0-RTT replay attacks. Should be significantly longer
+	// timestampGraceWindow is the maximum time difference between local time
+	// and reported time in a 0-RTT request. Clients should not keep trying to
+	// use a request after this much time has passed.
+	timestampGraceWindow = time.Minute
+	// noncePersistence is the shortest time for which a nonce will be kept in
+	// memory to prevent 0-RTT replay attacks. Should be significantly longer
 	// than [quicTimestampGraceWindow]. In the current implementation, nonces
 	// can be kept for at most twice this value.
-	quicNoncePersistence = 5 * time.Minute
+	noncePersistence = 5 * time.Minute
 
-	quicDialTimeout          = 30 * time.Second
-	quicRequestTimeout       = 10 * time.Second
-	quicErrorResponseTimeout = 10 * time.Second
+	dialTimeout          = 30 * time.Second
+	requestTimeout       = 10 * time.Second
+	errorResponseTimeout = 10 * time.Second
 
 	// noStreamErrorCode indicates that the stream was closed with no errors.
 	noStreamErrorCode quic.StreamErrorCode = 0

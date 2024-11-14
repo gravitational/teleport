@@ -126,7 +126,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	tlsConfig := &tls.Config{
 		GetCertificate:        cfg.GetCertificate,
 		VerifyPeerCertificate: internal.VerifyPeerCertificateIsProxy,
-		NextProtos:            []string{quicNextProto},
+		NextProtos:            []string{nextProto},
 		ClientAuth:            tls.RequireAndVerifyClientCert,
 		MinVersion:            tls.VersionTLS13,
 	}
@@ -145,14 +145,14 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}
 
 	quicConfig := &quic.Config{
-		MaxStreamReceiveWindow:     quicMaxReceiveWindow,
-		MaxConnectionReceiveWindow: quicMaxReceiveWindow,
+		MaxStreamReceiveWindow:     maxReceiveWindow,
+		MaxConnectionReceiveWindow: maxReceiveWindow,
 
-		MaxIncomingStreams:    quicMaxIncomingStreams,
+		MaxIncomingStreams:    maxIncomingStreams,
 		MaxIncomingUniStreams: -1,
 
-		MaxIdleTimeout:  quicMaxIdleTimeout,
-		KeepAlivePeriod: quicKeepAlivePeriod,
+		MaxIdleTimeout:  maxIdleTimeout,
+		KeepAlivePeriod: keepAlivePeriod,
 
 		Allow0RTT: true,
 	}
@@ -271,11 +271,11 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 		if err != nil {
 			return
 		}
-		if len(errBuf)-4 > quicMaxMessageSize {
+		if len(errBuf)-4 > maxMessageSize {
 			log.WarnContext(conn.Context(), "refusing to send oversized error message (this is a bug)")
 			return
 		}
-		stream.SetWriteDeadline(time.Now().Add(quicErrorResponseTimeout))
+		stream.SetWriteDeadline(time.Now().Add(errorResponseTimeout))
 		if _, err := stream.Write(errBuf); err != nil {
 			return
 		}
@@ -283,13 +283,13 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 		closedStream = true
 	}
 
-	stream.SetReadDeadline(time.Now().Add(quicRequestTimeout))
+	stream.SetReadDeadline(time.Now().Add(requestTimeout))
 	var reqLen uint32
 	if err := binary.Read(stream, binary.LittleEndian, &reqLen); err != nil {
 		log.DebugContext(conn.Context(), "failed to read request size", "error", err)
 		return
 	}
-	if reqLen >= quicMaxMessageSize {
+	if reqLen >= maxMessageSize {
 		log.WarnContext(conn.Context(), "received oversized request", "request_len", reqLen)
 		return
 	}
@@ -330,7 +330,7 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 		return
 	}
 
-	if requestTimestamp := req.GetTimestamp().AsTime(); time.Since(requestTimestamp).Abs() > quicTimestampGraceWindow {
+	if requestTimestamp := req.GetTimestamp().AsTime(); time.Since(requestTimestamp).Abs() > timestampGraceWindow {
 		log.WarnContext(conn.Context(),
 			"dial request has out of sync timestamp, 0-RTT performance will be impacted",
 			"request_timestamp", requestTimestamp,
@@ -459,7 +459,7 @@ type replayStore struct {
 func (r *replayStore) add(nonce uint64, now time.Time) (added bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if now.Sub(r.currentTime) > quicNoncePersistence {
+	if now.Sub(r.currentTime) > noncePersistence {
 		r.currentTime = now
 		r.previousSet, r.currentSet = r.currentSet, r.previousSet
 		clear(r.currentSet)
