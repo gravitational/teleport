@@ -276,7 +276,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 		if err == nil {
 			return
 		}
-		conn.CloseWithError(1, "")
+		conn.CloseWithError(genericApplicationErrorCode, "")
 	}()
 
 	log.DebugContext(conn.Context(),
@@ -425,8 +425,8 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 		}
 		return trace.Wrap(err)
 	}
-	defer conn.CloseWithError(0, "")
-	defer context.AfterFunc(ctx, func() { conn.CloseWithError(0, "") })()
+	defer conn.CloseWithError(noApplicationErrorCode, "")
+	defer context.AfterFunc(ctx, func() { conn.CloseWithError(noApplicationErrorCode, "") })()
 
 	log.DebugContext(conn.Context(),
 		"opened connection",
@@ -437,7 +437,7 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	stream.CancelRead(0)
+	stream.CancelRead(noStreamErrorCode)
 	_ = stream.Close()
 
 	log.DebugContext(conn.Context(),
@@ -468,8 +468,8 @@ func sendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection) (_ 
 		if err == nil {
 			return
 		}
-		stream.CancelRead(1)
-		stream.CancelWrite(1)
+		stream.CancelRead(genericStreamErrorCode)
+		stream.CancelWrite(genericStreamErrorCode)
 	}()
 
 	stream.SetDeadline(deadline)
@@ -515,7 +515,7 @@ func (c *streamConn) Write(b []byte) (n int, err error) {
 
 // Close implements [net.Conn].
 func (c *streamConn) Close() error {
-	return trace.Wrap(c.conn.CloseWithError(0, ""))
+	return trace.Wrap(c.conn.CloseWithError(noApplicationErrorCode, ""))
 }
 
 // SetDeadline implements [net.Conn].
