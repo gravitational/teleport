@@ -12,7 +12,7 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/introduction
+* Architecture: https://goteleport.com/docs/reference/architecture/architecture
 * Getting Started: https://goteleport.com/docs/getting-started/
 
 <div align="center">
