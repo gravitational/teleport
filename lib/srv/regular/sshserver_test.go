@@ -443,6 +443,112 @@ loop:
 	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
+// TestSessionAuditLog tests that the expected audit events are emitted for a
+// session with various subsystems involved.
+//
+// Note: This is a regression test for a bug which resulted in extra, empty session.data
+// events for networking requests.
+func TestSessionAuditLog(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
+	// Enable x11 forwarding
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	// Allow x11, agent, and port forwarding for the user.
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	roleOptions.ForwardAgent = types.NewBool(true)
+	roleOptions.PortForwarding = types.NewBoolOption(true)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Start a new session
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+
+	// start interactive SSH session (new shell):
+	err = se.Shell(ctx)
+	require.NoError(t, err)
+
+	// Request agent forwarding
+	err = agent.RequestAgentForwarding(se.Session)
+	require.NoError(t, err)
+
+	// Request x11 forwarding
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	require.NoError(t, err)
+
+	// Request a remote port forwarding listener.
+	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	// Start up a test server that uses the port forwarded listener.
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(ts.Close)
+	ts.Listener = listener
+	ts.Start()
+
+	// Request forward to remote port.
+	conn, err := f.ssh.clt.DialContext(context.Background(), "tcp", listener.Addr().String())
+	require.NoError(t, err)
+	conn.Close()
+
+	// End the session.
+	se.Close()
+
+	expectedEvents := []apievents.AuditEvent{
+		&apievents.SessionStart{},
+		&apievents.X11Forward{},
+		&apievents.PortForward{},
+		&apievents.SessionLeave{},
+		&apievents.SessionData{},
+		&apievents.PortForward{},
+		&apievents.SessionEnd{},
+	}
+
+	timeout := time.After(time.Second)
+	var gotEvents []apievents.AuditEvent
+loop:
+	for {
+		select {
+		case event := <-emitter.C():
+			fmt.Printf("type %T\n", event)
+			gotEvents = append(gotEvents, event)
+		case <-timeout:
+			break loop
+		}
+	}
+
+	if len(expectedEvents) != len(gotEvents) {
+		require.Fail(t, "collected audit events don't match expected events", "got %v, expected %v", gotEvents, expectedEvents)
+	}
+
+	for i, ee := range expectedEvents {
+		require.IsType(t, ee, gotEvents[i])
+	}
+}
+
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
