@@ -59,6 +59,7 @@ type mockProxyAccessPoint struct {
 }
 
 type mockProxyService struct {
+	clientapi.UnimplementedProxyServiceServer
 	mockDialNode func(stream clientapi.ProxyService_DialNodeServer) error
 }
 
@@ -236,7 +237,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		AccessCache:        &mockCAGetter{},
 		Listener:           listener,
 		TLSConfig:          tlsConf,
-		ClusterDialer:      &mockClusterDialer{},
+		Dialer:             &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
 		service:            &mockProxyService{},
 		ClusterName:        "test",
@@ -262,7 +263,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream frameStream) {
-	err := stream.Send([]byte("ping"))
+func sendMsg(t *testing.T, stream net.Conn) {
+	_, err := stream.Write([]byte("ping"))
 	require.NoError(t, err)
 }
