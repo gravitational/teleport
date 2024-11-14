@@ -76,7 +76,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbRead},
+					Verbs:     []string{types.VerbReadNoSecrets},
 				}}},
 			},
 			Setup: func(t *testing.T, igName string) {
@@ -92,11 +92,49 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: noError,
 		},
 		{
+			Name: "allowed read access to integrations with secrets",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+					Name:        igName,
+					WithSecrets: true,
+				})
+				return err
+			},
+			ErrAssertion: noError,
+		},
+		{
 			Name: "no access to read integrations",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
 					Name: igName,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "no access to read integrations with secrets",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbReadNoSecrets},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+					Name:        igName,
+					WithSecrets: true,
 				})
 				return err
 			},
@@ -160,6 +198,24 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: trace.IsAccessDenied,
 		},
+		{
+			Name: "no list access to integrations with secrets",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+					Limit:       0,
+					NextKey:     "",
+					WithSecrets: true,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
 
 		// Create
 		{
@@ -184,6 +240,42 @@ func TestIntegrationCRUD(t *testing.T) {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
 				return err
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "create github integrations with generated CAs",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig, err := types.NewIntegrationGitHub(
+					types.Metadata{Name: igName},
+					&types.GitHubIntegrationSpecV1{
+						Organization: "my-org",
+					},
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				created, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				spec := created.GetGitHubIntegrationSpec()
+				if spec == nil || spec.Proxy == nil || len(spec.Proxy.CertAuthorities) == 0 {
+					return trace.BadParameter("missing CAs")
+				}
+				for _, ca := range spec.Proxy.CertAuthorities {
+					if len(ca.PublicKey) == 0 || len(ca.PrivateKey) == 0 {
+						return trace.BadParameter("missing CA keys")
+					}
+				}
+				return nil
 			},
 			ErrAssertion: noError,
 		},

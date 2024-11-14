@@ -315,7 +315,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 				return trace.Wrap(err, "failed to create Azure OIDC integration")
 			}
 
-			integration, err := args.authClient.GetIntegration(ctx, integrationSpec.GetName())
+			integration, err := args.authClient.GetIntegration(ctx, integrationSpec.GetName(), false)
 			if err != nil {
 				return trace.Wrap(err, "failed to get Azure OIDC integration")
 			}

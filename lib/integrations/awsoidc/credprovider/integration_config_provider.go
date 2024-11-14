@@ -83,7 +83,7 @@ type Config struct {
 
 type integrationGetter interface {
 	// GetIntegration returns an integration by name from the backend.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 }
 
 type tokenGenerator interface {
@@ -115,7 +115,7 @@ func (c *Config) checkAndSetDefaults() error {
 }
 
 func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeRoleWithWebIdentityAPIClient) (*CredentialsCache, error) {
-	integration, err := cfg.IntegrationGetter.GetIntegration(ctx, cfg.IntegrationName)
+	integration, err := cfg.IntegrationGetter.GetIntegration(ctx, cfg.IntegrationName, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -756,7 +756,7 @@ type ReadDiscoveryAccessPoint interface {
 	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
 
 	// GetIntegration returns the specified integration resource.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)

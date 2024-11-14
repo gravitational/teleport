@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -57,6 +59,10 @@ type Cache interface {
 type KeyStoreManager interface {
 	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
+	// NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
+	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
+	// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key set.
+	GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -137,6 +143,13 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
+func readVerb(withSecret bool) string {
+	if withSecret {
+		return types.VerbRead
+	}
+	return types.VerbReadNoSecrets
+}
+
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -144,11 +157,17 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, readVerb(req.WithSecrets), types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey())
+	if req.WithSecrets {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey(), req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,10 +194,17 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, readVerb(req.WithSecrets)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integration, err := s.cache.GetIntegration(ctx, req.GetName())
+
+	if req.WithSecrets {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	integration, err := s.cache.GetIntegration(ctx, req.GetName(), req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,6 +215,25 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	}
 
 	return igV1, nil
+}
+
+func (s *Service) initIntegrationResource(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
+	ig := req.GetIntegration()
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec.Proxy == nil {
+			spec.Proxy = &types.GitHubProxy{}
+		}
+		// Generate SSH CA for the integration.
+		// TODO(greedy52) support per auth CA like HSM.
+		ca, err := s.keyStoreManager.NewSSHKeyPair(ctx, cryptosuites.GitHubProxyCASSH)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.Proxy.CertAuthorities = append(spec.Proxy.CertAuthorities, ca)
+	}
+	return ig, nil
 }
 
 // CreateIntegration creates a new Okta import rule resource.
@@ -202,7 +247,11 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
+	reqIg, err := s.initIntegrationResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ig, err := s.backend.CreateIntegration(ctx, reqIg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +341,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cache.GetIntegration(ctx, req.GetName())
+	ig, err := s.cache.GetIntegration(ctx, req.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -338,6 +387,10 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.AzureOIDC = &apievents.AzureOIDCIntegrationMetadata{
 			TenantID: ig.GetAzureOIDCIntegrationSpec().TenantID,
 			ClientID: ig.GetAzureOIDCIntegrationSpec().ClientID,
+		}
+	case types.IntegrationSubKindGitHub:
+		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
+			Organization: ig.GetGitHubIntegrationSpec().Organization,
 		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)

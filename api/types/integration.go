@@ -32,6 +32,9 @@ const (
 
 	// IntegrationSubKindAzureOIDC is an integration with Azure that uses OpenID Connect as an Identity Provider.
 	IntegrationSubKindAzureOIDC = "azure-oidc"
+
+	// IntegrationSubKindGitHub is an integration with GitHub.
+	IntegrationSubKindGitHub = "github"
 )
 
 const (
@@ -61,6 +64,14 @@ type Integration interface {
 
 	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
 	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+
+	// GetGitHubIntegrationSpec returns the GitHub spec.
+	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
+	// SetGitHubIntegrationSpec returns the GitHub spec.
+	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
+
+	// WithoutSecrets returns an instance of resource without secrets.
+	WithoutSecrets() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -98,6 +109,27 @@ func NewIntegrationAzureOIDC(md Metadata, spec *AzureOIDCIntegrationSpecV1) (*In
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_AzureOIDC{
 				AzureOIDC: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationGitHub returns a new `github` subkind Integration
+func NewIntegrationGitHub(md Metadata, spec *GitHubIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindGitHub,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_GitHub{
+				GitHub: spec,
 			},
 		},
 	}
@@ -168,6 +200,11 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	case *IntegrationSpecV1_GitHub:
+		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -230,6 +267,49 @@ func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates the configuration for GitHub integration subkind.
+func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
+	if s == nil || s.GitHub == nil {
+		return trace.BadParameter("github is required for %q subkind", IntegrationSubKindGitHub)
+	}
+	if s.GitHub.Organization == "" {
+		return trace.BadParameter("organization must be set")
+	}
+	if s.GitHub.Proxy == nil {
+		s.GitHub.Proxy = &GitHubProxy{}
+	}
+	if err := s.GitHub.Proxy.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates the configuration for GitHub proxy settings.
+func (p *GitHubProxy) CheckAndSetDefaults() error {
+	for _, ca := range p.CertAuthorities {
+		if err := ca.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if p.Connector != nil {
+		if err := p.Connector.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates the configuration for GitHub Proxy connector.
+func (c *GitHubProxyConnector) CheckAndSetDefaults() error {
+	if c.ClientID == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+	if c.RedirectURL == "" {
+		return trace.BadParameter("redirect must be set")
+	}
+	return nil
+}
+
 // GetAWSOIDCIntegrationSpec returns the specific spec fields for `aws-oidc` subkind integrations.
 func (ig *IntegrationV1) GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1 {
 	return ig.Spec.GetAWSOIDC()
@@ -271,6 +351,18 @@ func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
 // GetAzureOIDCIntegrationSpec returns the specific spec fields for `azure-oidc` subkind integrations.
 func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1 {
 	return ig.Spec.GetAzureOIDC()
+}
+
+// GetGitHubIntegrationSpec returns the GitHub spec.
+func (ig *IntegrationV1) GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1 {
+	return ig.Spec.GetGitHub()
+}
+
+// SetGitHubIntegrationSpec returns the GitHub spec.
+func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
+		GitHub: spec,
+	}
 }
 
 // Integrations is a list of Integration resources.
@@ -324,6 +416,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 		Spec           struct {
 			AWSOIDC   json.RawMessage `json:"aws_oidc"`
 			AzureOIDC json.RawMessage `json:"azure_oidc"`
+			GitHub    json.RawMessage `json:"github"`
 		} `json:"spec"`
 	}{}
 
@@ -357,6 +450,17 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 		integration.Spec.SubKindSpec = subkindSpec
 
+	case IntegrationSubKindGitHub:
+		subkindSpec := &IntegrationSpecV1_GitHub{
+			GitHub: &GitHubIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.GitHub, subkindSpec.GitHub); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
 	default:
 		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
@@ -379,6 +483,7 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 		Spec           struct {
 			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
 			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
+			GitHub    GitHubIntegrationSpecV1    `json:"github,omitempty"`
 		} `json:"spec"`
 	}{}
 
@@ -397,10 +502,43 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 		}
 
 		d.Spec.AzureOIDC = *ig.GetAzureOIDCIntegrationSpec()
+	case IntegrationSubKindGitHub:
+		if ig.GetGitHubIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+		}
+		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
 	}
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)
+}
+
+// Copy returns a deep copy of the integration.
+func (ig *IntegrationV1) Copy() *IntegrationV1 {
+	return utils.CloneProtoMsg(ig)
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (ig *IntegrationV1) WithoutSecrets() Integration {
+	switch ig.SubKind {
+	case IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil || spec.Proxy == nil {
+			return ig
+		}
+
+		clone := ig.Copy()
+		spec = clone.GetGitHubIntegrationSpec()
+		for i := range spec.Proxy.CertAuthorities {
+			spec.Proxy.CertAuthorities[i].PrivateKey = nil
+		}
+		if spec.Proxy.Connector != nil {
+			spec.Proxy.Connector.ClientSecret = ""
+		}
+		clone.SetGitHubIntegrationSpec(spec)
+		return clone
+	}
+	return ig
 }

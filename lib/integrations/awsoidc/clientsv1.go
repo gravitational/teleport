@@ -42,7 +42,7 @@ func (j IdentityToken) FetchToken(ctx credentials.Context) ([]byte, error) {
 // IntegrationTokenGenerator is an interface that indicates which APIs are required to generate an Integration Token.
 type IntegrationTokenGenerator interface {
 	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
@@ -59,7 +59,7 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 			return nil, trace.Wrap(err)
 		}
 	}
-	integration, err := client.GetIntegration(ctx, integrationName)
+	integration, err := client.GetIntegration(ctx, integrationName, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

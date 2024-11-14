@@ -281,6 +281,91 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErrorIs: trace.IsBadParameter,
 		},
+		{
+			name: "github: valid",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+					},
+				)
+			},
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindGitHub,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_GitHub{
+							GitHub: &GitHubIntegrationSpecV1{
+								Organization: "my-org",
+								Proxy:        &GitHubProxy{},
+							},
+						},
+					},
+				}
+			},
+			expectedErrorIs: noErrorFunc,
+		},
+		{
+			name: "github: error when no org is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "github: error when invalid CA is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+						Proxy: &GitHubProxy{
+							CertAuthorities: []*SSHKeyPair{{
+								PrivateKey: []byte("missing pub key"),
+							}},
+						},
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "github: error when invalid connector is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+						Proxy: &GitHubProxy{
+							Connector: &GitHubProxyConnector{
+								ClientID: "no-redirect-url",
+							},
+						},
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			name := uuid.NewString()
@@ -292,6 +377,94 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 
 			require.Equal(t, tt.expectedIntegration(name), ig)
 			require.Contains(t, ig.String(), name)
+		})
+	}
+}
+
+func TestIntegrationWithoutSecrets(t *testing.T) {
+	for _, tt := range []struct {
+		name                string
+		integration         func(string) (*IntegrationV1, error)
+		expectedIntegration func(*testing.T, string) *IntegrationV1
+	}{
+		{
+			name: "github: no secrets",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+					},
+				)
+			},
+			expectedIntegration: func(t *testing.T, name string) *IntegrationV1 {
+				t.Helper()
+				ig, err := NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+					},
+				)
+				require.NoError(t, err)
+				return ig
+			},
+		},
+		{
+			name: "github: secrets removed",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+						Proxy: &GitHubProxy{
+							CertAuthorities: []*SSHKeyPair{{
+								PublicKey:  []byte("pub"),
+								PrivateKey: []byte("key"),
+							}},
+							Connector: &GitHubProxyConnector{
+								ClientID:     "id",
+								ClientSecret: "secret",
+								RedirectURL:  "redirect",
+							},
+						},
+					},
+				)
+			},
+			expectedIntegration: func(t *testing.T, name string) *IntegrationV1 {
+				t.Helper()
+				ig, err := NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+						Proxy: &GitHubProxy{
+							CertAuthorities: []*SSHKeyPair{{
+								PublicKey: []byte("pub"),
+							}},
+							Connector: &GitHubProxyConnector{
+								ClientID:    "id",
+								RedirectURL: "redirect",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return ig
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			name := uuid.NewString()
+			ig, err := tt.integration(name)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedIntegration(t, name), ig.WithoutSecrets())
 		})
 	}
 }

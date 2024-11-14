@@ -7362,6 +7362,8 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
 }
 
@@ -7405,6 +7407,40 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+
+  // Proxy specifies GitHub proxy related settings.
+  GitHubProxy proxy = 2 [(gogoproto.jsontag) = "proxy,omitempty"];
+}
+
+// GitHubProxy specifies GitHub proxy related settings.
+message GitHubProxy {
+  // CertAuthority contains the active SSH CAs used between Teleport and
+  // GitHub. GitHub does not allow the same CA to be used for a different
+  // organization so the CA is defined per integration. TODO(greedy52) support
+  // rotation, HSM encryption.
+  repeated SSHKeyPair cert_authorities = 1 [(gogoproto.jsontag) = "cert_authorities,omitempty"];
+
+  // Connector specifies the GitHub connector spec used to obtain user ID and
+  // username.
+  GitHubProxyConnector connector = 2 [(gogoproto.jsontag) = "connector,omitempty"];
+}
+
+// GitHubProxyConnector specifies the GitHub connector spec for a GitHub proxy.
+// This type is a subset of GithubConnectorSpecV3 but does not require fields
+// like TeamRolesMapping.
+message GitHubProxyConnector {
+  // ClientID is the Github OAuth app client ID.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id"];
+  // ClientSecret is the Github OAuth app client secret.
+  string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+  // RedirectURL is the authorization callback URL.
+  string RedirectURL = 3 [(gogoproto.jsontag) = "redirect_url"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

@@ -43,9 +43,9 @@ type Integrations interface {
 // IntegrationsGetter defines methods for List/Read operations on Integration Resources.
 type IntegrationsGetter interface {
 	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.Integration, string, error)
 	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 }
 
 // IntegrationsTokenGenerator defines methods to generate tokens for Integrations.

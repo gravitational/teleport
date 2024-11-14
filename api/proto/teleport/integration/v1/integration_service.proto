@@ -52,6 +52,8 @@ message ListIntegrationsRequest {
   int32 limit = 1;
   // NextKey is the key for the next page of Integrations.
   string next_key = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
 }
 
 // ListIntegrationsResponse is the response for ListIntegrationsRequest.
@@ -68,6 +70,8 @@ message ListIntegrationsResponse {
 message GetIntegrationRequest {
   // Name is the name of the Integration to be requested.
   string name = 1;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 2;
 }
 
 // CreateIntegrationRequest is the request to create the provided integration.

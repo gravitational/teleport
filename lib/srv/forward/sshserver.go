@@ -680,7 +680,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
 
-	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration, false)
 	if err != nil {
 		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
 	}

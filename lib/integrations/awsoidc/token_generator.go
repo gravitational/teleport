@@ -38,7 +38,7 @@ import (
 // Cache is the subset of the cached resources that the AWS OIDC Token Generation queries.
 type Cache interface {
 	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 
 	// GetClusterName returns local cluster name of the current auth server
 	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
@@ -94,7 +94,7 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName s
 		return issuer, trace.Wrap(err)
 	}
 
-	integration, err := cacheClt.GetIntegration(ctx, integrationName)
+	integration, err := cacheClt.GetIntegration(ctx, integrationName, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -172,7 +172,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
-		{Kind: types.KindIntegration},
+		{Kind: types.KindIntegration, LoadSecrets: true},
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
@@ -3008,7 +3008,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 }
 
 // ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string, withSecrets bool) ([]types.Integration, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
@@ -3017,11 +3017,11 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListIntegrations(ctx, pageSize, nextKey)
+	return rg.reader.ListIntegrations(ctx, pageSize, nextKey, withSecrets)
 }
 
 // GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (c *Cache) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
@@ -3030,7 +3030,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetIntegration(ctx, name)
+	return rg.reader.GetIntegration(ctx, name, withSecrets)
 }
 
 // ListUserTasks returns a list of UserTask resources.

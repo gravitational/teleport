@@ -4660,10 +4660,11 @@ func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
 
 // ListIntegrations returns a paginated list of Integrations.
 // The response includes a nextKey which must be used to fetch the next page.
-func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string, withSecrets bool) ([]types.Integration, string, error) {
 	resp, err := c.integrationsClient().ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
-		Limit:   int32(pageSize),
-		NextKey: nextKey,
+		Limit:       int32(pageSize),
+		NextKey:     nextKey,
+		WithSecrets: withSecrets,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -4682,7 +4683,7 @@ func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, 
 	var result []types.Integration
 	var nextKey string
 	for {
-		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey, false /*withSecrets*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4694,9 +4695,10 @@ func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, 
 }
 
 // GetIntegration returns an Integration by its name.
-func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (c *Client) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
 	ig, err := c.integrationsClient().GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
-		Name: name,
+		Name:        name,
+		WithSecrets: withSecrets,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

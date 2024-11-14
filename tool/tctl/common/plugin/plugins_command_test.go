@@ -485,7 +485,7 @@ func (m *mockAuthClient) UpdateIntegration(ctx context.Context, ig types.Integra
 	return result.Get(0).(types.Integration), result.Error(1)
 }
 
-func (m *mockAuthClient) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (m *mockAuthClient) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
 	result := m.Called(ctx, name)
 	return result.Get(0).(types.Integration), result.Error(1)
 }
