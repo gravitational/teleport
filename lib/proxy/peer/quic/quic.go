@@ -151,6 +151,19 @@ const (
 	quicDialTimeout          = 30 * time.Second
 	quicRequestTimeout       = 10 * time.Second
 	quicErrorResponseTimeout = 10 * time.Second
+
+	// noStreamErrorCode indicates that the stream was closed with no errors.
+	noStreamErrorCode quic.StreamErrorCode = 0
+	// genericStreamErrorCode indicates that the stream was closed with a
+	// non-specific error.
+	genericStreamErrorCode quic.StreamErrorCode = 1
+
+	// noApplicationErrorCode indicates that the connection was closed with no
+	// errors.
+	noApplicationErrorCode quic.ApplicationErrorCode = 0
+	// genericApplicationErrorCode indicates that the connection was closed with
+	// a non-specific error.
+	genericApplicationErrorCode quic.ApplicationErrorCode = 1
 )
 
 // marshalSized returns the wire encoding of the given [proto.Message] prefixed
@@ -174,10 +187,10 @@ func marshalSized(m proto.Message) ([]byte, error) {
 // [quic.ApplicationError] with an error code of 0 - otherwise, the error is
 // returned as is.
 func ignoreCodeZero(err error) error {
-	if streamErr := (*quic.StreamError)(nil); errors.As(err, &streamErr) && streamErr.ErrorCode == 0 {
+	if streamErr := (*quic.StreamError)(nil); errors.As(err, &streamErr) && streamErr.ErrorCode == noStreamErrorCode {
 		return nil
 	}
-	if appErr := (*quic.ApplicationError)(nil); errors.As(err, &appErr) && appErr.ErrorCode == 0 {
+	if appErr := (*quic.ApplicationError)(nil); errors.As(err, &appErr) && appErr.ErrorCode == noApplicationErrorCode {
 		return nil
 	}
 	return err

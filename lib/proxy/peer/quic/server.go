@@ -227,8 +227,8 @@ func (s *Server) handleConn(conn quic.EarlyConnection) {
 		)
 	}()
 
-	defer conn.CloseWithError(0, "")
-	defer context.AfterFunc(s.runCtx, func() { _ = conn.CloseWithError(0, "") })()
+	defer conn.CloseWithError(noApplicationErrorCode, "")
+	defer context.AfterFunc(s.runCtx, func() { _ = conn.CloseWithError(noApplicationErrorCode, "") })()
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -257,14 +257,14 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 
 	var closedStream bool
 	defer func() {
-		stream.CancelRead(1)
+		stream.CancelRead(genericStreamErrorCode)
 		if !closedStream {
-			stream.CancelWrite(1)
+			stream.CancelWrite(genericStreamErrorCode)
 		}
 	}()
 
 	sendErr := func(toSend error) {
-		stream.CancelRead(0)
+		stream.CancelRead(noStreamErrorCode)
 		errBuf, err := marshalSized(&quicpeeringv1a.DialResponse{
 			Status: status.Convert(trail.ToGRPC(toSend)).Proto(),
 		})
@@ -321,7 +321,7 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 			)
 			return
 		}
-		stream.CancelRead(0)
+		stream.CancelRead(noStreamErrorCode)
 		if _, err := stream.Write([]byte(dialResponseOK)); err != nil {
 			return
 		}
@@ -395,7 +395,7 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 	})
 	eg.Go(func() error {
 		defer nodeConn.Close()
-		defer stream.CancelRead(1)
+		defer stream.CancelRead(genericStreamErrorCode)
 
 		// wait for the handshake before forwarding application data from the
 		// client; the client shouldn't be sending application data as 0-RTT
@@ -408,7 +408,7 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 		if _, err := ignoreCodeZero2(io.Copy(nodeConn, stream)); err != nil && !utils.IsOKNetworkError(err) {
 			return trace.Wrap(err)
 		}
-		stream.CancelRead(0)
+		stream.CancelRead(noStreamErrorCode)
 		return nil
 	})
 	err = eg.Wait()
