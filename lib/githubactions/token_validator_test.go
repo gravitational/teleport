@@ -353,10 +353,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.ES256, Key: key},
+		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
 		(&jose.SignerOptions{}).
 			WithType("JWT").
 			WithHeader("kid", "foo"),
@@ -365,9 +365,9 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 
 	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
 		{
-			Key:       key.Public(),
+			Key:       privateKey.Public(),
 			Use:       "sig",
-			Algorithm: string(jose.ES256),
+			Algorithm: string(jose.RS256),
 			KeyID:     "foo",
 		},
 	}}
