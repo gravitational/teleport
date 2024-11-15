@@ -99,6 +99,7 @@ exports[`failed state 1`] = `
 .c18 {
   box-sizing: border-box;
   margin-bottom: -16px;
+  margin-top: 8px;
   width: 100%;
 }
 
@@ -1113,7 +1114,7 @@ exports[`failed state 1`] = `
                       >
                         <label
                           class="c21"
-                          for="app-name"
+                          for="app-name-undefined"
                         >
                           Namespaces
                         </label>
@@ -1146,7 +1147,7 @@ exports[`failed state 1`] = `
                                       autocapitalize="none"
                                       autocomplete="off"
                                       autocorrect="off"
-                                      id="app-name"
+                                      id="app-name-undefined"
                                       spellcheck="false"
                                       style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                                       tabindex="0"
@@ -1695,6 +1696,7 @@ exports[`loaded state 1`] = `
 .c17 {
   box-sizing: border-box;
   margin-bottom: -16px;
+  margin-top: 8px;
   width: 100%;
 }
 
@@ -2764,7 +2766,7 @@ exports[`loaded state 1`] = `
                       >
                         <label
                           class="c20"
-                          for="app-name"
+                          for="app-name-undefined"
                         >
                           Namespaces
                         </label>
@@ -2797,7 +2799,7 @@ exports[`loaded state 1`] = `
                                       autocapitalize="none"
                                       autocomplete="off"
                                       autocorrect="off"
-                                      id="app-name"
+                                      id="app-name-undefined"
                                       spellcheck="false"
                                       style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                                       tabindex="0"

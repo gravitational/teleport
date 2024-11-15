@@ -536,6 +536,8 @@ func TestGetApplication(t *testing.T) {
 		GroupMembershipClaims: toPtr("SecurityGroup"),
 		IdentifierURIs:        &[]string{"goteleport.com"},
 		OptionalClaims: &OptionalClaims{
+			AccessToken: []OptionalClaim{},
+			IDToken:     []OptionalClaim{},
 			SAML2Token: []OptionalClaim{
 				{
 					AdditionalProperties: []string{"sam_account_name"},

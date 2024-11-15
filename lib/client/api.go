@@ -730,8 +730,42 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 	}
 }
 
+// NonRetryableError wraps an error to indicate that the error should fail
+// IsErrorResolvableWithRelogin. This wrapper is used to workaround the false
+// positives like trace.IsBadParameter check in IsErrorResolvableWithRelogin.
+type NonRetryableError struct {
+	// Err is the original error.
+	Err error
+}
+
+// Error returns the error text.
+func (e *NonRetryableError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the original error.
+func (e *NonRetryableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsNonRetryableError checks if the provided error is a NonRetryableError.
+// Equivalent to `errors.As(err, new(*NonRetryableError))`.
+func IsNonRetryableError(err error) bool {
+	return errors.As(err, new(*NonRetryableError))
+}
+
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	if IsNonRetryableError(err) {
+		return false
+	}
+
 	// Private key policy errors indicate that the user must login with an
 	// unexpected private key policy requirement satisfied. This can occur
 	// in the following cases:
@@ -767,6 +801,8 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
 	//  We should fix this and remove the RemoteError condition above as well.
 	//  Any retriable error should be explicitly marked as such.
+	//  Once trace.IsBadParameter check is removed, the nonRetryableError
+	//  workaround can also be removed.
 	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
@@ -5009,9 +5045,6 @@ func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
 // NewKubernetesServiceClient connects to the proxy and returns an authenticated gRPC
 // client to the Kubernetes service.
 func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, clusterName string) (kubeproto.KubeServiceClient, error) {
-	if !tc.TLSRoutingEnabled {
-		return nil, trace.BadParameter("kube service is not supported if TLS routing is not enabled")
-	}
 	// get tlsConfig to dial to proxy.
 	tlsConfig, err := tc.LoadTLSConfig()
 	if err != nil {
