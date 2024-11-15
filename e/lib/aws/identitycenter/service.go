@@ -149,6 +149,11 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 // Run the Identity Center service, blocking until the supplied context is
 // canceled
 func (svc *Service) Run(ctx context.Context) error {
+	if err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := svc.maybeImportGroupAndGroupMembers(ctx); err != nil {
 		svc.log.ErrorContext(ctx,
 			"Group import service exited with error",

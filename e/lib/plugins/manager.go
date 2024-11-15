@@ -351,17 +351,21 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 				// Authentication failed for some reason. Let's at least hint to
 				// the user what the problem might be.
 				log.ErrorContext(ctx, "Plugin instance delegate failed due to authentication error")
-				statusSink.Emit(ctx, &types.PluginStatusV1{
+				if err := statusSink.Emit(ctx, &types.PluginStatusV1{
 					Code:         types.PluginStatusCode_UNAUTHORIZED,
 					ErrorMessage: err.Error(),
-				})
+				}); err != nil {
+					log.ErrorContext(ctx, "Failed to emit plugin unauthrorized status", "error", err)
+				}
 
 			default:
 				log.ErrorContext(ctx, "Plugin instance delegate failed", "error", err)
-				statusSink.Emit(pluginCtx, &types.PluginStatusV1{
+				if err := statusSink.Emit(pluginCtx, &types.PluginStatusV1{
 					Code:         types.PluginStatusCode_OTHER_ERROR,
 					ErrorMessage: err.Error(),
-				})
+				}); err != nil {
+					log.ErrorContext(ctx, "Failed to emit plugin error status", "error", err)
+				}
 			}
 		}
 	}()

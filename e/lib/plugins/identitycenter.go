@@ -111,6 +111,12 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 
 		logger.DebugContext(deps.lifetime, "Running AWS IC service.")
 		if err := svc.Run(deps.lifetime); err != nil {
+			if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
+				Code:         types.PluginStatusCode_OTHER_ERROR,
+				ErrorMessage: err.Error(),
+			}); err != nil {
+				logger.ErrorContext(ctx, "Failed to emit plugin error status", "error", err)
+			}
 			logger.ErrorContext(deps.lifetime, "Identity Center Service exited with error",
 				"error", err)
 			return trace.Wrap(err)

@@ -68,11 +68,19 @@ func (svc *Service) importAndEmitStatus(ctx context.Context) error {
 	})
 }
 
-func (svc *Service) emitImportStatus(ctx context.Context, status *types.AWSICGroupImportStatus) error {
+func (svc *Service) emitImportStatus(ctx context.Context, importStatus *types.AWSICGroupImportStatus) error {
+	pluginStatusCode := types.PluginStatusCode_RUNNING
+	errorMessage := ""
+	if importStatus.StatusCode == types.AWSICGroupImportStatusCode_FAILED {
+		pluginStatusCode = types.PluginStatusCode_OTHER_ERROR
+		errorMessage = "AWS IAM Identity Center groups import failed. Please see Auth log for more details."
+	}
 	if err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code:         pluginStatusCode,
+		ErrorMessage: errorMessage,
 		Details: &types.PluginStatusV1_AwsIc{
 			AwsIc: &types.PluginAWSICStatusV1{
-				GroupImportStatus: status,
+				GroupImportStatus: importStatus,
 			},
 		},
 	}); err != nil {

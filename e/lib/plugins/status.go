@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,17 +47,59 @@ type statusSink struct {
 	retryConfig retryutils.LinearConfig
 }
 
-func newStatusSink(service services.Plugins, name string, pluginType string) *statusSink {
+// newStatusSink creates a status sink based on the plugin type.
+// If the plugin type is AWS IC, it returns an icPluginSink with custom behavior.
+// Otherwise, it returns a standard statusSink.
+func newStatusSink(service services.Plugins, name string, pluginType string) common.StatusSink {
 	retryConfig := retryutils.LinearConfig{
 		Step: 100 * time.Millisecond,
 		Max:  1 * time.Second,
 	}
-	return &statusSink{
+	sink := &statusSink{
 		service:     service,
 		name:        name,
 		pluginType:  pluginType,
 		retryConfig: retryConfig,
 	}
+	if pluginType == types.PluginTypeAWSIdentityCenter {
+		return &icPluginSink{
+			pluginsService: service,
+			sink:           sink,
+		}
+	}
+
+	return sink
+}
+
+// icPluginSink is a specialized status sink for AWS Identity Center plugin.
+// It wraps the base status sink and adds custom logic for AWS IC.
+type icPluginSink struct {
+	pluginsService services.Plugins
+	sink           *statusSink
+}
+
+// Emit sends the plugin status, applying custom logic for AWS IC plugin.
+// If the status detail field is nil, an existing detail status will be applied.
+func (s *icPluginSink) Emit(ctx context.Context, status types.PluginStatus) error {
+	newStatus := &types.PluginStatusV1{
+		Code:         status.GetCode(),
+		ErrorMessage: status.GetErrorMessage(),
+	}
+	if status.GetAwsIc() != nil {
+		newStatus.Details = &types.PluginStatusV1_AwsIc{
+			AwsIc: status.GetAwsIc(),
+		}
+	} else {
+		plugin, err := s.pluginsService.GetPlugin(ctx, types.PluginTypeAWSIdentityCenter, false /* withSecrets */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newStatus.Details = &types.PluginStatusV1_AwsIc{
+			AwsIc: plugin.GetStatus().GetAwsIc(),
+		}
+	}
+
+	return s.sink.Emit(ctx, newStatus)
 }
 
 func (s *statusSink) Emit(ctx context.Context, status types.PluginStatus) error {

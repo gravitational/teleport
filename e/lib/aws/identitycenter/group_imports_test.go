@@ -20,6 +20,7 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -28,9 +29,10 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func TestStartGroupsAndGroupMembersImport(t *testing.T) {
+func TestGroupImportAndEmitStatus(t *testing.T) {
 	ctx := context.Background()
-	tEnv, err := newTEnv(t)
+	statusSink := &integration.FakeStatusSink{}
+	tEnv, err := newTEnv(t, statusSink)
 	require.NoError(t, err)
 
 	createRoles(t, ctx, tEnv.service.rolesSvc)
@@ -301,10 +303,17 @@ func TestStartGroupsAndGroupMembersImport(t *testing.T) {
 			createAccessLists(t, ctx, tc.existingList, tEnv.service.accessListSvc)
 			createAccessListMembers(t, ctx, tc.existingList, tEnv.service.accessListSvc)
 
-			err = tEnv.service.startGroupsAndGroupMembersImport(ctx)
-			require.NoError(t, err, "reconcileAccessLists")
+			err = tEnv.service.importAndEmitStatus(ctx)
+			require.NoError(t, err)
 
 			compareAccessLists(t, ctx, tc.expectedList, tEnv.service.accessListSvc)
+
+			require.Eventually(t, func() bool {
+				return statusSink.Get() != nil
+			}, time.Second, time.Second/100)
+			require.Equal(t, types.PluginStatusCode_RUNNING, statusSink.Get().GetCode())
+			require.NotNil(t, statusSink.Get().GetAwsIc())
+			require.Equal(t, types.AWSICGroupImportStatusCode_DONE, statusSink.Get().GetAwsIc().GroupImportStatus.StatusCode)
 		})
 	}
 }
@@ -485,7 +494,7 @@ type tEnv struct {
 	service *Service
 }
 
-func newTEnv(t *testing.T) (*tEnv, error) {
+func newTEnv(t *testing.T, statusSink *integration.FakeStatusSink) (*tEnv, error) {
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
@@ -519,6 +528,7 @@ func newTEnv(t *testing.T) (*tEnv, error) {
 			importConfig: ImportConfig{
 				AccessListDefaultOwners: accessListDefaultOwners,
 			},
+			pluginStatusSink: statusSink,
 		},
 	}, nil
 }
