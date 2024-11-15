@@ -21,6 +21,7 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import history from 'teleport/services/history';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
@@ -38,8 +39,11 @@ export interface UrlFilteringState {
   search: string;
 }
 
+type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
+
 export function useUrlFiltering(
-  initialParams: Partial<ResourceFilter>
+  initialParams: URLResourceFilter,
+  includedResourceMode?: IncludedResourceMode
 ): UrlFilteringState {
   const { search, pathname } = useLocation();
 
@@ -66,14 +70,15 @@ export function useUrlFiltering(
     return {
       ...initialParamsState,
       ...urlParams,
+      includedResourceMode,
       pinnedOnly:
         urlParams.pinnedOnly !== undefined
           ? urlParams.pinnedOnly
           : initialParamsState.pinnedOnly,
     };
-  }, [search]);
+  }, [search, includedResourceMode]);
 
-  function setParams(newParams: ResourceFilter) {
+  function setParams(newParams: URLResourceFilter) {
     replaceHistory(
       encodeUrlQueryParams({
         pathname,
