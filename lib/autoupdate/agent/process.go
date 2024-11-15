@@ -25,14 +25,19 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 // SystemdService manages a Teleport systemd service.
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
 	ServiceName string
+	// LastRestartPath is a path to a file containing the last restart time.
+	LastRestartPath string
 	// Log contains a logger.
 	Log *slog.Logger
 }
@@ -75,10 +80,82 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	default:
 		s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
 	}
+	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.")
+	return trace.Wrap(s.monitor(ctx))
+}
 
-	// TODO(sclevine): Ensure restart was successful and verify healthcheck.
+func (s SystemdService) monitor(ctx context.Context) error {
+	tickC := time.NewTicker(2 * time.Second).C
+	restartC := make(chan int64)
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		return s.tickRestarts(ctx, restartC, tickC)
+	})
+	err := s.monitorRestarts(ctx, restartC, 2, 6)
+	if err := g.Wait(); err != nil {
+		s.Log.WarnContext(ctx, "Unable to determine last restart time. Failed to monitor for crash loops.", errorKey, err)
+	}
+	return trace.Wrap(err)
+}
 
-	return nil
+func (s SystemdService) monitorRestarts(ctx context.Context, timeCh <-chan int64, maxStops, minClean int) error {
+	var (
+		clean, stops int
+		restartTime  int64
+	)
+	// TODO: thread init value of restartTime
+	for {
+		// wait first to ensure we initial stop has completed
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case t := <-timeCh:
+			if t != restartTime {
+				clean = 0
+				restartTime = t
+				stops++
+			} else {
+				clean++
+			}
+		}
+		switch {
+		case stops > maxStops:
+			return trace.Errorf("detected crash loop")
+		case clean >= minClean:
+			return nil
+		}
+	}
+}
+
+func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC <-chan time.Time) error {
+	var err error
+	for {
+		// two select statements -> never skip restarts
+		select {
+		case <-tickC:
+		case <-ctx.Done():
+			return err
+		}
+		var t int64
+		t, err = s.getRestartTime()
+		select {
+		case ch <- t:
+		case <-ctx.Done():
+			return err
+		}
+	}
+}
+
+func (s SystemdService) getRestartTime() (int64, error) {
+	b, err := os.ReadFile(s.LastRestartPath)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	restart, err := strconv.ParseInt(string(bytes.TrimSpace(b)), 10, 64)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return restart, nil
 }
 
 // Sync systemd service configuration by running systemctl daemon-reload.

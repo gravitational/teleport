@@ -21,8 +21,13 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -68,4 +73,172 @@ func msgOnly(_ []string, a slog.Attr) slog.Attr {
 		return slog.Attr{}
 	}
 	return slog.Attr{Key: a.Key, Value: a.Value}
+}
+
+func TestMonitor(t *testing.T) {
+	t.Parallel()
+
+	svc := &SystemdService{
+		Log: slog.Default(),
+	}
+
+	for _, tt := range []struct {
+		name     string
+		ticks    []int64
+		maxStops int
+		minClean int
+		errored  bool
+		canceled bool
+	}{
+		{
+			name:     "one restart",
+			ticks:    []int64{1, 1, 1, 1},
+			maxStops: 2,
+			minClean: 3,
+			errored:  false,
+		},
+		{
+			name:     "two restarts",
+			ticks:    []int64{1, 1, 1, 2, 2, 2, 2},
+			maxStops: 2,
+			minClean: 3,
+			errored:  false,
+		},
+		{
+			name:     "too many restarts long",
+			ticks:    []int64{1, 1, 1, 2, 2, 2, 3},
+			maxStops: 2,
+			minClean: 3,
+			errored:  true,
+		},
+		{
+			name:     "too many restarts short",
+			ticks:    []int64{1, 2, 3},
+			maxStops: 2,
+			minClean: 3,
+			errored:  true,
+		},
+		{
+			name:     "too many restarts after okay",
+			ticks:    []int64{1, 1, 1, 1, 2, 3},
+			maxStops: 2,
+			minClean: 3,
+			errored:  false,
+		},
+		{
+			name:     "too many restarts before okay",
+			ticks:    []int64{1, 2, 3, 3, 3, 3},
+			maxStops: 2,
+			minClean: 3,
+			errored:  true,
+		},
+		{
+			name:     "no error if no minClean",
+			ticks:    []int64{1, 2, 3},
+			maxStops: 2,
+			minClean: 0,
+			errored:  false,
+		},
+		{
+			name:     "cancel",
+			maxStops: 2,
+			minClean: 3,
+			canceled: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			ch := make(chan int64)
+			go func() {
+				defer cancel() // always quit after last tick
+				for _, tick := range tt.ticks {
+					ch <- tick
+				}
+			}()
+			err := svc.monitorRestarts(ctx, ch, tt.maxStops, tt.minClean)
+			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
+			if !tt.canceled {
+				require.Equal(t, tt.errored, err != nil)
+			}
+		})
+	}
+}
+
+func TestTicks(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	restartPath := filepath.Join(dir, "restart")
+	svc := &SystemdService{
+		Log:             slog.Default(),
+		LastRestartPath: restartPath,
+	}
+
+	for _, tt := range []struct {
+		name    string
+		ticks   []int64
+		errored bool
+	}{
+		{
+			name:    "consistent",
+			ticks:   []int64{1, 1, 1},
+			errored: false,
+		},
+		{
+			name:    "divergent",
+			ticks:   []int64{1, 2, 3},
+			errored: false,
+		},
+		{
+			name:    "start error",
+			ticks:   []int64{-1, 1, 1},
+			errored: false,
+		},
+		{
+			name:    "ephemeral error",
+			ticks:   []int64{1, -1, 1},
+			errored: false,
+		},
+		{
+			name:    "end error",
+			ticks:   []int64{1, 1, -1},
+			errored: true,
+		},
+		{
+			name: "cancel",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			tickC := make(chan time.Time)
+			ch := make(chan int64)
+
+			go func() {
+				defer cancel() // always quit after last tick or fail
+				for _, tick := range tt.ticks {
+					if tick >= 0 {
+						err := os.WriteFile(restartPath, []byte(fmt.Sprintln(tick)), os.ModePerm)
+						require.NoError(t, err)
+					} else {
+						_ = os.Remove(restartPath)
+					}
+					tickC <- time.Now()
+					res := <-ch
+					if tick < 0 {
+						tick = 0
+					}
+					require.Equal(t, tick, res)
+				}
+			}()
+			err := svc.tickRestarts(ctx, ch, tickC)
+			require.Equal(t, tt.errored, err != nil)
+			if err != nil {
+				require.ErrorIs(t, err, os.ErrNotExist)
+			}
+		})
+	}
 }
