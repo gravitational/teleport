@@ -83,6 +83,23 @@ export type IntegrationSpecAwsOidc = {
   audience?: IntegrationAudience;
 };
 
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
+};
+
 export enum IntegrationStatusCode {
   Unknown = 0,
   Running = 1,
