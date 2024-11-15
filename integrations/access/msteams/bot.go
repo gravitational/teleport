@@ -70,8 +70,8 @@ type Bot struct {
 	botClient *msapi.BotFrameworkClient
 	// mu recipients access mutex
 	mu *sync.RWMutex
-	// recipients represents the cache of potential message recipients
-	recipients map[string]common.Recipient
+	// fullRecipients represents the cache of potential message fullRecipients
+	fullRecipients map[string]common.Recipient
 	// webProxyURL represents Web UI address, if enabled
 	webProxyURL *url.URL
 	// clusterName cluster name
@@ -101,7 +101,7 @@ func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot
 		Config:      c.MSAPI,
 		graphClient: msapi.NewGraphClient(c.MSAPI),
 		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
-		recipients:  make(map[string]common.Recipient),
+		fullRecipients:  make(map[string]common.Recipient),
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
@@ -186,7 +186,7 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Rec
 	log.DebugContext(ctx, "Fetching recipient")
 
 	b.mu.RLock()
-	d, ok := b.recipients[recipient]
+	d, ok := b.fullRecipients[recipient]
 	b.mu.RUnlock()
 	rd, err := getRecipientData(&d)
 	if err != nil {
@@ -300,7 +300,7 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Rec
 	}
 
 	b.mu.Lock()
-	b.recipients[recipient] = d
+	b.fullRecipients[recipient] = d
 	b.mu.Unlock()
 
 	return &d, nil
