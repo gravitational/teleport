@@ -7,7 +7,7 @@ Dynamic Windows desktop registration allows Teleport administrators to register 
 update/unregister existing ones) without having to update the static
 configuration files read by Teleport Windows Desktop Service instances.
 
-Windows Desktop Service instances periodically query the Teleport Auth Service for
+Windows Desktop Service instances watch for updates from the Teleport Auth Service for
 `dynamic_windows_desktop` resources, each of which includes the information that the Windows Desktop
 Service needs to connect to a Windows desktop.
 
