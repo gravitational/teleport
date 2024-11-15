@@ -2,6 +2,7 @@ package identitycenter
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -11,6 +12,7 @@ import (
 	icIter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // resourceEventLoop handles events from the resource monitor.
@@ -35,6 +37,10 @@ func (svc *Service) resourceEventLoop(ctx context.Context) error {
 	}
 }
 
+// errResourceExcluded isn an error indicating that a resource has failed its
+// inclusion predicate and should not be provisioned by the event handler.
+var errResourceExcluded = errors.New("Resource excluded")
+
 func (svc *Service) handleResourceEvent(ctx context.Context, event *monitor.PrincipalEvent) error {
 	if event.Verb == monitor.VerbCalculateAll {
 		return svc.refreshAllPrincipalAssignments(ctx)
@@ -58,28 +64,12 @@ func (svc *Service) handleResourceEvent(ctx context.Context, event *monitor.Prin
 		return nil
 
 	case monitor.VerbCalculate:
-		includeResource, err := svc.isTargetedResource(ctx, event.Principal)
+		principalState, err := svc.ensurePrincipalAssignment(ctx, principalID, event.Principal)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if !includeResource {
-			return nil
-		}
-
-		principalState, err := svc.icSvc.GetPrincipalAssignment(ctx, principalID)
-		switch {
-		case err == nil:
-			// found it!
-			break
-
-		case trace.IsNotFound(err):
-			principalState, err = principal.CreateFor(ctx, event.Principal, svc.icSvc)
-			if err != nil {
-				return trace.Wrap(err, "failed creating principal assignment state for %s", principalID)
+			if errors.Is(err, errResourceExcluded) {
+				return nil
 			}
-
-		default:
-			return trace.Wrap(err, "failed loading principal assignment state %s", principalID)
+			return trace.Wrap(err)
 		}
 
 		if err := svc.refreshPrincipalAssignment(ctx, event.Principal, principalState); err != nil {
@@ -87,6 +77,65 @@ func (svc *Service) handleResourceEvent(ctx context.Context, event *monitor.Prin
 		}
 	}
 	return nil
+}
+
+// ensurePrincipalAssignment checks that the resource that triggered the event
+// is managed by the Identity Center integration, and has all of the appropriate
+// state records it needs in order to be provisioned. Include special handling to
+// ensure that resources which transition out of Identity Center control are
+// cleaned up correctly.
+func (svc *Service) ensurePrincipalAssignment(
+	ctx context.Context,
+	principalID services.PrincipalAssignmentID,
+	principalResource types.Resource,
+) (*identitycenterv1.PrincipalAssignment, error) {
+
+	needsAssignment, err := svc.isTargetedResource(ctx, principalResource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	principalAssignment, err := svc.icSvc.GetPrincipalAssignment(ctx, principalID)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	hasAssignment := (principalAssignment != nil)
+
+	if needsAssignment && hasAssignment {
+		// The principal passes the predicate and we already have an assignment
+		// record for it; everything is as it should be.
+		return principalAssignment, nil
+	}
+
+	if needsAssignment && !hasAssignment {
+		// The principal should be provisioned, but has no assignment state
+		// record. Just create one for them and carry on.
+		principalAssignment, err = principal.CreateFor(ctx, principalResource, svc.icSvc)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed creating principal assignment state for %s", principalID)
+		}
+		return principalAssignment, nil
+	}
+
+	if !needsAssignment && hasAssignment {
+		// The principal should NOT be provisioned downstream but DOES have
+		// an existing assignment state record. This can happen when a
+		// principal is updated and transitions from matching the predicate
+		// to NOT matching it. As above, the actual principal deletion will
+		// be handled by the SCIM Provisioning system, we just have to
+		// delete the assignment state in Teleport.
+		if err := svc.icSvc.DeletePrincipalAssignment(ctx, principalID); err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err, "deleting principal assignment state for %s", principalID)
+			}
+			svc.log.WarnContext(ctx,
+				"Principal assignment state unexpectedly deleted",
+				"principal_id", principalID)
+		}
+	}
+
+	return nil, errResourceExcluded
 }
 
 // refreshAllPrincipalAssignments reconciles the list of PrincipalAssignments with
