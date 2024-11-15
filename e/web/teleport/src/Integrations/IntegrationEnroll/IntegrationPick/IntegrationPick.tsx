@@ -132,14 +132,16 @@ export function IntegrationPick() {
               hasIntegrationAccess={hasIntegrationAccess}
               hasExternalAuditStorage={hasExternalAuditStorageAccess}
             />
-            {plugins.available.map(p => (
-              <PluginTile
-                pluginAlreadyEnrolled={plugins.enrolled.includes(p.type)}
-                key={p.type}
-                type={p}
-                hasAccess={hasPluginAccess}
-              />
-            ))}
+            {plugins.available
+              .toSorted((a, b) => (a.name > b.name ? 1 : -1))
+              .map(p => (
+                <PluginTile
+                  pluginAlreadyEnrolled={plugins.enrolled.includes(p.type)}
+                  key={p.type}
+                  type={p}
+                  hasAccess={hasPluginAccess}
+                />
+              ))}
           </Flex>
         </Flex>
 
@@ -245,26 +247,26 @@ function PluginTile({
       $exists={pluginAlreadyEnrolled}
       {...tileProps}
     >
-      <PluginIcon my={3} type={plugin.type} />
-      <Box
-        mb={2}
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
+      <Flex flexBasis={100}>
+        <PluginIcon type={plugin.type} />
+      </Flex>
+      <Flex
+        flexBasis={50}
+        flexDirection="row"
+        textAlign="center"
+        alignItems="flex-end"
       >
         <Text>{plugin.name}</Text>
         {pluginAlreadyEnrolled && (
           <Icons.Check
             ml={1}
+            mb={1}
             data-testid="plugin-checkmark"
             color="success.main"
             size="small"
           />
         )}
-      </Box>
+      </Flex>
       <RenderTooltip
         pluginAccess={pluginAccess}
         pluginName={plugin.name}

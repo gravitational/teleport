@@ -30,6 +30,7 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'entra-id',
   'datadog',
   'msteams',
+  'aws-identity-center',
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
@@ -206,6 +207,12 @@ const mockGetPluginsReply = [
     name: 'plugin-name3',
     details: 'some detail3',
     type: 'opsgenie',
+    statusCode: IntegrationStatusCode.Running,
+  },
+  {
+    name: 'plugin-name4',
+    details: 'some detail',
+    type: 'aws-identity-center',
     statusCode: IntegrationStatusCode.Running,
   },
 ];
