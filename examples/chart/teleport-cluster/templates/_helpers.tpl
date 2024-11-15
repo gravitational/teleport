@@ -10,7 +10,7 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 Create the name of the service account to use in the auth config check hook.
 
 If the chart is creating service accounts, we know we can create new arbitrary service accounts.
-We cannot reuse the same name as the deployment SA because the non-hook sevrice account might
+We cannot reuse the same name as the deployment SA because the non-hook service account might
 not exist yet. We tried being smart with hooks but ArgoCD doesn't differentiate between install
 and upgrade, causing various issues on update and eventually forcing us to use a separate SA.
 
@@ -22,7 +22,7 @@ so we can use the same SA for deployments and hooks.
 {{- include "teleport-cluster.auth.serviceAccountName" . -}}
 {{- if .Values.serviceAccount.create -}}
 -hook
-{{- end}}
+{{- end -}}
 {{- end -}}
 
 {{- define "teleport-cluster.proxy.serviceAccountName" -}}
@@ -33,7 +33,7 @@ so we can use the same SA for deployments and hooks.
 Create the name of the service account to use in the proxy config check hook.
 
 If the chart is creating service accounts, we know we can create new arbitrary service accounts.
-We cannot reuse the same name as the deployment SA because the non-hook sevrice account might
+We cannot reuse the same name as the deployment SA because the non-hook service account might
 not exist yet. We tried being smart with hooks but ArgoCD doesn't differentiate between install
 and upgrade, causing various issues on update and eventually forcing us to use a separate SA.
 
@@ -45,7 +45,7 @@ so we can use the same SA for deployments and hooks.
 {{- include "teleport-cluster.proxy.serviceAccountName" . -}}
 {{- if .Values.serviceAccount.create -}}
 -hook
-{{- end}}
+{{- end -}}
 {{- end -}}
 
 {{- define "teleport-cluster.version" -}}
