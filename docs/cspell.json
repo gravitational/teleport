@@ -808,6 +808,7 @@
     "remask",
     "remotefx",
     "removelock",
+    "removerepo",
     "replaceall",
     "replicaset",
     "replicationgroup",
@@ -1029,9 +1030,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
+  "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"
