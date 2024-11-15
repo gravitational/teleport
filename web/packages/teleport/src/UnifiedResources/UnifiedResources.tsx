@@ -132,15 +132,18 @@ export function ClusterResources({
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const [loadClusterError, setLoadClusterError] = useState('');
 
-  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
-    sort: {
-      fieldName: 'name',
-      dir: 'ASC',
+  const { params, setParams, replaceHistory, pathname } = useUrlFiltering(
+    {
+      sort: {
+        fieldName: 'name',
+        dir: 'ASC',
+      },
+      pinnedOnly:
+        preferences?.unifiedResourcePreferences?.defaultTab ===
+        DefaultTab.PINNED,
     },
-    includedResourceMode: availabilityFilter?.mode,
-    pinnedOnly:
-      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
-  });
+    availabilityFilter?.mode
+  );
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
