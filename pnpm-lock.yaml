@@ -98,6 +98,9 @@ importers:
       '@gravitational/build':
         specifier: workspace:*
         version: link:web/packages/build
+      '@storybook/addon-controls':
+        specifier: ^8.3.4
+        version: 8.3.4(storybook@8.3.4)
       '@storybook/addon-toolbars':
         specifier: ^8.3.4
         version: 8.3.4(storybook@8.3.4)
@@ -2173,6 +2176,11 @@ packages:
 
   '@sinonjs/fake-timers@10.3.0':
     resolution: {integrity: sha512-V4BG07kuYSUkTCSBHG8G8TNhM+F19jXFWnQtzj+we8DrkpSBCee9Z3Ms8yiGer/dlmhe35/Xdgyo3/0rQKg7YA==}
+
+  '@storybook/addon-controls@8.3.4':
+    resolution: {integrity: sha512-qQcaK6dczsb6wXkzGZKOjUYNA7FfKBewRv6NvoVKYY6LfhllGOkmUAtYpdtQG8adsZWTSoZaAOJS2vP2uM67lw==}
+    peerDependencies:
+      storybook: ^8.3.4
 
   '@storybook/addon-toolbars@8.3.4':
     resolution: {integrity: sha512-Km1YciVIxqluDbd1xmHjANNFyMonEOtnA6e4MrnBnC9XkPXSigeFlj0JvxyI/zjBsLBoFRmQiwq55W6l3hQ9sA==}
@@ -8997,6 +9005,14 @@ snapshots:
   '@sinonjs/fake-timers@10.3.0':
     dependencies:
       '@sinonjs/commons': 3.0.0
+
+  '@storybook/addon-controls@8.3.4(storybook@8.3.4)':
+    dependencies:
+      '@storybook/global': 5.0.0
+      dequal: 2.0.3
+      lodash: 4.17.21
+      storybook: 8.3.4
+      ts-dedent: 2.2.0
 
   '@storybook/addon-toolbars@8.3.4(storybook@8.3.4)':
     dependencies:
