@@ -63,6 +63,7 @@ export function EnrollmentDialog({
         );
 
       case 'error':
+      case 'alreadyExists':
         return (
           <>
             <Flex mb={5} alignItems="center">
@@ -70,10 +71,12 @@ export function EnrollmentDialog({
               <Text>{error}</Text>
             </Flex>
             <Flex gap={4}>
-              <ButtonPrimary width="50%" onClick={retry}>
-                Retry
-              </ButtonPrimary>
-              <ButtonSecondary width="50%" onClick={close}>
+              {status === 'error' && (
+                <ButtonPrimary width="50%" onClick={retry}>
+                  Retry
+                </ButtonPrimary>
+              )}
+              <ButtonSecondary width="86px" onClick={close}>
                 Close
               </ButtonSecondary>
             </Flex>
