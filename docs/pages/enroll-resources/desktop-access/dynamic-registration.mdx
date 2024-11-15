@@ -68,6 +68,17 @@ metadata:
     env: test
 spec:
   addr: localhost:3089
+  #non_ad should be true for logging with local Windows user and false for Active Directory users
+  non_ad: true
+  # domain specifies domain used for AD-joined machines
+  domain: ""
+
+  # Optional - ensures that all sessions use the same screen size,
+  # no matter what the size of the browser window is.
+  # Leave blank to use the size of the browser window.
+  screen_size:
+    width: 1024
+    height: 768
 ```
 
 The user creating the dynamic Windows desktop needs to have a role with access to the
