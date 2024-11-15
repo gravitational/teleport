@@ -215,28 +215,35 @@ WithAlreadyExistsError.parameters = {
   msw: {
     handlers: [
       tokenHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
         {
-          return HttpResponse.json({ clusters: eksClusters });
+          return res(ctx.json({ clusters: eksClusters }));
         }
       }),
-      http.get(
+      rest.get(
         cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        () => {
-          return HttpResponse.json({ items: kubeServers });
+        (req, res, ctx) => {
+          return res(ctx.json({ items: kubeServers }));
         }
       ),
-      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
-        await delay(1000);
-        return HttpResponse.json({
-          results: [
-            {
-              clusterName: 'EKS1',
-              error: 'teleport-kube-agent is already installed on the cluster',
-            },
-          ],
-        });
-      }),
+      rest.post(
+        cfg.getEnrollEksClusterUrl(integrationName),
+        async (req, res, ctx) => {
+          return res(
+            ctx.delay(1000),
+            ctx.status(200),
+            ctx.json({
+              results: [
+                {
+                  clusterName: 'EKS1',
+                  error:
+                    'teleport-kube-agent is already installed on the cluster',
+                },
+              ],
+            })
+          );
+        }
+      ),
     ],
   },
 };

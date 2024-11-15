@@ -76,7 +76,7 @@ export function EnrollmentDialog({
                   Retry
                 </ButtonPrimary>
               )}
-              <ButtonSecondary width="50%" onClick={close}>
+              <ButtonSecondary width="86px" onClick={close}>
                 Close
               </ButtonSecondary>
             </Flex>
