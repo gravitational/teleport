@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -99,12 +100,13 @@ func TestAccessRequestSearch(t *testing.T) {
 	type args struct {
 		teleportCluster string
 		kind            string
+		format          string
 		extraArgs       []string
 	}
 	tests := []struct {
-		name      string
-		args      args
-		wantTable func() string
+		name       string
+		args       args
+		wantOutput func() string
 	}{
 		{
 			name: "list pods in root cluster for default namespace",
@@ -113,7 +115,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				extraArgs:       []string{fmt.Sprintf("--kube-cluster=%v", rootKubeCluster)},
 				kind:            types.KindKubePod,
 			},
-			wantTable: func() string {
+			wantOutput: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
@@ -132,7 +134,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				extraArgs:       []string{fmt.Sprintf("--kube-cluster=%v", rootKubeCluster), "--kube-namespace=dev", "--search=nginx-1"},
 				kind:            types.KindKubePod,
 			},
-			wantTable: func() string {
+			wantOutput: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
@@ -149,7 +151,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				extraArgs:       []string{fmt.Sprintf("--kube-cluster=%v", leafKubeCluster)},
 				kind:            types.KindKubePod,
 			},
-			wantTable: func() string {
+			wantOutput: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
@@ -168,7 +170,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				extraArgs:       []string{fmt.Sprintf("--kube-cluster=%v", leafKubeCluster), "--all-kube-namespaces", "--search=nginx-1"},
 				kind:            types.KindKubePod,
 			},
-			wantTable: func() string {
+			wantOutput: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
@@ -185,7 +187,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				teleportCluster: leafClusterName,
 				kind:            types.KindKubernetesCluster,
 			},
-			wantTable: func() string {
+			wantOutput: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Hostname", "Labels", "Resource ID"},
 					[][]string{
@@ -193,6 +195,52 @@ func TestAccessRequestSearch(t *testing.T) {
 					},
 					"Labels")
 				return table.AsBuffer().String()
+			},
+		},
+		{
+			name: "list kube clusters in leaf cluster and expect json output",
+			args: args{
+				teleportCluster: leafClusterName,
+				kind:            types.KindKubernetesCluster,
+				format:          "json",
+			},
+			wantOutput: func() string {
+				searchOutput := accessRequestSearchOutput{
+					Resources: []map[string]string{
+						{
+							"hostname":    "",
+							"labels":      "",
+							"name":        leafKubeCluster,
+							"resource_id": fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster),
+						},
+					},
+					RequestCommand: fmt.Sprintf("tsh request create --resource /%s/kube_cluster/%s --reason <request reason>", leafClusterName, leafKubeCluster),
+				}
+				bytes, _ := utils.FastMarshalIndent(searchOutput, "", "  ")
+				return string(bytes)
+			},
+		},
+		{
+			name: "list kube clusters in leaf cluster and expect yaml output",
+			args: args{
+				teleportCluster: leafClusterName,
+				kind:            types.KindKubernetesCluster,
+				format:          "yaml",
+			},
+			wantOutput: func() string {
+				searchOutput := accessRequestSearchOutput{
+					Resources: []map[string]string{
+						{
+							"hostname":    "",
+							"labels":      "",
+							"name":        leafKubeCluster,
+							"resource_id": fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster),
+						},
+					},
+					RequestCommand: fmt.Sprintf("tsh request create --resource /%s/kube_cluster/%s --reason <request reason>", leafClusterName, leafKubeCluster),
+				}
+				bytes, _ := yaml.Marshal(searchOutput)
+				return string(bytes)
 			},
 		},
 	}
@@ -204,6 +252,17 @@ func TestAccessRequestSearch(t *testing.T) {
 			defer cancel()
 			homePath, _ := mustLoginLegacy(t, s, tc.args.teleportCluster)
 			captureStdout := new(bytes.Buffer)
+			args := append([]string{
+				"--insecure",
+				"request",
+				"search",
+				fmt.Sprintf("--kind=%s", tc.args.kind),
+			},
+				tc.args.extraArgs...,
+			)
+			if tc.args.format != "" {
+				args = append(args, fmt.Sprintf("--format=%s", tc.args.format))
+			}
 			err := Run(
 				ctx,
 				append([]string{
@@ -218,9 +277,13 @@ func TestAccessRequestSearch(t *testing.T) {
 				setHomePath(homePath),
 			)
 			require.NoError(t, err)
-			// We append a newline to the expected output to esnure that the table
-			// does not contain any more rows than expected.
-			require.Contains(t, captureStdout.String(), tc.wantTable()+"\n")
+			if tc.args.format == "json" || tc.args.format == "yaml" {
+				require.Equal(t, captureStdout.String(), tc.wantOutput())
+			} else {
+				// We append a newline to the expected output to ensure that the table
+				// does not contain any more rows than expected.
+				require.Contains(t, captureStdout.String(), tc.wantOutput()+"\n")
+			}
 		})
 	}
 }

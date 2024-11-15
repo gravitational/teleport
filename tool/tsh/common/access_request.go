@@ -405,11 +405,55 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	return trace.Wrap(err)
 }
 
+type accessRequestSearchOutput struct {
+	Resources      []map[string]string `json:"resources"`
+	RequestCommand string              `json:"request_command"`
+}
+
+func serializeAccessRequestSearchOutput(tableColumns []string, rows [][]string, format string) (string, error) {
+	var out []byte
+	var err error
+
+	rowsToMap := accessRequestSearchOutput{Resources: []map[string]string{}}
+	for _, row := range rows {
+		newMap := map[string]string{}
+		for idx, col := range tableColumns {
+			col = strings.ReplaceAll(strings.ToLower(col), " ", "_")
+			newMap[col] = row[idx]
+		}
+		rowsToMap.Resources = append(rowsToMap.Resources, newMap)
+	}
+
+	resourceIDs := []string{}
+	for _, row := range rowsToMap.Resources {
+		resourceID, ok := row["resource_id"]
+		if ok {
+			resourceIDs = append(resourceIDs, resourceID)
+		}
+	}
+
+	if len(resourceIDs) > 0 {
+		rowsToMap.RequestCommand = fmt.Sprintf("tsh request create --resource %s --reason <request reason>", strings.Join(resourceIDs, " --resource "))
+	}
+
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(rowsToMap, "", "  ")
+	} else {
+		out, err = yaml.Marshal(rowsToMap)
+	}
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
+}
+
 func onRequestSearch(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	format := strings.ToLower(cf.Format)
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
@@ -539,24 +583,36 @@ func onRequestSearch(cf *CLIConf) error {
 		}
 		rows = append(rows, row)
 	}
-	var table asciitable.Table
-	if cf.Verbose {
-		table = asciitable.MakeTable(tableColumns, rows...)
-	} else {
-		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
-	}
-	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
-		return trace.Wrap(err)
-	}
 
-	if len(resourceIDs) > 0 {
-		resourcesStr := strings.Join(resourceIDs, " --resource ")
-		fmt.Fprintf(cf.Stdout(), `
-To request access to these resources, run
-> tsh request create --resource %s \
-    --reason <request reason>
+	switch format {
+	case teleport.Text, "":
+		var table asciitable.Table
+		if cf.Verbose {
+			table = asciitable.MakeTable(tableColumns, rows...)
+		} else {
+			table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+		}
+		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
 
-`, resourcesStr)
+		if len(resourceIDs) > 0 {
+			resourcesStr := strings.Trim(strings.Join(resourceIDs, " --resource "), " ")
+			fmt.Fprintf(cf.Stdout(), `
+	To request access to these resources, run
+	> tsh request create --resource %s \
+		--reason <request reason>
+
+	`, resourcesStr)
+		}
+	case teleport.JSON, teleport.YAML:
+		output, err := serializeAccessRequestSearchOutput(tableColumns, rows, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprint(cf.Stdout(), output)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
 	}
 
 	return nil
