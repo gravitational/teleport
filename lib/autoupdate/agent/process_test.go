@@ -75,7 +75,7 @@ func msgOnly(_ []string, a slog.Attr) slog.Attr {
 	return slog.Attr{Key: a.Key, Value: a.Value}
 }
 
-func TestMonitor(t *testing.T) {
+func TestRestartMonitor(t *testing.T) {
 	t.Parallel()
 
 	svc := &SystemdService{
@@ -83,67 +83,75 @@ func TestMonitor(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name     string
-		ticks    []int64
-		maxStops int
-		minClean int
-		errored  bool
-		canceled bool
+		name        string
+		ticks       []int64
+		maxRestarts int
+		minClean    int
+		errored     bool
+		canceled    bool
 	}{
 		{
-			name:     "one restart",
-			ticks:    []int64{1, 1, 1, 1},
-			maxStops: 2,
-			minClean: 3,
-			errored:  false,
+			name:        "no restarts",
+			ticks:       []int64{1, 1, 1, 1},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
 		},
 		{
-			name:     "two restarts",
-			ticks:    []int64{1, 1, 1, 2, 2, 2, 2},
-			maxStops: 2,
-			minClean: 3,
-			errored:  false,
+			name:        "one restart then stable",
+			ticks:       []int64{1, 1, 1, 2, 2, 2, 2},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
 		},
 		{
-			name:     "too many restarts long",
-			ticks:    []int64{1, 1, 1, 2, 2, 2, 3},
-			maxStops: 2,
-			minClean: 3,
-			errored:  true,
+			name:        "two restarts then stable",
+			ticks:       []int64{1, 2, 3, 3, 3, 3},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
 		},
 		{
-			name:     "too many restarts short",
-			ticks:    []int64{1, 2, 3},
-			maxStops: 2,
-			minClean: 3,
-			errored:  true,
+			name:        "too many restarts (slow)",
+			ticks:       []int64{1, 1, 1, 2, 2, 2, 3, 3, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
 		},
 		{
-			name:     "too many restarts after okay",
-			ticks:    []int64{1, 1, 1, 1, 2, 3},
-			maxStops: 2,
-			minClean: 3,
-			errored:  false,
+			name:        "too many restarts (fast)",
+			ticks:       []int64{1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
 		},
 		{
-			name:     "too many restarts before okay",
-			ticks:    []int64{1, 2, 3, 3, 3, 3},
-			maxStops: 2,
-			minClean: 3,
-			errored:  true,
+			name:        "too many restarts after stable",
+			ticks:       []int64{1, 1, 1, 1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
 		},
 		{
-			name:     "no error if no minClean",
-			ticks:    []int64{1, 2, 3},
-			maxStops: 2,
-			minClean: 0,
-			errored:  false,
+			name:        "too many restarts before okay",
+			ticks:       []int64{1, 2, 3, 4, 3, 3, 3},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
 		},
 		{
-			name:     "cancel",
-			maxStops: 2,
-			minClean: 3,
-			canceled: true,
+			name:        "no error if no minClean",
+			ticks:       []int64{1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    0,
+			errored:     false,
+		},
+		{
+			name:        "cancel",
+			ticks:       []int64{1, 1, 1},
+			maxRestarts: 2,
+			minClean:    3,
+			canceled:    true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,7 +165,7 @@ func TestMonitor(t *testing.T) {
 					ch <- tick
 				}
 			}()
-			err := svc.monitorRestarts(ctx, ch, tt.maxStops, tt.minClean)
+			err := svc.monitorRestarts(ctx, ch, tt.maxRestarts, tt.minClean)
 			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
 			if !tt.canceled {
 				require.Equal(t, tt.errored, err != nil)
@@ -166,7 +174,7 @@ func TestMonitor(t *testing.T) {
 	}
 }
 
-func TestTicks(t *testing.T) {
+func TestRestartTicks(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -178,36 +186,42 @@ func TestTicks(t *testing.T) {
 
 	for _, tt := range []struct {
 		name    string
+		init    int64
 		ticks   []int64
 		errored bool
 	}{
 		{
 			name:    "consistent",
+			init:    1,
 			ticks:   []int64{1, 1, 1},
 			errored: false,
 		},
 		{
 			name:    "divergent",
+			init:    1,
 			ticks:   []int64{1, 2, 3},
 			errored: false,
 		},
 		{
 			name:    "start error",
+			init:    1,
 			ticks:   []int64{-1, 1, 1},
 			errored: false,
 		},
 		{
 			name:    "ephemeral error",
+			init:    1,
 			ticks:   []int64{1, -1, 1},
 			errored: false,
 		},
 		{
 			name:    "end error",
+			init:    1,
 			ticks:   []int64{1, 1, -1},
 			errored: true,
 		},
 		{
-			name: "cancel",
+			name: "init-only",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -219,12 +233,16 @@ func TestTicks(t *testing.T) {
 
 			go func() {
 				defer cancel() // always quit after last tick or fail
+				require.Equal(t, tt.init, <-ch)
 				for _, tick := range tt.ticks {
 					if tick >= 0 {
 						err := os.WriteFile(restartPath, []byte(fmt.Sprintln(tick)), os.ModePerm)
 						require.NoError(t, err)
 					} else {
-						_ = os.Remove(restartPath)
+						err := os.Remove(restartPath)
+						if err != nil {
+							require.ErrorIs(t, err, os.ErrNotExist)
+						}
 					}
 					tickC <- time.Now()
 					res := <-ch
@@ -234,7 +252,7 @@ func TestTicks(t *testing.T) {
 					require.Equal(t, tick, res)
 				}
 			}()
-			err := svc.tickRestarts(ctx, ch, tickC)
+			err := svc.tickRestarts(ctx, ch, tickC, tt.init)
 			require.Equal(t, tt.errored, err != nil)
 			if err != nil {
 				require.ErrorIs(t, err, os.ErrNotExist)

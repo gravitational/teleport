@@ -51,6 +51,10 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// If getRestartTime fails consistently, error will be returned from monitor.
+	initRestartTime, _ := s.getRestartTime()
+
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
 
@@ -81,54 +85,85 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
 	}
 	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.")
-	return trace.Wrap(s.monitor(ctx))
+	return trace.Wrap(s.monitor(ctx, initRestartTime))
 }
 
-func (s SystemdService) monitor(ctx context.Context) error {
-	tickC := time.NewTicker(2 * time.Second).C
+const (
+	restartMonitorInterval         = 2 * time.Second
+	minCleanIntervalsBeforeSuccess = 6
+	maxRestartsBeforeFailure       = 2
+)
+
+// monitor for excessive restarts by polling the LastRestartPath file.
+// This function detects crash-looping while minimizing its own runtime during updates.
+// To accomplish this, monitor fails after seeing maxRestartsBeforeFailure, and stops checking
+// after seeing minCleanIntervalsBeforeSuccess clean intervals.
+// initRestartTime may be provided as a baseline restart time, to ensure we catch the initial restart.
+func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tickC := time.NewTicker(restartMonitorInterval).C
 	restartC := make(chan int64)
 	g := &errgroup.Group{}
 	g.Go(func() error {
-		return s.tickRestarts(ctx, restartC, tickC)
+		return s.tickRestarts(ctx, restartC, tickC, initRestartTime)
 	})
-	err := s.monitorRestarts(ctx, restartC, 2, 6)
+	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeSuccess)
+	cancel()
 	if err := g.Wait(); err != nil {
 		s.Log.WarnContext(ctx, "Unable to determine last restart time. Failed to monitor for crash loops.", errorKey, err)
 	}
 	return trace.Wrap(err)
 }
 
-func (s SystemdService) monitorRestarts(ctx context.Context, timeCh <-chan int64, maxStops, minClean int) error {
+// monitorRestarts receives restart times on timeCh.
+// Each restart time that differs from the preceding restart time counts as a restart.
+// If maxRestarts is exceeded, monitorRestarts returns an error.
+// Each restart time that matches the proceeding restart time counts as a clean reading.
+// If minClean is reached before maxRestarts is exceeded, monitorRestarts runs nil.
+func (s SystemdService) monitorRestarts(ctx context.Context, timeCh <-chan int64, maxRestarts, minClean int) error {
 	var (
-		clean, stops int
-		restartTime  int64
+		same, diff  int
+		restartTime int64
 	)
-	// TODO: thread init value of restartTime
 	for {
 		// wait first to ensure we initial stop has completed
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case t := <-timeCh:
-			if t != restartTime {
-				clean = 0
+			switch t {
+			case restartTime:
+				same++
+			default:
+				same = 0
 				restartTime = t
-				stops++
-			} else {
-				clean++
+				diff++
 			}
+
 		}
 		switch {
-		case stops > maxStops:
+		case diff > maxRestarts+1:
 			return trace.Errorf("detected crash loop")
-		case clean >= minClean:
+		case same >= minClean:
 			return nil
 		}
 	}
 }
 
-func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC <-chan time.Time) error {
+// tickRestarts reads the current time on tickC, and outputs the last restart time on ch for each received tick.
+// If the current time cannot be read, tickRestarts sends 0 on ch.
+// Any error from the last attempt to receive restart times is returned when ctx is cancelled.
+// The baseline restart time is sent as soon as the method is called
+func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC <-chan time.Time, baseline int64) error {
+	t := baseline
 	var err error
+	select {
+	case ch <- t:
+	case <-ctx.Done():
+		return err
+	}
 	for {
 		// two select statements -> never skip restarts
 		select {
@@ -146,6 +181,7 @@ func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC
 	}
 }
 
+// getRestartTime returns the last restart time from the file at LastRestartPath.
 func (s SystemdService) getRestartTime() (int64, error) {
 	b, err := os.ReadFile(s.LastRestartPath)
 	if err != nil {
