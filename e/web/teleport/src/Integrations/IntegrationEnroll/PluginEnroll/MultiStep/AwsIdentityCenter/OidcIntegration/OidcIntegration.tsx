@@ -35,6 +35,8 @@ import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnrol
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 
+import { UserAccountWarning } from '../shared/UserAccountWarning';
+
 import {
   requiredOidcIntegrationName,
   requireUniqueIntegrationName,
@@ -156,6 +158,11 @@ export function AwsIcOidcIntegration() {
       </Text>
       {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for AWS IAM Identity Center */}
       <Box mt={3}>
+        <UserAccountWarning />
+      </Box>
+
+      {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for Identity Center */}
+      <Box>
         {fetchIntegrationAttempt.status === 'error' && (
           <Danger>{fetchIntegrationAttempt.statusText}</Danger>
         )}

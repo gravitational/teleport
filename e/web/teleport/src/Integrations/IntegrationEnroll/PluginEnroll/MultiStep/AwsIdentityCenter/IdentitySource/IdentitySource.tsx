@@ -14,6 +14,8 @@ import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnrol
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 
+import { UserAccountWarning } from '../shared/UserAccountWarning';
+
 export function AwsIcConfigureIdentitySource() {
   const [selectedFileContent, setSelectedFileContent] = useState<string>();
   const [showFileValidationError, setShowFileValidationError] =
@@ -76,6 +78,10 @@ export function AwsIcConfigureIdentitySource() {
         provider and add AWS IAM Identity Center as an SAML service provider in
         Teleport.
       </Text>
+      <Box mt={3}>
+        <UserAccountWarning inIdentitySourceScreen={true} />
+      </Box>
+
       {validateSAMLIdPServiceProviderAttempt.status === 'error' && (
         <Box mt={3}>
           <Danger>{validateSAMLIdPServiceProviderAttempt.statusText}</Danger>
