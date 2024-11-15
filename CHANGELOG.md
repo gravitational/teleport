@@ -8,8 +8,7 @@
 
 In a future version of Teleport 17, new node hostnames will have stricter
 requirements. Hostnames will only be allowed to consist of alphanumeric
-characters and the symbols '.' and '-'. A notification will be sent when
-nodes with invalid hostnames are detected. In Teleport 18 all existing nodes
+characters and the symbols '.' and '-'. In Teleport 18 all existing nodes
 with invalid hostnames will have their hostnames changed to a unique
 valid hostname. They will still be dialable by their UUID or public address
 but will not be dialable through Teleport by their original hostname. Nodes
