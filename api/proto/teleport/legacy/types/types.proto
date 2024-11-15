@@ -1414,7 +1414,7 @@ message ProvisionTokenSpecV2GitHub {
   // StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
   // endpoints, and allows them to be directly specified. This allows joining
   // from GitHub Actions in GHES instances that are not reachable by the
-  // Teleport Auth Server.
+  // Teleport Auth Service.
   string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
