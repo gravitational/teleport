@@ -436,10 +436,13 @@ func serializeAccessRequestSearchOutput(tableColumns []string, rows [][]string, 
 		rowsToMap.RequestCommand = fmt.Sprintf("tsh request create --resource %s --reason <request reason>", strings.Join(resourceIDs, " --resource "))
 	}
 
-	if format == teleport.JSON {
+	switch format {
+	case teleport.JSON:
 		out, err = utils.FastMarshalIndent(rowsToMap, "", "  ")
-	} else {
+	case teleport.YAML:
 		out, err = yaml.Marshal(rowsToMap)
+	default:
+		return "", trace.BadParameter("unsupported format %q", format)
 	}
 
 	if err != nil {
