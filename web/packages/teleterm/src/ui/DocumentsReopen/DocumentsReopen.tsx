@@ -46,7 +46,7 @@ export function DocumentsReopen(props: {
 
   return (
     <DialogConfirmation
-      open={!history}
+      open={!props.hidden}
       keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
