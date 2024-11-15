@@ -41,15 +41,10 @@ export const ViewModeSwitch = ({
         <ViewModeSwitchButton
           className={currentViewMode === ViewMode.CARD ? 'selected' : ''}
           onClick={() => setCurrentViewMode(ViewMode.CARD)}
-          css={`
-            border-right: 1px solid
-              ${props => props.theme.colors.spotBackground[2]};
-            border-top-left-radius: 4px;
-            border-bottom-left-radius: 4px;
-          `}
           role="radio"
           aria-label="Card View"
           aria-checked={currentViewMode === ViewMode.CARD}
+          first
         >
           <SquaresFour size="small" color="text.main" />
         </ViewModeSwitchButton>
@@ -58,13 +53,10 @@ export const ViewModeSwitch = ({
         <ViewModeSwitchButton
           className={currentViewMode === ViewMode.LIST ? 'selected' : ''}
           onClick={() => setCurrentViewMode(ViewMode.LIST)}
-          css={`
-            border-top-right-radius: 4px;
-            border-bottom-right-radius: 4px;
-          `}
           role="radio"
           aria-label="List View"
           aria-checked={currentViewMode === ViewMode.LIST}
+          last
         >
           <Rows size="small" color="text.main" />
         </ViewModeSwitchButton>
@@ -75,7 +67,6 @@ export const ViewModeSwitch = ({
 
 const ViewModeSwitchContainer = styled.div`
   height: 22px;
-  width: 48px;
   border: ${p => p.theme.borders[1]} ${p => p.theme.colors.spotBackground[2]};
   border-radius: ${p => p.theme.radii[2]}px;
   display: flex;
@@ -90,7 +81,7 @@ const ViewModeSwitchContainer = styled.div`
   }
 `;
 
-const ViewModeSwitchButton = styled.button`
+const ViewModeSwitchButton = styled.button<{ first?: boolean; last?: boolean }>`
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -102,6 +93,20 @@ const ViewModeSwitchButton = styled.button`
   background-color: transparent;
   outline: none;
   transition: outline-width 150ms ease;
+
+  ${p =>
+    p.first &&
+    `
+    border-top-left-radius: ${p.theme.radii[2]}px;
+    border-bottom-left-radius: ${p.theme.radii[2]}px;
+    border-right: ${p.theme.borders[1]} ${p.theme.colors.spotBackground[2]};
+  `}
+  ${p =>
+    p.last &&
+    `
+    border-top-right-radius: ${p.theme.radii[2]}px;
+    border-bottom-right-radius: ${p.theme.radii[2]}px;
+  `}
 
   &:focus-visible {
     outline: ${p => p.theme.borders[1]}
