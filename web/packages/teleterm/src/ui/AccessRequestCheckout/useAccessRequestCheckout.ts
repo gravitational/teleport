@@ -26,7 +26,6 @@ import {
   PendingListItem,
   PendingKubeResourceItem,
   isKubeClusterWithNamespaces,
-  KubeNamespaceRequest,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
@@ -249,18 +248,19 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  async function bulkToggleKubeResources(
+  function updateNamespacesForKubeCluster(
     items: PendingKubeResourceItem[],
     kubeCluster: PendingListKubeClusterWithOriginalItem
   ) {
-    await workspaceAccessRequest.addOrRemoveKubeNamespaces(
+    workspaceAccessRequest.updateNamespacesForKubeCluster(
       items.map(item =>
         mapRequestToKubeNamespaceUri({
           id: item.id,
           name: item.subResourceName,
           clusterUri: kubeCluster.originalItem.resource.uri,
         })
-      )
+      ),
+      kubeCluster.originalItem.resource.uri
     );
   }
 
@@ -318,8 +318,7 @@ export default function useAccessRequestCheckout() {
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
-          requestedCount:
-            pendingAccessRequestsWithoutParentResource.filter.length,
+          requestedCount: pendingAccessRequestsWithoutParentResource.length,
         };
       })
     ).catch(e => {
@@ -397,19 +396,19 @@ export default function useAccessRequestCheckout() {
     }
   }
 
-  async function fetchKubeNamespaces({
-    kubeCluster,
-    search,
-  }: KubeNamespaceRequest): Promise<string[]> {
+  async function fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ): Promise<string[]> {
     const { response } = await ctx.tshd.listKubernetesResources({
       searchKeywords: search,
       limit: 50,
       useSearchAsRoles: true,
       nextKey: '',
       resourceType: 'namespace',
-      clusterUri,
+      clusterUri: kubeCluster.originalItem.resource.uri,
       predicateExpression: '',
-      kubernetesCluster: kubeCluster,
+      kubernetesCluster: kubeCluster.id,
       kubernetesNamespace: '',
     });
     return response.resources.map(i => i.name);
@@ -455,7 +454,7 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   };
 }
 
@@ -470,7 +469,10 @@ type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
       }
   );
 
-type PendingListKubeClusterWithOriginalItem = Omit<PendingListItem, 'kind'> & {
+export type PendingListKubeClusterWithOriginalItem = Omit<
+  PendingListItem,
+  'kind'
+> & {
   kind: Extract<ResourceKind, 'kube_cluster'>;
   originalItem: Extract<ResourceRequest, { kind: 'kube' }>;
 };

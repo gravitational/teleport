@@ -21,12 +21,12 @@ package peer
 import (
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"math"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,12 +47,12 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
-	AccessCache   authclient.CAGetter
-	Listener      net.Listener
-	TLSConfig     *tls.Config
-	ClusterDialer ClusterDialer
-	Log           logrus.FieldLogger
-	ClusterName   string
+	AccessCache authclient.CAGetter
+	Listener    net.Listener
+	TLSConfig   *tls.Config
+	Dialer      peerdial.Dialer
+	Log         *slog.Logger
+	ClusterName string
 
 	// getConfigForClient gets the client tls config.
 	// configurable for testing purposes.
@@ -65,9 +66,9 @@ type ServerConfig struct {
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
 	}
-	c.Log = c.Log.WithField(
+	c.Log = c.Log.With(
 		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
@@ -80,8 +81,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("missing listener")
 	}
 
-	if c.ClusterDialer == nil {
-		return trace.BadParameter("missing cluster dialer server")
+	if c.Dialer == nil {
+		return trace.BadParameter("missing Dialer")
 	}
 
 	if c.ClusterName == "" {
@@ -106,8 +107,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 	if c.service == nil {
 		c.service = &proxyService{
-			c.ClusterDialer,
-			c.Log,
+			dialer: c.Dialer,
+			log:    c.Log,
 		}
 	}
 

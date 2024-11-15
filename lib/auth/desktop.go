@@ -80,8 +80,13 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
-		// CRL is required for Windows smartcard certs.
-		CRLDistributionPoints: []string{req.CRLEndpoint},
+	}
+
+	// CRL Distribution Points (CDP) are required for Windows smartcard certs
+	// for users wanting to RDP. They are not required for the service account
+	// cert that Teleport itself uses to authenticate for LDAP.
+	if req.CRLEndpoint != "" {
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
 	}
 
 	limitExceeded, err := a.desktopsLimitExceeded(ctx)
