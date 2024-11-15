@@ -104,5 +104,5 @@ spec:
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
-      serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
+      serviceAccountName: {{ include "teleport-cluster.auth.hookServiceAccountName" . }}
 {{- end }}
