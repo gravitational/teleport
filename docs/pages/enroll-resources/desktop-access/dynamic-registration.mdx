@@ -94,8 +94,7 @@ spec:
     windows_desktop_labels:
       env: test
     rules:
-    - resources:
-      - dynamic_windows_desktop
+    - resources: [dynamic_windows_desktop]
       verbs: [list, create, read, update, delete]
 version: v7
 ```
