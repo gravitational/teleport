@@ -134,7 +134,7 @@ export function AwsIcImportResources() {
                   }
                   setShowTable({ ...showTable, permissionSets: state });
                 }}
-                loading={false}
+                loading={fetchPermissionSetsAttempt.status === 'processing'}
               />
             </Flex>
             <Flex mt={5} mb={5} gap={3}>

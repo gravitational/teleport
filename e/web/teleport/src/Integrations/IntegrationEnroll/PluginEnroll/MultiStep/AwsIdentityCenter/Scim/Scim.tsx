@@ -130,6 +130,7 @@ export function AwsIcConfigureScim() {
                   <FieldInput
                     rule={requiredField('Access token is required')}
                     label="AWS IAM Identity Center SCIM Access token"
+                    type="password"
                     onChange={e => setAccessToken(e.target.value)}
                     value={accessToken}
                     placeholder="access_token"
