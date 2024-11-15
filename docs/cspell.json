@@ -193,6 +193,7 @@
     "SIEM",
     "SIGINT",
     "SIGUSR",
+    "SIXEL",
     "SLAVEOF",
     "SLES",
     "SLOWLOG",
