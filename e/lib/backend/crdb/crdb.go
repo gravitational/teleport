@@ -5,6 +5,8 @@ package crdb
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
@@ -27,6 +30,7 @@ func init() {
 	backend.MustRegister(Name, func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return NewFromParams(ctx, p)
 	})
+	prometheus.MustRegister(metricCertExpiry, metricChangefeedCertExpiry)
 }
 
 const (
@@ -43,6 +47,17 @@ var (
 	defaultPageSize = 1000
 	// defaultQueryTimeout is the context timeout set for all queries by default.
 	defaultQueryTimeout = time.Second * 30
+
+	metricCertExpiry = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "crdb_backend_certificate_expiry",
+		Help:      "The expiration timestamp of the CockroachDB client certificates in seconds. A value of 0 indicates client certificates are not being used or an error occurred.",
+	})
+	metricChangefeedCertExpiry = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "crdb_backend_changefeed_certificate_expiry",
+		Help:      "The expiration timestamp of the CockroachDB changefeed certificates in seconds. A value of 0 indicates client certificates are not being used or an error occurred.",
+	})
 )
 
 var schemas = []string{
@@ -84,9 +99,24 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if tls := poolConfig.ConnConfig.TLSConfig; tls != nil {
+		expiry, err := getCertExpiry(tls)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to report client cert expiry", "error", err)
+		}
+		metricCertExpiry.Set(float64(expiry.Unix()))
+	}
+
 	feedConfig, err := pgxpool.ParseConfig(cfg.ChangeFeedConnString)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if tls := feedConfig.ConnConfig.TLSConfig; tls != nil {
+		expiry, err := getCertExpiry(tls)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to report changefeed cert expiry", "error", err)
+		}
+		metricChangefeedCertExpiry.Set(float64(expiry.Unix()))
 	}
 
 	log.InfoContext(ctx, "Setting up backend.")
@@ -128,6 +158,27 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}()
 
 	return bk, nil
+}
+
+// getCertExpiry returns the [tls.Certificate.NotAfter] for the certificate
+// expiring the soonest.
+func getCertExpiry(c *tls.Config) (time.Time, error) {
+	var expiry time.Time
+	for _, cert := range c.Certificates {
+		if cert.Leaf == nil {
+			parsedCert, err := x509.ParseCertificate(cert.Certificate[0])
+			if err != nil {
+				return time.Time{}, trace.Wrap(err)
+			}
+			cert.Leaf = parsedCert
+		}
+
+		// Get the NotAfter timestamp (valid until) for the certificate
+		if expiry.IsZero() || cert.Leaf.NotAfter.Before(expiry) {
+			expiry = cert.Leaf.NotAfter
+		}
+	}
+	return expiry, nil
 }
 
 // Config specifies parameters for configuring a cockroachdb backend.
