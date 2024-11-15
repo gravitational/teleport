@@ -275,7 +275,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"static_jwks": {
-							Description: "StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Server.",
+							Description: "StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

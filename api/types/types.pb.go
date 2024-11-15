@@ -4559,7 +4559,7 @@ type ProvisionTokenSpecV2GitHub struct {
 	// StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
 	// endpoints, and allows them to be directly specified. This allows joining
 	// from GitHub Actions in GHES instances that are not reachable by the
-	// Teleport Auth Server.
+	// Teleport Auth Service.
 	StaticJWKS           string   `protobuf:"bytes,4,opt,name=StaticJWKS,proto3" json:"static_jwks,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
