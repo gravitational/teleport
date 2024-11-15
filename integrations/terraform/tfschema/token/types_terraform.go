@@ -274,6 +274,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"static_jwks": {
+							Description: "StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 					}),
 					Description: "GitHub allows the configuration of options specific to the \"github\" join method.",
 					Optional:    true,
@@ -1163,6 +1168,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.EnterpriseSlug = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["static_jwks"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.GitHub.StaticJWKS"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.StaticJWKS", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.StaticJWKS = t
 											}
 										}
 									}
@@ -3290,6 +3312,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.EnterpriseSlug)
 											v.Unknown = false
 											tf.Attrs["enterprise_slug"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["static_jwks"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.GitHub.StaticJWKS"})
+										} else {
+											v, ok := tf.Attrs["static_jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.GitHub.StaticJWKS", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.StaticJWKS", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.StaticJWKS) == ""
+											}
+											v.Value = string(obj.StaticJWKS)
+											v.Unknown = false
+											tf.Attrs["static_jwks"] = v
 										}
 									}
 								}
