@@ -59,6 +59,7 @@ export type HeadlessPromptProps = {
    * reject the request from the Web UI.
    */
   onCancel(): void;
+  hidden?: boolean;
 };
 
 export function HeadlessPrompt({
@@ -71,6 +72,7 @@ export function HeadlessPrompt({
   headlessAuthenticationId,
   updateHeadlessStateAttempt,
   onCancel,
+  hidden,
 }: HeadlessPromptProps) {
   // skipConfirm automatically attempts to approve a headless auth attempt,
   // so let's show waitForMfa from the very beginning in that case.
@@ -78,12 +80,12 @@ export function HeadlessPrompt({
 
   return (
     <DialogConfirmation
+      open={!hidden}
+      keepInDOMAfterClose
       dialogCss={() => ({
         maxWidth: '480px',
         width: '100%',
       })}
-      disableEscapeKeyDown={false}
-      open={true}
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
         <H2 mb={4}>

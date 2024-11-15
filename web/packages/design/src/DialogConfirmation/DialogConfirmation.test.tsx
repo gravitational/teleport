@@ -16,13 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DialogConfirmation from './DialogConfirmation';
-import {
-  DialogTitle,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-} from './../Dialog';
+import { render, fireEvent } from 'design/utils/testing';
 
-export default DialogConfirmation;
-export { DialogTitle, DialogContent, DialogFooter, DialogHeader };
+import { DialogConfirmation } from './DialogConfirmation';
+
+test('onClose is respected', () => {
+  const onClose = jest.fn();
+  const { container } = render(
+    <DialogConfirmation open={true} onClose={onClose} />
+  );
+
+  fireEvent.keyDown(container, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
