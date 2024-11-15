@@ -42,6 +42,7 @@ type Service struct {
 	rolesSvc                   RolesService
 	usersSvc                   UsersService
 	userMatchesPredicate       func(types.User) bool
+	assignmentSyncInterval     time.Duration
 	awsSyncInterval            time.Duration
 	importConfig               ImportConfig
 	pluginStatusSink           common.StatusSink
@@ -80,6 +81,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 
 	resourceMonitor, err := monitor.New(monitor.Config{
 		AccessListsSvcCache: config.Provisioning.AccessListsSvcCache,
+		UsersSvcCache:       config.Provisioning.UsersSvcCache,
 		Events:              config.EventsClient,
 		Clock:               config.Clock,
 		Logger:              config.Log.With(teleport.ComponentKey, Component+":RM"),
@@ -132,7 +134,8 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		usersSvc:                   config.UsersSvc,
 		userMatchesPredicate:       config.UserPredicate,
 		accessListMatchesPredicate: aclPredicate,
-		awsSyncInterval:            config.SyncInterval,
+		awsSyncInterval:            config.AWSSyncInterval,
+		assignmentSyncInterval:     config.AssignmentSyncInterval,
 		importConfig:               config.ImportConfig,
 		pluginStatusSink:           config.PluginStatusSink,
 		pluginsService:             config.PluginsService,

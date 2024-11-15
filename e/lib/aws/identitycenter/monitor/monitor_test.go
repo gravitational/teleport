@@ -122,6 +122,7 @@ func TestResourceMonitor(t *testing.T) {
 	monitorUnderTest, err := New(Config{
 		Events:              fixture.Auth,
 		AccessListsSvcCache: fixture.Auth.Cache,
+		UsersSvcCache:       fixture.Auth.Cache,
 		Logger:              logger,
 		Clock:               fixture.Clock,
 		OnEvent: func(ctx context.Context, event *PrincipalEvent) {

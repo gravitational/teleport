@@ -9,6 +9,7 @@ import (
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	icIter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
@@ -17,6 +18,22 @@ import (
 
 // resourceEventLoop handles events from the resource monitor.
 func (svc *Service) resourceEventLoop(ctx context.Context) error {
+	fullRefreshTimer := svc.clock.NewTimer(retryutils.SeventhJitter(svc.assignmentSyncInterval))
+	defer fullRefreshTimer.Stop()
+
+	doFullRefresh := func() {
+		// No sense in doing a periodic full refresh update if we have just done
+		// one in response to an event, so reset the periodic refresh timer back
+		// to the start of its interval
+		fullRefreshTimer.Reset(retryutils.SeventhJitter(svc.assignmentSyncInterval))
+
+		//  Do the refresh, logging any errors
+		if err := svc.refreshAllPrincipalAssignments(ctx); err != nil {
+			svc.log.ErrorContext(ctx, "failed handling full refresh",
+				"error", err)
+		}
+	}
+
 	for {
 		// TODO: investigate if pulling resource updates in batches and skipping
 		//       over multiple updates to the same principal is worthwhile
@@ -24,9 +41,18 @@ func (svc *Service) resourceEventLoop(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 
+		case <-fullRefreshTimer.Chan():
+			doFullRefresh()
+			continue
+
 		case e, ok := <-svc.principalEventCh:
 			if !ok {
 				return nil
+			}
+
+			if e.Verb == monitor.VerbCalculateAll {
+				doFullRefresh()
+				continue
 			}
 
 			if err := svc.handleResourceEvent(ctx, e); err != nil {
@@ -42,10 +68,6 @@ func (svc *Service) resourceEventLoop(ctx context.Context) error {
 var errResourceExcluded = errors.New("Resource excluded")
 
 func (svc *Service) handleResourceEvent(ctx context.Context, event *monitor.PrincipalEvent) error {
-	if event.Verb == monitor.VerbCalculateAll {
-		return svc.refreshAllPrincipalAssignments(ctx)
-	}
-
 	principalID, err := principal.GetIDForPrincipalResource(event.Principal)
 	if err != nil {
 		return trace.Wrap(err)

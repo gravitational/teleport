@@ -57,6 +57,12 @@ type AccessListsGetter interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 }
 
+// UsersGetter defines an interface for fetching users from a data store
+type UsersGetter interface {
+	// GetUser fetches a specific user from the backend data store
+	GetUser(context.Context, string, bool) (types.User, error)
+}
+
 // Config defines the configuration options for a new resource monitor
 type Config struct {
 	// Events is used to create watchers. Required.
@@ -64,6 +70,9 @@ type Config struct {
 	// AccessListsSvcCache is used to map events on Access List Members back to
 	// the owning Access List. Required.
 	AccessListsSvcCache AccessListsGetter
+	// UsersS UsersSvcCache used to map access requests back to the requesting
+	// Teleport user. Required.
+	UsersSvcCache UsersGetter
 	// OnEvent is the event handler function that will be called when a resource
 	// event is detected. Optional. Defaults to a no-op handler.
 	OnEvent EventHandler
@@ -80,6 +89,10 @@ type Config struct {
 func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.AccessListsSvcCache == nil {
 		return trace.BadParameter("must supply access lists service")
+	}
+
+	if cfg.UsersSvcCache == nil {
+		return trace.BadParameter("must supply users service")
 	}
 
 	if cfg.Events == nil {
@@ -249,6 +262,22 @@ func (m *ResourceMonitor) processEvent(ctx context.Context, resource types.Resou
 		// (& re-provision, if necessary) those, rather than trigger a full
 		// recalculation
 		m.OnEvent(ctx, &PrincipalEvent{Verb: VerbCalculateAll})
+
+	case types.KindAccessRequest:
+		if op != types.OpPut {
+			return nil
+		}
+
+		ar, ok := resource.(types.AccessRequest)
+		if !ok {
+			return trace.BadParameter("Expected AccessRequest resource, got %T", resource)
+		}
+
+		user, err := m.UsersSvcCache.GetUser(ctx, ar.GetUser(), false /* no secrets */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.OnEvent(ctx, &PrincipalEvent{Verb: VerbCalculate, Principal: user})
 	}
 
 	return nil

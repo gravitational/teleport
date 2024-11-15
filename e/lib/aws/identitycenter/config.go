@@ -95,9 +95,13 @@ type ServiceConfig struct {
 	AccessRequestsSvc          services.AccessRequestGetter
 	ImportConfig               ImportConfig
 
-	// SyncInterval defines the interval between synchronization with AWS.
+	// AWSSyncInterval defines the interval between synchronization with AWS.
 	// Defaults to defaultResourceSyncInterval if not set
-	SyncInterval time.Duration
+	AWSSyncInterval time.Duration
+
+	// AssignmentSyncInterval defines the interval between performing full
+	// assignment refreshes.
+	AssignmentSyncInterval time.Duration
 
 	// UserPredicate is a function used to select which users are provisioned
 	// into AWS and have their permission assignments managed by Teleport.
@@ -158,8 +162,11 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.ImportConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating import config")
 	}
-	if cfg.SyncInterval == 0 {
-		cfg.SyncInterval = defaultResourceSyncInterval
+	if cfg.AWSSyncInterval == 0 {
+		cfg.AWSSyncInterval = defaultResourceSyncInterval
+	}
+	if cfg.AssignmentSyncInterval == 0 {
+		cfg.AssignmentSyncInterval = defaultAssignmentSyncInterval
 	}
 	if cfg.PluginStatusSink == nil {
 		return trace.BadParameter("missing plugin status sink")
