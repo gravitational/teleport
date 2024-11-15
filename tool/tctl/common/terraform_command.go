@@ -114,13 +114,12 @@ func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		defer clientClose(ctx)
 		err = c.RunEnvCommand(ctx, client, os.Stdout, os.Stderr)
+		clientClose(ctx)
+		return true, trace.Wrap(err)
 	default:
 		return false, nil
 	}
-
-	return true, trace.Wrap(err)
 }
 
 // RunEnvCommand contains all the Terraform helper logic. It:
