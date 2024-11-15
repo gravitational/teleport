@@ -212,7 +212,7 @@ tests:
           path: spec.template.spec.serviceAccountName
           value: helm-test-sa-hook
 
-  - it: should use serviceAccount.name for auth predeploy job SA when set in values and we're not cretaing SAs
+  - it: should use serviceAccount.name for auth predeploy job SA when set in values and we're not creating SAs
     template: auth/predeploy_job.yaml
     set:
       clusterName: helm-lint
@@ -244,7 +244,7 @@ tests:
           path: spec.template.spec.serviceAccountName
           value: helm-test-sa-proxy-hook
 
-  - it: should use serviceAccount.name for proxy predeploy job SA when set in values and we're not cretaing SAs
+  - it: should use serviceAccount.name for proxy predeploy job SA when set in values and we're not creating SAs
     template: proxy/predeploy_job.yaml
     set:
       clusterName: helm-lint
