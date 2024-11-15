@@ -19,6 +19,8 @@
 package agent
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -53,7 +55,25 @@ WantedBy=teleport.service
 `
 )
 
-func WriteConfigFiles(linkDir, dataDir string) error {
+func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error {
+	err := writeConfigFiles(linkDir, dataDir)
+	if err != nil {
+		return trace.Errorf("failed to write teleport-update systemd config files: %w", err)
+	}
+	svc := &SystemdService{
+		ServiceName: "teleport-update.timer",
+		Log:         log,
+	}
+	if err := svc.Reload(ctx); err != nil {
+		return trace.Errorf("failed to reload systemd config: %w", err)
+	}
+	if err := svc.Enable(ctx, true); err != nil {
+		return trace.Errorf("failed to enable teleport-update systemd timer: %w", err)
+	}
+	return nil
+}
+
+func writeConfigFiles(linkDir, dataDir string) error {
 	// TODO(sclevine): revert on failure
 
 	dropinPath := filepath.Join(linkDir, serviceDir, serviceName+".d", serviceDropinName)
@@ -71,6 +91,7 @@ func WriteConfigFiles(linkDir, dataDir string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

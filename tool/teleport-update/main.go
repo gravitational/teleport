@@ -83,6 +83,8 @@ type cliConfig struct {
 	DataDir string
 	// LinkDir for linking binaries and systemd services
 	LinkDir string
+	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
+	SelfSetup bool
 }
 
 func Run(args []string) error {
@@ -113,11 +115,15 @@ func Run(args []string) error {
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
 	enableCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
+	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
 
@@ -180,6 +186,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
 		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
 	if err != nil {
@@ -206,6 +213,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
 		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
 	if err != nil {
@@ -234,6 +242,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
 		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
 	if err != nil {
@@ -262,6 +271,7 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
 		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
 	if err != nil {
@@ -291,9 +301,9 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	err := autoupdate.WriteConfigFiles(ccfg.LinkDir, ccfg.DataDir)
+	err := autoupdate.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
 	if err != nil {
-		return trace.Errorf("failed to write config files: %w", err)
+		return trace.Errorf("failed to setup teleport-update service: %w", err)
 	}
 	return nil
 }

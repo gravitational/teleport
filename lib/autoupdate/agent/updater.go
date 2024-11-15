@@ -166,16 +166,21 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			ReservedFreeInstallDisk: reservedFreeDisk,
 		},
 		Process: &SystemdService{
-			ServiceName: "teleport.service",
-			Log:         cfg.Log,
+			ServiceName:     "teleport.service",
+			LastRestartPath: filepath.Join(cfg.DataDir, "last-restart"),
+			Log:             cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
 			exec := &localExec{
 				Log:      cfg.Log,
-				ErrLevel: slog.LevelError,
+				ErrLevel: slog.LevelInfo,
 				OutLevel: slog.LevelDebug,
 			}
-			_, err := exec.Run(ctx, filepath.Join(cfg.LinkDir, "bin", BinaryName),
+			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)
+			if cfg.SelfSetup {
+				name = "/proc/self/exe"
+			}
+			_, err := exec.Run(ctx, name,
 				"--data-dir", cfg.DataDir,
 				"--link-dir", cfg.LinkDir,
 				"setup")
@@ -200,6 +205,8 @@ type LocalUpdaterConfig struct {
 	LinkDir string
 	// SystemDir for package-installed Teleport installations (usually /usr/local/teleport-system).
 	SystemDir string
+	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
+	SelfSetup bool
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.

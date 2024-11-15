@@ -34,7 +34,7 @@ func TestWriteConfigFiles(t *testing.T) {
 	t.Parallel()
 	linkDir := t.TempDir()
 	dataDir := t.TempDir()
-	err := WriteConfigFiles(linkDir, dataDir)
+	err := writeConfigFiles(linkDir, dataDir)
 	require.NoError(t, err)
 
 	for _, p := range []string{

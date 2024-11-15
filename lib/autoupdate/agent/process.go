@@ -41,7 +41,12 @@ const (
 	maxRestartsBeforeFailure = 2
 )
 
-// SystemdService manages a Teleport systemd service.
+// log keys
+const (
+	unitKey = "unit"
+)
+
+// SystemdService manages a systemd service (e.g., teleport or teleport-update).
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
 	ServiceName string
@@ -51,7 +56,7 @@ type SystemdService struct {
 	Log *slog.Logger
 }
 
-// Reload a systemd service.
+// Reload the systemd service.
 // Attempts a graceful reload before a hard restart.
 // See Process interface for more details.
 func (s SystemdService) Reload(ctx context.Context) error {
@@ -75,25 +80,25 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	case code < 0:
 		return trace.Errorf("unable to determine if systemd service is active")
 	case code > 0:
-		s.Log.WarnContext(ctx, "Teleport systemd service not running.")
+		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
 		return trace.Wrap(ErrNotNeeded)
 	}
 	// Attempt graceful reload of running service.
 	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
 	switch {
 	case code < 0:
-		return trace.Errorf("unable to attempt reload of Teleport systemd service")
+		return trace.Errorf("unable to reload systemd service")
 	case code > 0:
 		// Graceful reload fails, try hard restart.
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
-			return trace.Errorf("hard restart of Teleport systemd service failed")
+			return trace.Errorf("hard restart of systemd service failed")
 		}
-		s.Log.WarnContext(ctx, "Teleport ungracefully restarted. Connections potentially dropped.")
+		s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
 	default:
-		s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
+		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
-	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.")
+	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.", unitKey, s.ServiceName)
 	return trace.Wrap(s.monitor(ctx, initRestartTime))
 }
 
@@ -115,7 +120,8 @@ func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) erro
 	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeStable)
 	cancel()
 	if err := g.Wait(); err != nil {
-		s.Log.WarnContext(ctx, "Unable to determine last restart time. Failed to monitor for crash loops.", errorKey, err)
+		s.Log.WarnContext(ctx, "Unable to determine last restart time. Cannot detect crash loops.", unitKey, s.ServiceName)
+		s.Log.DebugContext(ctx, "Error monitoring for crash loops.", errorKey, err, unitKey, s.ServiceName)
 	}
 	return trace.Wrap(err)
 }
@@ -207,6 +213,24 @@ func (s SystemdService) Sync(ctx context.Context) error {
 	if code != 0 {
 		return trace.Errorf("unable to reload systemd configuration")
 	}
+	s.Log.InfoContext(ctx, "Systemd configuration synced.")
+	return nil
+}
+
+// Enable the systemd service.
+func (s SystemdService) Enable(ctx context.Context, now bool) error {
+	if err := s.checkSystem(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	args := []string{"enable", s.ServiceName}
+	if now {
+		args = append(args, "--now")
+	}
+	code := s.systemctl(ctx, slog.LevelError, args...)
+	if code != 0 {
+		return trace.Errorf("unable to enable systemd service")
+	}
+	s.Log.InfoContext(ctx, "Service enabled.", unitKey, s.ServiceName)
 	return nil
 }
 
