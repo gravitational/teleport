@@ -39,7 +39,9 @@ import (
 	"log/slog"
 	"math/big"
 	insecurerand "math/rand"
+	"net"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -1477,6 +1479,28 @@ func (a *Server) runPeriodicOperations() {
 								if services.NodeHasMissedKeepAlives(srv) {
 									missedKeepAliveCount++
 								}
+
+								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+								if !validServerHostname(srv.GetHostname()) {
+									if srv.GetSubKind() != types.SubKindOpenSSHNode {
+										return false, nil
+									}
+
+									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+									// Any existing static hosts will not have their
+									// hostname sanitized since they don't heartbeat.
+									if err := sanitizeHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+										return false, nil
+									}
+
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								}
+
 								return false, nil
 							},
 							req,
@@ -5625,9 +5649,68 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	return nil
 }
 
+const (
+	serverHostnameMaxLen       = 256
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
+)
+
+var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
+
+// validServerHostname returns false if the hostname is longer than 256 characters or
+// does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
+// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+func validServerHostname(hostname string) bool {
+	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
+}
+
+func sanitizeHostname(server types.Server) error {
+	invalidHostname := server.GetHostname()
+
+	replacedHostname := server.GetName()
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		host, _, err := net.SplitHostPort(server.GetAddr())
+		if err != nil || !validServerHostname(host) {
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			host = id.String()
+		}
+
+		replacedHostname = host
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		s.Spec.Hostname = replacedHostname
+
+		if s.Metadata.Labels == nil {
+			s.Metadata.Labels = map[string]string{}
+		}
+
+		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if !validServerHostname(server.GetHostname()) {
+		a.logger.DebugContext(a.closeCtx, "sanitizing invalid server hostname",
+			"server", server.GetName(),
+			"hostname", server.GetHostname(),
+		)
+		if err := sanitizeHostname(server); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	lease, err := a.Services.UpsertNode(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
