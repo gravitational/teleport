@@ -64,8 +64,8 @@ func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error
 		ServiceName: "teleport-update.timer",
 		Log:         log,
 	}
-	if err := svc.Reload(ctx); err != nil {
-		return trace.Errorf("failed to reload systemd config: %w", err)
+	if err := svc.Sync(ctx); err != nil {
+		return trace.Errorf("failed to sync systemd config: %w", err)
 	}
 	if err := svc.Enable(ctx, true); err != nil {
 		return trace.Errorf("failed to enable teleport-update systemd timer: %w", err)

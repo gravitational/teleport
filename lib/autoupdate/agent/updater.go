@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -171,20 +172,17 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			Log:             cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
-			exec := &localExec{
-				Log:      cfg.Log,
-				ErrLevel: slog.LevelInfo,
-				OutLevel: slog.LevelDebug,
-			}
 			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)
 			if cfg.SelfSetup {
 				name = "/proc/self/exe"
 			}
-			_, err := exec.Run(ctx, name,
+			cmd := exec.CommandContext(ctx, name,
 				"--data-dir", cfg.DataDir,
 				"--link-dir", cfg.LinkDir,
 				"setup")
-			return err
+			cmd.Stderr = os.Stderr
+			cmd.Stdout = os.Stdout
+			return cmd.Run()
 		},
 	}, nil
 }
