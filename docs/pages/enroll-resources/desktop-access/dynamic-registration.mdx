@@ -3,13 +3,15 @@ title: Dynamic Windows Desktop Registration
 description: Register/unregister Windows desktops without restarting Teleport.
 ---
 
-Dynamic Windows desktop registration allows Teleport administrators to register new Windows desktops (or
-update/unregister existing ones) without having to update the static
-configuration files read by Teleport Windows Desktop Service instances.
+Dynamic Windows desktop registration allows Teleport administrators to register
+new Windows desktops (or update/unregister existing ones) without having to
+update the static configuration files read by Teleport Windows Desktop Service
+instances.
 
-Windows Desktop Service instances watch for updates from the Teleport Auth Service for
-`dynamic_windows_desktop` resources, each of which includes the information that the Windows Desktop
-Service needs to connect to a Windows desktop.
+Windows Desktop Service instances watch for updates from the Teleport Auth
+Service for `dynamic_windows_desktop` resources, each of which includes the
+information that the Windows Desktop Service needs to connect to a Windows
+desktop.
 
 ## Required permissions
 
@@ -22,8 +24,7 @@ operations against `dynamic_windows_desktop` resources:
 ```yaml
 allow:
   rules:
-    - resources:
-        - dynamic_windows_desktop
+    - resources: [dynamic_windows_desktop]
       verbs: [list, create, read, update, delete]
 ```
 
@@ -56,7 +57,7 @@ resources:
 
 Configure Teleport to register a Windows desktop dynamically by creating an `dynamic_windows_desktop`
 resource. The following example configures Teleport for connecting to Windows desktop
-called `example` at `localhost:3089`.
+called `example` at `host1.example.com:3089`.
 
 ```yaml
 kind: dynamic_windows_desktop
@@ -67,8 +68,8 @@ metadata:
   labels:
     env: test
 spec:
-  addr: localhost:3089
-  #non_ad should be true for logging with local Windows user and false for Active Directory users
+  addr: host1.example.com:3089
+  # non_ad should be true for logging with local Windows user and false for Active Directory users
   non_ad: true
   # domain specifies domain used for AD-joined machines
   domain: ""
@@ -81,12 +82,14 @@ spec:
     height: 768
 ```
 
-The user creating the dynamic Windows desktop needs to have a role with access to the
-Windows desktop labels and the `dynamic_windows_desktop` resource.  In this example role the user can only
-create and maintain dynamic Windows desktops labeled `env: test`.
+The user creating the dynamic Windows desktop needs to have a role with access
+to the Windows desktop labels and the `dynamic_windows_desktop` resource. In
+this example role the user can only create and maintain dynamic Windows desktops
+labeled `env: test`.
 
 ```yaml
 kind: role
+version: v7
 metadata:
   name: example
 spec:
@@ -96,7 +99,6 @@ spec:
     rules:
     - resources: [dynamic_windows_desktop]
       verbs: [list, create, read, update, delete]
-version: v7
 ```
 
 To create a dynamic Windows desktop resource, run:
