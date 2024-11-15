@@ -1180,6 +1180,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
 	nsctx.ExecType = teleport.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
@@ -1460,6 +1461,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	}
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(channel)
+	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
 	scx.DstAddr = sshutils.JoinHostPort(req.Host, req.Port)
@@ -2173,6 +2175,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	scx.ExecType = teleport.TCPIPForwardRequest
 	scx.SrcAddr = listenAddr
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
+	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 
 	if err := s.canPortForward(scx); err != nil {
