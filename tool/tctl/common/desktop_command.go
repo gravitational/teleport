@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // DesktopCommand implements "tctl desktop" group of commands.
@@ -63,15 +64,22 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
-func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.desktopList.FullCommand():
-		err = c.ListDesktop(ctx, client)
+		commandFunc = c.ListDesktop
 	case c.desktopBootstrap.FullCommand():
-		err = c.BootstrapAD(ctx, client)
+		commandFunc = c.BootstrapAD
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 

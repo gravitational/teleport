@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package common
 
 import (
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // subcommandRunner is used to create pluggable subcommand under
@@ -45,7 +47,7 @@ import (
 // $ tctl idp oidc <command> [<args> ...]
 type subcommandRunner interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error)
 }
 
 // IdPCommand implements all commands under "tctl idp".
@@ -79,9 +81,9 @@ Examples:
 }
 
 // TryRun calls tryRun for each subcommand, and returns (false, nil) if none of them match.
-func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c *authclient.Client) (match bool, err error) {
+func (i *IdPCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
 	for _, subcommandRunner := range i.subcommandRunners {
-		match, err = subcommandRunner.tryRun(ctx, cmd, c)
+		match, err = subcommandRunner.tryRun(ctx, cmd, clientFunc)
 		if err != nil {
 			return match, trace.Wrap(err)
 		}
@@ -121,10 +123,15 @@ Examples:
 	s.testAttributeMapping.cmd = testAttrMap
 }
 
-func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c *authclient.Client) (match bool, err error) {
+func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
-		return true, trace.Wrap(s.testAttributeMapping.run(ctx, c))
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
+		return true, trace.Wrap(s.testAttributeMapping.run(ctx, client))
 	default:
 		return false, nil
 	}

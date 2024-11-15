@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands
@@ -125,27 +126,36 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
-func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.requestList.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.requestGet.FullCommand():
-		err = c.Get(ctx, client)
+		commandFunc = c.Get
 	case c.requestApprove.FullCommand():
-		err = c.Approve(ctx, client)
+		commandFunc = c.Approve
 	case c.requestDeny.FullCommand():
-		err = c.Deny(ctx, client)
+		commandFunc = c.Deny
 	case c.requestCreate.FullCommand():
-		err = c.Create(ctx, client)
+		commandFunc = c.Create
 	case c.requestDelete.FullCommand():
-		err = c.Delete(ctx, client)
+		commandFunc = c.Delete
 	case c.requestCaps.FullCommand():
-		err = c.Caps(ctx, client)
+		commandFunc = c.Caps
 	case c.requestReview.FullCommand():
-		err = c.Review(ctx, client)
+		commandFunc = c.Review
 	default:
 		return false, nil
 	}
+
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

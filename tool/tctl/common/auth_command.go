@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -172,23 +173,47 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
+
 	switch cmd {
 	case a.authGenerate.FullCommand():
-		err = a.GenerateKeys(ctx, client)
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
+		return true, trace.Wrap(a.GenerateKeys(ctx, client))
 	case a.authExport.FullCommand():
-		err = a.ExportAuthorities(ctx, client)
+		commandFunc = a.ExportAuthorities
 	case a.authSign.FullCommand():
-		err = a.GenerateAndSignKeys(ctx, client)
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
+		return true, trace.Wrap(a.GenerateAndSignKeys(ctx, client))
 	case a.authRotate.FullCommand():
-		err = a.RotateCertAuthority(ctx, client)
+		commandFunc = a.RotateCertAuthority
 	case a.authLS.FullCommand():
-		err = a.ListAuthServers(ctx, client)
+		commandFunc = a.ListAuthServers
 	case a.authCRL.FullCommand():
-		err = a.GenerateCRLForCA(ctx, client)
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
+		return true, trace.Wrap(a.GenerateCRLForCA(ctx, client))
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

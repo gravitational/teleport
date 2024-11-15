@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	tctlConfig "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -80,13 +81,13 @@ func TestConnect(t *testing.T) {
 
 	for _, tc := range []struct {
 		name            string
-		cliFlags        GlobalCLIFlags
+		cliFlags        tctlConfig.GlobalCLIFlags
 		modifyConfig    func(*servicecfg.Config)
 		wantErrContains string
 	}{
 		{
 			name: "default to data dir",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				AuthServerAddr: []string{fileConfig.Auth.ListenAddress},
 				Insecure:       true,
 			},
@@ -95,33 +96,33 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "auth config file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				ConfigFile: mustWriteFileConfig(t, fileConfig),
 				Insecure:   true,
 			},
 		}, {
 			name: "auth config file string",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfig),
 				Insecure:     true,
 			},
 		}, {
 			name: "ignores agent config file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				ConfigFile: mustWriteFileConfig(t, fileConfigAgent),
 				Insecure:   true,
 			},
 			wantErrContains: "make sure that a Teleport Auth Service instance is running",
 		}, {
 			name: "ignores agent config file string",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfigAgent),
 				Insecure:     true,
 			},
 			wantErrContains: "make sure that a Teleport Auth Service instance is running",
 		}, {
 			name: "ignores agent config file and loads identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				ConfigFile:       mustWriteFileConfig(t, fileConfigAgent),
@@ -129,7 +130,7 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "ignores agent config file string and loads identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				ConfigString:     mustGetBase64EncFileConfig(t, fileConfigAgent),
@@ -137,7 +138,7 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlConfig.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				Insecure:         true,
@@ -154,7 +155,7 @@ func TestConnect(t *testing.T) {
 				tc.modifyConfig(cfg)
 			}
 
-			clientConfig, err := ApplyConfig(&tc.cliFlags, cfg)
+			clientConfig, err := tctlConfig.ApplyConfig(&tc.cliFlags, cfg)
 			if tc.wantErrContains != "" {
 				require.ErrorContains(t, err, tc.wantErrContains)
 				return

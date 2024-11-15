@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
@@ -238,23 +239,31 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	// tctl get
 	case rc.getCmd.FullCommand():
-		err = rc.Get(ctx, client)
+		commandFunc = rc.Get
 		// tctl create
 	case rc.createCmd.FullCommand():
-		err = rc.Create(ctx, client)
+		commandFunc = rc.Create
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
-		err = rc.Delete(ctx, client)
+		commandFunc = rc.Delete
 		// tctl update
 	case rc.updateCmd.FullCommand():
-		err = rc.UpdateFields(ctx, client)
+		commandFunc = rc.UpdateFields
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

@@ -21,9 +21,9 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/touchid"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // touchIDCommand adapts touchid.Command for tclt.
@@ -35,6 +35,6 @@ func (c *touchIDCommand) Initialize(app *kingpin.Application, _ *servicecfg.Conf
 	c.impl = touchid.NewCommand(app)
 }
 
-func (c *touchIDCommand) TryRun(ctx context.Context, selectedCommand string, _ *authclient.Client) (match bool, err error) {
-	return c.impl.TryRun(ctx, selectedCommand)
+func (c *touchIDCommand) TryRun(ctx context.Context, cmd string, _ commonClient.InitFunc) (match bool, err error) {
+	return c.impl.TryRun(ctx, cmd)
 }

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -153,21 +154,29 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case u.userAdd.FullCommand():
-		err = u.Add(ctx, client)
+		commandFunc = u.Add
 	case u.userUpdate.FullCommand():
-		err = u.Update(ctx, client)
+		commandFunc = u.Update
 	case u.userList.FullCommand():
-		err = u.List(ctx, client)
+		commandFunc = u.List
 	case u.userDelete.FullCommand():
-		err = u.Delete(ctx, client)
+		commandFunc = u.Delete
 	case u.userResetPassword.FullCommand():
-		err = u.ResetPassword(ctx, client)
+		commandFunc = u.ResetPassword
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -99,16 +100,22 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *NodeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.nodeAdd.FullCommand():
-		err = c.Invite(ctx, client)
+		commandFunc = c.Invite
 	case c.nodeList.FullCommand():
-		err = c.ListActive(ctx, client)
-
+		commandFunc = c.ListActive
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 

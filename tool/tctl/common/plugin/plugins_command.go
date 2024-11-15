@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 const (
@@ -311,22 +312,42 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Cli
 }
 
 // TryRun runs the plugins command
-func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
-		err = p.Cleanup(ctx, client)
+		commandFunc = p.Cleanup
 	case p.install.okta.cmd.FullCommand():
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
 		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
 		err = p.InstallOkta(ctx, args)
+		return true, trace.Wrap(err)
 	case p.install.scim.cmd.FullCommand():
-		err = p.InstallSCIM(ctx, client)
+		commandFunc = p.InstallSCIM
 	case p.install.entraID.cmd.FullCommand():
+		client, clientClose, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer clientClose(ctx)
 		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
 		err = p.InstallEntra(ctx, args)
+		return true, trace.Wrap(err)
 	case p.delete.cmd.FullCommand():
-		err = p.Delete(ctx, client)
+		commandFunc = p.Delete
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }

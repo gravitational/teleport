@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.
@@ -96,17 +97,24 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
-func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.nodeHeartbeats.FullCommand():
-		err = c.NodeHeartbeats(ctx, client)
+		commandFunc = c.NodeHeartbeats
 	case c.watch.FullCommand():
-		err = c.Watch(ctx, client)
+		commandFunc = c.Watch
 	case c.auditEvents.FullCommand():
-		err = c.AuditEvents(ctx, client)
+		commandFunc = c.AuditEvents
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 

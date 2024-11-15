@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 type options struct {
@@ -60,7 +61,7 @@ func withEditor(editor func(string) error) optionsFunc {
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
+	TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (bool, error)
 }
 
 func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
@@ -74,7 +75,9 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, err = cmd.TryRun(ctx, selectedCmd, client)
+	_, err = cmd.TryRun(ctx, selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	return err
 }
 

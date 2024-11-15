@@ -29,6 +29,7 @@ import (
 // Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
+		&VersionCommand{},
 		&UserCommand{},
 		&NodeCommand{},
 		&TokensCommand{},
@@ -64,12 +65,5 @@ func Commands() []CLICommand {
 		&webauthnwinCommand{},
 		&touchIDCommand{},
 		&TerraformCommand{},
-	}
-}
-
-// CommandsWithoutAuth returns the set of available subcommands for tctl not require auth client.
-func CommandsWithoutAuth() []CLICommand {
-	return []CLICommand{
-		&VersionCommand{},
 	}
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // ACLCommand implements the `tctl acl` family of commands.
@@ -93,21 +94,29 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
-func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.ls.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.get.FullCommand():
-		err = c.Get(ctx, client)
+		commandFunc = c.Get
 	case c.usersAdd.FullCommand():
-		err = c.UsersAdd(ctx, client)
+		commandFunc = c.UsersAdd
 	case c.usersRemove.FullCommand():
-		err = c.UsersRemove(ctx, client)
+		commandFunc = c.UsersRemove
 	case c.usersList.FullCommand():
-		err = c.UsersList(ctx, client)
+		commandFunc = c.UsersList
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // ExternalAuditStorageCommand implements "tctl externalauditstorage" group of commands.
@@ -55,15 +56,22 @@ func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, confi
 }
 
 // TryRun attempts to run subcommands.
-func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *ExternalAuditStorageCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.promote.FullCommand():
-		err = c.Promote(ctx, client)
+		commandFunc = c.Promote
 	case c.generate.FullCommand():
-		err = c.Generate(ctx, client)
+		commandFunc = c.Generate
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 

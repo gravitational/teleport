@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // NotificationCommand implements the `tctl notifications` family of commands.
@@ -90,19 +91,24 @@ func (n *NotificationCommand) Initialize(app *kingpin.Application, _ *servicecfg
 }
 
 // TryRun takes the CLI command as an argument and executes it.
-func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
-	nc := client.NotificationServiceClient()
-
+func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case n.create.FullCommand():
-		err = n.Create(ctx, client)
+		commandFunc = n.Create
 	case n.ls.FullCommand():
-		err = n.List(ctx, nc)
+		commandFunc = n.List
 	case n.rm.FullCommand():
-		err = n.Remove(ctx, client)
+		commandFunc = n.Remove
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 
@@ -218,16 +224,17 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (n *NotificationCommand) List(ctx context.Context, client notificationspb.NotificationServiceClient) error {
+func (n *NotificationCommand) List(ctx context.Context, client *authclient.Client) error {
 	var result []*notificationspb.Notification
 	var pageToken string
+	nc := client.NotificationServiceClient()
 	for {
 		var resp *notificationspb.ListNotificationsResponse
 		var err error
 
 		// If a user was specified, list user-specific notifications for them, if not, default to listing global notifications.
 		if n.user != "" {
-			resp, err = client.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
+			resp, err = nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
 				PageSize:  defaults.DefaultChunkSize,
 				PageToken: pageToken,
 				Filters: &notificationspb.NotificationFilters{
@@ -239,7 +246,7 @@ func (n *NotificationCommand) List(ctx context.Context, client notificationspb.N
 				return trace.Wrap(err)
 			}
 		} else {
-			resp, err = client.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
+			resp, err = nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
 				PageSize:  defaults.DefaultChunkSize,
 				PageToken: pageToken,
 				Filters: &notificationspb.NotificationFilters{

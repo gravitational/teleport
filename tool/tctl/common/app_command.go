@@ -34,6 +34,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -68,13 +69,21 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "apps ls".
-func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *AppsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.appsList.FullCommand():
-		err = c.ListApps(ctx, client)
+		commandFunc = c.ListApps
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

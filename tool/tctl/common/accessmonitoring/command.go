@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // Command implements `tctl audit` group of commands.
@@ -114,13 +115,19 @@ func (c *Command) initAuditReportsCommands(auditCmd *kingpin.CmdClause, cfg *ser
 
 type runFunc func(context.Context, *authclient.Client) error
 
-func (c *Command) TryRun(ctx context.Context, selectedCommand string, authClient *authclient.Client) (match bool, err error) {
-	handler, ok := c.innerCmdMap[selectedCommand]
+func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	handler, ok := c.innerCmdMap[cmd]
 	if !ok {
 		return false, nil
 	}
 
-	switch err := trail.FromGRPC(handler(ctx, authClient)); {
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer clientClose(ctx)
+
+	switch err := trail.FromGRPC(handler(ctx, client)); {
 	case trace.IsNotImplemented(err):
 		return true, trace.AccessDenied("Access Monitoring requires a Teleport Enterprise Auth Server.")
 	default:

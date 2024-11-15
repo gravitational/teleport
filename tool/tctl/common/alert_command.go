@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // AlertCommand implements the `tctl alerts` family of commands.
@@ -93,17 +94,25 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *servicecfg.C
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.
-func (c *AlertCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.alertList.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.alertCreate.FullCommand():
-		err = c.Create(ctx, client)
+		commandFunc = c.Create
 	case c.alertAck.FullCommand():
-		err = c.Ack(ctx, client)
+		commandFunc = c.Ack
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
+
 	return true, trace.Wrap(err)
 }
 

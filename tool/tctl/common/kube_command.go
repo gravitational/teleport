@@ -34,6 +34,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -68,13 +69,20 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.kubeList.FullCommand():
-		err = c.ListKube(ctx, client)
+		commandFunc = c.ListKube
 	default:
 		return false, nil
 	}
+	client, clientClose, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	clientClose(ctx)
 	return true, trace.Wrap(err)
 }
 
