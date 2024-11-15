@@ -176,6 +176,7 @@ chartMode: standalone
 clusterName: teleport.example.com # replace this with your cluster domain
 persistence:
   enabled: false
+proxyListenerMode: multiplex
 
 auth:
   teleportConfig:
@@ -183,13 +184,13 @@ auth:
       storage:
         type: postgresql
         # replace the database address and port with the values you saved during the PostgreSQL creation
-        # the result should look like: "postgres://teleport@60d25e94-edf5-4494-a6cc-5fcae28aa7c2.c0v4phir0ah9ul9trho0.databases.appdomain.cloud:31766/teleport_backend?sslmode=verify-full"
-        conn_string: postgres://teleport@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full
+        # the result should look like: "postgres://teleport@60d25e94-edf5-4494-a6cc-5fcae28aa7c2.c0v4phir0ah9ul9trho0.databases.appdomain.cloud:31766/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem"
+        conn_string: postgres://teleport@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem
         # replace the database address and port with the values you saved during the PostgreSQL creation
-        change_feed_conn_string: postgresql://repl@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full
+        change_feed_conn_string: postgresql://repl@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem
         audit_events_uri:
         # replace the database address and port with the values you saved during the PostgreSQL creation
-          - "postgres://teleport@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_audit?sslmode=verify-full#disable_cleanup=false&retention_period=8766h"
+          - "postgres://teleport@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_audit?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem#disable_cleanup=false&retention_period=8766h"
         # replace the bucket name and endpoint with the values you saved during the bucket creation
         audit_sessions_uri: 's3://<BUCKET_NAME>/readonly/records?endpoint=<DIRECT ENDPOINT>&region=ibm'
 
@@ -215,8 +216,6 @@ auth:
           name: bucket-creds
           key: AWS_SECRET_ACCESS_KEY
           optional: false
-    - name:  PGSSLROOTCERT
-      value: /var/lib/postgres-ca/cacert.pem
     - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
@@ -272,11 +271,11 @@ Recover the teleport cluster IP address:
 ```code
 $ kubectl get -n teleport-cluster services
 
-NAME                TYPE           CLUSTER-IP      EXTERNAL-IP                          PORT(S)                                                                     AGE
-teleport            LoadBalancer   172.21.130.11   45a6ca70-ca-tor.lb.appdomain.cloud   443:31421/TCP,3023:31979/TCP,3026:32071/TCP,3024:32700/TCP,3036:30541/TCP   2m50s
-teleport-auth       ClusterIP      172.21.109.96   <none>                               3025/TCP,3026/TCP                                                           2m50s
-teleport-auth-v16   ClusterIP      None            <none>                               <none>                                                                      2m50s
-teleport-auth-v17   ClusterIP      None            <none>                               <none>                                                                      2m50s
+NAME                TYPE           CLUSTER-IP      EXTERNAL-IP                          PORT(S)             AGE
+teleport            LoadBalancer   172.21.130.11   45a6ca70-ca-tor.lb.appdomain.cloud   443:31421/TCP       4d2h
+teleport-auth       ClusterIP      172.21.109.96   <none>                               3025/TCP,3026/TCP   4d2h
+teleport-auth-v16   ClusterIP      None            <none>                               <none>              4d2h
+teleport-auth-v17   ClusterIP      None            <none>                               <none>              4d2h
 ```
 
 Create a CNAME DNS entry pointing to the service loadbalancer.
