@@ -45,6 +45,7 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import { FinishDialog } from './FinishDialog';
 import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
@@ -55,7 +56,7 @@ export function AwsOidc() {
   const [roleName, setRoleName] = useState('');
   const [scriptUrl, setScriptUrl] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
-  const { attempt, run } = useAttempt('');
+  const { attempt, run, setAttempt } = useAttempt('');
 
   const { clusterId } = useStickyClusterId();
 
@@ -78,9 +79,37 @@ export function AwsOidc() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleOnCreate(validator: Validator) {
+  async function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
+    }
+
+    setAttempt({ status: 'processing' });
+
+    try {
+      await integrationService.pingAwsOidcIntegration(
+        {
+          integrationName,
+          clusterId,
+        },
+        { roleArn }
+      );
+    } catch (err) {
+      // DELETE IN v18.0
+      // Ignore not found error and just allow it to create which
+      // is how it used to work before anyways.
+      //
+      // If this request went to an older proxy, that didn't set the
+      // the integrationName empty if roleArn isn't empty, then the backend
+      // will never be able to successfully health check b/c it expects
+      // integration to exist first before creating.
+      const isNotFoundErr =
+        err instanceof ApiError && err.response.status === 404;
+
+      if (!isNotFoundErr) {
+        setAttempt({ status: 'failed', statusText: err.message });
+        return;
+      }
     }
 
     run(() =>
