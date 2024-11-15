@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -61,8 +62,6 @@ const (
 	versionsDirName = "versions"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
-	// defaultLinkDir is the default location where Teleport binaries and services are linked.
-	defaultLinkDir = "/usr/local"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -92,15 +91,15 @@ func Run(args []string) error {
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
-	app := libutils.InitCLIParser("teleport-updater", appHelp).Interspersed(false)
+	app := libutils.InitCLIParser("teleport-update", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
 	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
 		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
-	app.Flag("link-dir", "Directory to create system symlinks to binaries and services.").
-		Default(defaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
+		Default(autoupdate.DefaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 
@@ -121,6 +120,8 @@ func Run(args []string) error {
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
 
+	linkCmd := app.Command("link", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
+
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -140,6 +141,8 @@ func Run(args []string) error {
 		err = cmdDisable(ctx, &ccfg)
 	case updateCmd.FullCommand():
 		err = cmdUpdate(ctx, &ccfg)
+	case linkCmd.FullCommand():
+		err = cmdLink(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
@@ -186,6 +189,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -218,6 +222,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -250,12 +255,46 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		LinkDir:     ccfg.LinkDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
 		Log:         plog,
 	})
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
 	if err := updater.Update(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// cmdLink creates system package links if no version is linked and auto-updates is disabled.
+func cmdLink(ctx context.Context, ccfg *cliConfig) error {
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+
+	// Skip operation and warn if the updater is currently running.
+	unlock, err := libutils.FSTryReadLock(filepath.Join(versionsDir, lockFileName))
+	if errors.Is(err, libutils.ErrUnsuccessfulLockTry) {
+		plog.WarnContext(ctx, "Updater is currently running. Skipping package linking.")
+		return nil
+	}
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		VersionsDir: versionsDir,
+		LinkDir:     ccfg.LinkDir,
+		SystemDir:   autoupdate.DefaultSystemDir,
+		Log:         plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	if err := updater.LinkPackage(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
