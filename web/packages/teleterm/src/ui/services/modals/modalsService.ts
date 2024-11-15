@@ -28,22 +28,25 @@ import { ImmutableStore } from '../immutableStore';
 import type * as uri from 'teleterm/ui/uri';
 
 type State = {
-  // At most two modals can be displayed at the same time.
-  // The important dialog is displayed above the regular one. This is to avoid losing the state of
+  // One regular dialog and multiple important dialogs can be rendered at the same time.
+  // The rule is that the regular dialogs are opened from user actions in the Electron app, while
+  // the important ones are reserved for tshd events.
+  // We allow multiple important dialogs because sometimes completing an action requires
+  // opening another important dialog.
+  // As of now, this happens when the user needs to unlock a hardware key during a relogin process
+  // (initiated from tshd).
+  //
+  // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: Dialog;
-  regular: Dialog;
+  important: { dialog: Dialog; id: string }[];
+  regular: Dialog | undefined;
 };
 
 export class ModalsService extends ImmutableStore<State> {
   state: State = {
-    important: {
-      kind: 'none',
-    },
-    regular: {
-      kind: 'none',
-    },
+    important: [],
+    regular: undefined,
   };
 
   /**
@@ -59,7 +62,7 @@ export class ModalsService extends ImmutableStore<State> {
    * dialog's onCancel callback (if present).
    */
   openRegularDialog(dialog: Dialog): { closeDialog: () => void } {
-    this.state.regular['onCancel']?.();
+    this.state.regular?.['onCancel']?.();
     this.setState(draftState => {
       draftState.regular = dialog;
     });
@@ -81,22 +84,24 @@ export class ModalsService extends ImmutableStore<State> {
    * One example of such scenario is showing the modal to relogin after the user attempts to make a
    * database connection through a gateway with expired user and db certs.
    *
-   * Calling openImportantDialog while another important dialog is displayed will simply overwrite
-   * the old dialog with the new one.
-   * The old dialog is canceled, if possible.
+   * Calling openImportantDialog while another important dialog is displayed will open it
+   * on top of that dialog.
+   * Dialogs are displayed in the order they arrive, with the most recent one on top.
+   * This allows actions that need further steps to be completed.
    *
    * The returned closeDialog function can be used to close the dialog and automatically call the
    * dialog's onCancel callback (if present).
    */
-  openImportantDialog(dialog: Dialog): { closeDialog: () => void } {
-    this.state.important['onCancel']?.();
+  openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
+    const id = crypto.randomUUID();
     this.setState(draftState => {
-      draftState.important = dialog;
+      draftState.important.push({ dialog, id });
     });
 
     return {
+      id,
       closeDialog: () => {
-        this.closeImportantDialog();
+        this.closeImportantDialog(id);
         dialog['onCancel']?.();
       },
     };
@@ -104,27 +109,22 @@ export class ModalsService extends ImmutableStore<State> {
 
   closeRegularDialog() {
     this.setState(draftState => {
-      draftState.regular = {
-        kind: 'none',
-      };
+      draftState.regular = undefined;
     });
   }
 
-  closeImportantDialog() {
+  closeImportantDialog(id: string) {
     this.setState(draftState => {
-      draftState.important = {
-        kind: 'none',
-      };
+      const index = draftState.important.findIndex(d => d.id === id);
+      if (index >= 0) {
+        draftState.important.splice(index, 1);
+      }
     });
   }
 
   useState() {
     return useStore(this).state;
   }
-}
-
-export interface DialogNone {
-  kind: 'none';
 }
 
 export interface DialogClusterConnect {
@@ -262,5 +262,4 @@ export type Dialog =
   | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
-  | DialogHardwareKeySlotOverwrite
-  | DialogNone;
+  | DialogHardwareKeySlotOverwrite;
