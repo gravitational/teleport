@@ -5129,20 +5129,19 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only; this ensures the
-	// access request that is reviewed is the same that is approved.
+	// Access request has to be expanded during creation. See [[services.ExpandVars]] godoc to
+	// see why.
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs := req.GetRequestedResourceIDs()
 	var additionalResources []types.ResourceID
 
 	var userGroups []types.ResourceID
 	existingApps := map[string]struct{}{}
-	for _, resource := range requestedResourceIDs {
+	for _, resource := range req.GetRequestedResourceIDs() {
 		switch resource.Kind {
 		case types.KindApp:
 			existingApps[resource.Name] = struct{}{}
@@ -5175,8 +5174,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if len(additionalResources) > 0 {
-		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
-		req.SetRequestedResourceIDs(requestedResourceIDs)
+		ids := append(req.GetRequestedResourceIDs(), additionalResources...)
+		req.SetRequestedResourceIDs(ids)
 	}
 
 	if req.GetDryRun() {

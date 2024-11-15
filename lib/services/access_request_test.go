@@ -1512,7 +1512,8 @@ func TestPruneRequestRoles(t *testing.T) {
 				},
 			},
 			loginHint: "responder",
-			// With "responder" login hint, only request node-access.
+			// With "responder" login hint, only request node-access (it has fewer
+			// Logins).
 			expectRoles: []string{"node-access"},
 		},
 		{
@@ -1775,30 +1776,34 @@ func TestGetRequestableRoles(t *testing.T) {
 	user := g.user(t)
 
 	tests := []struct {
-		name               string
-		userRole           string
-		requestedResources []types.ResourceID
-		disableFilter      bool
-		allowedResourceIDs []types.ResourceID
-		expectedRoles      []string
+		name                                string
+		userRole                            string
+		requestedResources                  []types.ResourceID
+		disableFilter                       bool
+		allowedResourceIDs                  []types.ResourceID
+		expectedRoles                       []string
+		expectedApplicableRolesForResources []string
 	}{
 		{
-			name:          "no resources to filter by",
-			userRole:      "full-search",
-			expectedRoles: []string{"partial-access", "full-access"},
+			name:                                "no resources to filter by",
+			userRole:                            "full-search",
+			expectedRoles:                       []string{"partial-access", "full-access"},
+			expectedApplicableRolesForResources: []string{},
 		},
 		{
-			name:               "filtering disabled",
-			userRole:           "full-search",
-			requestedResources: []types.ResourceID{getResourceID(9)},
-			disableFilter:      true,
-			expectedRoles:      []string{"partial-access", "full-access"},
+			name:                                "filter by resources",
+			userRole:                            "full-search",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			expectedRoles:                       []string{"full-access"},
+			expectedApplicableRolesForResources: []string{},
 		},
 		{
-			name:               "filter by resources",
-			userRole:           "full-search",
-			requestedResources: []types.ResourceID{getResourceID(9)},
-			expectedRoles:      []string{"full-access"},
+			name:                                "filtering disabled",
+			userRole:                            "full-search",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			disableFilter:                       true,
+			expectedRoles:                       []string{"partial-access", "full-access"},
+			expectedApplicableRolesForResources: []string{"full-access"},
 		},
 		{
 			name:     "resource in another cluster",
@@ -1811,25 +1816,38 @@ func TestGetRequestableRoles(t *testing.T) {
 					Name:        "node-9",
 				},
 			},
-			expectedRoles: []string{"partial-access", "full-access"},
+			expectedRoles:                       []string{"partial-access", "full-access"},
+			expectedApplicableRolesForResources: []string{},
 		},
 		{
-			name:               "resource user shouldn't know about",
-			userRole:           "partial-search",
-			requestedResources: []types.ResourceID{getResourceID(9)},
-			expectedRoles:      []string{"partial-access", "full-access"},
+			name:                                "resource user shouldn't know about",
+			userRole:                            "partial-search",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			expectedRoles:                       []string{"partial-access", "full-access"},
+			expectedApplicableRolesForResources: []string{},
 		},
 		{
-			name:               "can view resource but not assume role",
-			userRole:           "partial-roles",
-			requestedResources: []types.ResourceID{getResourceID(9)},
+			name:                                "can request resource but not assume role",
+			userRole:                            "partial-roles",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			expectedRoles:                       []string{},
+			expectedApplicableRolesForResources: []string{},
 		},
 		{
-			name:               "prevent transitive access",
-			userRole:           "partial-access",
-			requestedResources: []types.ResourceID{getResourceID(9)},
-			allowedResourceIDs: []types.ResourceID{getResourceID(0), getResourceID(1), getResourceID(2), getResourceID(3), getResourceID(4)},
-			expectedRoles:      []string{"full-access", "full-search"},
+			name:                                "confirm can request resource when filtering disabled",
+			userRole:                            "partial-roles",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			disableFilter:                       true,
+			expectedRoles:                       []string{"partial-access"},
+			expectedApplicableRolesForResources: []string{"full-access"},
+		},
+		{
+			name:                                "prevent transitive access",
+			userRole:                            "partial-access",
+			requestedResources:                  []types.ResourceID{getResourceID(9)},
+			allowedResourceIDs:                  []types.ResourceID{getResourceID(0), getResourceID(1), getResourceID(2), getResourceID(3), getResourceID(4)},
+			expectedRoles:                       []string{"full-access", "full-search"},
+			expectedApplicableRolesForResources: []string{},
 		},
 	}
 
@@ -1847,7 +1865,8 @@ func TestGetRequestableRoles(t *testing.T) {
 					FilterRequestableRolesByResource: !tc.disableFilter,
 				})
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.expectedRoles, accessCaps.RequestableRoles)
+			require.ElementsMatch(t, tc.expectedRoles, accessCaps.RequestableRoles, "RequestableRoles")
+			require.ElementsMatch(t, tc.expectedApplicableRolesForResources, accessCaps.ApplicableRolesForResources, "ApplicableRolesForResources")
 		})
 	}
 }

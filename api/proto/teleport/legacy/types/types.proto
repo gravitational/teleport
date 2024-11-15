@@ -2641,11 +2641,19 @@ message AccessRequestFilter {
 // is granted via their dynamic access privileges which may not be
 // calculable by directly examining the user's own static roles.
 message AccessCapabilities {
-  // RequestableRoles is a list of existent roles which the user is allowed to request.
+  // RequestableRoles is a list of existent roles which the user is allowed to request. It's only
+  // set when [[AccessCapabilitiesRequest]].RequestableRoles flag is set to true.
+  //
+  // If [[AccessCapabilitiesRequest]].RequestIDs is not empty and
+  // [[AccessCapabilitiesRequest]].FilterRequestableRolesByResource is set to true,
+  // ApplicableRolesForResources will be empty and this list will be trimmed down to roles which
+  // allow access to the provided resources.
   repeated string RequestableRoles = 1 [(gogoproto.jsontag) = "requestable_roles,omitempty"];
   // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
-  // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+  // ApplicableRolesForResources is a list of the roles applicable for access to a given set of
+  // resources. It's calculated only when the [[AccessCapabilitiesRequest]].RequestIDs is not empty
+  // [[AccessCapabilitiesRequest]].FilterRequestableRolesByResource is false.
   repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
   // RequestPrompt is an optional message which tells users what they aught to request.
   string RequestPrompt = 4 [(gogoproto.jsontag) = "request_prompt,omitempty"];

@@ -7355,11 +7355,19 @@ var xxx_messageInfo_AccessRequestFilter proto.InternalMessageInfo
 // is granted via their dynamic access privileges which may not be
 // calculable by directly examining the user's own static roles.
 type AccessCapabilities struct {
-	// RequestableRoles is a list of existent roles which the user is allowed to request.
+	// RequestableRoles is a list of existent roles which the user is allowed to request. It's only
+	// set when [[AccessCapabilitiesRequest]].RequestableRoles flag is set to true.
+	//
+	// If [[AccessCapabilitiesRequest]].RequestIDs is not empty and
+	// [[AccessCapabilitiesRequest]].FilterRequestableRolesByResource is set to true,
+	// ApplicableRolesForResources will be empty and this list will be trimmed down to roles which
+	// allow access to the provided resources.
 	RequestableRoles []string `protobuf:"bytes,1,rep,name=RequestableRoles,proto3" json:"requestable_roles,omitempty"`
 	// SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
 	SuggestedReviewers []string `protobuf:"bytes,2,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	// ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
+	// ApplicableRolesForResources is a list of the roles applicable for access to a given set of
+	// resources. It's calculated only when the [[AccessCapabilitiesRequest]].RequestIDs is not empty
+	// [[AccessCapabilitiesRequest]].FilterRequestableRolesByResource is false.
 	ApplicableRolesForResources []string `protobuf:"bytes,3,rep,name=ApplicableRolesForResources,proto3" json:"applicable_roles,omitempty"`
 	// RequestPrompt is an optional message which tells users what they aught to request.
 	RequestPrompt string `protobuf:"bytes,4,opt,name=RequestPrompt,proto3" json:"request_prompt,omitempty"`
