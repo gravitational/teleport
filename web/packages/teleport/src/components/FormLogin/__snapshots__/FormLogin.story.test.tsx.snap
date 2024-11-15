@@ -632,6 +632,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c16 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -1178,6 +1179,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c16 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -1737,6 +1739,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c16 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -2357,6 +2360,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c21 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
