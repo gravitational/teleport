@@ -143,9 +143,11 @@ are required.*/}
 In most cases, Teleport will register `windows_desktop` resources automatically
 based on static hosts in your configuration file or via LDAP-based discovery.
 
-However, you can also manage `windows_desktop` resources manually with `tctl`.
+You can also use [dynamic registration](../enroll-resources/desktop-access/dynamic-registration.mdx) using `dynamic_windows_desktop` resources.
 This can be useful for managing inventories of hosts that are not joined to
 an Active Directory domain.
+
+You can also manage `windows_desktop` resources manually with `tctl`.
 
 There are a few important considerations to keep in mind when registering
 desktops this way:
