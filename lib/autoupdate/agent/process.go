@@ -41,6 +41,8 @@ type SystemdService struct {
 // Attempts a graceful reload before a hard restart.
 // See Process interface for more details.
 func (s SystemdService) Reload(ctx context.Context) error {
+	// TODO(sclevine): allow server to force restart instead of reload
+
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,9 +108,35 @@ func (s SystemdService) checkSystem(ctx context.Context) error {
 // Output sent to stdout is logged at debug level.
 // Output sent to stderr is logged at the level specified by errLevel.
 func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args ...string) int {
-	cmd := exec.CommandContext(ctx, "systemctl", args...)
-	stderr := &lineLogger{ctx: ctx, log: s.Log, level: errLevel}
-	stdout := &lineLogger{ctx: ctx, log: s.Log, level: slog.LevelDebug}
+	cmd := &LocalExec{
+		Log:      s.Log,
+		ErrLevel: errLevel,
+		OutLevel: slog.LevelDebug,
+	}
+	code, err := cmd.Run(ctx, "systemctl", args...)
+	if err != nil {
+		s.Log.Log(ctx, errLevel, "Failed to run systemctl.",
+			"args", args,
+			"code", code,
+			errorKey, err)
+	}
+	return code
+}
+
+type LocalExec struct {
+	// Log contains a slog logger.
+	// Defaults to slog.Default() if nil.
+	Log *slog.Logger
+	// ErrLevel is the log level for stderr.
+	ErrLevel slog.Level
+	// OutLevel is the log level for stdout.
+	OutLevel slog.Level
+}
+
+func (c *LocalExec) Run(ctx context.Context, name string, args ...string) (int, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel}
+	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel}
 	cmd.Stderr = stderr
 	cmd.Stdout = stdout
 	err := cmd.Run()
@@ -122,13 +150,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	if code == 255 {
 		code = -1
 	}
-	if err != nil {
-		s.Log.Log(ctx, errLevel, "Failed to run systemctl.",
-			"args", args,
-			"code", code,
-			"error", err)
-	}
-	return code
+	return code, trace.Wrap(err)
 }
 
 // lineLogger logs each line written to it.

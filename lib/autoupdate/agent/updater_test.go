@@ -83,7 +83,13 @@ func TestUpdater_Disable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "update.yaml")
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -92,11 +98,7 @@ func TestUpdater_Disable(t *testing.T) {
 				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
-				VersionsDir:        dir,
-			})
-			require.NoError(t, err)
+
 			err = updater.Disable(context.Background())
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -142,6 +144,7 @@ func TestUpdater_Update(t *testing.T) {
 		syncCalls         int
 		reloadCalls       int
 		revertCalls       int
+		setupCalls        int
 		errMatch          string
 	}{
 		{
@@ -166,6 +169,7 @@ func TestUpdater_Update(t *testing.T) {
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "updates disabled during window",
@@ -295,6 +299,7 @@ func TestUpdater_Update(t *testing.T) {
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "backup version kept when no change",
@@ -338,6 +343,7 @@ func TestUpdater_Update(t *testing.T) {
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name:     "invalid metadata",
@@ -368,6 +374,7 @@ func TestUpdater_Update(t *testing.T) {
 			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
+			setupCalls:        1,
 			errMatch:          "sync error",
 		},
 		{
@@ -394,6 +401,7 @@ func TestUpdater_Update(t *testing.T) {
 			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
+			setupCalls:        1,
 			errMatch:          "reload error",
 		},
 	}
@@ -419,7 +427,13 @@ func TestUpdater_Update(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "update.yaml")
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -429,12 +443,6 @@ func TestUpdater_Update(t *testing.T) {
 				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
-				VersionsDir:        dir,
-			})
-			require.NoError(t, err)
 
 			var (
 				installedVersion  string
@@ -481,6 +489,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 
+			var setupCalls int
+			updater.Setup = func(_ context.Context) error {
+				setupCalls++
+				return nil
+			}
+
 			ctx := context.Background()
 			err = updater.Update(ctx)
 			if tt.errMatch != "" {
@@ -498,6 +512,7 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertCalls)
+			require.Equal(t, tt.setupCalls, setupCalls)
 
 			if tt.cfg == nil {
 				_, err := os.Stat(cfgPath)
@@ -594,7 +609,13 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "update.yaml")
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -603,12 +624,6 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
-				VersionsDir:        dir,
-			})
-			require.NoError(t, err)
 
 			var tryLinkSystemCalls int
 			updater.Installer = &testInstaller{
@@ -659,6 +674,7 @@ func TestUpdater_Enable(t *testing.T) {
 		syncCalls         int
 		reloadCalls       int
 		revertCalls       int
+		setupCalls        int
 		errMatch          string
 	}{
 		{
@@ -681,6 +697,7 @@ func TestUpdater_Enable(t *testing.T) {
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "config from user",
@@ -706,6 +723,7 @@ func TestUpdater_Enable(t *testing.T) {
 			linkedVersion:     "new-version",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "already enabled",
@@ -725,6 +743,7 @@ func TestUpdater_Enable(t *testing.T) {
 			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "insecure URL",
@@ -766,6 +785,7 @@ func TestUpdater_Enable(t *testing.T) {
 			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       0,
+			setupCalls:        1,
 		},
 		{
 			name: "backup version removed on install",
@@ -784,6 +804,7 @@ func TestUpdater_Enable(t *testing.T) {
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name: "backup version kept for validation",
@@ -802,6 +823,7 @@ func TestUpdater_Enable(t *testing.T) {
 			removedVersion:    "",
 			syncCalls:         1,
 			reloadCalls:       0,
+			setupCalls:        1,
 		},
 		{
 			name: "config does not exist",
@@ -811,6 +833,7 @@ func TestUpdater_Enable(t *testing.T) {
 			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name:              "FIPS and Enterprise flags",
@@ -820,6 +843,7 @@ func TestUpdater_Enable(t *testing.T) {
 			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
+			setupCalls:        1,
 		},
 		{
 			name:     "invalid metadata",
@@ -836,6 +860,7 @@ func TestUpdater_Enable(t *testing.T) {
 			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
+			setupCalls:        1,
 			errMatch:          "sync error",
 		},
 		{
@@ -848,6 +873,7 @@ func TestUpdater_Enable(t *testing.T) {
 			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
+			setupCalls:        1,
 			errMatch:          "reload error",
 		},
 	}
@@ -855,7 +881,13 @@ func TestUpdater_Enable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, "update.yaml")
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -885,12 +917,6 @@ func TestUpdater_Enable(t *testing.T) {
 			if tt.userCfg.Proxy == "" {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
-				VersionsDir:        dir,
-			})
-			require.NoError(t, err)
 
 			var (
 				installedVersion  string
@@ -936,6 +962,11 @@ func TestUpdater_Enable(t *testing.T) {
 					return tt.reloadErr
 				},
 			}
+			var setupCalls int
+			updater.Setup = func(_ context.Context) error {
+				setupCalls++
+				return nil
+			}
 
 			ctx := context.Background()
 			err = updater.Enable(ctx, tt.userCfg)
@@ -954,6 +985,7 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertCalls)
+			require.Equal(t, tt.setupCalls, setupCalls)
 
 			if tt.cfg == nil && err != nil {
 				_, err := os.Stat(cfgPath)

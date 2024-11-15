@@ -55,11 +55,17 @@ const (
 	systemDirMode = 0755
 )
 
-var (
+const (
 	// serviceDir contains the relative path to the Teleport SystemD service dir.
-	serviceDir = filepath.Join("lib", "systemd", "system")
+	serviceDir = "lib/systemd/system"
 	// serviceName contains the name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
+	// serviceDropinName contains the name of the Teleport Systemd service drop-in to support updates.
+	serviceDropinName = "teleport-update.conf"
+	// updateServiceName contains the name of the Teleport Update Systemd service
+	updateServiceName = "teleport-update.service"
+	// updateTimerName contains the name of the Teleport Update Systemd timer
+	updateTimerName = "teleport-update.timer"
 )
 
 // LocalInstaller manages the creation and removal of installations
@@ -539,7 +545,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 	dst := filepath.Join(li.LinkServiceDir, serviceName)
 	orig, err := forceCopy(dst, src, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return revert, trace.Errorf("failed to create file for %s: %w", serviceName, err)
+		return revert, trace.Errorf("failed to write file %s: %w", serviceName, err)
 	}
 	if orig != nil {
 		revertFiles = append(revertFiles, *orig)
@@ -598,6 +604,13 @@ func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return forceWrite(dst, srcData, n)
+}
+
+func forceWrite(dst string, data []byte, n int64) (orig *smallFile, err error) {
+	if l := len(data); int64(l) > n {
+		return nil, trace.Errorf("data too large for file (%d > %d)", l, n)
+	}
 	fi, err := os.Lstat(dst)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, trace.Wrap(err)
@@ -614,11 +627,11 @@ func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if bytes.Equal(srcData, orig.data) {
+		if bytes.Equal(data, orig.data) {
 			return nil, trace.Wrap(os.ErrExist)
 		}
 	}
-	err = renameio.WriteFile(dst, srcData, configFileMode)
+	err = renameio.WriteFile(dst, data, configFileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
