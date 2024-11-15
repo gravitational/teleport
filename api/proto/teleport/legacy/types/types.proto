@@ -1679,22 +1679,14 @@ message ProvisionTokenSpecV2Bitbucket {
     // repository settings.
     string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
 
-    // PipelineUUID is the UUID of the pipeline for which this token was issued.
-    // Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
-    string PipelineUUID = 3 [(gogoproto.jsontag) = "pipeline_uuid,omitempty"];
-
-    // StepUUID is the UUID of the pipeline step for which this token was
-    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
-    string StepUUID = 4 [(gogoproto.jsontag) = "step_uuid,omitempty"];
-
     // DeploymentEnvironmentUUID is the UUID of the deployment environment
     // targeted by this pipelines run, if any. These values may be found in the
     // "Pipelines -> OpenID Connect -> Deployment environments" section of the
     // repository settings.
-    string DeploymentEnvironmentUUID = 5 [(gogoproto.jsontag) = "deployment_environment,omitempty"];
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
 
     // BranchName is the name of the branch on which this pipeline executed.
-    string BranchName = 6 [(gogoproto.jsontag) = "branch_name,omitempty"];
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
   }
 
   // Allow is a list of Rules, nodes using this token must match one

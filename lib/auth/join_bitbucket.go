@@ -73,14 +73,6 @@ func checkBitbucketAllowRules(token *types.ProvisionTokenV2, claims *bitbucket.I
 			continue
 		}
 
-		if rule.PipelineUUID != "" && claims.PipelineUUID != rule.PipelineUUID {
-			continue
-		}
-
-		if rule.StepUUID != "" && claims.StepUUID != rule.StepUUID {
-			continue
-		}
-
 		if rule.DeploymentEnvironmentUUID != "" && claims.DeploymentEnvironmentUUID != rule.DeploymentEnvironmentUUID {
 			continue
 		}

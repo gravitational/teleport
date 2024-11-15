@@ -168,23 +168,13 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"deployment_environment": {
+								"deployment_environment_uuid": {
 									Description: "DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the \"Pipelines -> OpenID Connect -> Deployment environments\" section of the repository settings.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"pipeline_uuid": {
-									Description: "PipelineUUID is the UUID of the pipeline for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_uuid": {
 									Description: "RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"step_uuid": {
-									Description: "StepUUID is the UUID of the pipeline step for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -2505,41 +2495,7 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["pipeline_uuid"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.PipelineUUID"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.PipelineUUID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		} else {
-																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
-																			}
-																			obj.PipelineUUID = t
-																		}
-																	}
-																}
-																{
-																	a, ok := tf.Attrs["step_uuid"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.StepUUID"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.StepUUID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		} else {
-																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
-																			}
-																			obj.StepUUID = t
-																		}
-																	}
-																}
-																{
-																	a, ok := tf.Attrs["deployment_environment"]
+																	a, ok := tf.Attrs["deployment_environment_uuid"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.DeploymentEnvironmentUUID"})
 																	} else {
@@ -5551,55 +5507,11 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 																}
 															}
 															{
-																t, ok := tf.AttrTypes["pipeline_uuid"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.PipelineUUID"})
-																} else {
-																	v, ok := tf.Attrs["pipeline_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Bitbucket.Allow.PipelineUUID", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.PipelineUUID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		v.Null = string(obj.PipelineUUID) == ""
-																	}
-																	v.Value = string(obj.PipelineUUID)
-																	v.Unknown = false
-																	tf.Attrs["pipeline_uuid"] = v
-																}
-															}
-															{
-																t, ok := tf.AttrTypes["step_uuid"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.StepUUID"})
-																} else {
-																	v, ok := tf.Attrs["step_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Bitbucket.Allow.StepUUID", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.StepUUID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		v.Null = string(obj.StepUUID) == ""
-																	}
-																	v.Value = string(obj.StepUUID)
-																	v.Unknown = false
-																	tf.Attrs["step_uuid"] = v
-																}
-															}
-															{
-																t, ok := tf.AttrTypes["deployment_environment"]
+																t, ok := tf.AttrTypes["deployment_environment_uuid"]
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Bitbucket.Allow.DeploymentEnvironmentUUID"})
 																} else {
-																	v, ok := tf.Attrs["deployment_environment"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	v, ok := tf.Attrs["deployment_environment_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
@@ -5613,7 +5525,7 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 																	}
 																	v.Value = string(obj.DeploymentEnvironmentUUID)
 																	v.Unknown = false
-																	tf.Attrs["deployment_environment"] = v
+																	tf.Attrs["deployment_environment_uuid"] = v
 																}
 															}
 															{

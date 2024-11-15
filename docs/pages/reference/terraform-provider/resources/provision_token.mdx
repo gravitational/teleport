@@ -120,10 +120,8 @@ Optional:
 Optional:
 
 - `branch_name` (String) BranchName is the name of the branch on which this pipeline executed.
-- `deployment_environment` (String) DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
-- `pipeline_uuid` (String) PipelineUUID is the UUID of the pipeline for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
+- `deployment_environment_uuid` (String) DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
 - `repository_uuid` (String) RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
-- `step_uuid` (String) StepUUID is the UUID of the pipeline step for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`
 - `workspace_uuid` (String) WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
 
 

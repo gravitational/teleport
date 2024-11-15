@@ -114,13 +114,9 @@ spec:
                       properties:
                         branch_name:
                           type: string
-                        deployment_environment:
-                          type: string
-                        pipeline_uuid:
+                        deployment_environment_uuid:
                           type: string
                         repository_uuid:
-                          type: string
-                        step_uuid:
                           type: string
                         workspace_uuid:
                           type: string
