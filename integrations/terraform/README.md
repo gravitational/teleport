@@ -7,7 +7,7 @@ Please, refer to [official documentation](https://goteleport.com/docs/admin-guid
 ## Development
 
 1. Install [`protobuf`](https://grpc.io/docs/protoc-installation/).
-2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v2.2.0.
+2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v3.0.0.
 
     ```go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225```
 
