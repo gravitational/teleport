@@ -849,8 +849,17 @@ func validateEntraTenantID(plugin *types.PluginV1) error {
 		return nil
 	}
 
-	if plugin.Spec.GetEntraId().SyncSettings == nil || plugin.Spec.GetEntraId().SyncSettings.TenantId != "" {
+	if plugin.Spec.GetEntraId().SyncSettings == nil {
 		return nil
 	}
+
+	if plugin.Spec.GetEntraId().SyncSettings.TenantId != "" && plugin.Spec.GetEntraId().SyncSettings.EntraAppId != "" {
+		return nil
+	}
+
+	if plugin.Spec.GetEntraId().SyncSettings.EntraAppId == "" {
+		return trace.BadParameter("field Spec.EntraId.SyncSettings.EntraAppId must be present")
+	}
+
 	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -23,14 +24,16 @@ type entraUniqueID string
 func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
+	groupNameBuilder func(*msgraph.Group) string,
+	emitAsRoles bool,
 ) (map[entraUniqueID]types.User, error) {
 	teleportUsers, err := listTeleportUsers(ctx, r.userSvc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userMemberships := buildUserMemberships(groupsMap, groupMembersMap)
-	entraUsers, err := r.listEntraUsers(ctx, userMemberships)
+	userMemberships := buildUserMemberships(groupsMap, groupMembersMap, groupNameBuilder)
+	entraUsers, err := r.listEntraUsers(ctx, userMemberships, emitAsRoles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,10 +125,10 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]typ
 	return result, nil
 }
 
-func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMemberships groupMembershipMap) (map[string]types.User, error) {
+func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMemberships groupMembershipMap, emitAsRoles bool) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := r.graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
-		user, err := convertUser(u, r.tenantID, r.ssoConnectorID, usersMemberships)
+		user, err := convertUser(u, r.tenantID, r.ssoConnectorID, usersMemberships, emitAsRoles)
 		if err == nil {
 			result[user.GetName()] = user
 		} else {
@@ -137,7 +140,7 @@ func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMembershi
 	return result, trace.Wrap(err)
 }
 
-func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap) (types.User, error) {
+func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
 	upn := in.UserPrincipalName
 	if upn == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
@@ -197,6 +200,7 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 		entraIDSAMLClaimName   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
 		entraIDSAMLClaimEmail  = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
 		entraIDSAMLClaimGroups = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+		entraIDSAMLClaimRoles  = "http://schemas.microsoft.com/ws/2008/06/identity/claims/roles"
 	)
 	traits := map[string][]string{
 		entraIDSAMLClaimName: {*username},
@@ -204,9 +208,14 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 	if in.Mail != nil {
 		traits[entraIDSAMLClaimEmail] = []string{*in.Mail}
 	}
-	if groups := usersMemberships[*in.ID].groupIds; len(groups) > 0 {
+	if groups := usersMemberships[*in.ID].groupNames; len(groups) > 0 {
 		sort.Strings(groups)
-		traits[entraIDSAMLClaimGroups] = groups
+		if emitAsRoles {
+			traits[entraIDSAMLClaimRoles] = groups
+		} else {
+			traits[entraIDSAMLClaimGroups] = groups
+		}
+
 	}
 	out.SetTraits(traits)
 
@@ -228,7 +237,7 @@ type groupMembershipInfo struct {
 
 type groupMembershipMap map[string]groupMembershipInfo
 
-func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap map[string][]msgraph.GroupMember) groupMembershipMap {
+func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap map[string][]msgraph.GroupMember, groupNameBuilder func(*msgraph.Group) string) groupMembershipMap {
 	unwindedGroupMemberships := unwindGroupMembership(groupsMap, groupMembersMap)
 	result := map[string]groupMembershipInfo{}
 	for groupID, members := range groupMembersMap {
@@ -240,13 +249,20 @@ func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap m
 					if !ok || group.DisplayName == nil {
 						continue
 					}
-					displayNames = append(displayNames, *group.DisplayName)
+					displayNames = append(displayNames, groupNameBuilder(group))
 				}
 				result[*user.ID] = groupMembershipInfo{
-					groupIds:   unwindedGroupMemberships[groupID],
-					groupNames: displayNames,
+					groupIds:   append(result[*user.ID].groupIds, unwindedGroupMemberships[groupID]...),
+					groupNames: append(result[*user.ID].groupNames, displayNames...),
 				}
 			}
+		}
+	}
+
+	for k, v := range result {
+		result[k] = groupMembershipInfo{
+			groupIds:   utils.Deduplicate(v.groupIds),
+			groupNames: utils.Deduplicate(v.groupNames),
 		}
 	}
 	return result

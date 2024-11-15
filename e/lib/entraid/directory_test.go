@@ -28,6 +28,7 @@ type fakeGraphClient struct {
 	users        []*msgraph.User
 	groups       []*msgraph.Group
 	groupMembers map[string][]msgraph.GroupMember
+	applications []*msgraph.Application
 }
 
 func newFakeGraphClient() *fakeGraphClient {
@@ -65,6 +66,16 @@ func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User
 
 func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*msgraph.Application) bool) error {
 	panic("not implemented")
+}
+
+func (c *fakeGraphClient) GetApplication(ctx context.Context, appID string) (*msgraph.Application, error) {
+	for _, app := range c.applications {
+		if *app.AppID == appID {
+			return app, nil
+		}
+	}
+
+	return nil, trace.NotFound("application %q not found", appID)
 }
 
 func TestEntraIDService(t *testing.T) {
@@ -129,16 +140,34 @@ func TestEntraIDService(t *testing.T) {
 	userMemberships := groupMembershipMap{
 		aliceID: groupMembershipInfo{
 			groupIds:   []string{teamAID},
-			groupNames: []string{"Team A"},
+			groupNames: []string{teamAID},
 		},
 		bobID: groupMembershipInfo{
 			groupIds:   []string{teamAID, subgroupID},
-			groupNames: []string{"Team A", "foo"},
+			groupNames: []string{teamAID, subgroupID},
 		},
 	}
 
 	// Set up data
 	graphClient := newFakeGraphClient()
+
+	applicationID := uuid.NewString()
+	application := &msgraph.Application{
+		AppID: to.Ptr(applicationID),
+		DirectoryObject: msgraph.DirectoryObject{
+			DisplayName: to.Ptr("My Application"),
+			ID:          to.Ptr(uuid.NewString()),
+		},
+		OptionalClaims: &msgraph.OptionalClaims{
+			SAML2Token: []msgraph.OptionalClaim{
+				{
+					Name: to.Ptr("group"),
+				},
+			},
+		},
+	}
+
+	graphClient.applications = append(graphClient.applications, application)
 
 	// Alice does not exist in Teleport, but exists in Entra
 	aliceUPN := "alice@example.com"
@@ -163,7 +192,7 @@ func TestEntraIDService(t *testing.T) {
 	bobEntra.UserPrincipalName = &bobUPN
 	graphClient.users = append(graphClient.users, bobEntra)
 
-	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID, userMemberships)
+	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
 	bobTeleport.SetRoles([]string{"access", "editor"})
 	sortTraits(bobTeleport)
@@ -186,7 +215,7 @@ func TestEntraIDService(t *testing.T) {
 	michaelEntra.UserPrincipalName = &michaelUPN
 	graphClient.users = append(graphClient.users, michaelEntra)
 
-	michaelTeleport, err := convertUser(michaelEntra, tenantID, ssoConnectorID, userMemberships)
+	michaelTeleport, err := convertUser(michaelEntra, tenantID, ssoConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
 	michaelTeleport, err = identitySvc.CreateUser(ctx, michaelTeleport)
 	require.NoError(t, err)
@@ -199,7 +228,7 @@ func TestEntraIDService(t *testing.T) {
 	carolEntra.UserPrincipalName = &carolUPN
 	graphClient.users = append(graphClient.users, carolEntra)
 
-	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID, userMemberships)
+	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
 	carolTeleport, err = identitySvc.CreateUser(ctx, carolTeleport)
 	require.NoError(t, err)
@@ -226,7 +255,7 @@ func TestEntraIDService(t *testing.T) {
 	daveEntra.ID = &daveID
 	daveEntra.UserPrincipalName = &daveUPN
 
-	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID, userMemberships)
+	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID, userMemberships, false /* emitAsRoles */)
 	require.NoError(t, err)
 	_, err = identitySvc.CreateUser(ctx, daveTeleport)
 	require.NoError(t, err)
@@ -283,6 +312,7 @@ func TestEntraIDService(t *testing.T) {
 			SSOConnectorID: ssoConnectorID,
 			TenantID:       tenantID,
 			SAMLSvc:        samlService,
+			EntraAppID:     applicationID,
 		},
 	)
 	require.NoError(t, err)
@@ -383,4 +413,243 @@ func compareResources(t *testing.T, expected, actual types.Resource) string {
 func userMap(u types.User) map[entraUniqueID]types.User {
 	l := entraUniqueID(u.GetAllLabels()[types.EntraUniqueIDLabel])
 	return map[entraUniqueID]types.User{l: u}
+}
+
+func Test_getGroupNameBuilderFunc(t *testing.T) {
+	const (
+		groupID        = "uuid"
+		samAccountName = "foo"
+		netBiosName    = "bar"
+		domainName     = "baz"
+	)
+
+	tests := []struct {
+		name            string
+		optionalClaims  *msgraph.OptionalClaims
+		group           *msgraph.Group
+		emitAsRoles     bool
+		groupTraitValue string
+	}{
+		{
+			name:           "no optional claims",
+			optionalClaims: nil,
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:     to.Ptr(domainName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name:           "no optional claims but set",
+			optionalClaims: &msgraph.OptionalClaims{},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:     to.Ptr(domainName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use sam account name",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:     to.Ptr(domainName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+			},
+			groupTraitValue: samAccountName,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:  to.Ptr(domainName),
+				OnPremisesNetBiosName: to.Ptr(netBiosName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use net bios sam account name",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:     to.Ptr(domainName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+			},
+			groupTraitValue: netBiosName + `\` + samAccountName,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use net bios sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:  to.Ptr(domainName),
+				OnPremisesNetBiosName: to.Ptr(netBiosName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use net bios sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"netbios_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+				OnPremisesDomainName:     to.Ptr(domainName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use domain name sam account name",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:     to.Ptr(domainName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+			},
+			groupTraitValue: domainName + `\` + samAccountName,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use domain name sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesDomainName:  to.Ptr(domainName),
+				OnPremisesNetBiosName: to.Ptr(netBiosName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use domain name sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"dns_domain_and_sam_account_name"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     false,
+		},
+		{
+			name: "use domain name sam account name but not set",
+			optionalClaims: &msgraph.OptionalClaims{
+				SAML2Token: []msgraph.OptionalClaim{
+					{
+						Name:                 to.Ptr("groups"),
+						AdditionalProperties: []string{"dns_domain_and_sam_account_name", "emit_as_roles"},
+					},
+				},
+			},
+			group: &msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+				OnPremisesSamAccountName: to.Ptr(samAccountName),
+				OnPremisesNetBiosName:    to.Ptr(netBiosName),
+			},
+			groupTraitValue: groupID,
+			emitAsRoles:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &msgraph.Application{
+				OptionalClaims: tt.optionalClaims,
+			}
+			emitAsRoles, f := getGroupNameBuilderFunc(app)
+			require.Equal(t, tt.emitAsRoles, emitAsRoles)
+			require.Equal(t, tt.groupTraitValue, f(tt.group))
+		})
+	}
 }

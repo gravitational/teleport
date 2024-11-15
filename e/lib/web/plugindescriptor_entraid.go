@@ -114,6 +114,7 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 							SsoConnectorId:    inputs.authConnectorName,
 							TenantId:          inputs.tenantID,
 							CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
+							EntraAppId:        inputs.clientID,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},

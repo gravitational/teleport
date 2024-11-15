@@ -295,6 +295,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 							DefaultOwners:  []string{"admin"},
 							SsoConnectorId: "foo",
 							TenantId:       "bar",
+							EntraAppId:     "baz",
 						},
 					},
 				},

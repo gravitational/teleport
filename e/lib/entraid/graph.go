@@ -12,4 +12,5 @@ type GraphClient interface {
 	IterateGroups(ctx context.Context, f func(*msgraph.Group) bool) error
 	IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool) error
 	IterateApplications(ctx context.Context, f func(*msgraph.Application) bool) error
+	GetApplication(ctx context.Context, appID string) (*msgraph.Application, error)
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -102,6 +103,11 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.Wrap(err, "failed to get tenant ID")
 	}
 
+	appID, err := getAppID(ctx, spec, authServer)
+	if err != nil {
+		return trace.Wrap(err, "failed to get app ID")
+	}
+
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
 		GraphClient:    graphClient,
 		UserSvc:        authServer,
@@ -109,6 +115,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		SAMLSvc:        authServer,
 		DefaultOwners:  owners,
 		TenantID:       tenantID,
+		EntraAppID:     appID,
 		SSOConnectorID: spec.SyncSettings.SsoConnectorId,
 	})
 	if err != nil {
@@ -202,4 +209,27 @@ func getTenantID(spec *types.PluginEntraIDSettings, integrationSpec *types.Azure
 		return "", trace.BadParameter("Tenant ID is required for Entra ID service")
 	}
 	return tenantID, nil
+}
+
+func getAppID(ctx context.Context, spec *types.PluginEntraIDSettings, authServer interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}) (string, error) {
+	appID := spec.SyncSettings.EntraAppId
+	if appID != "" {
+		return appID, nil
+	}
+
+	connector, err := authServer.GetSAMLConnector(ctx, spec.SyncSettings.SsoConnectorId, false)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to get SSO connector")
+	}
+
+	u, err := url.Parse(connector.GetEntityDescriptorURL())
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse entity descriptor URL")
+	}
+
+	appID = u.Query().Get("appid")
+
+	return appID, nil
 }

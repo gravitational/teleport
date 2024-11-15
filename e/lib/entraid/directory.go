@@ -2,12 +2,14 @@ package entraid
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 type userAccessPoint interface {
@@ -44,6 +46,9 @@ type DirectoryReconciler struct {
 	defaultOwners []accesslist.Owner
 	// ssoConnectorID specifies the ID (name) of the Auth connector that imported users are associated with
 	ssoConnectorID string
+	// entraAppID specifies the Entra Application ID for the SAML connector
+	entraAppID string
+
 	// tenantID specifies the Entra Tenant ID
 	tenantID string
 
@@ -71,6 +76,8 @@ type DirectoryReconcilerConfig struct {
 	DefaultOwners []accesslist.Owner
 	// SSOConnectorID specifies the ID (name) of the Auth connector that imported users are associated with
 	SSOConnectorID string
+	// EntraAppID specifies the Entra Application ID for the SAML connector
+	EntraAppID string
 	// TenantID specifies the Entra Tenant ID
 	TenantID string
 }
@@ -100,6 +107,10 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 		return trace.BadParameter("SAMLSvc is required")
 	}
 
+	if cfg.EntraAppID == "" {
+		return trace.BadParameter("EntraAppID is required")
+	}
+
 	return nil
 }
 
@@ -117,12 +128,21 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 		tenantID:       cfg.TenantID,
 		samlService:    cfg.SAMLSvc,
 		ssoConnectorID: cfg.SSOConnectorID,
+		entraAppID:     cfg.EntraAppID,
 	}, nil
 }
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
 func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
+
+	app, err := r.getApplication(ctx, r.entraAppID)
+	if err != nil {
+		return trace.Wrap(err, "failed to get Entra ID application")
+	}
+
+	emitAsRoles, getGroupNameBuilder := getGroupNameBuilderFunc(app)
+
 	groupsMap, err := listEntraGroups(ctx, r.graphClient)
 	if err != nil {
 		return trace.Wrap(err, "failed to list Entra ID groups")
@@ -132,7 +152,7 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to list Entra ID group members")
 	}
-	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap)
+	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap, getGroupNameBuilder, emitAsRoles)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -155,4 +175,58 @@ func (r *DirectoryReconciler) ImportedGroups() int {
 func matchByLabel[T types.Resource](resource T) bool {
 	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
 	return ok && origin == types.OriginEntraID
+}
+
+func (r *DirectoryReconciler) getApplication(ctx context.Context, appID string) (*msgraph.Application, error) {
+	app, err := r.graphClient.GetApplication(ctx, appID)
+	return app, trace.Wrap(err, "failed to get application")
+}
+
+func getGroupNameBuilderFunc(app *msgraph.Application) (bool, func(*msgraph.Group) string) {
+	getGroupID := func(group *msgraph.Group) string {
+		if group.ID == nil {
+			return ""
+		}
+		return *group.ID
+	}
+	if app.OptionalClaims == nil || len(app.OptionalClaims.SAML2Token) == 0 {
+		return false, getGroupID
+	}
+
+	var groupAditionalProperties []string
+	for _, claim := range app.OptionalClaims.SAML2Token {
+		if claim.Name == nil || *claim.Name != msgraph.OPTIONAL_CLAIM_GROUP_NAME {
+			continue
+		}
+		groupAditionalProperties = claim.AdditionalProperties
+		break
+	}
+
+	emitAsRoles := slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES)
+
+	switch {
+	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *msgraph.Group) string {
+			if g.OnPremisesSamAccountName == nil {
+				return getGroupID(g)
+			}
+			return *g.OnPremisesSamAccountName
+		}
+	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *msgraph.Group) string {
+			if g.OnPremisesSamAccountName == nil || g.OnPremisesDomainName == nil {
+				return getGroupID(g)
+			}
+			return *g.OnPremisesDomainName + `\` + *g.OnPremisesSamAccountName
+		}
+	case slices.Contains(groupAditionalProperties, msgraph.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME):
+		return emitAsRoles, func(g *msgraph.Group) string {
+			if g.OnPremisesSamAccountName == nil || g.OnPremisesNetBiosName == nil {
+				return getGroupID(g)
+			}
+			return *g.OnPremisesNetBiosName + `\` + *g.OnPremisesSamAccountName
+		}
+
+	}
+	return emitAsRoles, getGroupID
 }
