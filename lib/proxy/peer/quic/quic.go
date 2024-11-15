@@ -168,14 +168,23 @@ const (
 // marshalSized returns the wire encoding of the given [proto.Message] prefixed
 // by its length encoded as a little endian 32-bit integer.
 func marshalSized(m proto.Message) ([]byte, error) {
+	var size int = proto.MarshalOptions{}.Size(m)
+	// we're going to allocate 4+size, so size can't exceed MaxInt-4
+	// (overflowing would be confusing at best, a runtime panic at worst)
+	if size > math.MaxInt-4 {
+		return nil, trace.LimitExceeded("oversized message")
+	}
 	// we're going to store the size in the first four bytes of the buffer, so
 	// we leave them as zeroes at first, then fix it later
-	buf := make([]byte, 4, 4+proto.MarshalOptions{}.Size(m))
+	buf := make([]byte, 4, 4+size)
 	buf, err := proto.MarshalOptions{UseCachedSize: true}.MarshalAppend(buf, m)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(buf)-4 > math.MaxUint32 {
+	// the int64 cast is a noop on 64-bit archs but it's necessary to build on
+	// 32-bit (even though the condition is always false there, since slices
+	// can't be bigger than MaxInt32 which is smaller than MaxUint32)
+	if int64(len(buf))-4 > math.MaxUint32 {
 		return nil, trace.LimitExceeded("oversized message")
 	}
 	binary.LittleEndian.PutUint32(buf, uint32(len(buf)-4))
