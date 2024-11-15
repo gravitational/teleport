@@ -108,7 +108,7 @@ func (s SystemdService) checkSystem(ctx context.Context) error {
 // Output sent to stdout is logged at debug level.
 // Output sent to stderr is logged at the level specified by errLevel.
 func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args ...string) int {
-	cmd := &LocalExec{
+	cmd := &localExec{
 		Log:      s.Log,
 		ErrLevel: errLevel,
 		OutLevel: slog.LevelDebug,
@@ -123,8 +123,8 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	return code
 }
 
-// LocalExec runs a command locally, logging any output.
-type LocalExec struct {
+// localExec runs a command locally, logging any output.
+type localExec struct {
 	// Log contains a slog logger.
 	// Defaults to slog.Default() if nil.
 	Log *slog.Logger
@@ -136,7 +136,7 @@ type LocalExec struct {
 
 // Run the command. Same arguments as exec.CommandContext.
 // Outputs the status code, or -1 if out-of-range or unstarted.
-func (c *LocalExec) Run(ctx context.Context, name string, args ...string) (int, error) {
+func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel}
 	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel}

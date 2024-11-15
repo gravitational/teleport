@@ -170,7 +170,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
-			exec := &LocalExec{
+			exec := &localExec{
 				Log:      cfg.Log,
 				ErrLevel: slog.LevelError,
 				OutLevel: slog.LevelDebug,
