@@ -2,8 +2,10 @@ suite: Pre-Deploy Config Test Hooks
 templates:
   - auth/predeploy_job.yaml
   - auth/predeploy_config.yaml
+  - auth/predeploy_serviceaccount.yaml
   - proxy/predeploy_job.yaml
   - proxy/predeploy_config.yaml
+  - proxy/predeploy_serviceaccount.yaml
 tests:
   - it: Deploys the auth-test config
     template: auth/predeploy_config.yaml
@@ -53,6 +55,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
   - it: should set resources on auth predeploy job when set in values
     template: auth/predeploy_job.yaml
     values:
