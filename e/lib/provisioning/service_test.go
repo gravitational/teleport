@@ -2,6 +2,7 @@ package provisioning
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -58,6 +59,69 @@ func TestUpstreamProvisioning(t *testing.T) {
 	t.Run("should de-provision scim user", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteUser(ctx, aliceUser))
 		assertSCIMUserDoesntExist(t, pack.scimMock, aliceUser)
+	})
+}
+
+func TestAccessListPredicate(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true},
+			},
+		},
+	})
+
+	predicate := func(_ context.Context, acl *accesslist.AccessList) (bool, error) {
+		return slices.Contains(acl.Spec.Grants.Traits["provision"], "true"), nil
+	}
+
+	pack := newPack(t, withAccessListPredicate(predicate))
+
+	const (
+		aliceUser = "alice"
+
+		aclIncludedID    = "test-access-list-included"
+		aclIncludedTitle = "Test Included Access List"
+
+		aclExcludedID    = "test-access-list-excluded"
+		aclExcludedTitle = "Test Excluded Access List Title"
+	)
+
+	pack.mustCreateTeleportUser(t, aliceUser)
+
+	t.Run("only matching access lists are provisioned", func(t *testing.T) {
+		// Given an Access List that matches the ACL predicate
+		acl := pack.mustCreateAccessListWithCleanup(t, aclIncludedID, aclIncludedTitle)
+		acl.Spec.Grants.Traits = map[string][]string{"provision": {"true"}}
+		pack.mustUpsertAccessList(t, acl)
+		pack.mustUpsertAccessListMember(t, aclIncludedID, aliceUser, accesslist.MembershipKindUser)
+
+		// Given another Access List that does NOT match the ACL predicate
+		pack.mustCreateAccessListWithCleanup(t, aclExcludedID, aclExcludedTitle)
+		pack.mustUpsertAccessListMember(t, aclIncludedID, aliceUser, accesslist.MembershipKindUser)
+
+		// Expect that only the matching access list is provisioned
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclIncludedTitle, 1)
+		assertSCIMGroupDoestExist(t, pack.scimMock, aclExcludedTitle)
+	})
+
+	t.Run("matching access lists are deprovisioned when the no longer match", func(t *testing.T) {
+		// Given an Access List that matches the ACL predicate
+		acl := pack.mustCreateAccessListWithCleanup(t, aclIncludedID, aclIncludedTitle)
+		acl.Spec.Grants.Traits = map[string][]string{"provision": {"true"}}
+		pack.mustUpsertAccessList(t, acl)
+		pack.mustUpsertAccessListMember(t, aclIncludedID, aliceUser, accesslist.MembershipKindUser)
+
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclIncludedTitle, 1)
+
+		// WHEN I update the access list so that it no longer matches the
+		// predicate
+		acl.Spec.Grants.Traits["provision"][0] = "no on your life"
+		pack.mustUpsertAccessList(t, acl)
+
+		// EXPECT that the downstream group is deleted
+		assertSCIMGroupDoestExist(t, pack.scimMock, aclIncludedTitle)
 	})
 }
 
@@ -194,14 +258,24 @@ type testPack struct {
 }
 
 type sutOptions struct {
-	scimClient *scimsdk.ClientMock
+	scimClient          *scimsdk.ClientMock
+	accessListPredicate AccessListPredicate
 }
 
 type sutOption func(*sutOptions)
 
+func withAccessListPredicate(p AccessListPredicate) sutOption {
+	return func(opts *sutOptions) {
+		opts.accessListPredicate = p
+	}
+}
+
 func newPack(t *testing.T, options ...sutOption) *testPack {
 	defaultOpts := &sutOptions{
 		scimClient: scimsdk.NewSCIMClientMock(),
+		accessListPredicate: func(context.Context, *accesslist.AccessList) (bool, error) {
+			return true, nil
+		},
 	}
 	for _, opt := range options {
 		opt(defaultOpts)
@@ -213,18 +287,16 @@ func newPack(t *testing.T, options ...sutOption) *testPack {
 
 	depsMock := newDepsMock(t, clock)
 	svc, err := NewService(ServiceConfig{
-		SCIMClient:       defaultOpts.scimClient,
-		UsersCache:       depsMock,
-		AccessListsCache: depsMock,
-		Locks:            depsMock,
-		StateSvc:         depsMock,
-		StateSvcCache:    depsMock,
-		EventsClient:     depsMock,
-		Clock:            clock,
-		DownstreamID:     "downstreamID",
-		AccessListPredicate: func(context.Context, *accesslist.AccessList) (bool, error) {
-			return true, nil
-		},
+		SCIMClient:          defaultOpts.scimClient,
+		UsersCache:          depsMock,
+		AccessListsCache:    depsMock,
+		Locks:               depsMock,
+		StateSvc:            depsMock,
+		StateSvcCache:       depsMock,
+		EventsClient:        depsMock,
+		Clock:               clock,
+		DownstreamID:        "downstreamID",
+		AccessListPredicate: defaultOpts.accessListPredicate,
 	})
 	require.NoError(t, err)
 
@@ -294,6 +366,7 @@ func assertSCIMUserExistAndIsActive(t *testing.T, client scimsdk.Client, userNam
 }
 
 func assertSCIMGroupDoestExist(t *testing.T, scimClient scimsdk.Client, displayName string) {
+	// TODO: fix typo in name (missing `n`)
 	eventualWithT(t, func(collect *assert.CollectT) {
 		_, err := scimClient.GetGroupByDisplayName(context.Background(), displayName)
 		assert.True(collect, trace.IsNotFound(err))
@@ -320,6 +393,19 @@ func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) *acces
 			Title:  title,
 		},
 	}
+	return s.mustUpsertAccessList(t, acl)
+}
+
+func (s *testPack) mustCreateAccessListWithCleanup(t *testing.T, name, title string) *accesslist.AccessList {
+	acl := s.mustCreateAccessList(t, name, title)
+	t.Cleanup(func() {
+		err := s.depsMock.DeleteAccessList(context.Background(), acl.GetName())
+		require.NoError(t, err)
+	})
+	return acl
+}
+
+func (s *testPack) mustUpsertAccessList(t *testing.T, acl *accesslist.AccessList) *accesslist.AccessList {
 	acl, err := s.depsMock.UpsertAccessList(context.Background(), acl)
 	require.NoError(t, err)
 	return acl

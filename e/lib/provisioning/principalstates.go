@@ -183,6 +183,22 @@ func markStateAsProvisioned(
 // should be abandoned
 var errNoChangeRequired = errors.New("no change required. Update aborted.")
 
+// provisioningStateMutator defines the signature for provisioning state mutator
+// functions for use with updateProvisioningState.
+type provisioningStateMutator = func(*provisioningv1.PrincipalState) error
+
+// setProvisioningState returns a provisioning state mutator that sets the
+// provisioning state record's state value
+func setProvisioningState(targetState provisioningv1.ProvisioningState) provisioningStateMutator {
+	return func(ps *provisioningv1.PrincipalState) error {
+		if ps.GetStatus().GetProvisioningState() == targetState {
+			return errNoChangeRequired
+		}
+		ps.GetStatus().ProvisioningState = targetState
+		return nil
+	}
+}
+
 // updateProvisioningState updates a Provisioning Principal State Record while
 // honoring record locking. updateProvisioningState will apply the provided
 // mutator to the supplied state and attempt to write the update to the
@@ -205,7 +221,7 @@ func updateProvisioningState(
 	ctx context.Context,
 	statesSvc services.DownstreamProvisioningStates,
 	state *provisioningv1.PrincipalState,
-	mutateState func(*provisioningv1.PrincipalState) error,
+	mutateState provisioningStateMutator,
 ) (*provisioningv1.PrincipalState, error) {
 	// TODO(tcsc): Investigate some sort of backoff algorithm for this
 	for range defaultUpdateAttempts {

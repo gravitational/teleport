@@ -720,20 +720,26 @@ func (svc *Service) handleLockDeletion(ctx context.Context, lockID string) error
 	return trace.Wrap(err)
 }
 
+// errNoFurtherAction is an error returned by the resource event handler when
+// the provided resource does is not under the provisioners control and no
+// action needs to be taken.
+var errNoFurtherAction = errors.New("resource not for provisioning")
+
 // handleResourcePut validates that the requested principal matches the appropriate
 // resource predicate and, if so, marks the resource provisioning state as stale
 // in preparation for re-provisioning
 func (svc *Service) handleResourcePut(ctx context.Context, principalName string, principalType provisioningv1.PrincipalType) (*provisioningv1.PrincipalState, error) {
+
+	principalMatchesPredicate := false
 	var provisioningStateId services.ProvisioningStateID
+
 	switch principalType {
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
 		u, err := svc.usersSvcCache.GetUser(ctx, principalName, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !svc.userPredicate(u) {
-			return nil, nil
-		}
+		principalMatchesPredicate = svc.userPredicate(u)
 		provisioningStateId = getIDForUserName(principalName)
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
@@ -741,17 +747,20 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		includeACL, err := svc.accessListPredicate(ctx, acl)
+		principalMatchesPredicate, err = svc.accessListPredicate(ctx, acl)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if !includeACL {
-			return nil, nil
 		}
 		provisioningStateId = getIDForAccessListName(principalName)
 
 	default:
 		return nil, trace.BadParameter("Invalid principal type: %v", principalType)
+	}
+
+	if !principalMatchesPredicate {
+		if err := svc.handleExcludedResource(ctx, provisioningStateId); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	svc.log.DebugContext(ctx, "Marking state as stale",
@@ -767,6 +776,37 @@ func (svc *Service) handleResourcePut(ctx context.Context, principalName string,
 		return nil, trace.Wrap(err, "creating/marking state record as stale")
 	}
 	return state, nil
+}
+
+// handleExcludedResource handles a resource that fails a predicate match,
+// with detection for cases where the resource has transitioned out of the
+// set of resources for provisioning.
+func (svc *Service) handleExcludedResource(ctx context.Context, provisioningStateId services.ProvisioningStateID) error {
+	provisioningState, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, provisioningStateId)
+	switch {
+	case trace.IsNotFound(err):
+		// All good; the principal should NOT be provisioned downstream and
+		// does NOT have a provisioning state record. Everything is as it
+		// should be.
+		return trace.Wrap(errNoFurtherAction)
+
+	case err == nil:
+		// The principal should NOT be provisioned downstream but has an
+		// existing provisioning state record. This can happen when a
+		// principal is updated and transitions from matching the predicate
+		// to not matching it. The principal needs to be deleted from the
+		// downstream system.
+		_, err := updateProvisioningState(ctx, svc.stateSvc, provisioningState,
+			setProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+
+	default:
+		// Failure while trying to read the provisioning state.
+		return trace.Wrap(err)
+	}
 }
 
 func (svc *Service) handleResourceEvents(ctx context.Context) error {
@@ -800,8 +840,8 @@ func (svc *Service) handleResourceEvents(ctx context.Context) error {
 			switch e.operation {
 			case provisioningOpCreate, provisioningOpStale:
 				state, err = svc.handleResourcePut(ctx, e.principalName, e.principalType)
-				if err != nil {
-					svc.log.ErrorContext(ctx, "handling resource pur", "error", err)
+				if err != nil && !errors.Is(err, errNoFurtherAction) {
+					svc.log.ErrorContext(ctx, "handling resource put", "error", err)
 				}
 
 			case provisioningOpDelete:
