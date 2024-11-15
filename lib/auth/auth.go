@@ -1489,7 +1489,7 @@ func (a *Server) runPeriodicOperations() {
 										return false, nil
 									}
 
-									if _, err := a.Services.UpsertNode(a.closeCtx, srv); err != nil {
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
 										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
 									}
 								}
