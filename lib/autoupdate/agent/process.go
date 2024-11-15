@@ -123,6 +123,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	return code
 }
 
+// LocalExec runs a command locally, logging any output.
 type LocalExec struct {
 	// Log contains a slog logger.
 	// Defaults to slog.Default() if nil.
@@ -133,6 +134,8 @@ type LocalExec struct {
 	OutLevel slog.Level
 }
 
+// Run the command. Same arguments as exec.CommandContext.
+// Outputs the status code, or -1 if out-of-range or unstarted.
 func (c *LocalExec) Run(ctx context.Context, name string, args ...string) (int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel}

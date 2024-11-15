@@ -604,13 +604,6 @@ func forceCopy(dst, src string, n int64) (orig *smallFile, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return forceWrite(dst, srcData, n)
-}
-
-func forceWrite(dst string, data []byte, n int64) (orig *smallFile, err error) {
-	if l := len(data); int64(l) > n {
-		return nil, trace.Errorf("data too large for file (%d > %d)", l, n)
-	}
 	fi, err := os.Lstat(dst)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, trace.Wrap(err)
@@ -627,11 +620,11 @@ func forceWrite(dst string, data []byte, n int64) (orig *smallFile, err error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if bytes.Equal(data, orig.data) {
+		if bytes.Equal(srcData, orig.data) {
 			return nil, trace.Wrap(os.ErrExist)
 		}
 	}
-	err = renameio.WriteFile(dst, data, configFileMode)
+	err = renameio.WriteFile(dst, srcData, configFileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
