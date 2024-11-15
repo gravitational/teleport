@@ -164,8 +164,7 @@ export const MultiselectMenu = <T extends string>({
             <>
               <CheckboxInput
                 type="checkbox"
-                // @ts-expect-error assigning ReactNode to checkbox name field
-                name={opt.label}
+                name={opt.value}
                 disabled={opt.disabled}
                 onChange={() => {
                   handleSelect(opt.value);
