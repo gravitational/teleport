@@ -18,7 +18,7 @@ We will use the following services to deploy Teleport on IBM cloud:
 <Admonition type="note">
 A previous version of this guide covered how to deploy Teleport using VMs and etcd.
 While this deployment method still works, we now recommend to use the Postgres backend.
-Postgres offers better scalability and is easier to operate, and supports both Teleport
+Postgres offers better scalability, is easier to operate, and supports both Teleport
 core backend and audit events.
 </Admonition>
 
@@ -85,7 +85,7 @@ This will be needed later to authorize Teleport to read and write session record
 ## Step 3/7. Configure the postgres Database
 
 In this step we will configure two users on the postgres database:
-- a `teleport` user that will own the `teleport` database and schema
+- a `teleport` user that will create and own the `teleport_backend` and `teleport_audit` databases
 - a `repl` user, which is the only user allowed to read the stream of database changes. Teleport uses it to listen for
   database changes and synchronize the multiple Teleport Auth Service replicas.
 
@@ -239,7 +239,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 "teleport" has been added to your repositories
 ```
 
-Update the cache of charts from the remote repository so you can upgrade to all available releases:
+Update the local chart cache so you can upgrade to all available releases:
 
 ```code
 $ helm repo update
@@ -320,6 +320,6 @@ As next steps you can:
   [Kubernetes clusters](../../enroll-resources/kubernetes-access/introduction.mdx),
   [databases](../../enroll-resources/database-access/database-access/database-access.mdx),
   [applications](../../enroll-resources/application-access/getting-started,mdx),
-  or [windows desktops](../../enroll-resources/desktop-access/desktop-access.mdx) into your Teleport cluster
+  or [Windows desktops](../../enroll-resources/desktop-access/desktop-access.mdx) into your Teleport cluster
 - check the [`teleport-cluster` Helm reference](../../reference/helm-reference/teleport-cluster.mdx) for a list of supported values
 - use [the Teleport Kubernetes operator(../../admin-guides/infrastructure-as-code/teleport-operator/teleport-operator.mdx) to control Teleport resources
