@@ -60,6 +60,7 @@ import (
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 const (
@@ -150,6 +151,9 @@ type Config struct {
 
 	// CredentialsProvider if supplied is used to override the credentials source.
 	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -203,6 +207,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
+
+	cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
 
 	return nil
 }
@@ -264,7 +270,7 @@ const (
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
-	l.InfoContext(ctx, "Initializing event backend.")
+	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -288,7 +294,18 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	var dynamoOpts []func(*dynamodb.Options)
+	resolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(resolver)}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
@@ -316,15 +333,21 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
+	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
 		logger: l,
 		Config: cfg,
-		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
+		svc:    client,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.InfoContext(ctx, "Connection established to DynamoDB events database",
+		"table", cfg.Tablename,
+		"region", cfg.Region,
+	)
 
 	return b, nil
 }

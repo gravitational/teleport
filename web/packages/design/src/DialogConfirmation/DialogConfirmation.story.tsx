@@ -16,18 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package inventory
+import { ButtonPrimary } from '../Button';
 
-import (
-	"github.com/gravitational/teleport/api/utils/retryutils"
-)
+import DialogConfirmation, {
+  DialogHeader,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from './index';
 
-// we use dedicated global jitters for all the intervals/retries in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
-)
+export default {
+  title: 'Design/Dialog/Confirmation',
+};
+
+export const Confirmation = () => (
+  <DialogConfirmation open={true}>
+    <DialogHeader>
+      <DialogTitle>Confirmation Dialog Header</DialogTitle>
+    </DialogHeader>
+    <DialogContent>Simplified dialog for use with confirmations</DialogContent>
+    <DialogFooter>
+      <ButtonPrimary>Save and Close</ButtonPrimary>
+    </DialogFooter>
+  </DialogConfirmation>
+);

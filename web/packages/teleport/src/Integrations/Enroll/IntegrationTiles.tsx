@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Box, ResourceIcon } from 'design';
+import { Text, Flex } from 'design';
 
 import cfg from 'teleport/config';
 import {
@@ -27,7 +27,7 @@ import {
 } from 'teleport/components/ToolTipNoPermBadge';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { IntegrationTile } from './common';
+import { IntegrationTile, IntegrationIcon } from './common';
 
 export function IntegrationTiles({
   hasIntegrationAccess = true,
@@ -52,14 +52,12 @@ export function IntegrationTiles({
         }
         data-testid="tile-aws-oidc"
       >
-        <Box mt={3} mb={2}>
-          <ResourceIcon name="aws" width="80px" />
-        </Box>
-        <Text>
-          Amazon Web Services
-          <br />
-          OIDC
-        </Text>
+        <Flex flexBasis={100}>
+          <IntegrationIcon name="aws" />
+        </Flex>
+        <Flex flexBasis={50}>
+          <Text>AWS OIDC Identity Provider</Text>
+        </Flex>
         {!hasIntegrationAccess && (
           <ToolTipNoPermBadge
             children={
@@ -85,10 +83,12 @@ export function IntegrationTiles({
           }
           data-testid="tile-external-audit-storage"
         >
-          <Box mt={3} mb={2}>
-            <ResourceIcon name="aws" width="80px" />
-          </Box>
-          <Text>AWS External Audit Storage</Text>
+          <Flex flexBasis={100}>
+            <IntegrationIcon name="aws" />
+          </Flex>
+          <Flex flexBasis={50}>
+            <Text>AWS External Audit Storage</Text>
+          </Flex>
           {renderExternalAuditStorageBadge(
             hasExternalAuditStorage,
             externalAuditStorageEnabled

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -294,8 +295,8 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 		interval.SubInterval[intervalKey]{
 			Key:              instanceHeartbeatKey,
 			VariableDuration: c.instanceHBVariableDuration,
-			FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
-			Jitter:           seventhJitter,
+			FirstDuration:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
+			Jitter:           retryutils.SeventhJitter,
 		})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
@@ -430,8 +431,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.ticker.Push(interval.SubInterval[intervalKey]{
 						Key:           serverKeepAliveKey,
 						Duration:      c.serverKeepAlive,
-						FirstDuration: halfJitter(c.serverKeepAlive),
-						Jitter:        seventhJitter,
+						FirstDuration: retryutils.HalfJitter(c.serverKeepAlive),
+						Jitter:        retryutils.SeventhJitter,
 					})
 					keepAliveNeedInit = false
 				}

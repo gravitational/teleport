@@ -54,6 +54,7 @@ export const ReAuthenticate: FC<{
   onCancel: () => void;
   onOtpSubmit: (otp: string) => void;
   onSsoContinue: (redirectUrl: string) => void;
+  hidden?: boolean;
 }> = props => {
   const { promptMfaRequest: req, onSsoContinue } = props;
 
@@ -89,7 +90,8 @@ export const ReAuthenticate: FC<{
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',
