@@ -115,11 +115,6 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	}
 	defer s.reloginMu.Unlock()
 
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
-
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
 	defer cancelTshdEventsCtx()
@@ -895,7 +890,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
-	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
+	s.headlessAuthSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	return nil
 }
@@ -1194,20 +1189,32 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
-	// The Electron App can only display one important Modal at a time. tshd events
-	// that trigger an important modal (relogin, headless login) should use this
-	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
+
+	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
+	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,
+	// to avoid flooding the app.
+	// Multiple prompts of the same type may also conflict with each other. This is currently possible with
+	// MFA prompts (see the mfaMu comment for details).
+	// Generally, only one prompt of each type (e.g., re-login, MFA) should be allowed at the same time.
 	//
-	// We use a semaphore instead of a mutex in order to cancel important modals that
-	// are no longer relevant before acquisition.
-	//
-	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
-	importantModalSemaphore *waitSemaphore
+	// But why do we allow multiple important modals at all? It is necessary in specific scenarios where one
+	// modal action requires completing in another. Currently, there are two cases:
+	// 1. A hardware key prompt may appear during a re-login process.
+	// 2. An MFA prompt may appear during a re-login process.
+
+	// We use a waitSemaphore to make sure there is a clear transition between modals.
+	// We allow a single headless auth prompt at a time.
+	headlessAuthSemaphore *waitSemaphore
+	// mfaMu prevents concurrent MFA prompts. These can happen when using VNet with per-session MFA.
+	// Issuing an MFA prompt starts the Webauthn goroutine which prompts for key touch on hardware level.
+	// Webauthn does not support concurrent prompts, so without this semaphore, one of the prompts would fail immediately.
+	mfaMu sync.Mutex
+	// reloginMu is used when a goroutine needs to request a relogin from the Electron app.
+	// We allow a single relogin prompt at a time.
+	reloginMu sync.Mutex
+
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
-	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
-	// app can show only one login modal at a time, we need to submit only one request at a time.
-	reloginMu sync.Mutex
 	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
