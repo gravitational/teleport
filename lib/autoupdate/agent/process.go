@@ -32,6 +32,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	// restartMonitorInterval is the polling interval for determining restart times from LastRestartPath.
+	restartMonitorInterval = 2 * time.Second
+	// minCleanIntervalsBeforeStable is the number of consecutive intervals before the service is determined stable.
+	minCleanIntervalsBeforeStable = 6
+	// maxRestartsBeforeFailure is the number of total restarts allowed before the service is marked as crash-looping.
+	maxRestartsBeforeFailure = 2
+)
+
 // SystemdService manages a Teleport systemd service.
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
@@ -88,16 +97,10 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	return trace.Wrap(s.monitor(ctx, initRestartTime))
 }
 
-const (
-	restartMonitorInterval         = 2 * time.Second
-	minCleanIntervalsBeforeSuccess = 6
-	maxRestartsBeforeFailure       = 2
-)
-
 // monitor for excessive restarts by polling the LastRestartPath file.
 // This function detects crash-looping while minimizing its own runtime during updates.
 // To accomplish this, monitor fails after seeing maxRestartsBeforeFailure, and stops checking
-// after seeing minCleanIntervalsBeforeSuccess clean intervals.
+// after seeing minCleanIntervalsBeforeStable clean intervals.
 // initRestartTime may be provided as a baseline restart time, to ensure we catch the initial restart.
 func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -109,7 +112,7 @@ func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) erro
 	g.Go(func() error {
 		return s.tickRestarts(ctx, restartC, tickC, initRestartTime)
 	})
-	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeSuccess)
+	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeStable)
 	cancel()
 	if err := g.Wait(); err != nil {
 		s.Log.WarnContext(ctx, "Unable to determine last restart time. Failed to monitor for crash loops.", errorKey, err)
