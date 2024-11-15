@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -191,24 +192,39 @@ func TestDynamicClientReuse(t *testing.T) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = fakeClock
-	var err error
 	cfg.DataDir = t.TempDir()
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	cfg.Auth.NoAudit = true
 	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableDatabaseProxy = true
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.DisableReverseTunnel = true
+	cfg.Proxy.IdP.SAMLIdP.Enabled = false
+	cfg.Proxy.PROXYProtocolMode = multiplexer.PROXYProtocolOff
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SSH.Enabled = false
+	cfg.DebugService.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
+	ctx, cancel := context.WithTimeout(process.ExitContext(), 30*time.Second)
+	defer cancel()
+	for _, eventName := range []string{AuthTLSReady, ProxySSHReady, ProxyWebServerReady, InstanceReady} {
+		_, err := process.WaitForEvent(ctx, eventName)
+		require.NoError(t, err)
+	}
+
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	// wait for instance connector
 	iconn, err := process.WaitForConnector(InstanceIdentityEvent, process.logger)
@@ -236,17 +252,19 @@ func TestDynamicClientReuse(t *testing.T) {
 	// initial static set of system roles that got applied to the instance cert.
 	require.NotSame(t, iconn.Client, nconn.Client)
 
-	nconn.Close()
+	require.NoError(t, nconn.Close())
 
 	// node connector closure should not affect proxy client
 	_, err = pconn.Client.Ping(context.Background())
 	require.NoError(t, err)
 
-	pconn.Close()
+	require.NoError(t, pconn.Close())
 
 	// proxy connector closure should not affect instance client
 	_, err = iconn.Client.Ping(context.Background())
 	require.NoError(t, err)
+
+	require.NoError(t, iconn.Close())
 }
 
 func TestMonitor(t *testing.T) {
