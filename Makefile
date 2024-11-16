@@ -1655,7 +1655,7 @@ changelog:
 #
 # For more information on release notes generation see: 
 #   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
-RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
+RELEASE_NOTES_GEN = go run github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
