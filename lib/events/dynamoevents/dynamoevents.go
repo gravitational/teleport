@@ -208,7 +208,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
-	cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
+	}
 
 	return nil
 }
