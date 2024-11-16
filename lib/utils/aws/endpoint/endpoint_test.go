@@ -32,6 +32,9 @@ func TestCreateURI(t *testing.T) {
 		expected string
 	}{
 		{
+			name: "empty endpoint",
+		},
+		{
 			name:     "valid endpoint",
 			endpoint: "https://test.example.com",
 			expected: "https://test.example.com",
