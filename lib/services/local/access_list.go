@@ -423,13 +423,15 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
-	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessListName)
-		if err != nil {
+	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			_, err := a.service.GetResource(ctx, accessListName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			members, nextToken, err = a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
 			return trace.Wrap(err)
-		}
-		members, nextToken, err = a.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, nextToken)
-		return trace.Wrap(err)
+		})
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
