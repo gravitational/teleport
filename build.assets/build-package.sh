@@ -63,7 +63,7 @@ TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
 # linux package configuration
-LINUX_BINARY_DIR=/usr/local/bin
+LINUX_BINARY_DIR=/usr/local/teleport-system/bin
 LINUX_SYSTEMD_DIR=/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
@@ -226,8 +226,8 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         PKG_FILENAME="teleport-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-upgrade"
-    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport-update ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-install"
+    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport ${TAR_PATH}/teleport-update"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
     RPM_SIGN_STANZA=""
@@ -291,8 +291,8 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
 
-    # include post-upgrade script
-    mv -v ${TAR_PATH}/examples/systemd/post-upgrade ${PACKAGE_TEMPDIR}
+    # include post-install script
+    mv -v ${TAR_PATH}/examples/systemd/post-install ${PACKAGE_TEMPDIR}
 
     # /var/lib/teleport
     # shellcheck disable=SC2174
@@ -369,7 +369,7 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
-        --after-upgrade /src/post-upgrade \
+        --after-install /src/post-install \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
         ${RPM_SIGN_STANZA} .

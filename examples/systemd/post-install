@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# this post upgrade script is run each time the teleport package is upgraded
+
+set -eu
+
+case "$1" in
+    configure)
+        # Define old paths and new base directory.
+        OLD_PATHS=(
+            "/usr/local/bin/teleport"
+            "/usr/local/bin/tsh"
+            "/usr/local/bin/tctl"
+            "/usr/local/bin/tbot"
+        )
+        NEW_BASE_DIR="/usr/local/teleport-system/bin"
+
+        echo "Cleaning up old files and creating symlinks where necessary..."
+
+        for FILE in "${OLD_PATHS[@]}"; do
+            BASENAME=$(basename "$FILE")
+            NEW_PATH="$NEW_BASE_DIR/$BASENAME"
+
+            if [ -e "$FILE" ] && [ ! -L "$FILE" ]; then
+                echo "Removing old binary at $FILE..."
+                rm -f "$FILE"
+            fi
+
+            if [ ! -e "$FILE" ] && [ ! -L "$FILE" ]; then
+                echo "Creating symlink at $FILE pointing to $NEW_PATH..."
+                ln -s "$NEW_PATH" "$FILE"
+            fi
+        done
+
+        echo "Post-upgrade cleanup and symlink creation completed."
+        ;;
+    remove|deconfigure)
+        OLD_PATHS=(
+            "/usr/local/bin/teleport"
+            "/usr/local/bin/tsh"
+            "/usr/local/bin/tctl"
+            "/usr/local/bin/tbot"
+        )
+
+        echo "Removing symlinks from old paths..."
+
+        for FILE in "${OLD_PATHS[@]}"; do
+            if [ -L "$FILE" ]; then
+                echo "Removing symlink at $FILE..."
+                rm -f "$FILE"
+            fi
+        done
+        ;;
+esac
+
+# skip reload and restart when systemd is disabled. This is only relevant when
+# testing in a container.
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null || true
+fi
