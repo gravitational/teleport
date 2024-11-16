@@ -1,6 +1,6 @@
 # Changelog
 
-## 17.0.0 (11/15/2024)
+## 17.0.1 (11/15/2024)
 
 Teleport 17 brings the following new features and improvements:
 
