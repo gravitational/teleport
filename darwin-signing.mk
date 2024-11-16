@@ -11,10 +11,11 @@
 # profile alongside build.assets/macos/*/*.provisioningprofile. We also need
 # to update these profiles if the keys are changed/rotated.
 
-# Default environment name if not specified. This is currently for running
-# locally instead of from GitHub Actions, where ENVIRONMENT_NAME would not be
-# set.
-ENVIRONMENT_NAME ?= build-stage
+# Default environment name if not specified and not running on CI. This is
+# currently for running locally instead of from GitHub Actions, where
+# ENVIRONMENT_NAME would not be set. If we are on CI, it is an error to not
+# set ENVIRONMENT_NAME.
+ENVIRONMENT_NAME ?= $(if $(CI),$(error ENVIRONMENT_NAME not set),build-stage)
 
 # CLEAN_ENV_NAME replaces hyphens with underscores as hyphens are not valid in
 # environment variable names (make is ok with them, but they get exported, and
