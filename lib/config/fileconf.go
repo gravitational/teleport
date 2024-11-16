@@ -1523,6 +1523,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// Azure is the Azure configuration for the AccessGraph Sync service.
+	Azure []AccessGraphAzureSync `yaml:"azure,omitempty"`
 	// PollInterval is the frequency at which to poll for AWS resources
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
@@ -1536,6 +1538,13 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+type AccessGraphAzureSync struct {
+	Regions        []string `yaml:"regions,omitempty"`
+	SubscriptionID string   `yaml:"subscription_id,omitempty"`
+	UMIClientID    string   `yaml:"umi_client_id,omitempty"`
+	Integration    string   `yaml:"integration,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

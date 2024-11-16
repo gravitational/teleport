@@ -1754,6 +1754,21 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			regions := azureMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph.azure")
+			}
+			subscriptionID := azureMatcher.SubscriptionID
+			umiClientID := azureMatcher.UMIClientID
+			integration := azureMatcher.Integration
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				Regions:        regions,
+				SubscriptionID: subscriptionID,
+				UMIClientID:    umiClientID,
+				Integration:    integration,
+			})
+		}
 		if fc.Discovery.AccessGraph.PollInterval > 0 {
 			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
