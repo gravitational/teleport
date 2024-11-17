@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -89,6 +90,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, defaults.LimiterMaxConcurrentUsers, auth.Limiter.MaxNumberOfUsers)
 	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
 	require.Empty(t, auth.StorageConfig.Params[defaults.BackendPath])
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), config.Auth.LicenseFile)
 
 	// SSH section
 	ssh := config.SSH
