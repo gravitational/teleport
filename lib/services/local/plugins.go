@@ -246,7 +246,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
-	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
+	_, err = s.backend.ConditionalUpdate(ctx, backend.Item{
 		Key:      backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
