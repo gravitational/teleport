@@ -1167,13 +1167,15 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	if kmsConfig.Account == "" {
 		return trace.BadParameter("must set account in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
 	if kmsConfig.Region == "" {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
-	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
-	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
+	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+		AWSAccount:  kmsConfig.Account,
+		AWSRegion:   kmsConfig.Region,
+		MultiRegion: kmsConfig.MultiRegion,
+		Tags:        kmsConfig.Tags,
+	}
 	return nil
 }
 
@@ -2728,6 +2730,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if clf.DisableDebugService {
 		cfg.DebugService.Enabled = false
+	}
+
+	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+		cfg.Proxy.QUICProxyPeering = true
 	}
 
 	return nil

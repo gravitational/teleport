@@ -578,12 +578,14 @@ func NewPresetTerraformProviderRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				// In Teleport, you can only see what you have access to. To be able to reconcile
-				// Apps, Databases, and Nodes, Terraform must be able to access them all.
+				// Apps, Databases, Dynamic Windows Desktops, and Nodes, Terraform must be able to
+				// access them all.
 				// For Databases and Nodes, Terraform cannot actually access them because it has no
 				// Login/user set.
-				AppLabels:      map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-				NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
 				Rules: []types.Rule{
 					{
@@ -594,6 +596,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindClusterMaintenanceConfig,
 							types.KindClusterNetworkingConfig,
 							types.KindDatabase,
+							types.KindDynamicWindowsDesktop,
 							types.KindDevice,
 							types.KindGithub,
 							types.KindLoginRule,

@@ -299,7 +299,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)

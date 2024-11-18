@@ -16,29 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { ButtonPrimary } from '../Button';
-
-import DialogConfirmation, {
-  DialogHeader,
+import { DialogConfirmation } from './DialogConfirmation';
+import {
+  DialogTitle,
   DialogContent,
   DialogFooter,
-  DialogTitle,
-} from './index';
+  DialogHeader,
+} from './../Dialog';
 
-export default {
-  title: 'Design/Dialog/Confirmation',
-};
-
-export const Confirmation = () => (
-  <DialogConfirmation open={true}>
-    <DialogHeader>
-      <DialogTitle>Confirmation Dialog Header</DialogTitle>
-    </DialogHeader>
-    <DialogContent>Simplified dialog for use with confirmations</DialogContent>
-    <DialogFooter>
-      <ButtonPrimary>Save and Close</ButtonPrimary>
-    </DialogFooter>
-  </DialogConfirmation>
-);
+export default DialogConfirmation;
+export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

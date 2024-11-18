@@ -349,6 +349,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
+			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
