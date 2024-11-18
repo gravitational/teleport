@@ -477,7 +477,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
-			// If the user's current identity is attested as a "web_session", it's secrets are only
+			// If the user's current identity is attested as a "web_session", its secrets are only
 			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
 			// service on behalf of the user's Web Session. We can safely attest this child app session
 			// as a "web_session" as a result.
@@ -609,7 +609,17 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
 
-	userMetadata := req.Identity.GetUserMetadata()
+	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
+	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userMetadata := identity.GetUserMetadata()
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 

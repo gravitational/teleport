@@ -227,6 +227,8 @@ const NotificationBody = ({
   const longerTextCss = isExpanded ? textCss : shortTextCss;
   const hasListOrDescription = !!content.list || !!content.description;
 
+  const { action } = content;
+
   return (
     <>
       {/* Note: an empty <Text/> element would still generate a flex gap, so we
@@ -237,9 +239,20 @@ const NotificationBody = ({
           {content.description}
         </Text>
       )}
-      {content.action && (
+      {action && (
         <Box alignSelf="flex-start">
-          <ActionButton intent="neutral" action={content.action} />
+          <ActionButton
+            intent="neutral"
+            action={{
+              href: action.href,
+              content: action.content,
+              onClick: event => {
+                // Prevents toggling the isExpanded flag.
+                event.stopPropagation();
+                action.onClick?.(event);
+              },
+            }}
+          />
         </Box>
       )}
     </>

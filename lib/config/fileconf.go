@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -919,6 +918,16 @@ type AWSKMS struct {
 	Account string `yaml:"account"`
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
+	// MultiRegion contains configuration for multi-region AWS KMS.
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	} `yaml:"multi_region,omitempty"`
+	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
+	// tag is added automatically if not specified in the set of tags. Changing tags
+	// after Teleport has already created KMS keys may require manually updating
+	// the tags of existing keys.
+	Tags map[string]string `yaml:"tags,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1316,7 +1325,7 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		if err != nil {
 			return out, trace.Wrap(err)
 		}
-		out.Slack = slack
+		out.SlackCredentials = slack
 	}
 	return out, nil
 }
@@ -1330,7 +1339,7 @@ type OAuthClientCredentials struct {
 	ClientSecret string `yaml:"client_secret"`
 }
 
-func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+func (o *OAuthClientCredentials) Parse() (*servicecfg.OAuthClientCredentials, error) {
 	if o.ClientID == "" || o.ClientSecret == "" {
 		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
 	}
@@ -1349,9 +1358,9 @@ func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
 	}
 	clientSecret = strings.TrimSpace(string(content))
 
-	return &oauth2.ClientCredentials{
-		ID:     clientID,
-		Secret: clientSecret,
+	return &servicecfg.OAuthClientCredentials{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 	}, nil
 }
 
@@ -1514,6 +1523,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.

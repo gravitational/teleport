@@ -156,6 +156,8 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
+    manageCluster: '/web/clusters/:clusterId/manage',
+
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
     unifiedResources: '/web/cluster/:clusterId/resources',
@@ -203,6 +205,12 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    // Access Graph is part of enterprise, but we need to generate links in the audit log,
+    // which is in OSS.
+    accessGraph: {
+      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+    },
   },
 
   api: {
@@ -211,6 +219,7 @@ const cfg = {
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -311,6 +320,8 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
@@ -382,6 +393,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    msTeamsAppZipPath:
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -405,6 +419,12 @@ const cfg = {
 
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
+  },
+
+  getClusterInfoPath(clusterId: string) {
+    return generatePath(cfg.api.clusterInfoPath, {
+      clusterId,
+    });
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -514,8 +534,16 @@ const cfg = {
     return generatePath(cfg.routes.integrationStatus, { type, name });
   },
 
+  getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
+    return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
+  },
+
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getManageClusterRoute(clusterId: string) {
+    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -938,6 +966,19 @@ const cfg = {
     });
   },
 
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsRdsDbListUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1160,6 +1201,10 @@ const cfg = {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1270,7 +1315,7 @@ export interface UrlKubeResourcesParams {
   searchAsRoles?: 'yes' | '';
   kubeNamespace?: string;
   kubeCluster: string;
-  kind: KubeResourceKind;
+  kind: Omit<KubeResourceKind, '*'>;
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {

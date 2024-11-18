@@ -68,7 +68,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			s.submitFetchersEvent(kubeIntegrationFetchers)
 			return kubeIntegrationFetchers
 		},
-		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
+		Log:            s.LegacyLogger.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
@@ -88,13 +88,13 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				existingServers, err := clt.GetKubernetesServers(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Failed to get Kubernetes servers from cache.")
+					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes servers from cache", "error", err)
 					continue
 				}
 
 				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Failed to get Kubernetes clusters from cache.")
+					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue
 				}
 
@@ -120,7 +120,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
 				if err != nil {
-					s.Log.WithError(err).Warn("Could not get agent version to enroll EKS clusters")
+					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
 				}
 
@@ -195,19 +195,19 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 			AgentVersion:       agentVersion,
 		})
 		if err != nil {
-			s.Log.WithError(err).Errorf("failed to enroll EKS clusters %v", clusterNames)
+			s.Log.ErrorContext(ctx, "Failed to enroll EKS clusters", "cluster_names", clusterNames, "error", err)
 			continue
 		}
 
 		for _, r := range rsp.Results {
 			if r.Error != "" {
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.Errorf("failed to enroll EKS cluster %q: %s", r.EksClusterName, r.Error)
+					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.EksClusterName, "error", err)
 				} else {
-					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.EksClusterName)
+					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
 				}
 			} else {
-				s.Log.Infof("successfully enrolled EKS cluster %q", r.EksClusterName)
+				s.Log.InfoContext(ctx, "Successfully enrolled EKS cluster", "cluster_name", r.EksClusterName)
 			}
 		}
 	}

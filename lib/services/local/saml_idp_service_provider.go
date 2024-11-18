@@ -51,7 +51,10 @@ const (
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
-	svc        generic.Service[types.SAMLIdPServiceProvider]
+	svc generic.Service[types.SAMLIdPServiceProvider]
+	// backend is used to spawn Plugins storage service so that
+	// it can be queried from the SAML service.
+	backend    backend.Backend
 	log        logrus.FieldLogger
 	httpClient *http.Client
 }
@@ -81,8 +84,9 @@ func NewSAMLIdPServiceProviderService(b backend.Backend, opts ...SAMLIdPOption) 
 	}
 
 	samlSPService := &SAMLIdPServiceProviderService{
-		svc: *svc,
-		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
+		svc:     *svc,
+		backend: b,
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
 	}
 
 	for _, opt := range opts {
@@ -198,6 +202,9 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+	if err := spReferencedByAWSICPlugin(ctx, s.backend, name); err != nil {
+		return trace.Wrap(err)
+	}
 	return s.svc.DeleteResource(ctx, name)
 }
 
@@ -396,4 +403,27 @@ func genTeleportSPSSODescriptor(attributeMapping []*types.SAMLAttributeMapping) 
 			},
 		},
 	}
+}
+
+// spReferencedByAWSICPlugin returns a BadParameter error if the serviceProviderName
+// is referenced in the AWS Identity Center plugin.
+func spReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, serviceProviderName string) error {
+	pluginService := NewPluginsService(bk)
+	plugins, err := pluginService.GetPlugins(ctx, false /* withSecrets */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, p := range plugins {
+		pluginV1, ok := p.(*types.PluginV1)
+		if !ok {
+			continue
+		}
+
+		if pluginV1.Spec.GetAwsIc().SamlIdpServiceProviderName == serviceProviderName {
+			return trace.BadParameter("cannot delete SAML service provider currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
+		}
+	}
+
+	return nil
 }

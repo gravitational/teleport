@@ -279,7 +279,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			}
 
 			desktop.Spec.Addr = "addr2"
-			_, err = dynamicWindowsClient.UpdateDynamicWindowsDesktop(ctx, desktop)
+			_, err = dynamicWindowsClient.UpsertDynamicWindowsDesktop(ctx, desktop)
 			require.NoError(t, err)
 
 			time.Sleep(10 * time.Millisecond)

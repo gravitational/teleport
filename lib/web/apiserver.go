@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -82,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -98,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -130,6 +133,12 @@ const (
 	// DefaultFeatureWatchInterval is the default time in which the feature watcher
 	// should ping the auth server to check for updated features
 	DefaultFeatureWatchInterval = time.Minute * 5
+	// findEndpointCacheTTL is the cache TTL for the find endpoint generic answer.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	findEndpointCacheTTL = 10 * time.Second
+	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
+	DefaultAgentUpdateJitterSeconds = 60
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -164,7 +173,7 @@ type Handler struct {
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
-	nodeWatcher *services.NodeWatcher
+	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
@@ -173,6 +182,11 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
+
+	// findEndpointCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high
+	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
+	// caller specified its Automatic Updates UUID or group.
+	findEndpointCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -204,7 +218,7 @@ type ProxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -300,7 +314,7 @@ type Config struct {
 
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
-	NodeWatcher *services.NodeWatcher
+	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
@@ -476,6 +490,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	findCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.findEndpointCache = findCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -787,6 +813,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Site specific API
 
+	// get site info
+	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
+
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
@@ -951,6 +980,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+
+	// GET the Microsoft Teams plugin app.zip file.
+	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
@@ -1278,8 +1310,9 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 	return webclient.AuthenticationSettings{
 		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:      connector.GetName(),
+			Display:   connector.GetDisplay(),
+			IssuerURL: connector.GetIssuerURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1298,6 +1331,10 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:                connector.GetName(),
 			Display:             connector.GetDisplay(),
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
+			// Note that we get the connector's primary SSO field, not the MFA SSO field.
+			// These two values are often unique, but should have the same host prefix
+			// (e.g. https://dev-813354.oktapreview.com) in reasonable, functional setups.
+			SSO: connector.GetSSO(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1313,8 +1350,9 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 	return webclient.AuthenticationSettings{
 		Type: constants.Github,
 		Github: &webclient.GithubSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:        connector.GetName(),
+			Display:     connector.GetDisplay(),
+			EndpointURL: connector.GetEndpointURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1517,60 +1555,63 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:        h.automaticUpdateSettings(r.Context()),
+		Edition:           modules.GetModules().BuildType(),
+		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	// TODO(jent,espadolini): add a time-based cache to further reduce load on this endpoint
-	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	// cache the generic answer to avoid doing work for each request
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authPref, err := h.cfg.AccessPoint.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &webclient.PingResponse{
+			Proxy:            *proxyConfig,
+			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
+			ServerVersion:    teleport.Version,
+			MinClientVersion: teleport.MinClientVersion,
+			ClusterName:      h.auth.clusterName,
+			Edition:          modules.GetModules().BuildType(),
+			FIPS:             modules.IsBoringBinary(),
+			AutoUpdate:       h.automaticUpdateSettings(ctx),
+		}, nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := webclient.PingResponse{
-		Auth: webclient.AuthenticationSettings{
-			// Nodes need the signature algorithm suite when joining to generate
-			// keys with the correct algorithm.
-			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
-		},
-		Proxy:            *proxyConfig,
-		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
-		ClusterName:      h.auth.clusterName,
-	}
+	return resp, nil
+}
 
-	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
+// TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
+func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpdateSettings {
+	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
-	}
-	// If we can't get the AU config or tools AU are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if autoUpdateConfig.GetSpec().GetTools() == nil {
-		response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
-	} else {
-		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
+		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
 	}
 
-	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
-	}
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	if autoUpdateVersion.GetSpec().GetTools() == nil {
-		response.AutoUpdate.ToolsVersion = api.Version
-	} else {
-		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
+		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
 	}
 
-	return response, nil
+	return webclient.AutoUpdateSettings{
+		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
+		ToolsVersion:             getToolsVersion(autoUpdateVersion),
+		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+		AgentVersion:             getAgentVersion(autoUpdateVersion),
+		AgentAutoUpdate:          agentShouldUpdate(autoUpdateConfig, autoUpdateVersion),
+	}
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2223,6 +2264,16 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 
 	// Extract secret out of the request.
 	secretKey := u.Query().Get("secret_key")
+
+	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
+	// kept a secret on the front end to minimize the risk of a phishing attack.
+	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+		q := u.Query()
+		q.Add("response", string(out))
+		u.RawQuery = q.Encode()
+		return u, nil
+	}
+
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -2835,6 +2886,35 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
+}
+
+type getClusterInfoResponse struct {
+	ui.Cluster
+	IsCloud bool `json:"isCloud"`
+}
+
+// getClusterInfo returns the information about the cluster in the :site param
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	clusterDetails, err := ui.GetClusterDetails(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getClusterInfoResponse{
+		Cluster: *clusterDetails,
+		IsCloud: pingResp.GetServerFeatures().Cloud,
+	}, nil
 }
 
 type getSiteNamespacesResponse struct {
@@ -3544,9 +3624,12 @@ func (h *Handler) siteNodeConnect(
 		WebsocketConn:      ws,
 		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
-			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
+			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID
 			})
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
 
 			if len(matches) != 1 {
 				return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
@@ -5121,4 +5204,60 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
+}
+
+func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
+	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
+	// This ensures we fail open and don't accidentally update agents if something is going wrong.
+	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+	// than changing this logic.
+	if config.GetSpec().GetTools() != nil {
+		return config.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
+	}
+	return false
+}
+
+func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
+	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
+	// This ensures we always advertise a version compatible with the cluster.
+	if version.GetSpec().GetTools() == nil {
+		return api.Version
+	}
+	return version.GetSpec().GetTools().GetTargetVersion()
+}
+
+func getAgentVersion(version *autoupdatepb.AutoUpdateVersion) string {
+	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
+	// This ensures we always advertise a version compatible with the cluster.
+	// TODO: read the version from the autoupdate_agent_rollout when the resource is implemented
+	if version.GetSpec().GetAgents() == nil {
+		return api.Version
+	}
+
+	return version.GetSpec().GetAgents().GetTargetVersion()
+}
+
+func agentShouldUpdate(config *autoupdatepb.AutoUpdateConfig, version *autoupdatepb.AutoUpdateVersion) bool {
+	// TODO: read the data from the autoupdate_agent_rollout when the resource is implemented
+
+	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
+	// This ensures we fail open and don't accidentally update agents if something is going wrong.
+	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+	// than changing this logic.
+	if config.GetSpec().GetAgents() == nil {
+		return false
+	}
+	if version.GetSpec().GetAgents() == nil {
+		return false
+	}
+	configMode := config.GetSpec().GetAgents().GetMode()
+	versionMode := version.GetSpec().GetAgents().GetMode()
+
+	// We update only if both version and config agent modes are "enabled"
+	if configMode != autoupdate.AgentsUpdateModeEnabled || versionMode != autoupdate.AgentsUpdateModeEnabled {
+		return false
+	}
+
+	scheduleName := version.GetSpec().GetAgents().GetSchedule()
+	return scheduleName == autoupdate.AgentsScheduleImmediate
 }

@@ -44,6 +44,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 var (
@@ -193,6 +195,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterPrincipalAssignment},
+		{Kind: types.KindIdentityCenterAccountAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -544,6 +549,7 @@ type Cache struct {
 	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
+	identityCenterCache          *local.IdentityCenterService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -775,6 +781,9 @@ type Config struct {
 	// ProvisioningStates is the upstream ProvisioningStates service that we're
 	// caching
 	ProvisioningStates services.ProvisioningStates
+
+	// IdentityCenter is the upstream Identity Center service that we're caching
+	IdentityCenter services.IdentityCenter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1007,6 +1016,13 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: config.Backend})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1053,6 +1069,7 @@ func New(config Config) (*Cache, error) {
 		spiffeFederationCache:        spiffeFederationCache,
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
+		identityCenterCache:          identityCenterCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1079,10 +1096,10 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		First:  retryutils.FullJitter(c.MaxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  c.Clock,
 	})
 	if err != nil {
@@ -1405,8 +1422,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	if c.EnableRelativeExpiry {
 		relativeExpiryInterval = interval.New(interval.Config{
 			Duration:      c.Config.RelativeExpiryCheckInterval,
-			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 	defer relativeExpiryInterval.Stop()
@@ -3311,13 +3328,13 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 }
 
 // CountAccessListMembers will count all access list members.
-func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.accessListMembers)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, 0, trace.Wrap(err)
 	}
 	defer rg.Release()
 	return rg.reader.CountAccessListMembers(ctx, accessListName)
@@ -3528,4 +3545,31 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.Ac
 		return clone, nil
 	}
 	return rg.reader.GetAccessGraphSettings(ctx)
+}
+
+func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListAccountAssignments(ctx, pageSize, pageToken)
 }

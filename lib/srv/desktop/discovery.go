@@ -23,7 +23,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"maps"
 	"net"
 	"net/netip"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -54,8 +54,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
-		// TODO(tross): update to use the service logger once it is converted to use slog
-		Logger: slog.With("kind", types.KindWindowsDesktop),
+		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,10 +98,15 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
-	if !s.ldapReady() {
-		s.cfg.Logger.WarnContext(context.Background(), "skipping desktop discovery: LDAP not yet initialized")
+	// Check whether we've ever successfully initialized our LDAP client.
+	s.mu.Lock()
+	if !s.ldapInitialized {
+		s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, skipping discovery and attempting to reconnect")
+		s.mu.Unlock()
+		s.initializeLDAP()
 		return nil
 	}
+	s.mu.Unlock()
 
 	filter := s.ldapSearchFilter()
 	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
@@ -250,7 +254,11 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
-func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.WindowsDesktop, error) {
+func (s *WindowsService) ldapEntryToWindowsDesktop(
+	ctx context.Context,
+	entry *ldap.Entry,
+	getHostLabels func(string) map[string]string,
+) (types.WindowsDesktop, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
 		attrs := make([]string, len(entry.Attributes))
@@ -311,7 +319,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 
 // startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
 // according to the up-to-date list of dynamic Windows desktops resources.
-func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
+func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop], error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
 		return nil, nil
@@ -354,7 +362,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 		defer watcher.Close()
 		for {
 			select {
-			case desktops := <-watcher.DynamicWindowsDesktopsC:
+			case desktops := <-watcher.ResourcesC:
 				newResources = make(map[string]types.WindowsDesktop)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)

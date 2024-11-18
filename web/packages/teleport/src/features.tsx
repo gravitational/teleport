@@ -571,6 +571,10 @@ export class FeatureClusters implements TeleportFeature {
     },
     searchableTags: ['clusters', 'manage clusters'],
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {
@@ -645,6 +649,13 @@ export class FeatureAccount implements TeleportFeature {
     getLink() {
       return cfg.routes.account;
     },
+    searchableTags: [
+      'account settings',
+      'settings',
+      'password',
+      'mfa',
+      'change password',
+    ],
   };
 }
 
@@ -667,6 +678,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
     getLink() {
       return cfg.routes.support;
     },
+    searchableTags: ['help', 'support', NavTitle.HelpAndSupport],
   };
 }
 

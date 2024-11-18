@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -610,36 +613,54 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 }
 
 func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
+	var channelID string
+
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
+		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			channelID = id.String()
+
+			u, err := url.Parse(sso.WebMFARedirect)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
+			return &sso.MFACeremony{
+				ClientCallbackURL: u.String(),
+			}, nil
+		},
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
-			return newMFAPrompt(stream)
+			return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+				// Convert from proto to JSON types.
+				var challenge client.MFAAuthenticateChallenge
+				if chal.WebauthnChallenge != nil {
+					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+				}
+
+				if chal.SSOChallenge != nil {
+					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+					challenge.SSOChallenge.ChannelID = channelID
+				}
+
+				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+				}
+
+				var codec protobufMFACodec
+				if err := stream.WriteChallenge(&challenge, codec); err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resp, err := stream.ReadChallengeResponse(codec)
+				return resp, trace.Wrap(err)
+			})
 		},
 	}
-}
-
-func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
-	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var challenge *client.MFAAuthenticateChallenge
-		var codec protobufMFACodec
-
-		// Convert from proto to JSON types.
-		switch {
-		case chal.GetWebauthnChallenge() != nil:
-			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-			}
-		default:
-			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
-		}
-
-		if err := stream.WriteChallenge(challenge, codec); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := stream.ReadChallengeResponse(codec)
-		return resp, trace.Wrap(err)
-	})
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
@@ -797,7 +818,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream)); err != nil {
+				baseCeremony := newMFACeremony(t.stream.WSStream, nil)
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}

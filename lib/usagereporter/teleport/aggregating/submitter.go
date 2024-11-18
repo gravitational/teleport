@@ -26,14 +26,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -69,9 +67,6 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 type SubmitterConfig struct {
 	// Backend is the backend to use to read reports and apply locks. Required.
 	Backend backend.Backend
-	// Log is the [logrus.FieldLogger] used for logging.
-	// TODO(tross): remove once e has been converted
-	Log logrus.FieldLogger
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Status is used to create or clear cluster alerts on a failure. Required.
@@ -109,9 +104,9 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 // CheckAndSetDefaults, and should probably be called in a goroutine.
 func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	iv := interval.New(interval.Config{
-		FirstDuration: utils.HalfJitter(2 * submitInterval),
+		FirstDuration: retryutils.HalfJitter(2 * submitInterval),
 		Duration:      submitInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer iv.Stop()
 

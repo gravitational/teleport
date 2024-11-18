@@ -77,6 +77,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -86,6 +87,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -664,6 +666,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// If nil, the client will not prompt for MFA.
+	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -728,6 +733,11 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 // SetMFAPromptConstructor sets the MFA prompt constructor for this client.
 func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
+}
+
+// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
+func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
+	c.c.SSOMFACeremonyConstructor = scc
 }
 
 // Close closes the Client connection to the auth server.
@@ -1782,11 +1792,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	for {
 		rsp, err := c.ListRoles(ctx, &req)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				// fallback to calling the old non-paginated role API.
-				roles, err = c.getRoles(ctx)
-				return roles, trace.Wrap(err)
-			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -1799,21 +1804,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		}
 	}
 
-	return roles, nil
-}
-
-// getRoles calls the old non-paginated GetRoles method.
-//
-// DELETE IN 17.0
-func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
-	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]types.Role, 0, len(resp.GetRoles()))
-	for _, role := range resp.GetRoles() {
-		roles = append(roles, role)
-	}
 	return roles, nil
 }
 
@@ -5187,4 +5177,16 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 		}
 		pageToken = nextToken
 	}
+}
+
+// IdentityCenterClient returns Identity Center service client using an underlying
+// gRPC connection.
+func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
+	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
+}
+
+// ProvisioningServiceClient returns provisioning service client using
+// an underlying gRPC connection.
+func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
+	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }

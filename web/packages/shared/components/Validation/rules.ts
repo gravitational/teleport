@@ -237,6 +237,22 @@ const requiredMatchingRoleNameAndRoleArn =
   };
 
 /**
+ * requiredPort checks if the given value is a valid port value [1-65535].
+ */
+const requiredPort: Rule = port => () => {
+  let val = Number(port);
+  if (Number.isInteger(val) && val > 0 && val <= 65535) {
+    return {
+      valid: true,
+    };
+  }
+  return {
+    valid: false,
+    message: 'Port required [1-65535]',
+  };
+};
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -275,4 +291,5 @@ export {
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
   validAwsIAMRoleName,
+  requiredPort,
 };

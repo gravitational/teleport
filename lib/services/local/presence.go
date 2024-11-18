@@ -57,7 +57,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
-		jitter:  retryutils.NewFullJitter(),
+		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
 }
@@ -371,6 +371,34 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+// UpdateNode conditionally updates the provided server.
+func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (types.Server, error) {
+	if server.GetNamespace() == "" {
+		server.SetNamespace(apidefaults.Namespace)
+	}
+
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	}
+	rev := server.GetRevision()
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.ConditionalUpdate(ctx, backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: rev,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.SetRevision(lease.Revision)
+	return server, nil
+}
+
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
@@ -498,7 +526,7 @@ func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.Revers
 	return tunnels, nil
 }
 
-// DeleteReverseTunnel deletes reverse tunnel by it's cluster name
+// DeleteReverseTunnel deletes reverse tunnel by its cluster name
 func (s *PresenceService) DeleteReverseTunnel(ctx context.Context, clusterName string) error {
 	err := s.Delete(ctx, backend.NewKey(reverseTunnelsPrefix, clusterName))
 	return trace.Wrap(err)

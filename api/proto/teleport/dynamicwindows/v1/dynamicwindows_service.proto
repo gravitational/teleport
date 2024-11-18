@@ -35,6 +35,8 @@ service DynamicWindowsService {
   rpc CreateDynamicWindowsDesktop(CreateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
   // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
   rpc UpdateDynamicWindowsDesktop(UpdateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
+  // UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+  rpc UpsertDynamicWindowsDesktop(UpsertDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
   // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
   rpc DeleteDynamicWindowsDesktop(DeleteDynamicWindowsDesktopRequest) returns (google.protobuf.Empty);
 }
@@ -63,15 +65,21 @@ message GetDynamicWindowsDesktopRequest {
   string name = 1;
 }
 
-// CreateDynamicWindowsDesktopRequest is a request for a specific dynamic Windows desktop.
+// CreateDynamicWindowsDesktopRequest is used for creating new dynamic Windows desktops.
 message CreateDynamicWindowsDesktopRequest {
   // desktop to be created
   types.DynamicWindowsDesktopV1 desktop = 1;
 }
 
-// UpdateDynamicWindowsDesktopRequest is a request for a specific dynamic Windows desktop.
+// UpdateDynamicWindowsDesktopRequest is used for updating existing dynamic Windows desktops.
 message UpdateDynamicWindowsDesktopRequest {
   // desktop to be updated
+  types.DynamicWindowsDesktopV1 desktop = 1;
+}
+
+// UpsertDynamicWindowsDesktopRequest is used for upserting dynamic Windows desktops.
+message UpsertDynamicWindowsDesktopRequest {
+  // desktop to be upserted
   types.DynamicWindowsDesktopV1 desktop = 1;
 }
 

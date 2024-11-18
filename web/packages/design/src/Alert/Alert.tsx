@@ -134,7 +134,7 @@ interface Props<K> {
 export interface Action {
   content: React.ReactNode;
   href?: string;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps

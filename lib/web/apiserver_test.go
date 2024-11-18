@@ -381,6 +381,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Component: teleport.ComponentProxy,
 			Client:    s.proxyClient,
 		},
+		NodesGetter: s.proxyClient,
 	})
 	require.NoError(t, err)
 
@@ -1149,7 +1150,7 @@ func TestClusterNodesGet(t *testing.T) {
 	server1 := servers[0]
 
 	// Add another node.
-	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{Hostname: "server2"}, map[string]string{"test-field": "test-value"})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
 	require.NoError(t, err)
@@ -1185,7 +1186,8 @@ func TestClusterNodesGet(t *testing.T) {
 			Kind:        types.KindNode,
 			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
-			Name:        "server2",
+			Name:        server2.GetName(),
+			Hostname:    server2.GetHostname(),
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
 			Tunnel:      false,
 			SSHLogins:   []string{pack.login},
@@ -2181,7 +2183,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
-					Type:    defaults.WebsocketWebauthnChallenge,
+					Type:    defaults.WebsocketMFAChallenge,
 					Payload: string(webauthnResBytes),
 				}
 				protoBytes, err := proto.Marshal(envelope)
@@ -2388,7 +2390,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 	})
 	require.NoError(t, err)
 	err = tdpConn.WriteMessage(tdp.MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: res.GetWebauthn(),
@@ -3092,7 +3094,6 @@ func TestPingSSHDialTimeout(t *testing.T) {
 
 	// Validate the timeout is the default value.
 	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
-
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -4386,7 +4387,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 			}
-
 		})
 	}
 }
@@ -4767,7 +4767,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4805,7 +4804,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -8185,6 +8183,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			Component: teleport.ComponentProxy,
 			Client:    client,
 		},
+		NodesGetter: client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
@@ -9075,6 +9074,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Client:    client,
 			Clock:     clock,
 		},
+		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
 
@@ -10005,8 +10005,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
 		},
 	})
 
@@ -10060,7 +10060,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10091,7 +10091,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10129,7 +10129,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 		envelope := &terminal.Envelope{
 			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketWebauthnChallenge,
+			Type:    defaults.WebsocketMFAChallenge,
 			Payload: string(webauthnResBytes),
 		}
 		envelopeBytes, err := proto.Marshal(envelope)

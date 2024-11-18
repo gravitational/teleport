@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"os/exec"
@@ -72,17 +73,11 @@ type azureApp struct {
 	*localProxyApp
 
 	cf        *CLIConf
-	signer    crypto.Signer
 	msiSecret string
 }
 
 // newAzureApp creates a new Azure app.
 func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azureApp, error) {
-	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	msiSecret, err := getMSISecret()
 	if err != nil {
 		return nil, err
@@ -91,7 +86,6 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 	return &azureApp{
 		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
-		signer:        keyRing.TLSPrivateKey,
 		msiSecret:     msiSecret,
 	}, nil
 }
@@ -133,7 +127,6 @@ func getMSISecret() (string, error) {
 // These calls are served entirely locally, which helps the overall performance experienced by the user.
 func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 	azureMiddleware := &alpnproxy.AzureMSIMiddleware{
-		Key:    a.signer,
 		Secret: a.msiSecret,
 		// we could, in principle, get the actual TenantID either from live data or from static configuration,
 		// but at this moment there is no clear advantage over simply issuing a new random identifier.
@@ -143,7 +136,19 @@ func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 	}
 
 	// HTTPS proxy mode
-	err := a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAzureRequests, alpnproxy.WithHTTPMiddleware(azureMiddleware))
+	err := a.StartLocalProxyWithForwarder(ctx,
+		alpnproxy.MatchAzureRequests,
+		alpnproxy.WithHTTPMiddleware(azureMiddleware),
+		alpnproxy.WithOnSetCert(func(cert tls.Certificate) {
+			// Note that the PrivateKey is most likely set by api/utils/keys.TLSCertificateForSigner.
+			signer, ok := cert.PrivateKey.(crypto.Signer)
+			if ok {
+				azureMiddleware.SetPrivateKey(signer)
+			} else {
+				log.Warn("Provided tls.Certificate has no valid private key.")
+			}
+		}),
+	)
 	return trace.Wrap(err)
 }
 

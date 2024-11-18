@@ -3670,9 +3670,9 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
@@ -5159,8 +5159,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}
 			if tc.hsm {
-				cfg.Auth.KeyStore.AWSKMS.AWSAccount = "123456789012"
-				cfg.Auth.KeyStore.AWSKMS.AWSRegion = "us-west-2"
+				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+				}
 			} else {
 				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
 			}

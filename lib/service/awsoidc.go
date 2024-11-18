@@ -159,7 +159,7 @@ func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDC
 func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration: updateAWSOIDCDeployServiceInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		Jitter:   retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 
@@ -265,10 +265,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	req := &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsRegion,
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsRegion,
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.

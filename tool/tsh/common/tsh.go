@@ -41,7 +41,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -74,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -118,6 +119,8 @@ const (
 	mfaModePlatform = "platform"
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
+	// mfaModeSSO utilizes only SSO devices.
+	mfaModeSSO = "sso"
 )
 
 const (
@@ -607,7 +610,7 @@ func Main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
@@ -705,6 +708,38 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	// At process startup, check if a version has already been downloaded to
+	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
+	// environment variable. If so, re-exec that version of {tsh, tctl}.
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckLocal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if reExec {
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+		// Download the version of client tools required by the cluster. This
+		// is required if the user passed in the TELEPORT_TOOLS_VERSION
+		// explicitly.
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return trace.Wrap(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -766,7 +801,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
@@ -994,6 +1029,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1236,8 +1272,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
-
-	var err error
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {
@@ -1864,6 +1898,14 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
+	// The user is not logged in and has typed in `tsh --proxy=... login`, if
+	// the running binary needs to be updated, update and re-exec.
+	if profile == nil {
+		if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
@@ -1874,6 +1916,13 @@ func onLogin(cf *CLIConf) error {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1887,6 +1936,13 @@ func onLogin(cf *CLIConf) error {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1957,7 +2013,11 @@ func onLogin(cf *CLIConf) error {
 
 		// otherwise just pass through to standard login
 		default:
-
+			// The user is logged in and has typed in `tsh --proxy=... login`, if
+			// the running binary needs to be updated, update and re-exec.
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -2658,6 +2718,10 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
+			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
+				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
+				return trace.BadParameter(friendlyMsg)
+			}
 			return trace.Wrap(err)
 		}
 		cf.RequestID = req.GetName()
@@ -4253,6 +4317,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
+	c.PreferSSO = mfaOpts.PreferSSO
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -4434,6 +4499,7 @@ func (c *CLIConf) GetProfile() (*profile.Profile, error) {
 type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
+	PreferSSO               bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -4446,6 +4512,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
 	case mfaModeOTP:
 		opts.PreferOTP = true
+	case mfaModeSSO:
+		opts.PreferSSO = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
@@ -4799,7 +4867,18 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	// `tsh status` should run without requiring user interaction.
+	// To achieve this, we avoid remote calls that might prompt for
+	// hardware key touch or require a PIN.
+	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
+
+	var accessListsToReview []*accesslist.AccessList
+	if hardwareKeyInteractionRequired {
+		log.Debug("Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement.")
+	} else {
+		accessListsToReview = cf.getAccessListsToReview(tc)
+	}
+	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4812,7 +4891,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	if tc.PrivateKeyPolicy.MFAVerified() {
+	if hardwareKeyInteractionRequired {
 		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
@@ -5545,6 +5624,43 @@ const (
 		"environments on shared systems where a memory swap attack is possible.\n" +
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
+
+func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if reExec {
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
+		defer cancel()
+		// Download the version of client tools required by the cluster.
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return trace.Wrap(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
+	}
+
+	return nil
+}
 
 // Lock the process memory to prevent rsa keys and certificates in memory from being exposed in a swap.
 func tryLockMemory(cf *CLIConf) error {

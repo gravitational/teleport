@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -153,7 +154,7 @@ type Server struct {
 	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.AppWatcher
+	watcher *services.GenericWatcher[types.Application, readonly.Application]
 }
 
 // monitoredApps is a collection of applications from different sources

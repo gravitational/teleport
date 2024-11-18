@@ -197,7 +197,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		Step:   u.cfg.ScanPeriod,
 		Max:    u.cfg.ScanPeriod * 100,
 		Clock:  u.cfg.Clock,
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

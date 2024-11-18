@@ -79,6 +79,14 @@ export type TableProps<T> = {
      * conditionally style a row (eg: cursor: pointer, disabled)
      */
     getStyle?(row: T): React.CSSProperties;
+    /**
+     * conditionally render a custom row
+     * use case: by default all columns are represented by cells
+     * but certain rows you need all the columns to be merged
+     * into one cell to render other related elements like a
+     * dropdown selector.
+     */
+    customRow?(row: T): JSX.Element;
   };
 };
 
@@ -210,6 +218,7 @@ export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   prevPage: () => void;
   pagination: Pagination<T>;
   fetching?: FetchingConfig;
+  isSearchable?: boolean;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {

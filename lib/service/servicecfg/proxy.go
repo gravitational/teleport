@@ -158,6 +158,11 @@ type ProxyConfig struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels
+
+	// QUICProxyPeering will make it so that proxy peering will support inbound
+	// QUIC connections and will use QUIC to connect to peer proxies that
+	// advertise support for it.
+	QUICProxyPeering bool
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that

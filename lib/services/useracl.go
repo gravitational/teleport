@@ -114,6 +114,8 @@ type UserACL struct {
 	CrownJewel ResourceAccess `json:"crownJewel"`
 	// AccessGraphSettings defines access to manage access graph settings.
 	AccessGraphSettings ResourceAccess `json:"accessGraphSettings"`
+	// ReviewRequests defines the ability to review requests
+	ReviewRequests bool `json:"reviewRequests"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -205,6 +207,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
+	reviewRequests := userRoles.MaybeCanReviewRequests()
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -218,6 +221,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AppServers:              appServerAccess,
 		DBServers:               dbServerAccess,
 		DB:                      dbAccess,
+		ReviewRequests:          reviewRequests,
 		KubeServers:             kubeServerAccess,
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,

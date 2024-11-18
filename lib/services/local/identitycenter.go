@@ -21,6 +21,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -71,6 +72,7 @@ func (cfg *IdentityCenterServiceConfig) CheckAndSetDefaults() error {
 // IdentityCenterService handles low-level CRUD operations for the identity-
 // center related resources
 type IdentityCenterService struct {
+	identitycenterv1.UnimplementedIdentityCenterServiceServer
 	accounts             *generic.ServiceWrapper[*identitycenterv1.Account]
 	permissionSets       *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
 	principalAssignments *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
@@ -213,8 +215,8 @@ func (svc *IdentityCenterService) DeleteIdentityCenterAccount(ctx context.Contex
 }
 
 // DeleteAllIdentityCenterAccounts deletes all Identity Center Account records
-func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Context) error {
-	return trace.Wrap(svc.accounts.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Context, req *identitycenterv1.DeleteAllIdentityCenterAccountsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(svc.accounts.DeleteAllResources(ctx))
 }
 
 // ListPrincipalAssignments lists all PrincipalAssignment records in the service
@@ -281,8 +283,8 @@ func (svc *IdentityCenterService) DeletePrincipalAssignment(ctx context.Context,
 }
 
 // DeleteAllPrincipalAssignments deletes all assignment record
-func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context) error {
-	return trace.Wrap(svc.principalAssignments.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context, req *identitycenterv1.DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(svc.principalAssignments.DeleteAllResources(ctx))
 }
 
 // ListPermissionSets list the known Permission Sets in the managed Identity Center
@@ -333,6 +335,11 @@ func (svc *IdentityCenterService) UpdatePermissionSet(ctx context.Context, asmt 
 // DeletePermissionSet deletes a specific Identity Center PermissionSet
 func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name services.PermissionSetID) error {
 	return trace.Wrap(svc.permissionSets.DeleteResource(ctx, string(name)))
+}
+
+// DeleteAllPermissionSets deletes all Identity Center PermissionSet
+func (svc *IdentityCenterService) DeleteAllPermissionSets(ctx context.Context, req *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(svc.permissionSets.DeleteAllResources(ctx))
 }
 
 // ListAccountAssignments lists all IdentityCenterAccountAssignment record
@@ -388,12 +395,22 @@ func (svc *IdentityCenterService) UpdateAccountAssignment(ctx context.Context, a
 	return services.IdentityCenterAccountAssignment{AccountAssignment: updated}, nil
 }
 
+// UpsertAccountAssignment performs an unconditional upsert on the supplied
+// Account Assignment, returning the updated record on success.
+func (svc *IdentityCenterService) UpsertAccountAssignment(ctx context.Context, asmt services.IdentityCenterAccountAssignment) (services.IdentityCenterAccountAssignment, error) {
+	updated, err := svc.accountAssignments.UpsertResource(ctx, asmt.AccountAssignment)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err, "upserting principal assignment record")
+	}
+	return services.IdentityCenterAccountAssignment{AccountAssignment: updated}, nil
+}
+
 // DeleteAccountAssignment deletes a specific account assignment
 func (svc *IdentityCenterService) DeleteAccountAssignment(ctx context.Context, name services.IdentityCenterAccountAssignmentID) error {
 	return trace.Wrap(svc.accountAssignments.DeleteResource(ctx, string(name)))
 }
 
 // DeleteAllAccountAssignments deletes all known account assignments
-func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Context) error {
-	return trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
+func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Context, req *identitycenterv1.DeleteAllAccountAssignmentsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
 }

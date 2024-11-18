@@ -48,6 +48,21 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	webApp := &msgraph.WebApplication{}
 	webApp.RedirectURIs = &uris
 	app.Web = webApp
+	securityGroups := new(string)
+	*securityGroups = "SecurityGroup"
+	app.GroupMembershipClaims = securityGroups
+
+	claimName := "groups"
+	optionalClaim := []msgraph.OptionalClaim{
+		{
+			Name: &claimName,
+		},
+	}
+	app.OptionalClaims = &msgraph.OptionalClaims{
+		IDToken:     optionalClaim,
+		SAML2Token:  optionalClaim,
+		AccessToken: optionalClaim,
+	}
 
 	err = graphClient.UpdateApplication(ctx, appObjectID, app)
 
