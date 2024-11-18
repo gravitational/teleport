@@ -454,6 +454,7 @@ export function ServerAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
         mt={3}
@@ -478,6 +479,7 @@ export function KubernetesAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
       />
@@ -673,39 +675,52 @@ export function DatabaseAccessSpecSection({
       </Box>
       <FieldSelectCreatable
         isMulti
-        label="Names"
-        toolTipContent="List of database names that this role is allowed to connect to"
+        label="Database Names"
+        toolTipContent={
+          <>
+            List of database names that this role is allowed to connect to.
+            Special value <MarkInverse>*</MarkInverse> means any name.
+          </>
+        }
         isDisabled={isProcessing}
-        formatCreateLabel={label => `Name: ${label}`}
+        formatCreateLabel={label => `Database Name: ${label}`}
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.names}
         onChange={names => onChange?.({ ...value, names })}
       />
       <FieldSelectCreatable
         isMulti
-        label="Roles"
-        toolTipContent="List of database roles for automatic user creation"
+        label="Database Users"
+        toolTipContent={
+          <>
+            List of database users that this role is allowed to connect as
+            Special value <MarkInverse>*</MarkInverse> means any user.
+          </>
+        }
         isDisabled={isProcessing}
-        formatCreateLabel={label => `Role: ${label}`}
+        formatCreateLabel={label => `Database User: ${label}`}
         components={{
           DropdownIndicator: null,
         }}
-        value={value.roles}
-        onChange={roles => onChange?.({ ...value, roles })}
+        openMenuOnClick={false}
+        value={value.users}
+        onChange={users => onChange?.({ ...value, users })}
       />
       <FieldSelectCreatable
         isMulti
-        label="Users"
-        toolTipContent="List of database users that this role is allowed to connect as"
+        label="Database Roles"
+        toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
         isDisabled={isProcessing}
-        formatCreateLabel={label => `User: ${label}`}
+        formatCreateLabel={label => `Database Role: ${label}`}
         components={{
           DropdownIndicator: null,
         }}
-        value={value.users}
-        onChange={users => onChange?.({ ...value, users })}
+        openMenuOnClick={false}
+        value={value.roles}
+        onChange={roles => onChange?.({ ...value, roles })}
         mb={0}
       />
     </>
@@ -738,6 +753,7 @@ export function WindowsDesktopAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
       />

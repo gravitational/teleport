@@ -378,14 +378,14 @@ test('DatabaseAccessSpecSection', async () => {
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   await user.type(screen.getByPlaceholderText('label key'), 'env');
   await user.type(screen.getByPlaceholderText('label value'), 'prod');
-  await selectEvent.create(screen.getByLabelText('Names'), 'stuff', {
-    createOptionText: 'Name: stuff',
+  await selectEvent.create(screen.getByLabelText('Database Names'), 'stuff', {
+    createOptionText: 'Database Name: stuff',
   });
-  await selectEvent.create(screen.getByLabelText('Roles'), 'admin', {
-    createOptionText: 'Role: admin',
+  await selectEvent.create(screen.getByLabelText('Database Users'), 'mary', {
+    createOptionText: 'Database User: mary',
   });
-  await selectEvent.create(screen.getByLabelText('Users'), 'mary', {
-    createOptionText: 'User: mary',
+  await selectEvent.create(screen.getByLabelText('Database Roles'), 'admin', {
+    createOptionText: 'Database Role: admin',
   });
   expect(onChange).toHaveBeenLastCalledWith({
     kind: 'db',
