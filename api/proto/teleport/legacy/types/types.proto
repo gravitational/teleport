@@ -2923,6 +2923,22 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// SSHPortForwardConfig defines which types of SSH port forwarding are permitted, if any.
+message SSHPortForwardConfig {
+  // Allow local port forwarding.
+  BoolValue Local = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "local,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+  // Allow remote port forwarding.
+  BoolValue Remote = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "remote,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2937,11 +2953,9 @@ message RoleOptions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // PortForwarding defines if the certificate will have
-  // "permit-port-forwarding"
-  // in the certificate. PortForwarding is "yes" if not set,
-  // that's why this is a pointer
+  // Deprecated: Use SSHPortForwarding instead
   BoolValue PortForwarding = 3 [
+    deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
     (gogoproto.customtype) = "BoolOption"
@@ -3108,6 +3122,12 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // SSHPortForwarding defines which types of SSH port forwarding are permitted, if any.
+  SSHPortForwardConfig SSHPortForwarding = 32 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
+  ];
 }
 
 message RecordSession {

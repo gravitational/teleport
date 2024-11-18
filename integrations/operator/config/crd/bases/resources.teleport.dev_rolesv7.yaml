@@ -1284,9 +1284,7 @@ spec:
                       generation and usage
                     type: boolean
                   port_forwarding:
-                    description: PortForwarding defines if the certificate will have
-                      "permit-port-forwarding" in the certificate. PortForwarding
-                      is "yes" if not set, that's why this is a pointer
+                    description: 'Deprecated: Use SSHPortForwarding instead'
                     type: boolean
                   record_session:
                     description: RecordDesktopSession indicates whether desktop access
@@ -1324,6 +1322,18 @@ spec:
                       via SCP or SFTP are allowed over an SSH session. It defaults
                       to true unless explicitly set to false.
                     type: boolean
+                  ssh_port_forwarding:
+                    description: SSHPortForwarding defines which types of SSH port
+                      forwarding are permitted, if any.
+                    nullable: true
+                    properties:
+                      local:
+                        description: Allow local port forwarding.
+                        type: boolean
+                      remote:
+                        description: Allow remote port forwarding.
+                        type: boolean
+                    type: object
                 type: object
             type: object
           status:
