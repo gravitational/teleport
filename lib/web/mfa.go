@@ -76,8 +76,6 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 }
 
 type addMFADeviceRequest struct {
-	// PrivilegeTokenID is privilege token id.
-	PrivilegeTokenID string `json:"tokenId"`
 	// DeviceName is the name of new mfa device.
 	DeviceName string `json:"deviceName"`
 	// SecondFactorToken is the totp code.
@@ -102,8 +100,12 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		return nil, trace.Wrap(err)
 	}
 
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	protoReq := &proto.AddMFADeviceSyncRequest{
-		TokenID:       req.PrivilegeTokenID,
 		NewDeviceName: req.DeviceName,
 		DeviceUsage:   deviceUsage,
 	}
@@ -119,11 +121,6 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")
-	}
-
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	if _, err := clt.AddMFADeviceSync(r.Context(), protoReq); err != nil {
