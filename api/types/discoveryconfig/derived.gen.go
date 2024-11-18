@@ -117,8 +117,7 @@ func deriveTeleportEqual_6(this, that *types.AccessGraphSync) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			deriveTeleportEqual_12(this.AWS, that.AWS) &&
-			deriveTeleportEqual_13(this.Azure, that.Azure) &&
-			this.PollInterval == that.PollInterval
+			deriveTeleportEqual_13(this.Azure, that.Azure)
 }
 
 // deriveTeleportEqual_7 returns whether this and that are equal.
