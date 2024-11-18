@@ -43,6 +43,7 @@ jobs:
     env:
       ARTIFACT_DIRECTORY: /tmp/build
       OS: ${{ matrix.target.os }}
+      ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
     steps:
       # Setup
       - name: Checkout Teleport
