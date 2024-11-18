@@ -20,7 +20,6 @@ package azure_sync
 
 import (
 	"context"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
@@ -83,26 +82,21 @@ type Fetcher struct {
 
 func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	// Establish the credential from the managed identity
-	cred, err := azidentity.NewManagedIdentityCredential(nil)
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	staticCred := azure.NewStaticCredential(token)
 
 	// Create the clients
-	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, staticCred, nil)
+	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleDefClient, err := azure.NewRoleDefinitionsClient(cfg.SubscriptionID, staticCred, nil)
+	roleDefClient, err := azure.NewRoleDefinitionsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, staticCred, nil)
+	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
