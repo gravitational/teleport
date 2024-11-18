@@ -45,33 +45,14 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	switch {
-	case resp.CredentialAssertionResponse != nil:
+	// TODO(Joerger): DELETE in v18.0.0, client.MFAChallengeResponse is be used instead.
+	if resp.CredentialAssertionResponse != nil {
 		return &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.CredentialAssertionResponse),
 			},
 		}, nil
-	case resp.WebauthnResponse != nil:
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnResponse),
-			},
-		}, nil
-	case resp.SSOResponse != nil:
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_SSO{
-				SSO: &authproto.SSOResponse{
-					RequestId: resp.SSOResponse.RequestID,
-					Token:     resp.SSOResponse.Token,
-				},
-			},
-		}, nil
-	case resp.TOTPCode != "":
-		// Note: we can support TOTP through the websocket if desired, we just need to add
-		// a TOTP prompt modal and flip the switch here.
-		return nil, trace.BadParameter("totp is not supported in the WebUI")
-	default:
-		return nil, trace.BadParameter("invalid MFA response from web")
 	}
+
+	return resp.GetOptionalMFAResponseProtoReq()
 }

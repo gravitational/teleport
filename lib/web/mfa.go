@@ -210,6 +210,9 @@ type createRegisterChallengeRequest struct {
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.
 	DeviceUsage string `json:"deviceUsage"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse client.MFAChallengeResponse `json:"existingMfaResponse"`
 }
 
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
@@ -238,6 +241,55 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		TokenID:     p.ByName("token"),
 		DeviceType:  deviceType,
 		DeviceUsage: deviceUsage,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
+}
+
+// createRegisterChallenge creates and returns an MFA register challenges for a new device for the specified device type.
+func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req createRegisterChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var deviceType proto.DeviceType
+	switch req.DeviceType {
+	case "totp":
+		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
+	case "webauthn":
+		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
+	}
+
+	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingMFAResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: existingMFAResponse,
+		DeviceType:          deviceType,
+		DeviceUsage:         deviceUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
