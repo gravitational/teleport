@@ -6573,7 +6573,7 @@ type AuthPreferenceSpecV2 struct {
 	// If unspecified, the current default value is "legacy".
 	// 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
 	SignatureAlgorithmSuite SignatureAlgorithmSuite `protobuf:"varint,20,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3,enum=types.SignatureAlgorithmSuite" json:"signature_algorithm_suite,omitempty"`
-	// SecondFactors is a list of supported second factor types.
+	// SecondFactors is a list of supported multi-factor types.
 	// 1 is "otp", 2 is "webauthn", 3 is "sso",
 	// If unspecified, the current default value is [1], or ["otp"].
 	SecondFactors        []SecondFactorType `protobuf:"varint,21,rep,packed,name=SecondFactors,proto3,enum=types.SecondFactorType" json:"second_factors,omitempty"`

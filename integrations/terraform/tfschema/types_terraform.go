@@ -1464,7 +1464,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"second_factors": {
-					Description: "SecondFactors is a list of supported second factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].",
+					Description: "SecondFactors is a list of supported multi-factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
 				},
