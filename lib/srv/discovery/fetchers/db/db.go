@@ -65,7 +65,7 @@ func IsAzureMatcherType(matcherType string) bool {
 }
 
 // MakeAWSFetchers creates new AWS database fetchers.
-func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []types.AWSMatcher) (result []common.Fetcher, err error) {
+func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) (result []common.Fetcher, err error) {
 	for _, matcher := range matchers {
 		assumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
@@ -80,12 +80,13 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:  clients,
-						Type:        matcherType,
-						AssumeRole:  assumeRole,
-						Labels:      matcher.Tags,
-						Region:      region,
-						Integration: matcher.Integration,
+						AWSClients:      clients,
+						Type:            matcherType,
+						AssumeRole:      assumeRole,
+						Labels:          matcher.Tags,
+						Region:          region,
+						Integration:     matcher.Integration,
+						DiscoveryConfig: discoveryConfig,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -99,7 +100,7 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher, discoveryConfig string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
@@ -111,12 +112,13 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 				for _, sub := range matcher.Subscriptions {
 					for _, group := range matcher.ResourceGroups {
 						fetcher, err := makeFetcher(azureFetcherConfig{
-							AzureClients:  clients,
-							Type:          matcherType,
-							Subscription:  sub,
-							ResourceGroup: group,
-							Labels:        matcher.ResourceTags,
-							Regions:       matcher.Regions,
+							AzureClients:    clients,
+							Type:            matcherType,
+							Subscription:    sub,
+							ResourceGroup:   group,
+							Labels:          matcher.ResourceTags,
+							Regions:         matcher.Regions,
+							DiscoveryConfig: discoveryConfig,
 						})
 						if err != nil {
 							return nil, trace.Wrap(err)
