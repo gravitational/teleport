@@ -97,10 +97,15 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
-	if !s.ldapReady() {
-		s.cfg.Logger.WarnContext(context.Background(), "skipping desktop discovery: LDAP not yet initialized")
+	// Check whether we've ever successfully initialized our LDAP client.
+	s.mu.Lock()
+	if !s.ldapInitialized {
+		s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, skipping discovery and attempting to reconnect")
+		s.mu.Unlock()
+		s.initializeLDAP()
 		return nil
 	}
+	s.mu.Unlock()
 
 	filter := s.ldapSearchFilter()
 	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
@@ -248,7 +253,11 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
-func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.WindowsDesktop, error) {
+func (s *WindowsService) ldapEntryToWindowsDesktop(
+	ctx context.Context,
+	entry *ldap.Entry,
+	getHostLabels func(string) map[string]string,
+) (types.WindowsDesktop, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
 		attrs := make([]string, len(entry.Attributes))
