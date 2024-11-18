@@ -3,10 +3,11 @@ package azure_sync
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type testRoleDefCli struct {

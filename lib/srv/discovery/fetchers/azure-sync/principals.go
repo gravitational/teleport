@@ -2,11 +2,13 @@ package azure_sync
 
 import (
 	"context"
+	"slices"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"slices"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
 const groupType = "#microsoft.graph.group"

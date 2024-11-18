@@ -19,13 +19,14 @@
 package aws_sync
 
 import (
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestMergeResources(t *testing.T) {

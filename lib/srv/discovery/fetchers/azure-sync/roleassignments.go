@@ -21,9 +21,11 @@ package azure_sync
 import (
 	"context"
 	"fmt"
-	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
 func (a *Fetcher) fetchRoleAssignments(ctx context.Context) ([]*accessgraphv1alpha.AzureRoleAssignment, error) {

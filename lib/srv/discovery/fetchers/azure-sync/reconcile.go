@@ -20,9 +20,11 @@ package azure_sync
 
 import (
 	"fmt"
+
+	"google.golang.org/protobuf/proto"
+
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"google.golang.org/protobuf/proto"
 )
 
 func MergeResources(results ...*Resources) *Resources {

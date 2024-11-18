@@ -3,6 +3,14 @@ package discovery
 import (
 	"context"
 	"errors"
+	"io"
+	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -10,12 +18,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
-	"io"
-	"sync"
-	"time"
 )
 
 func (s *Server) reconcileAccessGraphAzure(
