@@ -96,36 +96,18 @@ type Watcher struct {
 	ctx context.Context
 	// resourcesC is a channel where fetched resourcess are sent.
 	resourcesC chan (types.ResourcesWithLabels)
-	// preFetchHookFn is called before starting a new poll.
-	preFetchHookFn func()
-}
-
-// Option is a functional option for the Watcher.
-type Option func(*Watcher)
-
-// WithPreFetchHookFn sets a function that gets called before each new iteration.
-func WithPreFetchHookFn(f func()) Option {
-	return func(w *Watcher) {
-		w.preFetchHookFn = f
-	}
 }
 
 // NewWatcher returns a new instance of a common discovery watcher.
-func NewWatcher(ctx context.Context, config WatcherConfig, options ...Option) (*Watcher, error) {
+func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	watcher := &Watcher{
-		cfg:            config,
-		ctx:            ctx,
-		resourcesC:     make(chan types.ResourcesWithLabels),
-		preFetchHookFn: func() {},
+		cfg:        config,
+		ctx:        ctx,
+		resourcesC: make(chan types.ResourcesWithLabels),
 	}
-
-	for _, opt := range options {
-		opt(watcher)
-	}
-
 	return watcher, nil
 }
 
@@ -159,8 +141,6 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
-	w.preFetchHookFn()
-
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
 		fetchersLock        sync.Mutex
