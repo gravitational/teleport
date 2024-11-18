@@ -1411,6 +1411,11 @@ message ProvisionTokenSpecV2GitHub {
   // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
   // for more information about customized issuer values.
   string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
+  // StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitHub Actions in GHES instances that are not reachable by the
+  // Teleport Auth Service.
+  string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
