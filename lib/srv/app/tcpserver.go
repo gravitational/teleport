@@ -55,14 +55,19 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	dialer := net.Dialer{
 		Timeout: apidefaults.DefaultIOTimeout,
 	}
+	targetPort := int(identity.RouteToApp.TargetPort)
 
 	var dialTarget string
 	switch {
 	// Regular TCP app with port in URI in app spec.
 	case len(app.GetTCPPorts()) < 1:
+		if err := ensureZeroTargetPortOrEqualToPortFromURI(addr, targetPort); err != nil {
+			return trace.Wrap(err, "comparing target port against port from URI of app %q", app.GetName())
+		}
+
 		dialTarget = addr.String()
 	// Multi-port TCP app but target port was not provided.
-	case identity.RouteToApp.TargetPort == 0:
+	case targetPort == 0:
 		// If the client didn't supply a target port, use the first port found in TCP ports. This is to
 		// provide backwards compatibility.
 		//
@@ -73,7 +78,6 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		dialTarget = net.JoinHostPort(addr.Host(), strconv.Itoa(firstPort))
 	// Multi-port TCP app with target port specified in cert.
 	default:
-		targetPort := int(identity.RouteToApp.TargetPort)
 		isTargetPortInTCPPorts := slices.ContainsFunc(app.GetTCPPorts(), func(portRange *apitypes.PortRange) bool {
 			return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
 		})
@@ -113,5 +117,28 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// ensureZeroTargetPortOrEqualToPortFromURI handles an esoteric edge case where a connection to a
+// single-port TCP app was made with a cert that includes TargetPort meant for multi-port apps.
+//
+// This can happen when the cert was generated before the app spec was changed in a way that
+// transitioned the app from multi-port to single-port. It can also happen due to a programmer error
+// where TargetPort is provided despite the app being single-port.
+func ensureZeroTargetPortOrEqualToPortFromURI(addr *utils.NetAddr, targetPort int) error {
+	if targetPort == 0 {
+		return nil
+	}
+
+	addrPort := addr.Port(0)
+	if addrPort == 0 {
+		return trace.Errorf("missing or invalid port number in URI %q", addr.String())
+	}
+
+	if targetPort != addrPort {
+		return trace.BadParameter("target port is not equal to port number from URI (%d vs %d)", targetPort, addrPort)
+	}
+
 	return nil
 }
