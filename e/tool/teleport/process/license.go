@@ -30,22 +30,24 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 		return nil, nil
 	}
 
+	log := cfg.Logger.With("license_file", cfg.Auth.LicenseFile)
+
 	ctx := context.Background()
 	licenseFile, err := licensefile.NewLicenseFile(cfg.Auth.LicenseFile)
 	if err != nil {
-		cfg.Logger.DebugContext(ctx, "Failed to load license.", "error", err, "license_file", cfg.Auth.LicenseFile)
-		return nil, trace.AccessDenied("auth server requires a valid license file to start, "+
-			"please set the correct license_file path under auth_service section "+
-			"in your teleport config or put the license into the default search "+
-			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
+		log.DebugContext(ctx, "Failed to load license.", "error", err)
+		return nil, trace.AccessDenied("Failed to load license file from %v: %v. "+
+			"Please set the correct license_file path under the auth_service section in your config, "+
+			"or put the license into the default search location at %v.",
+			cfg.Auth.LicenseFile, err, filepath.Join(cfg.DataDir, defaults.LicenseFile))
 	}
 
 	if isLicenseDeprecated(licenseFile) {
-		cfg.Logger.DebugContext(ctx, "tried to start auth server with a deprecated license", "license_file", cfg.Auth.LicenseFile)
+		log.DebugContext(ctx, "tried to start auth server with a deprecated license")
 		return nil, trace.AccessDenied(DeprecatedLicenseWarning)
 	}
 
-	cfg.Logger.InfoContext(ctx, "Successfully loaded license.", "license_file", cfg.Auth.LicenseFile, "license", licenseFile.License)
+	log.InfoContext(ctx, "Successfully loaded license.", "license", licenseFile.License)
 	return licenseFile, nil
 }
 

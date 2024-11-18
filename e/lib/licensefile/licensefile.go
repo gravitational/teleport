@@ -62,7 +62,7 @@ func NewLicenseFile(filePath string) (*LicenseFile, error) {
 
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to read license file: %v", filePath)
+		return nil, trace.Wrap(err, "unable to read license file")
 	}
 
 	licenseFile, err := FromPEM(bytes)
