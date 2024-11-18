@@ -322,7 +322,7 @@ export const ConnectMyComputerContextProvider: FC<
       }
 
       if (hasNodeRemovalSucceeded) {
-        requestResourcesRefresh();
+        requestResourcesRefresh(rootClusterUri);
       }
 
       ctx.notificationsService.notifyInfo(

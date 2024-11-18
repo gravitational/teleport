@@ -279,10 +279,10 @@ function AgentSetup() {
           throw error;
         }
 
-        // Now that the node has joined the server, let's refresh all open DocumentCluster instances
-        // to show the new node.
-        requestResourcesRefresh();
-      }, [startAgent, requestResourcesRefresh])
+        // Now that the node has joined the server, let's refresh open DocumentCluster
+        // instances in the workspace to show the new node.
+        requestResourcesRefresh(rootClusterUri);
+      }, [startAgent, requestResourcesRefresh, rootClusterUri])
     );
 
   const steps: SetupStep[] = [
