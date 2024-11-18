@@ -114,7 +114,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
