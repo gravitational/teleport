@@ -25,7 +25,7 @@ Today, Teleport Workload Identity is configured via a combination of mechanisms:
 Roles, Join Tokens, Bots and the `tbot` configuration itself. This worked fine
 for the initial proof of concept where operation at scale was not a primary
 concern, however, it has become apparent that without change, this will not
-scale.
+scale nicely.
 
 Let's consider this within the context of a common use-case.
 
@@ -65,7 +65,7 @@ When issuing a workload an identity, there's a number of pieces of metadata that
 can be used in that decision, and could potentially included in the resulting
 identity document:
 
-- Join Metadata
+- Join Metadata (Node Attestation)
   - When a bot authenticates/joins via the Teleport Auth Service, rich metadata
     about the delegated identity is attested to the Auth Service. For example,
     when joining with the GitLab join method, the Auth Service can determine the
@@ -79,6 +79,11 @@ identity document:
     has not been tampered by a malicious `tbot`. This should be considered
     when designing SPIFFE IDs, with information that can be attested from the 
     Join itself coming before information from the workload attestation.
+  - In some environments, this is likely to be uninformative. For example, with
+    a CI/CD run in GitLab, the Join Metadata containing information such as the
+    repository or workflow is more interesting for the purposes of templating a
+    SPIFFE ID than the UID or PID of the workload that has connected to tbot
+    within the workflow execution.
 - Bot Metadata
   - This is a looser category, but consider traits, labels and name of the Bot
     requesting the generation of the identity. This information doesn't come 
@@ -99,6 +104,56 @@ Today:
 - Effectively, a combination of local and central configuration controls what
   SVIDs are issued by `tbot`.
 
-## How
+## UX
+
+### Future: Ability to further customize SVIDs
+
+In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
+resource to specify more than just the SPIFFE ID of the generated identity
+document.
+
+This ability serves many purposes:
+
+- Allow the encoding of additional information that is not considered for 
+  authorization but may be useful to be included in workload audit logs.
+- Allow the encoding of additional information that is only rarely used for
+  authorization - or - does not fit well into the structure of a SPIFFE ID for
+  other reasons.
+
+For JWT SVIDs, this would be the configuration of additional claims. For X509
+SVIDs, this would be the additional SANs or customisation of the Subject
+Distinguished Name.
+
+Example configuration:
+
+```yaml
+
+```
+
+## Technical Design
+
+### Encoding Join Metadata into Certificates
+
+## Alternatives
+
+### Role Templating and `tbot` SPIFFE ID templating
+
+One alternative to introducing a new resource is to introduce support for role
+templating of the SPIFFE fields.
+
+This would still require work to propagate the join metadata into the
+certificate as trait-like things for the purposes of RBAC evaluation.
+
+We'd also need to implement similar templating into the `tbot` configuration
+itself, we could likely reuse much of the same functionality here.
+
+This alternative would be slightly simpler to implement, but I think delivers
+worse UX for a few reasons:
+
+1. TBot configuration still remains important in the SVID issuance process,
+  meaning you still need to manage configuration for a large fleet of `tbot`
+  instances.
+2. The configuration is split between Teleport resources and the `tbot` 
+  configuration. If these drift, SVIDs will fail to be issued.
 
 ## Security Considerations
