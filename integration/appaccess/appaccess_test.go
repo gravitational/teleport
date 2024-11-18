@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -677,6 +678,10 @@ func TestTCP(t *testing.T) {
 	evilUser, _ := pack.CreateUser(t)
 	sessionUsername := pack.tc.Username
 
+	rootTCPAppAddr, err := utils.ParseAddr(pack.rootTCPAppURI)
+	require.NoError(t, err)
+	rootTCPAppPort := rootTCPAppAddr.Port(0)
+
 	tests := []struct {
 		description string
 		// tlsConfigParams carries information needed to create TLS config for a local proxy.
@@ -720,6 +725,28 @@ func TestTCP(t *testing.T) {
 				clusterName: pack.leafAppClusterName,
 			},
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
+		},
+		// The following two situation can happen when a multi-port app is updated to be a singe-port
+		// app but after the user already generated a cert for the multi-port variant.
+		{
+			description: "TCP app, target port matches port in URI",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPPublicAddr,
+				clusterName: pack.rootAppClusterName,
+				targetPort:  uint16(rootTCPAppPort),
+			},
+			outMessage: pack.rootTCPMessage,
+		},
+		{
+			description: "TCP app, target port does not match port in URI",
+			tlsConfigParams: tlsConfigParams{
+				username:    sessionUsername,
+				publicAddr:  pack.rootTCPPublicAddr,
+				clusterName: pack.rootAppClusterName,
+				targetPort:  uint16(rootTCPAppPort - 1),
+			},
+			wantReadErr: io.EOF,
 		},
 		{
 			description: "multi-port TCP app in root cluster",
