@@ -788,13 +788,5 @@ func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
 			return true, nil
 		}
 	}
-	linkData, err := readFileN(filepath.Join(li.LinkServiceDir, serviceName), maxServiceFileSize)
-	if err != nil {
-		return false, nil
-	}
-	versionData, err := readFileN(filepath.Join(versionDir, serviceDir, serviceName), maxServiceFileSize)
-	if err != nil {
-		return false, nil
-	}
-	return bytes.Equal(linkData, versionData), nil
+	return false, nil
 }

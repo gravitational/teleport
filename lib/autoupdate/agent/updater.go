@@ -182,7 +182,9 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 				"setup")
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout
-			return cmd.Run()
+			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
+			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
+			return trace.Wrap(cmd.Run())
 		},
 	}, nil
 }
@@ -363,6 +365,8 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		return trace.Errorf("agent version not available from Teleport cluster")
 	}
 
+	u.Log.InfoContext(ctx, "Initiating initial update.", targetVersionKey, targetVersion, activeVersionKey, cfg.Status.ActiveVersion)
+
 	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
 		return trace.Wrap(err)
 	}
@@ -513,6 +517,12 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	if err != nil {
 		return trace.Errorf("failed to install: %w", err)
 	}
+
+	// TODO(slevine): if the target version has fewer binaries, this will
+	//  leave old binaries linked. This may prevent the installation from
+	//  being removed. To fix this, we should look for orphaned binaries
+	//  and remove them.
+
 	revert, err := u.Installer.Link(ctx, targetVersion)
 	if err != nil {
 		return trace.Errorf("failed to link: %w", err)
@@ -533,10 +543,12 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 
 	// Sync process configuration after linking.
 
-	if err := u.Process.Sync(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return trace.Errorf("sync canceled")
-		}
+	err = u.Process.Sync(ctx)
+	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Not syncing systemd configuration because systemd is not running.")
+	} else if errors.Is(err, context.Canceled) {
+		return trace.Errorf("sync canceled")
+	} else if err != nil {
 		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
 		if ok := revert(ctx); !ok {
@@ -554,10 +566,14 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 
 	if cfg.Status.ActiveVersion != targetVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", targetVersionKey, targetVersion)
-		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-			if errors.Is(err, context.Canceled) {
-				return trace.Errorf("reload canceled")
-			}
+		err := u.Process.Reload(ctx)
+		if errors.Is(err, context.Canceled) {
+			return trace.Errorf("reload canceled")
+		}
+		if err != nil &&
+			!errors.Is(err, ErrNotNeeded) && // no output if restart not needed
+			!errors.Is(err, ErrNotSupported) { // already logged above for Sync
+
 			// If reloading Teleport at the new version fails, revert, resync, and reload.
 			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 			if ok := revert(ctx); !ok {
@@ -645,7 +661,11 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Group != "" {
 		spec.Group = override.Group
 	}
-	if override.URLTemplate != "" {
+	switch override.URLTemplate {
+	case "":
+	case "default":
+		spec.URLTemplate = ""
+	default:
 		spec.URLTemplate = override.URLTemplate
 	}
 	if spec.URLTemplate != "" &&

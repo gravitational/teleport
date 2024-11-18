@@ -20,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -64,7 +65,12 @@ func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error
 		ServiceName: "teleport-update.timer",
 		Log:         log,
 	}
-	if err := svc.Sync(ctx); err != nil {
+	err = svc.Sync(ctx)
+	if errors.Is(err, ErrNotSupported) {
+		log.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
+		return nil
+	}
+	if err != nil {
 		return trace.Errorf("failed to sync systemd config: %w", err)
 	}
 	if err := svc.Enable(ctx, true); err != nil {

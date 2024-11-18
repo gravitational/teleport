@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -52,6 +53,8 @@ type SystemdService struct {
 	ServiceName string
 	// LastRestartPath is a path to a file containing the last restart time.
 	LastRestartPath string
+	// PIDPath is a path to a file containing the service's PID.
+	PIDPath string
 	// Log contains a logger.
 	Log *slog.Logger
 }
@@ -65,9 +68,6 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// If getRestartTime fails consistently, error will be returned from monitor.
-	initRestartTime, _ := s.getRestartTime()
 
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
@@ -83,6 +83,19 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
 		return trace.Wrap(ErrNotNeeded)
 	}
+
+	// Get initial restart time and initial PID.
+
+	// If getRestartTime fails consistently, error will be returned from monitor.
+	initRestartTime, err := readInt64(s.LastRestartPath)
+	if err != nil {
+		s.Log.DebugContext(ctx, "Initial restart time not present.", unitKey, s.ServiceName)
+	}
+	initPID, err := readInt(s.PIDPath)
+	if err != nil {
+		s.Log.DebugContext(ctx, "Initial PID not present.", unitKey, s.ServiceName)
+	}
+
 	// Attempt graceful reload of running service.
 	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
 	switch {
@@ -97,9 +110,83 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
 	default:
 		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
+		if err := s.verifyPID(ctx, initPID); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.", unitKey, s.ServiceName)
 	return trace.Wrap(s.monitor(ctx, initRestartTime))
+}
+
+func (s SystemdService) verifyPID(ctx context.Context, initPID int64) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	tickC := time.NewTicker(restartMonitorInterval).C
+
+	pidC := make(chan int64)
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		return tickFile(ctx, s.PIDPath, pidC, tickC, initPID)
+	})
+	err := s.waitForStablePID(ctx, initPID, tickC)
+	cancel()
+	if err := g.Wait(); err != nil {
+		s.Log.WarnContext(ctx, "Unable to determine PID. Cannot failed reload.", unitKey, s.ServiceName)
+		s.Log.DebugContext(ctx, "Error monitoring for crashing fork.", errorKey, err, unitKey, s.ServiceName)
+	}
+	return trace.Wrap(err)
+}
+
+func (s SystemdService) waitForStablePID(ctx context.Context, baseline int, pidC <-chan int64) error {
+	var warnPID int
+	var pid int
+	for n, last := 0, 0; n < 3; n++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case p := <-pidC:
+			last = pid
+			pid = int(p)
+		}
+		if pid != last ||
+			pid == baseline ||
+			pid == warnPID {
+			n = 0
+			continue
+		}
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = process.Signal(syscall.Signal(0))
+		if errors.Is(err, syscall.ESRCH) {
+			if pid != warnPID &&
+				pid != baseline {
+				s.Log.WarnContext(ctx, "Detecting crashing fork.", unitKey, s.ServiceName, "pid", pid)
+				warnPID = pid
+			}
+			n = 0
+			continue
+		}
+	}
+	return nil
+}
+
+func readInt64(path string) (int64, error) {
+	p, err := readFileN(path, 32)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	i, err := strconv.ParseInt(string(bytes.TrimSpace(p)), 10, 64)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return i, nil
+}
+
+func readInt(path string) (int, error) {
+	i, err := readInt64(path)
+	return int(i), trace.Wrap(err)
 }
 
 // monitor for excessive restarts by polling the LastRestartPath file.
@@ -115,7 +202,7 @@ func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) erro
 	restartC := make(chan int64)
 	g := &errgroup.Group{}
 	g.Go(func() error {
-		return s.tickRestarts(ctx, restartC, tickC, initRestartTime)
+		return tickFile(ctx, s.LastRestartPath, restartC, tickC, initRestartTime)
 	})
 	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeStable)
 	cancel()
@@ -150,7 +237,6 @@ func (s SystemdService) monitorRestarts(ctx context.Context, timeCh <-chan int64
 				restartTime = t
 				diff++
 			}
-
 		}
 		switch {
 		case diff > maxRestarts+1:
@@ -181,7 +267,7 @@ func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC
 			return err
 		}
 		var t int64
-		t, err = s.getRestartTime()
+		t, err = readInt64(s.LastRestartPath)
 		select {
 		case ch <- t:
 		case <-ctx.Done():
@@ -190,17 +276,29 @@ func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC
 	}
 }
 
-// getRestartTime returns the last restart time from the file at LastRestartPath.
-func (s SystemdService) getRestartTime() (int64, error) {
-	b, err := os.ReadFile(s.LastRestartPath)
-	if err != nil {
-		return 0, trace.Wrap(err)
+func tickFile(ctx context.Context, path string, ch chan<- int64, tickC <-chan time.Time, baseline int64) error {
+	t := baseline
+	var err error
+	select {
+	case ch <- t:
+	case <-ctx.Done():
+		return err
 	}
-	restart, err := strconv.ParseInt(string(bytes.TrimSpace(b)), 10, 64)
-	if err != nil {
-		return 0, trace.Wrap(err)
+	for {
+		// two select statements -> never skip reads
+		select {
+		case <-tickC:
+		case <-ctx.Done():
+			return err
+		}
+		var t int64
+		t, err = readInt64(path)
+		select {
+		case ch <- t:
+		case <-ctx.Done():
+			return err
+		}
 	}
-	return restart, nil
 }
 
 // Sync systemd service configuration by running systemctl daemon-reload.

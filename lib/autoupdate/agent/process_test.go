@@ -75,7 +75,7 @@ func msgOnly(_ []string, a slog.Attr) slog.Attr {
 	return slog.Attr{Key: a.Key, Value: a.Value}
 }
 
-func TestRestartMonitor(t *testing.T) {
+func TestWaitForStablePID(t *testing.T) {
 	t.Parallel()
 
 	svc := &SystemdService{
@@ -174,7 +174,106 @@ func TestRestartMonitor(t *testing.T) {
 	}
 }
 
-func TestRestartTicks(t *testing.T) {
+func TestMonitorRestarts(t *testing.T) {
+	t.Parallel()
+
+	svc := &SystemdService{
+		Log: slog.Default(),
+	}
+
+	for _, tt := range []struct {
+		name        string
+		ticks       []int64
+		maxRestarts int
+		minClean    int
+		errored     bool
+		canceled    bool
+	}{
+		{
+			name:        "no restarts",
+			ticks:       []int64{1, 1, 1, 1},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
+		},
+		{
+			name:        "one restart then stable",
+			ticks:       []int64{1, 1, 1, 2, 2, 2, 2},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
+		},
+		{
+			name:        "two restarts then stable",
+			ticks:       []int64{1, 2, 3, 3, 3, 3},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
+		},
+		{
+			name:        "too many restarts (slow)",
+			ticks:       []int64{1, 1, 1, 2, 2, 2, 3, 3, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
+		},
+		{
+			name:        "too many restarts (fast)",
+			ticks:       []int64{1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
+		},
+		{
+			name:        "too many restarts after stable",
+			ticks:       []int64{1, 1, 1, 1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     false,
+		},
+		{
+			name:        "too many restarts before okay",
+			ticks:       []int64{1, 2, 3, 4, 3, 3, 3},
+			maxRestarts: 2,
+			minClean:    3,
+			errored:     true,
+		},
+		{
+			name:        "no error if no minClean",
+			ticks:       []int64{1, 2, 3, 4},
+			maxRestarts: 2,
+			minClean:    0,
+			errored:     false,
+		},
+		{
+			name:        "cancel",
+			ticks:       []int64{1, 1, 1},
+			maxRestarts: 2,
+			minClean:    3,
+			canceled:    true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			ch := make(chan int64)
+			go func() {
+				defer cancel() // always quit after last tick
+				for _, tick := range tt.ticks {
+					ch <- tick
+				}
+			}()
+			err := svc.monitorRestarts(ctx, ch, tt.maxRestarts, tt.minClean)
+			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
+			if !tt.canceled {
+				require.Equal(t, tt.errored, err != nil)
+			}
+		})
+	}
+}
+
+func TestTickRestarts(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
