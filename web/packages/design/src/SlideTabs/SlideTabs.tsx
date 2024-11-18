@@ -175,7 +175,7 @@ type TabSpec =
   | string
   | {
       /** ID of the tab, unique in scope of this component. */
-      id?: string;
+      id: string;
       /** Name displayed on the tab. */
       content: ReactNode;
       /**
