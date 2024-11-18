@@ -328,11 +328,15 @@ const Resources = memo(
 
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
-      const { cleanup } = onResourcesRefreshRequest(() => {
-        fetch({ clear: true });
+      const { cleanup } = onResourcesRefreshRequest(rootClusterUri => {
+        // Refresh root and leaf cluster documents.
+        if (!uri.routing.belongsToProfile(rootClusterUri, props.clusterUri)) {
+          return;
+        }
+        void fetch({ clear: true });
       });
       return cleanup;
-    }, [onResourcesRefreshRequest, fetch]);
+    }, [onResourcesRefreshRequest, fetch, props.clusterUri]);
 
     const { getAccessRequestButton } = props;
     // The action callback in the requestAccess action has access to
