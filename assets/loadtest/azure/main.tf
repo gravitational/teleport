@@ -52,7 +52,7 @@ provider "kubectl" {
 }
 
 provider "azurerm" {
-  subscription_id = vars.subscription_id
+  subscription_id = var.subscription_id
   features {}
 }
 
