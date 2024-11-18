@@ -106,6 +106,88 @@ Today:
 
 ## UX
 
+To give the example of our GitLab use-case, all workflows can now share a single
+Bot, Role and Join Token - and they will automatically issue the correct 
+SPIFFE ID in-line with the centralized policy.
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+spec:
+  spiffe:
+    # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
+    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
+---
+kind: role
+metadata:
+  name: gitlab-workload-id
+spec:
+  allow:
+    workload_identities:
+    - gitlab
+---
+kind: bot
+metadata:
+  name: gitlab-workload-id
+spec:
+  roles:
+  - gitlab-workload-id
+---
+kind: token
+version: v2
+metadata:
+  name: gitlab-workload-id
+spec:
+  roles: [Bot]
+  join_method: gitlab
+  bot_name: gitlab-workload-id
+  gitlab:
+    domain: gitlab.example.com
+    # Allow rules are intentionally very permissive as we'd like to allow any
+    # CI run to request a WorkloadIdentity using the template.
+    allow:
+    - namespace_path: my-org
+```
+
+The profile can then explicitly be specified inside of the `tbot` configuration:
+
+```yaml
+services:
+- type: spiffe-workload-api
+  listen: unix:///opt/machine-id/workload.sock
+  profiles:
+  - gitlab
+```
+
+Implicitly, the use of any `join.gitlab.` attribute within the `spec.spiffe.id`
+field will enforce that the bot using the profile has joined via the `gitlab`
+join method.
+
+### Explicit Inline Authorization Rules
+
+This UX is further extended by the ability to configure explicit authorization
+rules in-line as part of the WorkloadIdentity. This enables the issuance of a 
+SPIFFE ID to further be restricted:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+spec:
+  rules:
+  - join.gitlab.environment: "production"
+    bot.labels.my-label: "bar"
+    workload.unix.gid: "1"
+  spiffe:
+    # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
+    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
+```
+
+### Label Selectors
+
 ### Future: Ability to further customize SVIDs
 
 In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
@@ -127,14 +209,26 @@ Distinguished Name.
 Example configuration:
 
 ```yaml
-
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+spec:
+  spiffe:
+    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
+    jwt:
+      extra_claims:
+        "ref_path": {{ join.gitlab.ref_path }}
 ```
+
+TODO: What about an option to map all attestation values into a claim - rather
+than requiring it to be attribute by attribute?
 
 ## Technical Design
 
 ### Encoding Join Metadata into Certificates
 
-## Alternatives
+## Alternatives
 
 ### Role Templating and `tbot` SPIFFE ID templating
 
@@ -147,13 +241,20 @@ certificate as trait-like things for the purposes of RBAC evaluation.
 We'd also need to implement similar templating into the `tbot` configuration
 itself, we could likely reuse much of the same functionality here.
 
-This alternative would be slightly simpler to implement, but I think delivers
-worse UX for a few reasons:
+Positives:
+
+1. "Simpler" to implement (but not significantly so)
+2. Keeps configuration within an existing Teleport primitive (roles) rather than
+  further spreading it out into a new resource.
+
+Negatives:
 
 1. TBot configuration still remains important in the SVID issuance process,
   meaning you still need to manage configuration for a large fleet of `tbot`
   instances.
 2. The configuration is split between Teleport resources and the `tbot` 
   configuration. If these drift, SVIDs will fail to be issued.
+3. Teleport Roles are already pretty complex, and this is introducing further
+  complexity.
 
 ## Security Considerations
