@@ -1,10 +1,142 @@
 # Changelog
 
-## 17.0.0 (11/xx/2024)
+## 17.0.1 (11/15/2024)
 
-### ** Not yet released **
+Teleport 17 brings the following new features and improvements:
 
-* Refreshed the Web UI and Teleport Connect UI design [#46812](https://github.com/gravitational/teleport/pull/46812)
+- Refreshed web UI
+- Modern signature algorithms
+- (Preview) AWS IAM Identity Center integration
+- Hardware key support for Teleport Connect
+- Nested access lists
+- Access lists UI/UX improvements
+- Signed and notarized macOS assets
+- Datadog Incident Management plugin for access requests
+- Hosted Microsoft Teams plugin for access requests
+- Dynamic registration for Windows desktops
+- Support for images in web SSH sessions
+- `tbot` CLI updates
+
+### Description
+
+#### Refreshed Web UI
+
+We have updated and improved designs and added a new navigation menu to Teleport
+17’s web UI to enhance its usability and scalability.
+
+#### Modern signature algorithms
+
+Teleport 17 admins have the option to use elliptic curve cryptography for the
+majority of user, host, and certificate authority key material.
+
+This includes Ed25519 SSH keys and ECDSA TLS keys, replacing the RSA keys used
+today.
+
+New clusters will leverage modern signature algorithms by default. Existing
+Teleport clusters will continue to use RSA2048 until a CA rotation is performed.
+
+#### (Preview) AWS IAM Identity Center integration
+
+Teleport 17 integrates with AWS IAM Identity Center to allow users to sync and
+manage AWS IC group members via Access Lists.
+
+#### Hardware key support for Teleport Connect
+
+We have extended Teleport 17’s support for hardware-backed private keys to
+Teleport Connect.
+
+#### Nested access lists
+
+Teleport 17 admins and access list owners can add access lists as members in
+other access lists.
+
+#### Access lists UI/UX improvements
+
+Teleport 17 web UI has an updated access lists page that will include the new
+table view, improved search and filtering capabilities.
+
+#### Signed and notarized macOS assets
+
+Starting from Teleport 17 macOS `teleport.pkg` installer includes signed and
+notarized `tsh.app` and `tctl.app` so downloading a separate tsh.pkg to use
+Touch ID is no longer necessary.
+
+In addition, Teleport 17 event handler and Terraform provider for macOS are also
+signed and notarized.
+
+#### Datadog Incident Management plugin for access requests
+
+Teleport 17 supports PagerDuty-like integration with Datadog's [on-call](https://docs.datadoghq.com/service_management/on-call/)
+and [incident management](https://docs.datadoghq.com/service_management/incident_management/)
+APIs for access request notifications.
+
+#### Hosted Microsoft Teams plugin for access requests
+
+Teleport 17 adds support for Microsoft Teams integration for access request
+notifications using Teleport web UI without needing to self-host the plugin.
+
+#### Dynamic registration for Windows desktops
+
+Dynamic registration allows Teleport administrators to register new Windows
+desktops without having to update the static configuration files read by
+Teleport Windows Desktop Service instances.
+
+#### Support for images in web SSH sessions
+
+The SSH console in Teleport’s web UI includes support for rendering images via
+both the SIXEL and iTerm Inline Image Protocol (IIP).
+
+#### tbot CLI updates
+
+The `tbot` client now supports starting most outputs and services directly from
+the command line with no need for a configuration file using the new
+`tbot start <mode>` family of commands. If desired, a given command can be
+converted to a YAML configuration file with `tbot configure <mode>`.
+
+Additionally, `tctl` now supports inspection and management of bot instances using
+the `tctl bots instances` family of commands. This allows onboarding of new
+instances for existing bots with `tctl bots instances add`, and inspection of
+existing instances with `tctl bots instances list`.
+
+### Breaking changes and deprecations
+
+#### macOS assets
+
+Starting with version 17, Teleport no longer provides a separate `tsh.pkg` macOS
+package.
+
+Instead, `teleport.pkg` and all macOS tarballs include signed and notarized
+`tsh.app` and `tctl.app`.
+
+#### Enforced stricter requirements for SSH hostnames
+
+Hostnames are only allowed if they are less than 257 characters and consist of
+only alphanumeric characters and the symbols `.` and `-`.
+
+Any hostname that violates the new restrictions will be changed, the original
+hostname will be moved to the `teleport.internal/invalid-hostname` label for
+discoverability.
+
+Any Teleport agents with an invalid hostname will be replaced with the host UUID.
+Any Agentless OpenSSH Servers with an invalid hostname will be replaced with
+the host of the address, if it is valid, or a randomly generated identifier.
+Any hosts with invalid hostnames should be updated to comply with the new
+requirements to avoid Teleport renaming them.
+
+#### `TELEPORT_ALLOW_NO_SECOND_FACTOR` removed
+
+As of Teleport 16, multi-factor authentication is required for local users. To
+assist with upgrades, Teleport 16 included a temporary opt-out mechanism via the
+`TELEPORT_ALLOW_NO_SECOND_FACTOR` environment variable. This opt-out mechanism
+has been removed.
+
+#### TOTP for per-session MFA
+
+Teleport 17 is the last release where `tsh` will allow for using TOTP with
+per-session MFA. Starting with Teleport 18, `tsh` will require a strong webauthn
+credential for per-session MFA.
+
+TOTP will continue to be accepted for the initial login.
 
 ## 16.4.6 (10/22/2024)
 

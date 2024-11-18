@@ -442,6 +442,127 @@ loop:
 	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
+// TestSessionAuditLog tests that the expected audit events are emitted for a
+// session with various subsystems involved.
+//
+// Note: This is a regression test for a bug which resulted in extra, empty session.data
+// events for networking requests.
+// See https://github.com/gravitational/teleport/issues/48728.
+func TestSessionAuditLog(t *testing.T) {
+	ctx := context.Background()
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
+	// Enable x11 forwarding
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	// Allow x11, agent, and port forwarding for the user.
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	roleOptions.ForwardAgent = types.NewBool(true)
+	roleOptions.PortForwarding = types.NewBoolOption(true)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	nextEvent := func() apievents.AuditEvent {
+		select {
+		case event := <-emitter.C():
+			return event
+		case <-time.After(time.Second):
+			require.Fail(t, "timed out waiting for event")
+		}
+		return nil
+	}
+
+	// Start a new session
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+
+	// start interactive SSH session (new shell):
+	err = se.Shell(ctx)
+	require.NoError(t, err)
+
+	e := nextEvent()
+	startEvent, ok := e.(*apievents.SessionStart)
+	require.True(t, ok, "expected SessionStart event but got event of type %T", e)
+	require.NotEmpty(t, startEvent.SessionID, "expected non empty sessionID")
+	sessionID := startEvent.SessionID
+
+	// Request agent forwarding, no individual event emitted.
+	err = agent.RequestAgentForwarding(se.Session)
+	require.NoError(t, err)
+
+	// Request x11 forwarding, event should be emitted immediately.
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	require.NoError(t, err)
+
+	x11Event := nextEvent()
+	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
+
+	// Request a remote port forwarding listener. The event is logged at the end of the session.
+	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	// Start up a test server that uses the port forwarded listener.
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(ts.Close)
+	ts.Listener = listener
+	ts.Start()
+
+	// Request forward to remote port. Each dial should result in a new event. Note that we don't
+	// know what port the server will forward the connection on, so we don't have an easy way to
+	// validate the event's addr field.
+	conn, err := f.ssh.clt.DialContext(context.Background(), "tcp", listener.Addr().String())
+	require.NoError(t, err)
+	conn.Close()
+
+	directPortForwardEvent := nextEvent()
+	require.IsType(t, &apievents.PortForward{}, directPortForwardEvent, "expected PortForward event but got event of type %T", directPortForwardEvent)
+
+	// End the session. Session leave, data, and end events should be emitted, along with the remote
+	// port forwarding event.
+	se.Close()
+
+	e = nextEvent()
+	leaveEvent, ok := e.(*apievents.SessionLeave)
+	require.True(t, ok, "expected SessionLeave event but got event of type %T", e)
+	require.Equal(t, sessionID, leaveEvent.SessionID)
+
+	e = nextEvent()
+	dataEvent, ok := e.(*apievents.SessionData)
+	require.True(t, ok, "expected SessionData event but got event of type %T", e)
+	require.Equal(t, sessionID, dataEvent.SessionID)
+
+	e = nextEvent()
+	remotePortForwardEvent, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, listener.Addr().String(), remotePortForwardEvent.Addr)
+
+	e = nextEvent()
+	endEvent, ok := e.(*apievents.SessionEnd)
+	require.True(t, ok, "expected SessionEnd event but got event of type %T", e)
+	require.Equal(t, sessionID, endEvent.SessionID)
+}
+
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
