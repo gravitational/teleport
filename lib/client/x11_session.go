@@ -136,7 +136,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 		ns.x11RefuseTime = time.Now().Add(ns.nodeClient.TC.X11ForwardingTimeout)
 	}
 
-	slog.InfoContext(ctx, "creating an untrusted xauth cookie for untrusted X11 forwarding", "xauthFile", xauthFile.Name())
+	slog.InfoContext(ctx, "creating an untrusted xauth cookie for untrusted X11 forwarding", "xauth_file", xauthFile.Name())
 	cmd := x11.NewXAuthCommand(ctx, xauthFile.Name())
 	if err := cmd.GenerateUntrustedCookie(display, ns.nodeClient.TC.X11ForwardingTimeout); err != nil {
 		return trace.Wrap(err)
