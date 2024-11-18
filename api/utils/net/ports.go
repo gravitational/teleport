@@ -46,5 +46,5 @@ func IsPortInRange(port, endPort, targetPort int) bool {
 		return targetPort == port
 	}
 
-	return targetPort >= port && targetPort <= endPort
+	return port <= targetPort && targetPort <= endPort
 }
