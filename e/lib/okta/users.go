@@ -253,7 +253,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 			if newAssignment != nil {
 				neededTargets := newAssignment.GetTargets()
 				// Remove the targets that are being used in the new assignment.
-				// Let's say that user still have access to target A and B but old assigment has A, B, C, D.
+				// Let's say that user still have access to target A and B but old Assignment has A, B, C, D.
 				// In order to prevent the cleanup of A and B, we need to remove them from the old assignment.
 				if err := removedUsedTargetsFromOldAssignment(neededTargets, oldAssignment); err != nil {
 					return trace.Wrap(err, "removing used targets from old assignment %s", oldAssignment.GetName())

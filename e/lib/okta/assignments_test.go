@@ -49,7 +49,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	// Reconciler should be empty to start
 	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 
-	t.Run("finalized assigment should be deleted from backend", func(t *testing.T) {
+	t.Run("finalized assignment should be deleted from backend", func(t *testing.T) {
 		cleanedUpAssignment := assignment(t, "cleaned-up-assignment", testUser, clock.Now(), constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
 			target(types.OktaAssignmentTargetV1_APPLICATION, appName("cleanedUpApp1")),
 			target(types.OktaAssignmentTargetV1_GROUP, "cleanedUpGroup1"),
@@ -59,7 +59,7 @@ func TestAssignmentReconciler(t *testing.T) {
 
 		// 2 event expected:
 		// Assignment Creation
-		// Assigment Deletion
+		// Assignment Deletion
 		waitForResult(t, onReconcileCh, struct{}{}, 2)
 		assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 
@@ -119,11 +119,11 @@ func TestAssignmentReconciler(t *testing.T) {
 		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
 	})
 
-	assertAssigmentDoesntExist(t, ap, assignment1.GetName())
+	assertAssignmentDoesntExist(t, ap, assignment1.GetName())
 	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 }
 
-func assertAssigmentDoesntExist(t *testing.T, ap *testAccessPoint, name string) {
+func assertAssignmentDoesntExist(t *testing.T, ap *testAccessPoint, name string) {
 	_, err := ap.GetOktaAssignment(context.Background(), name)
 	require.True(t, trace.IsNotFound(err))
 }

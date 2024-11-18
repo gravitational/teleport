@@ -39,8 +39,8 @@ type AccountWithPermissionSetARNs struct {
 	PermissionSetARNs []string
 }
 
-// Assigment represents permission assignment (permission set + account).
-type Assigment struct {
+// Assignment represents permission assignment (permission set + account).
+type Assignment struct {
 	// AccountID is the ID of an assigned account.
 	AccountID string
 	// PermissionSetARN is an ARN value of the assigned permission set.
@@ -74,7 +74,7 @@ type GroupWithAssignment struct {
 	*Group
 	// Assignments is a list of account name and permission set
 	// assigned to a group.
-	Assignments []*Assigment
+	Assignments []*Assignment
 }
 
 // GroupWithMembers represents identity Center groups with
@@ -97,7 +97,7 @@ type UserWithAssignment struct {
 	*User
 	// Assignments is a list of account name and permission set
 	// assigned to a group.
-	Assignments []*Assigment
+	Assignments []*Assignment
 }
 
 // IdentityStoreID holds an AWS Identity Store ID

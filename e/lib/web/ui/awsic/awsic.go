@@ -106,9 +106,9 @@ type AccountAndPermAssignment struct {
 	PermissionSetARN string `json:"permissionSetARN"`
 }
 
-// AccountAndPermAssignments transforms icsdk Assigment to awsicui AccountAndPermAssignment
+// AccountAndPermAssignments transforms icsdk Assignment to awsicui AccountAndPermAssignment
 // with enriched account and permission set data.
-func AccountAndPermAssignments(in []*icsdk.Assigment, accountMap icsdk.AccountMap, permSetMap icsdk.PermissionSetMap) []*AccountAndPermAssignment {
+func AccountAndPermAssignments(in []*icsdk.Assignment, accountMap icsdk.AccountMap, permSetMap icsdk.PermissionSetMap) []*AccountAndPermAssignment {
 	out := make([]*AccountAndPermAssignment, 0, len(in))
 	for _, a := range in {
 		out = append(out, &AccountAndPermAssignment{
@@ -170,9 +170,9 @@ type GroupWithAccountAndPermAssignment struct {
 	Assignments []*AccountAndPermAssignment `json:"assignments"`
 }
 
-// GroupAccountAndPermAssigments transforms icsdk GroupWithAssignment to awsicui GroupWithAccountAndPermAssignment with enriched
+// GroupAccountAndPermAssignments transforms icsdk GroupWithAssignment to awsicui GroupWithAccountAndPermAssignment with enriched
 // account and permission set data.
-func GroupAccountAndPermAssigments(in []*icsdk.GroupWithAssignment, accountMap icsdk.AccountMap, permSetMap icsdk.PermissionSetMap) []*GroupWithAccountAndPermAssignment {
+func GroupAccountAndPermAssignments(in []*icsdk.GroupWithAssignment, accountMap icsdk.AccountMap, permSetMap icsdk.PermissionSetMap) []*GroupWithAccountAndPermAssignment {
 	out := make([]*GroupWithAccountAndPermAssignment, 0, len(in))
 	for _, g := range in {
 		out = append(out, &GroupWithAccountAndPermAssignment{

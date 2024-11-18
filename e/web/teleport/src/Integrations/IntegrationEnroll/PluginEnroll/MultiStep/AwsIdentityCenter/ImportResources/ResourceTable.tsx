@@ -134,7 +134,7 @@ export function PermissionSetsTable({
   );
 }
 
-export function GroupsWithAssigmentTable({
+export function GroupsWithAssignmentTable({
   userGroups,
   loading,
 }: {

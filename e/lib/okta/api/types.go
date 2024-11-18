@@ -19,7 +19,7 @@ type OktaUserID string
 type OktaGroupID string
 
 // AppAssignmentScope is the assignment scope of the application.
-// components/schemas/AppUserProfile Okta API users assigment scope
+// components/schemas/AppUserProfile Okta API users assignment scope
 // A description of this field can be found in the Okta API docs:
 // https://developer.okta.com/docs/reference/api/apps/#application-user-object
 type AppAssignmentScope string

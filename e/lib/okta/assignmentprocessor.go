@@ -214,7 +214,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
 	if assignment.IsFinalized() && needsCleanup {
-		// If the assigment was Finalized (Successfully processed in needCleanupState)
+		// If the assignment was Finalized (Successfully processed in needCleanupState)
 		// delete Okta assignment from backend.
 		if err := a.deleteFinalizedAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

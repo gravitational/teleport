@@ -58,7 +58,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 	got, err := sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
 	require.NoError(t, err)
 
-	want := []*icsdk.Assigment{
+	want := []*icsdk.Assignment{
 		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin"},
 	}
@@ -83,7 +83,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 
 	got, err = sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
 	require.NoError(t, err)
-	want = []*icsdk.Assigment{
+	want = []*icsdk.Assignment{
 		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 	}
 	assertAssignments(t, want, got)
@@ -92,18 +92,18 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 func TestAssignmentDiffCalculator(t *testing.T) {
 	tests := []struct {
 		name        string
-		localState  []icsdk.Assigment
-		remoteState []icsdk.Assigment
+		localState  []icsdk.Assignment
+		remoteState []icsdk.Assignment
 
-		wantToDelete []icsdk.Assigment
-		wantToCreate []icsdk.Assigment
+		wantToDelete []icsdk.Assignment
+		wantToCreate []icsdk.Assignment
 	}{
 		{
 			name: "no diff",
-			localState: []icsdk.Assigment{
+			localState: []icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 			},
-			remoteState: []icsdk.Assigment{
+			remoteState: []icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 			},
 			wantToDelete: nil,
@@ -118,19 +118,19 @@ func TestAssignmentDiffCalculator(t *testing.T) {
 		},
 		{
 			name: "delete and update",
-			localState: []icsdk.Assigment{
+			localState: []icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Admin"},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
 			},
-			remoteState: []icsdk.Assigment{
+			remoteState: []icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
 				{AccountID: "3333333333", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
 			},
-			wantToDelete: []icsdk.Assigment{
+			wantToDelete: []icsdk.Assignment{
 				{AccountID: "3333333333", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
 			},
-			wantToCreate: []icsdk.Assigment{
+			wantToCreate: []icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Admin"},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom"},
 			},
@@ -164,10 +164,10 @@ func (m *mockAssignmentService) UpdatePrincipalAssignment(ctx context.Context, a
 	return assignment, nil
 }
 
-func assertAssignments(t *testing.T, want, got []*icsdk.Assigment) {
+func assertAssignments(t *testing.T, want, got []*icsdk.Assignment) {
 	t.Helper()
 	require.Empty(t, cmp.Diff(want, got,
-		cmpopts.SortSlices(func(a, b *icsdk.Assigment) bool {
+		cmpopts.SortSlices(func(a, b *icsdk.Assignment) bool {
 			if a.AccountID != b.AccountID {
 				return a.AccountID < b.AccountID
 			}

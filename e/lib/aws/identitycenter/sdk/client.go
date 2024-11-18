@@ -43,11 +43,11 @@ type Client interface {
 	// ListUsers lists all available users in the Identity Center.
 	ListUsers(ctx context.Context) ([]*User, error)
 	// ListUserAssignments lists account assignment for a user.
-	ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error)
+	ListUserAssignments(ctx context.Context, userID string) ([]*Assignment, error)
 	// ListGroupsAssignments lists account assignment for a user group.
-	ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error)
+	ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assignment, error)
 	// ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
-	ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error)
+	ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error)
 
 	// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
 	// by tracking the status of the account assignment operation using the request ID.
@@ -403,7 +403,7 @@ func (c *client) ListUsers(ctx context.Context) ([]*User, error) {
 }
 
 // ListUserAssignments lists account assignment for a user.
-func (c *client) ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error) {
+func (c *client) ListUserAssignments(ctx context.Context, userID string) ([]*Assignment, error) {
 	result, err := c.ListAssignments(ctx, userID, ssoadmintypes.PrincipalTypeUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -412,7 +412,7 @@ func (c *client) ListUserAssignments(ctx context.Context, userID string) ([]*Ass
 }
 
 // ListGroupsAssignments lists account assignment for a user group.
-func (c *client) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error) {
+func (c *client) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assignment, error) {
 	result, err := c.ListAssignments(ctx, groupID, ssoadmintypes.PrincipalTypeGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -421,9 +421,9 @@ func (c *client) ListGroupsAssignments(ctx context.Context, groupID string) ([]*
 }
 
 // ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
-func (c *client) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error) {
+func (c *client) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {
 	var nextToken *string
-	var out []*Assigment
+	var out []*Assignment
 	for {
 		resp, err := c.ssoAdminClient.ListAccountAssignmentsForPrincipal(ctx, &ssoadmin.ListAccountAssignmentsForPrincipalInput{
 			InstanceArn:   aws.String(c.InstanceARN),
@@ -435,7 +435,7 @@ func (c *client) ListAssignments(ctx context.Context, principalID string, princi
 			return nil, trace.Wrap(err)
 		}
 		for _, v := range resp.AccountAssignments {
-			out = append(out, &Assigment{
+			out = append(out, &Assignment{
 				AccountID:        aws.ToString(v.AccountId),
 				PermissionSetARN: aws.ToString(v.PermissionSetArn),
 			})
@@ -470,7 +470,7 @@ type CreateAccountAssignmentRequest struct {
 	AccountID string
 }
 
-// CreateAccountAssignment creates an account assigment between account/permission set and a principal User or Group.
+// CreateAccountAssignment creates an account assignment between account/permission set and a principal User or Group.
 func (c *client) CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
 	resp, err := c.ssoAdminClient.CreateAccountAssignment(ctx, &ssoadmin.CreateAccountAssignmentInput{
 		InstanceArn:      aws.String(c.InstanceARN),

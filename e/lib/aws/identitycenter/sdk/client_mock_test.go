@@ -27,7 +27,7 @@ func TestClientMock(t *testing.T) {
 
 }
 
-func TestAccountAssigmentMock(t *testing.T) {
+func TestAccountAssignmentMock(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -36,14 +36,14 @@ func TestAccountAssigmentMock(t *testing.T) {
 	want := []*UserWithAssignment{
 		{
 			User: &User{ID: "user1", UserName: "user_one"},
-			Assignments: []*Assigment{
+			Assignments: []*Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
 				{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 			},
 		},
 		{
 			User: &User{ID: "user2", UserName: "user_two"},
-			Assignments: []*Assigment{
+			Assignments: []*Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 			},
 		},
@@ -72,13 +72,13 @@ func TestAccountAssigmentMock(t *testing.T) {
 		want := []*UserWithAssignment{
 			{
 				User: &User{ID: "user1", UserName: "user_one"},
-				Assignments: []*Assigment{
+				Assignments: []*Assignment{
 					{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 				},
 			},
 			{
 				User:        &User{ID: "user2", UserName: "user_two"},
-				Assignments: []*Assigment{},
+				Assignments: []*Assignment{},
 			},
 		}
 		assertUsersAssignments(t, c, want)
@@ -98,13 +98,13 @@ func TestAccountAssigmentMock(t *testing.T) {
 		want := []*UserWithAssignment{
 			{
 				User: &User{ID: "user1", UserName: "user_one"},
-				Assignments: []*Assigment{
+				Assignments: []*Assignment{
 					{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 				},
 			},
 			{
 				User: &User{ID: "user2", UserName: "user_two"},
-				Assignments: []*Assigment{
+				Assignments: []*Assignment{
 					{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 				},
 			},

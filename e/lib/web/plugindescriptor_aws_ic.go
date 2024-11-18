@@ -427,8 +427,8 @@ func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, 
 	return awsicui.AccountWithPermissionSets(accountWithPermSetARNs, icsdk.ToPermissionSetMap(psermSets)), nil
 }
 
-// awsICPluginGroupsWithAssigment lists Identity Center groups with assigned accounts and permission sets.
-func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssigment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+// awsICPluginGroupsWithAssignment lists Identity Center groups with assigned accounts and permission sets.
+func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
 	var req awsicui.FetchICResourceRequest
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -453,5 +453,5 @@ func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssigment(w http.ResponseWri
 		return nil, trace.Wrap(err)
 	}
 
-	return awsicui.GroupAccountAndPermAssigments(groupWithAssignments, icsdk.ToAccountMap(accounts), icsdk.ToPermissionSetMap(psermSets)), nil
+	return awsicui.GroupAccountAndPermAssignments(groupWithAssignments, icsdk.ToAccountMap(accounts), icsdk.ToPermissionSetMap(psermSets)), nil
 }

@@ -344,7 +344,7 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 		// Assignment can be stale and refer to deactivated user.
 		// userID function needs succeed to successfully process and clean the assignment.
 		// We need to make sure that all assignments for deactivated user was cleanup
-		// before deleting okta assigment.
+		// before deleting okta assignment.
 		filter := fmt.Sprintf(`status eq "%s"`, userStatusDeprovisioned)
 		var deactivatedUsers map[userName]oktaUserID
 		deactivatedUsers, err = a.oktaClient.ListUsers(ctx, query.WithFilter(filter))

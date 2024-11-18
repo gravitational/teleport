@@ -55,7 +55,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	// No valid resources, so this should exit quickly and produce nothing.
 	require.NoError(t, uac.OnLogin(ctx, user))
-	assertEmptyAssigmentList(t, ap)
+	assertEmptyAssignmentList(t, ap)
 
 	for _, v := range []types.AppServer{app1, appDupe} {
 		mustUpsertApplicationServer(t, ctx, ap, v)
@@ -72,7 +72,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	t.Run("test assignment creation", func(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{app1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -86,7 +86,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -99,7 +99,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -113,7 +113,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -126,7 +126,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, group2, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -139,7 +139,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -156,7 +156,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -169,7 +169,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		want := mustCreateAssigmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -283,7 +283,7 @@ func TestAssignmentDiff(t *testing.T) {
 	}
 }
 
-func assertEmptyAssigmentList(t *testing.T, ap *testUACAccessPoint) {
+func assertEmptyAssignmentList(t *testing.T, ap *testUACAccessPoint) {
 	assignments, _, err := ap.ListOktaAssignments(context.Background(), 0, "")
 	require.NoError(t, err)
 	require.Empty(t, assignments)
@@ -306,7 +306,7 @@ func mustDeleteCleanupAssignments(t *testing.T, ctx context.Context, ap *testUAC
 	}
 }
 
-func mustCreateAssigmentList(t *testing.T, hash crypto.Hash, user string, clock clockwork.FakeClock) func([][]types.Resource) []types.OktaAssignment {
+func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clockwork.FakeClock) func([][]types.Resource) []types.OktaAssignment {
 	return func(itemsTargets [][]types.Resource) []types.OktaAssignment {
 		var groups []string
 		var apps []string
@@ -402,7 +402,7 @@ func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *tes
 	user, err := types.NewUser(testUser)
 	require.NoError(t, err)
 	user.SetRoles([]string{role.GetName()})
-	/// Update the user so that it's now an SSO user.
+	// / Update the user so that it's now an SSO user.
 	// Should get an assignment that has one action for the app./
 	user.SetCreatedBy(types.CreatedBy{Connector: &types.ConnectorRef{}})
 	user, err = ap.CreateUser(ctx, user)

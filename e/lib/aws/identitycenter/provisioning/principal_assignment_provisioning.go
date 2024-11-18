@@ -146,19 +146,19 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 }
 
 type assignmentDiffCalculator struct {
-	teleportAssignments utils.Set[icsdk.Assigment]
-	awsAssignments      utils.Set[icsdk.Assigment]
+	teleportAssignments utils.Set[icsdk.Assignment]
+	awsAssignments      utils.Set[icsdk.Assignment]
 }
 
 // assignmentsToCreate calculates  the set of Identity Center assignment that
 // need to be created in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToCreate() utils.Set[icsdk.Assigment] {
+func (d *assignmentDiffCalculator) assignmentsToCreate() utils.Set[icsdk.Assignment] {
 	return d.teleportAssignments.Clone().Subtract(d.awsAssignments)
 }
 
 // assignmentsToDelete calculates the set of Identity Center assignments that
 // need to be deleted in order to sync the Teleport assignment set with AWS.
-func (d *assignmentDiffCalculator) assignmentsToDelete() utils.Set[icsdk.Assigment] {
+func (d *assignmentDiffCalculator) assignmentsToDelete() utils.Set[icsdk.Assignment] {
 	return d.awsAssignments.Clone().Subtract(d.teleportAssignments)
 }
 
@@ -176,10 +176,10 @@ func toSSOAdminPrincipalType(principal *pb.PrincipalAssignment) (ssoadmintypes.P
 	return "", trace.BadParameter("unsupported principal type %q", principal.GetSpec().GetPrincipalType())
 }
 
-func convertToICSDKAssignments(in []*pb.AccountAssignmentRef) []*icsdk.Assigment {
-	out := make([]*icsdk.Assigment, 0, len(in))
+func convertToICSDKAssignments(in []*pb.AccountAssignmentRef) []*icsdk.Assignment {
+	out := make([]*icsdk.Assignment, 0, len(in))
 	for _, v := range in {
-		out = append(out, &icsdk.Assigment{
+		out = append(out, &icsdk.Assignment{
 			AccountID:        v.GetAccountId(),
 			PermissionSetARN: v.GetPermissionSetArn(),
 		})

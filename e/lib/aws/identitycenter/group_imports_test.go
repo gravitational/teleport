@@ -42,8 +42,8 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		account1 = &icsdk.Account{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"}
 		account2 = &icsdk.Account{Name: "Account2", ID: "2222222222", ARN: "arn:aws:iam::2222222222:account/Account2"}
 		// permission set ARN for assignment1 and assignment2 matches arn value returned from sdkPermSets func.
-		assignment1 = &icsdk.Assigment{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"}
-		assignment2 = &icsdk.Assigment{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"}
+		assignment1 = &icsdk.Assignment{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"}
+		assignment2 = &icsdk.Assignment{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"}
 	)
 
 	testCases := []struct {
@@ -56,24 +56,24 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			name: "new integration with a fresh Access List from group and group member imports",
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						name:        "alist1",
 						id:          "alist1",
 						members:     teleportUsers,
-						assignments: []*icsdk.Assigment{assignment1, assignment2},
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
 					},
 					{
 						name:        "alist2",
 						id:          "alist2",
 						members:     []string{"user1", "user2", "user3"},
-						assignments: []*icsdk.Assigment{assignment1},
+						assignments: []*icsdk.Assignment{assignment1},
 					},
 					{
 						name:        "alist3",
 						id:          "alist3",
 						members:     []string{"user3"},
-						assignments: []*icsdk.Assigment{assignment2},
+						assignments: []*icsdk.Assignment{assignment2},
 					},
 				},
 			},
@@ -125,24 +125,24 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						name:        "alist1",
 						id:          "alist1",
 						members:     teleportUsers,
-						assignments: []*icsdk.Assigment{assignment1, assignment2},
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
 					},
 					{
 						name:        "alist2",
 						id:          "alist2",
 						members:     []string{"user1", "user2", "user3"},
-						assignments: []*icsdk.Assigment{assignment1},
+						assignments: []*icsdk.Assignment{assignment1},
 					},
 					{
 						name:        "alist3",
 						id:          "alist3",
 						members:     []string{"user3"},
-						assignments: []*icsdk.Assigment{assignment2},
+						assignments: []*icsdk.Assignment{assignment2},
 					},
 				},
 			},
@@ -187,12 +187,12 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						name:        "alist1",
 						id:          "group1",
 						members:     teleportUsers,
-						assignments: []*icsdk.Assigment{assignment1, assignment2},
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
 					},
 				},
 			},
@@ -225,12 +225,12 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						id:          "group1",
 						name:        "alist1",
 						members:     []string{"user3", "user4"},
-						assignments: []*icsdk.Assigment{assignment1, assignment2},
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
 					},
 				},
 			},
@@ -247,12 +247,12 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			name: "identity center group members whose user account does not exist in Teleport should still be added as Access List members",
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						id:          "group2",
 						name:        "alist2",
 						members:     []string{"user3", "user4", "external1", "external2"},
-						assignments: []*icsdk.Assigment{assignment1, assignment2},
+						assignments: []*icsdk.Assignment{assignment1, assignment2},
 					},
 				},
 			},
@@ -266,15 +266,15 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "with an assigment that does not exist (faulty account and permission set map)",
+			name: "with an assignment that does not exist (faulty account and permission set map)",
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
-				Groups: []groupWithMemberAndAssigment{
+				Groups: []groupWithMemberAndAssignment{
 					{
 						id:          "group2",
 						name:        "alist2",
 						members:     []string{"user3", "user4"},
-						assignments: []*icsdk.Assigment{{AccountID: "12345", PermissionSetARN: "arn:aws:sso:::permissionSet/NetworkAdmin"}},
+						assignments: []*icsdk.Assignment{{AccountID: "12345", PermissionSetARN: "arn:aws:sso:::permissionSet/NetworkAdmin"}},
 					},
 				},
 			},
@@ -422,7 +422,7 @@ func sdkUsers(t *testing.T) []*icsdk.User {
 	return out
 }
 
-func sdkGroups(t *testing.T, in []groupWithMemberAndAssigment) []*icsdk.Group {
+func sdkGroups(t *testing.T, in []groupWithMemberAndAssignment) []*icsdk.Group {
 	t.Helper()
 	out := make([]*icsdk.Group, 0, len(in))
 	for _, g := range in {
@@ -435,7 +435,7 @@ func sdkGroups(t *testing.T, in []groupWithMemberAndAssigment) []*icsdk.Group {
 	return out
 }
 
-func sdkGroupMembers(t *testing.T, in []groupWithMemberAndAssigment) map[string][]*icsdk.GroupMember {
+func sdkGroupMembers(t *testing.T, in []groupWithMemberAndAssignment) map[string][]*icsdk.GroupMember {
 	t.Helper()
 	out := make(map[string][]*icsdk.GroupMember)
 	for _, g := range in {
@@ -459,9 +459,9 @@ func sdkPermSets(t *testing.T) []*icsdk.PermissionSet {
 	}
 }
 
-func sdkGroupAssignments(t *testing.T, in []groupWithMemberAndAssigment) map[string][]*icsdk.Assigment {
+func sdkGroupAssignments(t *testing.T, in []groupWithMemberAndAssignment) map[string][]*icsdk.Assignment {
 	t.Helper()
-	out := make(map[string][]*icsdk.Assigment)
+	out := make(map[string][]*icsdk.Assignment)
 	for _, g := range in {
 		out[g.id] = g.assignments
 	}
@@ -471,14 +471,14 @@ func sdkGroupAssignments(t *testing.T, in []groupWithMemberAndAssigment) map[str
 
 type icData struct {
 	Accounts []*icsdk.Account
-	Groups   []groupWithMemberAndAssigment
+	Groups   []groupWithMemberAndAssignment
 }
 
-type groupWithMemberAndAssigment struct {
+type groupWithMemberAndAssignment struct {
 	name        string
 	id          string
 	members     []string
-	assignments []*icsdk.Assigment
+	assignments []*icsdk.Assignment
 }
 
 type listWithMembersAndRoles struct {

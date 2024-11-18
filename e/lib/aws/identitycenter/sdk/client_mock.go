@@ -66,7 +66,7 @@ func NewMockedAWSState() MockedAWSStateType {
 				{MemberID: "user2"},
 			},
 		},
-		UserAssignments: map[string][]*Assigment{
+		UserAssignments: map[string][]*Assignment{
 			"user1": {
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
 				{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
@@ -75,7 +75,7 @@ func NewMockedAWSState() MockedAWSStateType {
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 			},
 		},
-		GroupAssignments: map[string][]*Assigment{
+		GroupAssignments: map[string][]*Assignment{
 			"group1": {
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
 			},
@@ -124,7 +124,7 @@ var DefaultMockedData = MockedAWSStateType{
 			{MemberID: "user2"},
 		},
 	},
-	UserAssignments: map[string][]*Assigment{
+	UserAssignments: map[string][]*Assignment{
 		"user1": {
 			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
 			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
@@ -133,7 +133,7 @@ var DefaultMockedData = MockedAWSStateType{
 			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
 		},
 	},
-	GroupAssignments: map[string][]*Assigment{
+	GroupAssignments: map[string][]*Assignment{
 		"group1": {
 			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
 		},
@@ -162,9 +162,9 @@ type MockedAWSStateType struct {
 	// GroupMemberships is a map of group ID to a list of group members.
 	GroupMemberships map[string][]*GroupMember
 	// UserAssignments is a map of user ID to a list of assignments.
-	UserAssignments map[string][]*Assigment
+	UserAssignments map[string][]*Assignment
 	// GroupAssignments is a map of group ID to a list of assignments.
-	GroupAssignments map[string][]*Assigment
+	GroupAssignments map[string][]*Assignment
 	// AccountPermAssignments is a map of account ID to a list of permission set ARNs.
 	AccountPermAssignments map[string][]string
 }
@@ -264,7 +264,7 @@ func (c *ClientMock) ListGroupsWithAccountAndPermAssignment(ctx context.Context)
 	for _, group := range c.Groups {
 		assignments, ok := c.GroupAssignments[group.ID]
 		if !ok {
-			assignments = []*Assigment{}
+			assignments = []*Assignment{}
 		}
 		out = append(out, &GroupWithAssignment{
 			Group:       group,
@@ -290,7 +290,7 @@ func (c *ClientMock) ListUsersWithAccountAndPermAssignment(ctx context.Context) 
 	for _, user := range c.Users {
 		assignments, ok := c.UserAssignments[user.ID]
 		if !ok {
-			assignments = []*Assigment{}
+			assignments = []*Assignment{}
 		}
 		out = append(out, &UserWithAssignment{
 			User:        user,
@@ -301,14 +301,14 @@ func (c *ClientMock) ListUsersWithAccountAndPermAssignment(ctx context.Context) 
 }
 
 // ListUserAssignments returns a list of permission assignments for a given user ID.
-func (c *ClientMock) ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error) {
+func (c *ClientMock) ListUserAssignments(ctx context.Context, userID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.UserAssignments[userID], nil
 }
 
 // ListGroupsAssignments returns a list of permission assignments for a given group ID.
-func (c *ClientMock) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error) {
+func (c *ClientMock) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.GroupAssignments[groupID], nil
@@ -328,12 +328,12 @@ func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAcc
 
 	switch req.PrincipalType {
 	case ssoadmintypes.PrincipalTypeUser:
-		c.UserAssignments[req.PrincipalID] = append(c.UserAssignments[req.PrincipalID], &Assigment{
+		c.UserAssignments[req.PrincipalID] = append(c.UserAssignments[req.PrincipalID], &Assignment{
 			AccountID:        req.AccountID,
 			PermissionSetARN: req.PermissionSetARN,
 		})
 	case ssoadmintypes.PrincipalTypeGroup:
-		c.GroupAssignments[req.PrincipalID] = append(c.GroupAssignments[req.PrincipalID], &Assigment{
+		c.GroupAssignments[req.PrincipalID] = append(c.GroupAssignments[req.PrincipalID], &Assignment{
 			AccountID:        req.AccountID,
 			PermissionSetARN: req.PermissionSetARN,
 		})
@@ -352,8 +352,8 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
-	var principalAssignments map[string][]*Assigment
-	var curr map[string][]*Assigment
+	var principalAssignments map[string][]*Assignment
+	var curr map[string][]*Assignment
 	switch req.PrincipalType {
 	case ssoadmintypes.PrincipalTypeUser:
 		principalAssignments = c.UserAssignments
@@ -382,7 +382,7 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 	return nil, trace.NotFound("assignment not found")
 }
 
-func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error) {
+func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 

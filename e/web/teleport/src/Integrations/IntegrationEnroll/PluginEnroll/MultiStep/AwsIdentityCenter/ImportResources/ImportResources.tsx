@@ -29,7 +29,7 @@ import {
 
 import {
   AccountsTable,
-  GroupsWithAssigmentTable,
+  GroupsWithAssignmentTable,
   PermissionSetsTable,
 } from './ResourceTable';
 
@@ -272,7 +272,7 @@ export const GroupsWithAssignment = ({
     </Flex>
 
     {showTable && (
-      <GroupsWithAssigmentTable
+      <GroupsWithAssignmentTable
         userGroups={groupsWithPermissionAssignment}
         loading={loading}
       />

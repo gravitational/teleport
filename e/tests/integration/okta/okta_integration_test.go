@@ -18,11 +18,11 @@ import (
 	"github.com/gravitational/teleport/e/tests/common/idp"
 )
 
-// TestBasicAssigmentFlow tests the basic assignment flow.
+// TestBasicAssignmentFlow tests the basic assignment flow.
 // That tests the basic assignment flow for the apps groups imported by Okta integration
 // making sure that removing/adding members to the access list will trigger the assignment/unassignment
 // and the proper Okta API calls are made.
-func TestBasicAssigmentFlow(t *testing.T) {
+func TestBasicAssignmentFlow(t *testing.T) {
 	ctx := context.Background()
 
 	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 2, 7))

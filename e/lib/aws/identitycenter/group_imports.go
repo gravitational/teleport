@@ -162,7 +162,7 @@ func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []ac
 		return nil, trace.Wrap(err)
 	}
 
-	groupsAssignmentWithAccountAndPermissionSetName := groupAccountAndPermAssigments(
+	groupsAssignmentWithAccountAndPermissionSetName := groupAccountAndPermAssignments(
 		ctx,
 		groupsWithAssignments,
 		icsdk.ToAccountMap(accounts),
@@ -217,9 +217,9 @@ type accountAndPermAssignment struct {
 	permissionSetName string
 }
 
-// groupAccountAndPermAssigments transforms icsdk GroupWithAssignment to groupWithAccountAndPermAssignment with enriched
+// groupAccountAndPermAssignments transforms icsdk GroupWithAssignment to groupWithAccountAndPermAssignment with enriched
 // account name and permission set name.
-func groupAccountAndPermAssigments(
+func groupAccountAndPermAssignments(
 	ctx context.Context,
 	in []*icsdk.GroupWithAssignment,
 	accountMap icsdk.AccountMap,
@@ -239,12 +239,12 @@ func groupAccountAndPermAssigments(
 	return out
 }
 
-// accountAndPermAssignments transforms icsdk Assigment to accountAndPermAssignment
+// accountAndPermAssignments transforms icsdk Assignment to accountAndPermAssignment
 // with enriched account name and permission set name.
 func accountAndPermAssignments(
 	ctx context.Context,
 	groupName string,
-	assignment []*icsdk.Assigment,
+	assignment []*icsdk.Assignment,
 	accountMap icsdk.AccountMap,
 	permSetMap icsdk.PermissionSetMap,
 	log *slog.Logger,
