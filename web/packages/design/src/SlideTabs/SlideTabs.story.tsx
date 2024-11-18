@@ -81,9 +81,9 @@ export const Small = () => {
     <Flex flexDirection="column" gap={3}>
       <SlideTabs
         tabs={[
-          { content: <Icon.AlarmRing size="small" /> },
-          { content: <Icon.Bots size="small" /> },
-          { content: <Icon.Check size="small" /> },
+          { id: 'alarm', content: <Icon.AlarmRing size="small" /> },
+          { id: 'bots', content: <Icon.Bots size="small" /> },
+          { id: 'check', content: <Icon.Check size="small" /> },
         ]}
         size="small"
         appearance="round"
