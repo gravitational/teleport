@@ -70,7 +70,7 @@ func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []type
 func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAzureFetchers(clients, matchers)
+	fetchers, err := MakeAzureFetchers(clients, matchers, "" /* discovery config */)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
