@@ -19,6 +19,8 @@
 import React from 'react';
 import { renderHook } from '@testing-library/react';
 
+import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
+
 import {
   ResourcesContextProvider,
   useResourcesContext,
@@ -33,9 +35,10 @@ describe('requestResourcesRefresh', () => {
 
     const listener = jest.fn();
     result.current.onResourcesRefreshRequest(listener);
-    result.current.requestResourcesRefresh();
+    result.current.requestResourcesRefresh(rootClusterUri);
 
     expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(rootClusterUri);
   });
 });
 
@@ -50,7 +53,7 @@ describe('onResourcesRefreshRequest cleanup function', () => {
     const { cleanup } = result.current.onResourcesRefreshRequest(listener);
 
     cleanup();
-    result.current.requestResourcesRefresh();
+    result.current.requestResourcesRefresh(rootClusterUri);
 
     expect(listener).not.toHaveBeenCalled();
   });
