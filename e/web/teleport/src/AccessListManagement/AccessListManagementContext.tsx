@@ -35,7 +35,6 @@ type PreProcessFn = (lists: AccessList[]) => AccessList[];
 
 // AccessListFilters is used to filter the access lists based on the source, owners, and roles.
 export type AccessListFilters = {
-  // eslint-disable-next-line @typescript-eslint/ban-types
   source?: ('okta' | 'teleport')[];
   owners?: string[];
   roles?: string[];
