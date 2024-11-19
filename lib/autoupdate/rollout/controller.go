@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -38,6 +39,7 @@ const (
 // We currently wake up every minute, in the future we might decide to also watch for events
 // (from autoupdate_config and autoupdate_version changefeed) to react faster.
 type Controller struct {
+	// TODO(hugoShaka) add prometheus metrics describing the reconciliation status
 	reconciler reconciler
 	clock      clockwork.Clock
 	log        *slog.Logger
@@ -73,10 +75,24 @@ func (c *Controller) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.Next():
 			c.log.DebugContext(ctx, "Reconciling autoupdate_agent_rollout")
-			err := c.reconciler.reconcile(ctx)
+			err := c.tryAndCatch(ctx)
 			if err != nil {
 				c.log.ErrorContext(ctx, "Failed to reconcile autoudpate_agent_controller", "error", err)
 			}
 		}
 	}
+}
+
+// tryAndCatch tries to run the controller reconciliation logic and recovers from potential panic by converting them
+// into errors. This ensures that a critical bug in the reconciler cannot bring down the whole Teleport cluster.
+func (c *Controller) tryAndCatch(ctx context.Context) (err error) {
+	// If something terribly bad happens during the reconciliation, we recover and return an error
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.ErrorContext(ctx, "Recovered from panic in the autoupdate_agent_rollout controller", "panic", r)
+			err = trace.NewAggregate(err, trace.Errorf("Panic recovered during reconciliation: %v", r))
+		}
+	}()
+	err = trace.Wrap(c.reconciler.reconcile(ctx))
+	return
 }
