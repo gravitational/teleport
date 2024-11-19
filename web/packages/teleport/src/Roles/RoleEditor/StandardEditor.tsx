@@ -63,6 +63,8 @@ import {
   kubernetesVerbOptions,
   KubernetesResourceModel,
   AppAccessSpec,
+  DatabaseAccessSpec,
+  WindowsDesktopAccessSpec,
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -359,7 +361,13 @@ const Section = ({
 /**
  * All access spec kinds, in order of appearance in the resource kind dropdown.
  */
-const allAccessSpecKinds: AccessSpecKind[] = ['kube_cluster', 'node', 'app'];
+const allAccessSpecKinds: AccessSpecKind[] = [
+  'kube_cluster',
+  'node',
+  'app',
+  'db',
+  'windows_desktop',
+];
 
 /** Maps access specification kind to UI component configuration. */
 const specSections: Record<
@@ -384,6 +392,16 @@ const specSections: Record<
     title: 'Applications',
     tooltip: 'Configures access to applications',
     component: AppAccessSpecSection,
+  },
+  db: {
+    title: 'Databases',
+    tooltip: 'Configures access to databases',
+    component: DatabaseAccessSpecSection,
+  },
+  windows_desktop: {
+    title: 'Windows Desktops',
+    tooltip: 'Configures access to Windows desktops',
+    component: WindowsDesktopAccessSpecSection,
   },
 };
 
@@ -436,6 +454,7 @@ export function ServerAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
         mt={3}
@@ -460,6 +479,7 @@ export function KubernetesAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
       />
@@ -633,6 +653,111 @@ export function AppAccessSpecSection({
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
       />
     </Flex>
+  );
+}
+
+export function DatabaseAccessSpecSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<DatabaseAccessSpec>) {
+  return (
+    <>
+      <Box mb={3}>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+        />
+      </Box>
+      <FieldSelectCreatable
+        isMulti
+        label="Database Names"
+        toolTipContent={
+          <>
+            List of database names that this role is allowed to connect to.
+            Special value <MarkInverse>*</MarkInverse> means any name.
+          </>
+        }
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database Name: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.names}
+        onChange={names => onChange?.({ ...value, names })}
+      />
+      <FieldSelectCreatable
+        isMulti
+        label="Database Users"
+        toolTipContent={
+          <>
+            List of database users that this role is allowed to connect as.
+            Special value <MarkInverse>*</MarkInverse> means any user.
+          </>
+        }
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database User: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.users}
+        onChange={users => onChange?.({ ...value, users })}
+      />
+      <FieldSelectCreatable
+        isMulti
+        label="Database Roles"
+        toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database Role: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.roles}
+        onChange={roles => onChange?.({ ...value, roles })}
+        mb={0}
+      />
+    </>
+  );
+}
+
+export function WindowsDesktopAccessSpecSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<WindowsDesktopAccessSpec>) {
+  return (
+    <>
+      <Box mb={3}>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+        />
+      </Box>
+      <FieldSelectCreatable
+        isMulti
+        label="Logins"
+        toolTipContent="List of desktop logins that this role is allowed to use"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Login: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.logins}
+        onChange={logins => onChange?.({ ...value, logins })}
+      />
+    </>
   );
 }
 

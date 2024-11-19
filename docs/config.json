@@ -2241,6 +2241,11 @@
       "permanent": true
     },
     {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/terraform-provider/",
+      "permanent": true
+    },
+    {
       "source": "/management/dynamic-resources/terraform-provider/",
       "destination": "/admin-guides/infrastructure-as-code/terraform-provider/terraform-provider/",
       "permanent": true

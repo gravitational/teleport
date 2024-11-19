@@ -16,22 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ReactNode } from 'react';
+import { StyleFunction } from 'styled-components';
 
 import Dialog from 'design/Dialog';
 
-function DialogConfirmation(props) {
-  const { children, open, onClose, dialogCss } = props;
+export function DialogConfirmation(props: {
+  open: boolean;
+  /**
+   * Prevent unmounting the component and its children from the DOM when closed.
+   * Instead, hides it with CSS.
+   */
+  keepInDOMAfterClose?: boolean;
+  /** @deprecated This props has no effect, it was never passed down to `Dialog`. */
+  disableEscapeKeyDown?: boolean;
+  children?: ReactNode;
+  onClose?: (
+    event: KeyboardEvent | React.MouseEvent,
+    reason: 'escapeKeyDown' | 'backdropClick'
+  ) => void;
+  dialogCss?: StyleFunction<any>;
+}) {
   return (
     <Dialog
-      dialogCss={dialogCss}
+      dialogCss={props.dialogCss}
       disableEscapeKeyDown={false}
-      onClose={onClose}
-      open={open}
+      onClose={props.onClose}
+      open={props.open}
+      keepInDOMAfterClose={props.keepInDOMAfterClose}
     >
-      {children}
+      {props.children}
     </Dialog>
   );
 }
-
-export default DialogConfirmation;

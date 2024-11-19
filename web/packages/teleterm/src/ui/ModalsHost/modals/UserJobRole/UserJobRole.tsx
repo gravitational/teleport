@@ -27,12 +27,6 @@ import DialogConfirmation, {
 import { Cross } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 
-interface UserJobRoleProps {
-  onCancel(): void;
-
-  onSend(jobRole: string): void;
-}
-
 const JOB_OPTIONS = [
   'Software Engineer',
   'Support Engineer',
@@ -43,7 +37,11 @@ const JOB_OPTIONS = [
 
 const OTHER_JOB_ROLE = 'Other';
 
-export function UserJobRole(props: UserJobRoleProps) {
+export function UserJobRole(props: {
+  onCancel(): void;
+  onSend(jobRole: string): void;
+  hidden?: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>();
   const [jobRole, setJobRole] = useState<string | null>(null);
   const [otherJobRole, setOtherJobRole] = useState('');
@@ -67,7 +65,8 @@ export function UserJobRole(props: UserJobRoleProps) {
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',

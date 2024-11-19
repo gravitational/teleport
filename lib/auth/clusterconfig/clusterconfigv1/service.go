@@ -357,7 +357,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -627,7 +627,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		}
 	}
 
-	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -881,7 +881,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 		}
 	}
 
-	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defaultConfig := types.DefaultSessionRecordingConfig()

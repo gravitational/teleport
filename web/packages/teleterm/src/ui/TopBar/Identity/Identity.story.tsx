@@ -33,7 +33,7 @@ export default {
 
 const makeTitle = (userWithClusterName: string) => userWithClusterName;
 const profileStatusError =
-  'No YubiKey device connected with serial number 14358031';
+  'No YubiKey device connected with serial number 14358031. Connect the device and try again.';
 
 const OpenedIdentity = (props: IdentityProps) => {
   const ref = useRef<IdentityHandler>();

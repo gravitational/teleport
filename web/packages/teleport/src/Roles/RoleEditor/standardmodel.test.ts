@@ -40,11 +40,177 @@ const minimalRoleModel = (): RoleEditorModel => ({
   requiresReset: false,
 });
 
-describe('roleToRoleEditorModel', () => {
-  it('converts a minimal role', () => {
-    expect(roleToRoleEditorModel(minimalRole())).toEqual(minimalRoleModel());
+// These tests make sure that role to model and model to role conversions are
+// symmetrical in typical cases.
+describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
+  { name: 'minimal role', role: minimalRole(), model: minimalRoleModel() },
+
+  {
+    name: 'metadata',
+    role: {
+      ...minimalRole(),
+      metadata: {
+        name: 'role-name',
+        description: 'role-description',
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      metadata: {
+        name: 'role-name',
+        description: 'role-description',
+      },
+    },
+  },
+
+  {
+    name: 'server access spec',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          node_labels: { foo: 'bar' },
+          logins: ['root', 'cthulhu', 'sandman'],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'node',
+          labels: [{ name: 'foo', value: 'bar' }],
+          logins: [
+            { label: 'root', value: 'root' },
+            { label: 'cthulhu', value: 'cthulhu' },
+            { label: 'sandman', value: 'sandman' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'app access spec',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          app_labels: { foo: 'bar' },
+          aws_role_arns: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azure_identities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcp_service_accounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
+          ],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'app',
+          labels: [{ name: 'foo', value: 'bar' }],
+          awsRoleARNs: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azureIdentities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcpServiceAccounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'database access spec',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          db_labels: { env: 'prod' },
+          db_names: ['stuff', 'knickknacks'],
+          db_users: ['joe', 'mary'],
+          db_roles: ['admin', 'auditor'],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'db',
+          labels: [{ name: 'env', value: 'prod' }],
+          names: [
+            { label: 'stuff', value: 'stuff' },
+            { label: 'knickknacks', value: 'knickknacks' },
+          ],
+          users: [
+            { label: 'joe', value: 'joe' },
+            { label: 'mary', value: 'mary' },
+          ],
+          roles: [
+            { label: 'admin', value: 'admin' },
+            { label: 'auditor', value: 'auditor' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'Windows desktop access spec',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          windows_desktop_labels: { os: 'WindowsForWorkgroups' },
+          windows_desktop_logins: ['alice', 'bob'],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'windows_desktop',
+          labels: [{ name: 'os', value: 'WindowsForWorkgroups' }],
+          logins: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
+          ],
+        },
+      ],
+    },
+  },
+])('$name', ({ role, model }) => {
+  it('is converted to a model', () => {
+    expect(roleToRoleEditorModel(role)).toEqual(model);
   });
 
+  it('is created from a model', () => {
+    expect(roleEditorModelToRole(model)).toEqual(role);
+  });
+});
+
+describe('roleToRoleEditorModel', () => {
   it('detects unknown fields', () => {
     const minRole = minimalRole();
     const roleModelWithReset: RoleEditorModel = {
@@ -162,43 +328,28 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  it('converts metadata', () => {
-    expect(
-      roleToRoleEditorModel({
-        ...minimalRole(),
-        metadata: {
-          name: 'role-name',
-          description: 'role-description',
-        },
-      })
-    ).toEqual({
-      ...minimalRoleModel(),
-      metadata: {
-        name: 'role-name',
-        description: 'role-description',
-      },
-    } as RoleEditorModel);
-  });
-
   it('preserves original revision', () => {
-    const exampleRole = () => ({
+    const rev = '5d7e724b-a52c-4c12-9372-60a8d1af5d33';
+    const originalRev = '9c2d5732-c514-46c3-b18d-2009b65af7b8';
+    const exampleRole = (revision: string) => ({
       ...minimalRole(),
       metadata: {
         name: 'role-name',
-        revision: '5d7e724b-a52c-4c12-9372-60a8d1af5d33',
+        revision,
       },
     });
     expect(
       roleToRoleEditorModel(
-        exampleRole(),
-        exampleRole() // original
+        exampleRole(rev),
+        exampleRole(originalRev) // original
       )
     ).toEqual({
       ...minimalRoleModel(),
       metadata: {
         name: 'role-name',
-        revision: '5d7e724b-a52c-4c12-9372-60a8d1af5d33',
+        revision: originalRev,
       },
+      requiresReset: true,
     } as RoleEditorModel);
   });
 
@@ -230,35 +381,8 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  it('creates a server access spec', () => {
-    const minRole = minimalRole();
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            node_labels: { foo: 'bar' },
-            logins: ['root', 'cthulhu', 'sandman'],
-          },
-        },
-      })
-    ).toEqual({
-      ...minimalRoleModel(),
-      accessSpecs: [
-        {
-          kind: 'node',
-          labels: [{ name: 'foo', value: 'bar' }],
-          logins: [
-            { label: 'root', value: 'root' },
-            { label: 'cthulhu', value: 'cthulhu' },
-            { label: 'sandman', value: 'sandman' },
-          ],
-        },
-      ],
-    } as RoleEditorModel);
-  });
-
+  // This case has to be tested separately because of dynamic resource ID
+  // generation.
   it('creates a Kubernetes access spec', () => {
     const minRole = minimalRole();
     expect(
@@ -319,7 +443,8 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  it('creates an app access spec', () => {
+  // Make sure that some fields are optional.
+  it('creates a minimal app access spec', () => {
     const minRole = minimalRole();
     expect(
       roleToRoleEditorModel({
@@ -340,50 +465,6 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
-        },
-      ],
-    } as RoleEditorModel);
-
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            app_labels: { foo: 'bar' },
-            aws_role_arns: [
-              'arn:aws:iam::123456789012:role/role1',
-              'arn:aws:iam::123456789012:role/role2',
-            ],
-            azure_identities: [
-              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
-              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
-            ],
-            gcp_service_accounts: [
-              'account1@some-project.iam.gserviceaccount.com',
-              'account2@some-project.iam.gserviceaccount.com',
-            ],
-          },
-        },
-      })
-    ).toEqual({
-      ...minimalRoleModel(),
-      accessSpecs: [
-        {
-          kind: 'app',
-          labels: [{ name: 'foo', value: 'bar' }],
-          awsRoleARNs: [
-            'arn:aws:iam::123456789012:role/role1',
-            'arn:aws:iam::123456789012:role/role2',
-          ],
-          azureIdentities: [
-            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
-            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
-          ],
-          gcpServiceAccounts: [
-            'account1@some-project.iam.gserviceaccount.com',
-            'account2@some-project.iam.gserviceaccount.com',
-          ],
         },
       ],
     } as RoleEditorModel);
@@ -419,35 +500,8 @@ describe('roleEditorModelToRole', () => {
     } as Role);
   });
 
-  it('converts a server access spec', () => {
-    const minRole = minimalRole();
-    expect(
-      roleEditorModelToRole({
-        ...minimalRoleModel(),
-        accessSpecs: [
-          {
-            kind: 'node',
-            labels: [{ name: 'foo', value: 'bar' }],
-            logins: [
-              { label: 'root', value: 'root' },
-              { label: 'cthulhu', value: 'cthulhu' },
-              { label: 'sandman', value: 'sandman' },
-            ],
-          },
-        ],
-      })
-    ).toEqual({
-      ...minRole,
-      spec: {
-        ...minRole.spec,
-        allow: {
-          node_labels: { foo: 'bar' },
-          logins: ['root', 'cthulhu', 'sandman'],
-        },
-      },
-    } as Role);
-  });
-
+  // This case has to be tested separately because of dynamic resource ID
+  // generation.
   it('converts a Kubernetes access spec', () => {
     const minRole = minimalRole();
     expect(
@@ -503,53 +557,6 @@ describe('roleEditorModelToRole', () => {
               namespace: '',
               verbs: [],
             },
-          ],
-        },
-      },
-    } as Role);
-  });
-
-  it('converts an app access spec', () => {
-    const minRole = minimalRole();
-    expect(
-      roleEditorModelToRole({
-        ...minimalRoleModel(),
-        accessSpecs: [
-          {
-            kind: 'app',
-            labels: [{ name: 'foo', value: 'bar' }],
-            awsRoleARNs: [
-              'arn:aws:iam::123456789012:role/role1',
-              'arn:aws:iam::123456789012:role/role2',
-            ],
-            azureIdentities: [
-              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
-              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
-            ],
-            gcpServiceAccounts: [
-              'account1@some-project.iam.gserviceaccount.com',
-              'account2@some-project.iam.gserviceaccount.com',
-            ],
-          },
-        ],
-      })
-    ).toEqual({
-      ...minRole,
-      spec: {
-        ...minRole.spec,
-        allow: {
-          app_labels: { foo: 'bar' },
-          aws_role_arns: [
-            'arn:aws:iam::123456789012:role/role1',
-            'arn:aws:iam::123456789012:role/role2',
-          ],
-          azure_identities: [
-            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
-            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
-          ],
-          gcp_service_accounts: [
-            'account1@some-project.iam.gserviceaccount.com',
-            'account2@some-project.iam.gserviceaccount.com',
           ],
         },
       },

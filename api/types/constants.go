@@ -1031,6 +1031,16 @@ const (
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 
+	// TeleportInternalDiscoveryIntegrationName is the label used to store the name of the integration
+	// whose credentials were used to discover the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryIntegrationName = TeleportInternalLabelPrefix + "discovery-integration-name"
+
+	// TeleportInternalDiscoveryConfigName is the label used to store the name of the discovery config
+	// whose matchers originated the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
+
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.

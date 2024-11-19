@@ -23,16 +23,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/labels"
 )
 
@@ -81,20 +81,20 @@ type EC2Instance struct {
 	InstanceID       string
 	InstanceName     string
 	Tags             map[string]string
-	OriginalInstance ec2.Instance
+	OriginalInstance ec2types.Instance
 }
 
-func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
+func toEC2Instance(originalInst ec2types.Instance) EC2Instance {
 	inst := EC2Instance{
-		InstanceID:       aws.StringValue(originalInst.InstanceId),
+		InstanceID:       aws.ToString(originalInst.InstanceId),
 		Tags:             make(map[string]string, len(originalInst.Tags)),
-		OriginalInstance: *originalInst,
+		OriginalInstance: originalInst,
 	}
 	for _, tag := range originalInst.Tags {
-		if key := aws.StringValue(tag.Key); key != "" {
-			inst.Tags[key] = aws.StringValue(tag.Value)
+		if key := aws.ToString(tag.Key); key != "" {
+			inst.Tags[key] = aws.ToString(tag.Value)
 			if key == "Name" {
-				inst.InstanceName = aws.StringValue(tag.Value)
+				inst.InstanceName = aws.ToString(tag.Value)
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
 }
 
 // ToEC2Instances converts aws []*ec2.Instance to []EC2Instance
-func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
+func ToEC2Instances(insts []ec2types.Instance) []EC2Instance {
 	var ec2Insts []EC2Instance
 
 	for _, inst := range insts {
@@ -188,14 +188,17 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 	return &watcher, nil
 }
 
+// EC2ClientGetter gets an AWS EC2 client for the given region.
+type EC2ClientGetter func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error)
+
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, discoveryConfig string) ([]Fetcher, error) {
+func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client EC2ClientGetter, discoveryConfig string) ([]Fetcher, error) {
 	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := clients.GetAWSEC2Client(ctx, region,
-				cloud.WithCredentialsMaybeIntegration(matcher.Integration),
+			ec2Client, err := getEC2Client(ctx, region,
+				config.WithCredentialsMaybeIntegration(matcher.Integration),
 			)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -221,7 +224,7 @@ type ec2FetcherConfig struct {
 	Matcher         types.AWSMatcher
 	Region          string
 	Document        string
-	EC2Client       ec2iface.EC2API
+	EC2Client       ec2.DescribeInstancesAPIClient
 	Labels          types.Labels
 	Integration     string
 	DiscoveryConfig string
@@ -229,8 +232,8 @@ type ec2FetcherConfig struct {
 }
 
 type ec2InstanceFetcher struct {
-	Filters         []*ec2.Filter
-	EC2             ec2iface.EC2API
+	Filters         []ec2types.Filter
+	EC2             ec2.DescribeInstancesAPIClient
 	Region          string
 	DocumentName    string
 	Parameters      map[string]string
@@ -289,16 +292,16 @@ const (
 const awsEC2APIChunkSize = 50
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
-	tagFilters := []*ec2.Filter{{
+	tagFilters := []ec2types.Filter{{
 		Name:   aws.String(AWSInstanceStateName),
-		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
+		Values: []string{string(ec2types.InstanceStateNameRunning)},
 	}}
 
 	if _, ok := cfg.Labels["*"]; !ok {
 		for key, val := range cfg.Labels {
-			tagFilters = append(tagFilters, &ec2.Filter{
+			tagFilters = append(tagFilters, ec2types.Filter{
 				Name:   aws.String("tag:" + key),
-				Values: aws.StringSlice(val),
+				Values: val,
 			})
 		}
 	} else {
@@ -411,38 +414,40 @@ func chunkInstances(insts EC2Instances) []Instances {
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
 	var instances []Instances
 	f.cachedInstances.clear()
-	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
+	paginator := ec2.NewDescribeInstancesPaginator(f.EC2, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
-	},
-		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
-			for _, res := range dio.Reservations {
-				for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-					end := i + awsEC2APIChunkSize
-					if end > len(res.Instances) {
-						end = len(res.Instances)
-					}
-					ownerID := aws.StringValue(res.OwnerId)
-					inst := EC2Instances{
-						AccountID:       ownerID,
-						Region:          f.Region,
-						DocumentName:    f.DocumentName,
-						Instances:       ToEC2Instances(res.Instances[i:end]),
-						Parameters:      f.Parameters,
-						Rotation:        rotation,
-						Integration:     f.Integration,
-						DiscoveryConfig: f.DiscoveryConfig,
-						EnrollMode:      f.EnrollMode,
-					}
-					for _, ec2inst := range res.Instances[i:end] {
-						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
-					}
-					instances = append(instances, Instances{EC2: &inst})
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, libcloudaws.ConvertRequestFailureError(err)
+		}
+
+		for _, res := range page.Reservations {
+			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
+				end := i + awsEC2APIChunkSize
+				if end > len(res.Instances) {
+					end = len(res.Instances)
 				}
+				ownerID := aws.ToString(res.OwnerId)
+				inst := EC2Instances{
+					AccountID:       ownerID,
+					Region:          f.Region,
+					DocumentName:    f.DocumentName,
+					Instances:       ToEC2Instances(res.Instances[i:end]),
+					Parameters:      f.Parameters,
+					Rotation:        rotation,
+					Integration:     f.Integration,
+					DiscoveryConfig: f.DiscoveryConfig,
+					EnrollMode:      f.EnrollMode,
+				}
+				for _, ec2inst := range res.Instances[i:end] {
+					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
+				}
+				instances = append(instances, Instances{EC2: &inst})
 			}
-			return true
-		})
-	if err != nil {
-		return nil, awslib.ConvertRequestFailureError(err)
+		}
 	}
 
 	if len(instances) == 0 {

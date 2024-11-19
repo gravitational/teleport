@@ -81,7 +81,6 @@ func TestUpdater_Disable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")
@@ -138,6 +137,7 @@ func TestUpdater_Update(t *testing.T) {
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		linkedVersion     string
 		requestGroup      string
 		syncCalls         int
 		reloadCalls       int
@@ -162,6 +162,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -233,14 +234,15 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Enabled: true,
 				},
 			},
 			inWindow:   true,
 			installErr: errors.New("install error"),
 
-			errMatch: "install error",
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			errMatch:          "install error",
 		},
 		{
 			name: "version already installed in window",
@@ -289,6 +291,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -331,6 +334,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -359,6 +363,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         2,
 			reloadCalls:       0,
@@ -384,6 +389,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         2,
 			reloadCalls:       2,
@@ -393,7 +399,6 @@ func TestUpdater_Update(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var requestedGroup string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -481,12 +486,12 @@ func TestUpdater_Update(t *testing.T) {
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.linkedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
@@ -495,6 +500,8 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertCalls)
 
 			if tt.cfg == nil {
+				_, err := os.Stat(cfgPath)
+				require.Error(t, err)
 				return
 			}
 
@@ -506,6 +513,128 @@ func TestUpdater_Update(t *testing.T) {
 				golden.Set(t, data)
 			}
 			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
+func TestUpdater_LinkPackage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		cfg              *UpdateConfig // nil -> file not present
+		tryLinkSystemErr error
+
+		syncCalls          int
+		tryLinkSystemCalls int
+		errMatch           string
+	}{
+		{
+			name: "updates enabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: true,
+				},
+			},
+
+			tryLinkSystemCalls: 0,
+			syncCalls:          0,
+		},
+		{
+			name: "updates disabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+		},
+		{
+			name: "already linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemErr: ErrLinked,
+
+			tryLinkSystemCalls: 1,
+			syncCalls:          0,
+		},
+		{
+			name: "link error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemErr: errors.New("bad"),
+
+			tryLinkSystemCalls: 1,
+			syncCalls:          0,
+			errMatch:           "bad",
+		},
+		{
+			name:               "no config",
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "update.yaml")
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				VersionsDir:        dir,
+			})
+			require.NoError(t, err)
+
+			var tryLinkSystemCalls int
+			updater.Installer = &testInstaller{
+				FuncTryLinkSystem: func(_ context.Context) error {
+					tryLinkSystemCalls++
+					return tt.tryLinkSystemErr
+				},
+			}
+			var syncCalls int
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return nil
+				},
+			}
+
+			ctx := context.Background()
+			err = updater.LinkPackage(ctx)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.tryLinkSystemCalls, tryLinkSystemCalls)
+			require.Equal(t, tt.syncCalls, syncCalls)
 		})
 	}
 }
@@ -525,6 +654,7 @@ func TestUpdater_Enable(t *testing.T) {
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		linkedVersion     string
 		requestGroup      string
 		syncCalls         int
 		reloadCalls       int
@@ -547,6 +677,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -572,6 +703,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
+			linkedVersion:     "new-version",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -590,6 +722,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -610,13 +743,13 @@ func TestUpdater_Enable(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					URLTemplate: "https://example.com",
-				},
 			},
 			installErr: errors.New("install error"),
 
-			errMatch: "install error",
+			installedVersion:  "16.3.0",
+			linkedVersion:     "",
+			installedTemplate: cdnURITemplate,
+			errMatch:          "install error",
 		},
 		{
 			name: "version already installed",
@@ -630,6 +763,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       0,
 		},
@@ -646,6 +780,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
 			syncCalls:         1,
 			reloadCalls:       1,
@@ -663,6 +798,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			removedVersion:    "",
 			syncCalls:         1,
 			reloadCalls:       0,
@@ -672,6 +808,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -680,6 +817,7 @@ func TestUpdater_Enable(t *testing.T) {
 			flags:             FlagEnterprise | FlagFIPS,
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         1,
 			reloadCalls:       1,
 		},
@@ -694,6 +832,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
@@ -705,6 +844,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
 			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
@@ -713,7 +853,6 @@ func TestUpdater_Enable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")
@@ -803,18 +942,24 @@ func TestUpdater_Enable(t *testing.T) {
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.linkedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
 			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertCalls)
+
+			if tt.cfg == nil && err != nil {
+				_, err := os.Stat(cfgPath)
+				require.Error(t, err)
+				return
+			}
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
@@ -835,10 +980,13 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
-	FuncRemove  func(ctx context.Context, version string) error
-	FuncLink    func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
-	FuncList    func(ctx context.Context) (versions []string, err error)
+	FuncInstall       func(ctx context.Context, version, template string, flags InstallFlags) error
+	FuncRemove        func(ctx context.Context, version string) error
+	FuncLink          func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
+	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
+	FuncTryLink       func(ctx context.Context, version string) error
+	FuncTryLinkSystem func(ctx context.Context) error
+	FuncList          func(ctx context.Context) (versions []string, err error)
 }
 
 func (ti *testInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
@@ -851,6 +999,18 @@ func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 
 func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	return ti.FuncLink(ctx, version)
+}
+
+func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
+	return ti.FuncLinkSystem(ctx)
+}
+
+func (ti *testInstaller) TryLink(ctx context.Context, version string) error {
+	return ti.FuncTryLink(ctx, version)
+}
+
+func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {
+	return ti.FuncTryLinkSystem(ctx)
 }
 
 func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {
