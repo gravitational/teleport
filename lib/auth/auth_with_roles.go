@@ -2135,7 +2135,7 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2736,7 +2736,7 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3501,7 +3501,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3623,7 +3623,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3681,7 +3681,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3810,7 +3810,7 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3884,7 +3884,7 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3929,7 +3929,7 @@ func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4238,7 +4238,7 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4270,7 +4270,7 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4388,7 +4388,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4586,7 +4586,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4729,7 +4729,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4827,7 +4827,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		}
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4929,7 +4929,7 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4952,7 +4952,7 @@ func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string)
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5722,7 +5722,7 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6997,7 +6997,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7147,7 +7147,7 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7164,7 +7164,7 @@ func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7186,7 +7186,7 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7208,7 +7208,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
