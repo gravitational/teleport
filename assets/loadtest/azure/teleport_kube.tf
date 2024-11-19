@@ -13,7 +13,7 @@ resource "helm_release" "teleport" {
   name = local.teleport_release
 
   chart      = "teleport-cluster"
-  repository = "https://charts.releases.teleport.dev"
+  repository = "https://charts.releases.development.teleport.dev"
   version    = var.teleport_version
 
   namespace = kubernetes_namespace_v1.teleport.metadata.0.name
@@ -27,7 +27,7 @@ resource "helm_release" "teleport" {
       "databaseUser"                   = azurerm_postgresql_flexible_server_active_directory_administrator.pgbk_teleport.principal_name
       "sessionRecordingStorageAccount" = azurerm_storage_account.azsessions.primary_blob_host
       "clientID"                       = azurerm_user_assigned_identity.teleport_identity.client_id
-      "databasePoolMaxConnections"     = 50
+      "databasePoolMaxConnections"     = 100
     }
 
     "log" = {
@@ -35,8 +35,8 @@ resource "helm_release" "teleport" {
       "level"  = "DEBUG"
     }
     "extraArgs"       = ["--debug"]
-    "image"           = "public.ecr.aws/gravitational/teleport-distroless-debug"
-    "enterpriseImage" = "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
+    "image"           = "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
+    "enterpriseImage" = "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
 
     "proxyListenerMode" = "multiplex"
 
@@ -73,7 +73,7 @@ resource "helm_release" "teleport" {
     }
 
     "authentication" = {
-      "secondFactor" = "off"
+      "secondFactor" = "webauthn"
     }
 
     "highAvailability" = {

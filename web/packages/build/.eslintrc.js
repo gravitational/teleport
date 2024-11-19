@@ -65,6 +65,14 @@ module.exports = {
         'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
       },
     },
+    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot of
+    // changes.
+    {
+      files: ['**/*.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'warn',
+      },
+    },
   ],
   rules: {
     'import/order': [
@@ -88,6 +96,16 @@ module.exports = {
     'import/no-unresolved': 0,
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
+    'no-unused-expressions': 'off',
+    '@typescript-eslint/no-unused-expressions': [
+      'error',
+      { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
+    ],
+    '@typescript-eslint/no-empty-object-type': [
+      'error',
+      // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
+      { allowInterfaces: 'with-single-extends' },
+    ],
 
     // Severity should be one of the following:
     // "off" or 0 - turn the rule off

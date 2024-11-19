@@ -33,7 +33,7 @@ var schemeRegex = regexp.MustCompile("^([^:]+)://")
 // a custom service endpoint, this performs applies the same
 // behavior that the legacy sdk did.
 func CreateURI(endpoint string, insecure bool) string {
-	if !schemeRegex.MatchString(endpoint) {
+	if endpoint != "" && !schemeRegex.MatchString(endpoint) {
 		scheme := "https"
 		if insecure {
 			scheme = "http"
