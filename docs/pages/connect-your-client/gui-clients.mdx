@@ -10,9 +10,20 @@ work with Teleport.
 
 ### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- A running Teleport cluster. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../admin-guides/deploy-a-cluster/linux-demo.mdx).
 
-- (!docs/pages/includes/tctl.mdx!)
+- The `tsh` client tool. Visit [Installation](../installation.mdx) for instructions on downloading
+  `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx) guide for a graphical desktop client
+  that includes `tsh`.
+
+- To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
+
+  ```code
+  $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
+  ```
+
 - The Teleport Database Service configured to access a database. See one of our
   [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
