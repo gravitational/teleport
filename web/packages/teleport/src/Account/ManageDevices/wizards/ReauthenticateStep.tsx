@@ -25,7 +25,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import { createMfaOptions } from 'shared/utils/createMfaOptions';
 import { StepComponentProps, StepHeader } from 'design/StepSlider';
 
 import Box from 'design/Box';
@@ -34,23 +34,27 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { MfaDevice } from 'teleport/services/mfa';
-import { DeviceUsage, MfaAuthenticateChallenge, MfaChallengeResponse } from 'teleport/services/auth';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { useMfa } from 'teleport/lib/useMfa';
+import {
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+} from 'teleport/services/auth';
 
 export type ReauthenticateStepProps = StepComponentProps & {
   auth2faType: Auth2faType;
   devices: MfaDevice[];
   onMfaResponse(mfaResponse: MfaChallengeResponse): void;
+  mfaChallenge: MfaAuthenticateChallenge;
   onClose(): void;
 };
-export async function ReauthenticateStep({
+
+export function ReauthenticateStep({
   next,
   refCallback,
   stepIndex,
   flowLength,
   auth2faType,
   onClose,
+  mfaChallenge,
   onMfaResponse: onMfaResponseProp,
 }: ReauthenticateStepProps) {
   const onMfaResponse = (mfaResponse: MfaChallengeResponse) => {
@@ -58,17 +62,16 @@ export async function ReauthenticateStep({
     next();
   };
 
-  const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
-
-  if (!mfaChallenge.totpChallenge && !mfaChallenge.webauthnPublicKey && !mfaChallenge.ssoChallenge) {
-    next()
-  }
-  
-  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn, submitWithSso } =
-    await useReAuthenticate({
-      mfaChallenge: mfaChallenge,
-      onMfaResponse,
-    });
+  const {
+    clearAttempt,
+    submitWithSso,
+    submitWithTotp,
+    submitWithWebauthn,
+    attempt,
+  } = useReAuthenticate({
+    mfaChallenge,
+    onMfaResponse,
+  });
 
   const mfaOptions = createMfaOptions(mfaChallenge);
   const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
@@ -87,13 +90,13 @@ export async function ReauthenticateStep({
     e.preventDefault();
     if (!validator.validate()) return;
     if (mfaOption === 'webauthn') {
-      submitWithWebauthn();
+      submitWithWebauthn(mfaChallenge.webauthnPublicKey);
     }
     if (mfaOption === 'otp') {
       submitWithTotp(otpCode);
     }
     if (mfaOption === 'sso') {
-      submitWithSso();
+      submitWithSso(mfaChallenge.ssoChallenge);
     }
   };
 
@@ -120,7 +123,7 @@ export async function ReauthenticateStep({
             <RadioGroup
               name="mfaOption"
               options={mfaOptions}
-              value={mfaOption}
+              value={mfaOption} // ths is sometimes undefined until we get challenges back
               autoFocus
               flexDirection="row"
               gap={3}
@@ -194,6 +197,7 @@ function getReauthenticationErrorMessage(
       case 'optional':
       case 'sso':
         // TODO(Joerger)
+        break;
       case 'off':
         // This error message is not useful, but this condition should never
         // happen, and if it does, it means something is broken, and we don't

@@ -29,7 +29,7 @@ import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import { createMfaOptions, MfaOption } from 'shared/utils/createMfaOptions';
 
 import useReAuthenticate, { State, Props } from './useReAuthenticate';
 
@@ -45,9 +45,9 @@ export function ReAuthenticate({
   submitWithWebauthn,
   submitWithSso,
   onClose,
+  mfaChallenge,
   actionText,
 }: State) {
-
   const [otpToken, setOtpToken] = useState('');
   const mfaOptions = createMfaOptions(mfaChallenge);
   const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
@@ -56,13 +56,13 @@ export function ReAuthenticate({
     e.preventDefault();
 
     if (mfaOption?.value === 'webauthn') {
-      submitWithWebauthn();
+      submitWithWebauthn(mfaChallenge.webauthnPublicKey);
     }
     if (mfaOption?.value === 'otp') {
       submitWithTotp(otpToken);
     }
     if (mfaOption?.value === 'sso') {
-      submitWithSso();
+      submitWithSso(mfaChallenge.ssoChallenge);
     }
   }
 

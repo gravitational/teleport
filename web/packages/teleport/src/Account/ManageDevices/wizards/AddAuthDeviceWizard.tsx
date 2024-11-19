@@ -23,7 +23,7 @@ import Flex from 'design/Flex';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
 import React, { useState, useEffect, FormEvent } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -31,11 +31,12 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import {
+  MfaOption,
+  createOptionsFromAuth2faType,
+} from 'shared/utils/createMfaOptions';
 
 import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
 
@@ -43,7 +44,7 @@ import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceUsage, MfaChallengeResponse } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
-import {  MfaDevice } from 'teleport/services/mfa';
+import { MfaDevice } from 'teleport/services/mfa';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
@@ -74,15 +75,54 @@ export function AddAuthDeviceWizard({
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
-  const [mfaResponse, setMfaResponse] = useState<MfaChallengeResponse>(null)
+  const [mfaResponse, setMfaResponse] = useState<MfaChallengeResponse>(null);
   const [credential, setCredential] = useState<Credential>(null);
 
-  const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
-
-  const mfaOptions = createMfaOptions(mfaChallenge);
+  // const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
 
   /** A new MFA device type, irrelevant if usage === 'passkey'. */
+  const mfaOptions = createOptionsFromAuth2faType(auth2faType);
+
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
+
+  const [challenge, getChallenge] = useAsync(async () => {
+    return auth.getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES });
+  });
+
+  useEffect(() => {
+    getChallenge();
+    // async function checkChallenges() {
+    //   // error is handled further down in react coponent
+    //   const [data] = await getChallenge();
+    //   if (data.webauthnPublicKey) {
+    //     next();
+    //   }
+
+    //   if (
+    //     !data.ssoChallenge &&
+    //     !data.totpChallenge &&
+    //     !data.webauthnPublicKey
+    //   ) {
+    //     next();
+    //   }
+    // }
+
+    // checkChallenges();
+  }, []);
+
+  // loading or error
+  if (challenge.status === 'processing') {
+    return <div>spinner</div>;
+  }
+
+  if (challenge.status === 'error') {
+    return <div>{challenge.statusText}</div>;
+  }
+
+  const hasChallenge =
+    challenge.data?.ssoChallenge ||
+    challenge.data?.webauthnPublicKey ||
+    challenge.data?.totpChallenge;
 
   return (
     <Dialog
@@ -93,8 +133,11 @@ export function AddAuthDeviceWizard({
     >
       <StepSlider
         flows={wizardFlows}
-        currFlow={'withReauthentication'}
+        currFlow={
+          hasChallenge ? 'withReauthentication' : 'withoutReauthentication'
+        }
         // Step properties
+        mfaChallenge={challenge.data}
         usage={usage}
         auth2faType={auth2faType}
         existingMfaResponse={mfaResponse}
@@ -124,7 +167,7 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
   auth2faType: Auth2faType;
-  existingMfaResponse: MfaChallengeResponse,
+  existingMfaResponse: MfaChallengeResponse;
   newMfaDeviceType: Auth2faType;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
   onClose(): void;
@@ -219,15 +262,13 @@ function CreateMfaBox({
 }: {
   auth2faType: Auth2faType;
   newMfaDeviceType: Auth2faType;
-  existingMfaResponse: MfaChallengeResponse,
+  existingMfaResponse: MfaChallengeResponse;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
 }) {
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  }).map((o: MfaOption) =>
-    // Be more specific about the WebAuthn device type (it's not a passkey).
-    o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
+  const mfaOptions = createOptionsFromAuth2faType(auth2faType).map(
+    (o: MfaOption) =>
+      // Be more specific about the WebAuthn device type (it's not a passkey).
+      o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
   );
 
   return (
@@ -252,12 +293,17 @@ function CreateMfaBox({
   );
 }
 
-function QrCodeBox({ existingMfaResponse }: { existingMfaResponse: MfaChallengeResponse }) {
-  const [fetchQrCodeAttempt, fetchQrCode] = useAsync((existingMfaResponse: MfaChallengeResponse) =>
-    auth.createMfaRegistrationChallenge({
-      deviceType: 'totp',
-      existingMfaResponse: existingMfaResponse, 
-    })
+function QrCodeBox({
+  existingMfaResponse,
+}: {
+  existingMfaResponse: MfaChallengeResponse;
+}) {
+  const [fetchQrCodeAttempt, fetchQrCode] = useAsync(
+    (existingMfaResponse: MfaChallengeResponse) =>
+      auth.createMfaRegistrationChallenge({
+        deviceType: 'totp',
+        existingMfaResponse: existingMfaResponse,
+      })
   );
 
   useEffect(() => {

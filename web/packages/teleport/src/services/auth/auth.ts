@@ -18,7 +18,6 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -29,7 +28,6 @@ import {
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-  MfaChallengeResponse,
 } from './makeMfa';
 import {
   ResetPasswordReqWithEvent,
@@ -57,11 +55,9 @@ const auth = {
 
   checkMfaRequired: checkMfaRequired,
 
-  createMfaRegistrationChallenge(
-    req: CreateMfaRegistrationChallengeRequest
-  ) {
+  createMfaRegistrationChallenge(req: CreateMfaRegistrationChallengeRequest) {
     if (!req.deviceUsage) {
-      req.deviceUsage = 'mfa'
+      req.deviceUsage = 'mfa';
     }
 
     return api
@@ -76,7 +72,7 @@ const auth = {
   createNewWebAuthnDevice(
     req: CreateNewHardwareDeviceRequest
   ): Promise<Credential> {
-    const {deviceUsage, existingMfaResponse} = req
+    const { deviceUsage, existingMfaResponse } = req;
     return auth
       .checkWebauthnSupport()
       .then(() =>

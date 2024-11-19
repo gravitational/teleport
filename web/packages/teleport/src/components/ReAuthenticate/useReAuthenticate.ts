@@ -19,11 +19,12 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import auth, { MfaAuthenticateChallenge, MfaChallengeResponse } from 'teleport/services/auth';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
-
-import { makeWebauthnAssertionResponse } from 'teleport/services/auth';
-import { error } from 'console';
+import auth, {
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+  SSOChallenge,
+  makeWebauthnAssertionResponse,
+} from 'teleport/services/auth';
 
 // useReAuthenticate will have different "submit" behaviors depending on:
 //  - If prop field `onMfaResponse` is defined, after a user submits, the
@@ -42,7 +43,7 @@ export default function useReAuthenticate(props: Props) {
   const { attempt, setAttempt, handleError } = useAttempt('');
 
   function submitWithTotp(secondFactorToken: string) {
-    if ('onMfaResponse' in props) {
+    if (props.onMfaResponse) {
       props.onMfaResponse({ totp_code: secondFactorToken });
       return;
     }
@@ -54,11 +55,14 @@ export default function useReAuthenticate(props: Props) {
       .catch(handleError);
   }
 
-  async function submitWithWebauthn() {
+  async function submitWithWebauthn(
+    publicKey: PublicKeyCredentialRequestOptions
+  ) {
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
-      navigator.credentials.get({publicKey: props.mfaChallenge.webauthnPublicKey})
+      navigator.credentials
+        .get({ publicKey })
         .then(res => makeWebauthnAssertionResponse(res))
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
@@ -87,20 +91,22 @@ export default function useReAuthenticate(props: Props) {
       });
   }
 
-  function submitWithSso() {
-    const channel = new BroadcastChannel(props.mfaChallenge.ssoChallenge.channelId);
+  function submitWithSso({ channelId, requestId }: SSOChallenge) {
+    const channel = new BroadcastChannel(channelId);
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
       waitForMessage(channel, null)
-      .then(event => props.onMfaResponse({
-        sso_response: {
-          requestId: props.mfaChallenge.ssoChallenge.requestId,
-          token: event.data.mfaToken,
-        },
-      }))
-      .finally(channel.close)
-      .catch(handleError);
+        .then(event =>
+          props.onMfaResponse({
+            sso_response: {
+              requestId,
+              token: event.data.mfaToken,
+            },
+          })
+        )
+        .finally(channel.close)
+        .catch(handleError);
     }
 
     // TODO(Joerger): Remove/handle onAuthenticated?
@@ -117,6 +123,7 @@ export default function useReAuthenticate(props: Props) {
     submitWithTotp,
     submitWithWebauthn,
     submitWithSso,
+    mfaChallenge: props.mfaChallenge,
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
     actionText,
@@ -145,10 +152,10 @@ type BaseProps = {
 // authentication has been done at this point.
 type MfaResponseProps = BaseProps & {
   onMfaResponse(res: MfaChallengeResponse): void;
-  mfaChallenge: MfaAuthenticateChallenge;
+  mfaChallenge?: MfaAuthenticateChallenge;
   onAuthenticated?: never;
 };
- 
+
 // DefaultProps defines a function that
 // accepts a privilegeTokenId that is only
 // obtained after MFA response has been

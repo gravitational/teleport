@@ -16,27 +16,49 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Auth2faType } from 'shared/services/types';
 import { MfaAuthenticateChallenge } from 'teleport/services/auth';
 
-export default function createMfaOptions(mfaChallenge: MfaAuthenticateChallenge) {
+import { Auth2faType } from 'shared/services/types';
+
+export function createOptionsFromAuth2faType(auth2faType: Auth2faType) {
   const mfaOptions: MfaOption[] = [];
 
-  if (mfaChallenge.webauthnPublicKey) {
+  if (auth2faType === 'webauthn' || auth2faType === 'on') {
     mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
   }
 
-  if (mfaChallenge.totpChallenge) {
+  if (auth2faType === 'otp' || auth2faType === 'on') {
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
-  }
-
-  if (mfaChallenge.ssoChallenge) {
-    // TODO(Joerger): Add better label, etc.
-    mfaOptions.push({ value: 'sso', label: mfaChallenge.ssoChallenge.device.displayName ||mfaChallenge.ssoChallenge.device.connectorId });
   }
 
   return mfaOptions;
 }
+
+export function createMfaOptions(mfaChallenge: MfaAuthenticateChallenge) {
+  const mfaOptions: MfaOption[] = [];
+
+  if (mfaChallenge?.webauthnPublicKey) {
+    mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
+  }
+
+  if (mfaChallenge?.totpChallenge) {
+    mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
+  }
+
+  if (mfaChallenge?.ssoChallenge) {
+    // TODO(Joerger): Add better label, etc.
+    mfaOptions.push({
+      value: 'sso',
+      label:
+        mfaChallenge.ssoChallenge.device.displayName ||
+        mfaChallenge.ssoChallenge.device.connectorId,
+    });
+  }
+
+  return mfaOptions;
+}
+
+export default createMfaOptions;
 
 export type MfaOption = {
   value: Auth2faType;
