@@ -5,9 +5,9 @@
 set -eu
 
 case "$1" in
-    configure)
-        /usr/local/teleport-system/bin/teleport-update link
-        echo "Post-install symlink creation completed."
+    remove|deconfigure)
+        echo "Removing symlinks from teleport system paths..."
+        /usr/local/teleport-system/bin/teleport-update unlink
         ;;
 esac
 

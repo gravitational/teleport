@@ -64,7 +64,7 @@ GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
 # linux package configuration
 LINUX_BINARY_DIR=/usr/local/teleport-system/bin
-LINUX_SYSTEMD_DIR=/lib/systemd/system
+LINUX_SYSTEMD_DIR=/usr/local/teleport-system/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
@@ -226,7 +226,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         PKG_FILENAME="teleport-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport-update ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-install"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport-update ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-install ${TAR_PATH}/examples/systemd/before-remove"
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport ${TAR_PATH}/teleport-update"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
@@ -291,8 +291,12 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
 
-    # include post-install script
+    # include post-install and before-remove script
     mv -v ${TAR_PATH}/examples/systemd/post-install ${PACKAGE_TEMPDIR}
+    mv -v ${TAR_PATH}/examples/systemd/before-remove ${PACKAGE_TEMPDIR}
+
+    # create versions folder
+    mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}/versions
 
     # /var/lib/teleport
     # shellcheck disable=SC2174
@@ -370,6 +374,7 @@ else
         --prefix / \
         --verbose \
         --after-install /src/post-install \
+        --before-remove /src/before-remove \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
         ${RPM_SIGN_STANZA} .
