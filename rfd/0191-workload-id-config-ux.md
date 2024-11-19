@@ -526,13 +526,73 @@ Whilst out of scope of this RFD, the encoding of these values into the X509
 certificate would enable the inclusion of join metadata within audit logs for
 actions taken using Machine ID, allowing specific actions to be directly linked
 to a specific join without correlating the Bot Instance ID from the audit event
-with a `bot.join` evnet.
+with a `bot.join` event.
 
 ### New SVID Issuance RPC
 
 ```proto
+// WorkloadIdentityService provides the signing of workload identity documents.
+service WorkloadIdentityService {
+  rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse) {}
+}
 
+message WorkloadIdentityNameSelector {
+  string name = 1;
+}
+
+message WorkloadIdentityLabelSelector {
+  map<string, string> labels = 1;
+}
+
+message WorkloadAttestationAttributes {
+  map<string, string> attributes = 2;
+}
+
+message IssueWorkloadIdentityRequest {
+  // Selector.
+  oneof selector {
+    WorkloadIdentityNameSelector name = 1;
+    WorkloadIdentityLabelSelector labels = 2;
+  }
+  WorkloadAttestationAttributes workload_attributes = 3;
+}
+
+message IssueWorkloadIdentityResponse {
+
+}
 ```
+
+When a specific WorkloadIdentity is specified by-name by the client:
+
+1. Fetch WorkloadIdentity resource by name.
+2. Compare `workload_identity_labels` of the client roleset against
+  `metadata.labels` of the WorkloadIdentity. Reject if no access.
+3. Perform rules evaluation of `spec.rules.deny` against the attributes of the
+  client. Reject if no access.
+4. If `spec.rules.allow` is non-zero, complete rules evaluation against the
+  attributes of the client. Reject if no access.
+5. Evaluate templated fields, if attribute included in template missing from
+  attributes of the client, reject.
+6. Issue workload identity credential, emit audit log, and return credential to
+  client.
+
+Where the client has provided label selectors:
+
+1. Fetch all WorkloadIdentity resources.
+2. For each WorkloadIdentity, compare client's requested labels against 
+  `metadata.labels`, drop if no match.
+3. For each remaining WorkloadIdentity, compare `workload_identity_labels` of
+  client's roleset against `metadata.labels`, drop if no match.
+4. For each remaining WorkloadIdentity:
+4a. Perform rules evaluation of `spec.rules.deny` against the attributes of the
+   client. Drop if no access.
+4b. If `spec.rules.allow` is non-zero, complete rules evaluation against the
+  attributes of the client. Drop if no access. 
+4c. Evaluate templated fields, if attribute included in template missing from
+  attributes of the client, drop. 
+4d. Issue workload identity credential, emit audit log.
+5. Return issued credentials to client. 
+
 
 ### Performance
 
