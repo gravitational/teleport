@@ -25,19 +25,19 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
-type Props = {
-  rootClusterUri: RootClusterUri;
-  onCancel(): void;
-  onClose(): void;
-  onAuthorize(): Promise<void>;
-};
-
 export const AuthenticateWebDevice = ({
+  hidden,
   onAuthorize,
   onClose,
   onCancel,
   rootClusterUri,
-}: Props) => {
+}: {
+  rootClusterUri: RootClusterUri;
+  onCancel(): void;
+  onClose(): void;
+  onAuthorize(): Promise<void>;
+  hidden?: boolean;
+}) => {
   const [attempt, run] = useAsync(async () => {
     await onAuthorize();
     onClose();
@@ -48,7 +48,7 @@ export const AuthenticateWebDevice = ({
     routing.parseClusterName(rootClusterUri);
 
   return (
-    <Dialog open={true}>
+    <Dialog open={!hidden} keepInDOMAfterClose>
       {/* 400px was used as a way to do our best to get clusterName as the first item on the second line */}
       <DialogContent maxWidth="400px">
         <Text>

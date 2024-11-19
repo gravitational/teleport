@@ -315,7 +315,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		Retry: retryutils.LinearConfig{
 			Step:   10 * time.Second,
 			Max:    2 * time.Minute,
-			Jitter: retryutils.NewHalfJitter(),
+			Jitter: retryutils.HalfJitter,
 		},
 	})
 	if err != nil {

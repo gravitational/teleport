@@ -37,6 +37,7 @@ import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
 
 import { FinishDialog } from './FinishDialog';
 import { useAwsOidcIntegration } from './useAwsOidcIntegration';
+import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 
 export function AwsOidc() {
   const {
@@ -161,7 +162,13 @@ export function AwsOidc() {
             {scriptUrl && (
               <>
                 <Container mb={5} width={800}>
-                  <Text bold>Step 2</Text>
+                  <Flex gap={1} alignItems="center">
+                    <Text bold>Step 2</Text>
+                    <ConfigureAwsOidcSummary
+                      roleName={integrationConfig.roleName}
+                      integrationName={integrationConfig.name}
+                    />
+                  </Flex>
                   <ShowConfigurationScript scriptUrl={scriptUrl} />
                 </Container>
                 <Container mb={5} width={800}>

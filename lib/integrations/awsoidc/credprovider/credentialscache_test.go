@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ type fakeSTSClient struct {
 	clock clockwork.Clock
 	err   error
 	sync.Mutex
+	called int32
 }
 
 func (f *fakeSTSClient) setError(err error) {
@@ -55,6 +57,7 @@ func (f *fakeSTSClient) getError() error {
 }
 
 func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	atomic.AddInt32(&f.called, 1)
 	if err := f.getError(); err != nil {
 		return nil, err
 	}

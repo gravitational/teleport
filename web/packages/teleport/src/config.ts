@@ -205,6 +205,12 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    // Access Graph is part of enterprise, but we need to generate links in the audit log,
+    // which is in OSS.
+    accessGraph: {
+      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+    },
   },
 
   api: {
@@ -314,6 +320,8 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
@@ -958,6 +966,19 @@ const cfg = {
     });
   },
 
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsRdsDbListUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1178,6 +1199,10 @@ const cfg = {
 
   getNotificationStateUrl(clusterId: string) {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
+  },
+
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
   },
 
   init(backendConfig = {}) {

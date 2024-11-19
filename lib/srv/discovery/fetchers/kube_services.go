@@ -54,6 +54,8 @@ type KubeAppsFetcherConfig struct {
 	Log logrus.FieldLogger
 	// ProtocolChecker inspects port to find your whether they are HTTP/HTTPS or not.
 	ProtocolChecker ProtocolChecker
+	// DiscoveryConfig is the name of the discovery config which originated the resource.
+	DiscoveryConfig string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -231,6 +233,15 @@ func (f *KubeAppFetcher) ResourceType() string {
 
 func (f *KubeAppFetcher) Cloud() string {
 	return ""
+}
+
+func (f *KubeAppFetcher) IntegrationName() string {
+	// KubeAppFetcher does not have an integration.
+	return ""
+}
+
+func (f *KubeAppFetcher) DiscoveryConfigName() string {
+	return f.DiscoveryConfig
 }
 
 func (f *KubeAppFetcher) FetcherType() string {

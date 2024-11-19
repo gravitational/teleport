@@ -304,7 +304,7 @@ destinations:
 		},
 		// Backwards compat with guides
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/jenkins/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/deployment/jenkins/",
 			input: `
 auth_server: "auth.example.com:3025"
 onboarding:
