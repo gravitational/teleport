@@ -84,7 +84,7 @@ export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
   );
 };
 
-export const useResourcesContext = () => {
+export const useResourcesContext = (rootClusterUri: RootClusterUri) => {
   const context = useContext(ResourcesContext);
 
   if (!context) {
@@ -93,5 +93,24 @@ export const useResourcesContext = () => {
     );
   }
 
-  return context;
+  const {
+    requestResourcesRefresh: requestResourcesRefreshContext,
+    onResourcesRefreshRequest: onResourcesRefreshRequestContext,
+  } = context;
+
+  return {
+    requestResourcesRefresh: useCallback(
+      () => requestResourcesRefreshContext(rootClusterUri),
+      [requestResourcesRefreshContext, rootClusterUri]
+    ),
+    onResourcesRefreshRequest: useCallback(
+      (listener: () => void) =>
+        onResourcesRefreshRequestContext(requestedRootClusterUri => {
+          if (requestedRootClusterUri === rootClusterUri) {
+            listener();
+          }
+        }),
+      [onResourcesRefreshRequestContext, rootClusterUri]
+    ),
+  };
 };

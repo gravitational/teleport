@@ -46,7 +46,6 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
 import * as uri from 'teleterm/ui/uri';
 
 const mio = mockIntersectionObserver();
@@ -280,7 +279,6 @@ test.each([
     name: 'refreshes resources when the document cluster URI matches the requested cluster URI',
     conditions: {
       documentClusterUri: '/clusters/teleport-local',
-      rootClusterUriToRefresh: '/clusters/teleport-local',
     },
     expect: {
       resourcesRefreshed: true,
@@ -290,21 +288,9 @@ test.each([
     name: 'refreshes resources when the document cluster URI is a leaf of the requested cluster URI',
     conditions: {
       documentClusterUri: '/clusters/teleport-local/leaves/leaf',
-      rootClusterUriToRefresh: '/clusters/teleport-local',
     },
     expect: {
       resourcesRefreshed: true,
-    },
-  },
-
-  {
-    name: 'does not refresh resources when the document cluster URI is not related to the requested cluster URI',
-    conditions: {
-      documentClusterUri: '/clusters/teleport-remote',
-      rootClusterUriToRefresh: '/clusters/teleport-local',
-    },
-    expect: {
-      resourcesRefreshed: false,
     },
   },
 ])('$name', async testCase => {
@@ -347,7 +333,7 @@ test.each([
     });
 
   const ref = createRef<{
-    requestResourcesRefresh: (rootClusterUri: uri.RootClusterUri) => void;
+    requestResourcesRefresh: () => void;
   }>();
 
   render(
@@ -355,8 +341,8 @@ test.each([
       <MockWorkspaceContextProvider>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            <UnifiedResourcesWithRefreshExposed
-              ref={ref}
+            <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
+            <UnifiedResources
               clusterUri={doc.clusterUri}
               docUri={doc.uri}
               queryParams={doc.queryParams}
@@ -377,11 +363,7 @@ test.each([
     appContext.resourcesService.listUnifiedResources
   ).toHaveBeenCalledTimes(1);
 
-  act(() =>
-    ref.current.requestResourcesRefresh(
-      testCase.conditions.rootClusterUriToRefresh
-    )
-  );
+  act(() => ref.current.requestResourcesRefresh());
 
   // Wait for resources to (potentially) re-render.
   await expect(
@@ -393,26 +375,17 @@ test.each([
   ).toHaveBeenCalledTimes(testCase.expect.resourcesRefreshed ? 2 : 1);
 });
 
-const UnifiedResourcesWithRefreshExposed = forwardRef<
+const Refresher = forwardRef<
   {
-    requestResourcesRefresh: (rootClusterUri: uri.RootClusterUri) => void;
+    requestResourcesRefresh: () => void;
   },
   {
-    clusterUri: uri.ClusterUri;
-    docUri: uri.DocumentUri;
-    queryParams: DocumentClusterQueryParams;
+    rootClusterUri: uri.RootClusterUri;
   }
 >((props, ref) => {
-  const resourcesContext = useResourcesContext();
+  const resourcesContext = useResourcesContext(props.rootClusterUri);
   useImperativeHandle(ref, () => ({
     requestResourcesRefresh: resourcesContext.requestResourcesRefresh,
   }));
-
-  return (
-    <UnifiedResources
-      clusterUri={props.clusterUri}
-      docUri={props.docUri}
-      queryParams={props.queryParams}
-    />
-  );
+  return null;
 });

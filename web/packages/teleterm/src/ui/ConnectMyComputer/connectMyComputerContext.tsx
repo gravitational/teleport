@@ -131,7 +131,7 @@ export const ConnectMyComputerContextProvider: FC<
     workspacesService,
     usageService,
   } = ctx;
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   clustersService.useState();
 
   const [
@@ -322,7 +322,7 @@ export const ConnectMyComputerContextProvider: FC<
       }
 
       if (hasNodeRemovalSucceeded) {
-        requestResourcesRefresh(rootClusterUri);
+        requestResourcesRefresh();
       }
 
       ctx.notificationsService.notifyInfo(
