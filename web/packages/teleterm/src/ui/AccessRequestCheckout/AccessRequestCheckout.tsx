@@ -104,7 +104,7 @@ export function AccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -284,7 +284,7 @@ export function AccessRequestCheckout() {
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
-            bulkToggleKubeResources={bulkToggleKubeResources}
+            updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
         )}
       </Transition>

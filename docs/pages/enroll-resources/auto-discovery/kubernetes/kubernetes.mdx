@@ -62,11 +62,6 @@ and their default values.
 # This section configures the Discovery Service
 discovery_service:
     enabled: "yes"
-    # discovery_group is used to group discovered resources into different
-    # sets. This is useful when you have multiple Teleport Discovery services
-    # running in the same cluster but polling different cloud providers or cloud
-    # accounts. It prevents discovered services from colliding in Teleport when
-    # managing discovered resources.
     discovery_group: "prod"
     aws:
        # AWS resource types. Valid options are:

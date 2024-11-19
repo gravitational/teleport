@@ -1253,6 +1253,8 @@ message SSOChallenge {
   string request_id = 1;
   // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
   string redirect_url = 2;
+  // Device is the SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
 }
 
 // SSOResponse is a response to SSOChallenge.
@@ -2167,6 +2169,9 @@ message UpdateSessionTrackerRequest {
 message PresenceMFAChallengeRequest {
   // SessionID is unique identifier of the session you want to request presence for.
   string SessionID = 1 [(gogoproto.jsontag) = "session_id,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges.
+  string SSOClientRedirectURL = 2 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.

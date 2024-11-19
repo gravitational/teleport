@@ -571,6 +571,10 @@ export class FeatureClusters implements TeleportFeature {
     },
     searchableTags: ['clusters', 'manage clusters'],
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {

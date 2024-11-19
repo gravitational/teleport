@@ -103,12 +103,14 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
 type EKSCluster struct {
-	Name       string     `json:"name"`
-	Region     string     `json:"region"`
-	Arn        string     `json:"arn"`
-	Labels     []ui.Label `json:"labels"`
-	JoinLabels []ui.Label `json:"joinLabels"`
-	Status     string     `json:"status"`
+	Name                 string     `json:"name"`
+	Region               string     `json:"region"`
+	Arn                  string     `json:"arn"`
+	Labels               []ui.Label `json:"labels"`
+	JoinLabels           []ui.Label `json:"joinLabels"`
+	Status               string     `json:"status"`
+	EndpointPublicAccess bool       `json:"endpointPublicAccess"`
+	AuthenticationMode   string     `json:"authenticationMode"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -149,12 +151,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
-			JoinLabels: ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
-			Status:     cluster.Status,
+			Name:                 cluster.Name,
+			Region:               cluster.Region,
+			Arn:                  cluster.Arn,
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
+			Status:               cluster.Status,
+			EndpointPublicAccess: cluster.EndpointPublicAccess,
+			AuthenticationMode:   cluster.AuthenticationMode,
 		})
 	}
 	return uiEKSClusters

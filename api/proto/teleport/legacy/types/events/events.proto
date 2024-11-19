@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -280,6 +281,10 @@ message AccessListMember {
 
   // MemberName is the name of the member.
   string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
+
+  // MembershipKind describes the kind of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
@@ -1968,6 +1973,13 @@ message Subsystem {
 
   // Error contains error in case of unsucessfull attempt
   string Error = 5 [(gogoproto.jsontag) = "exitError"];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // ClientDisconnect is emitted when client is disconnected
@@ -5654,6 +5666,10 @@ message SessionRecordingAccess {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // SessionType is type of the session.
+  string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
+  // Format is the format the session recording was accessed.
+  string Format = 5 [(gogoproto.jsontag) = "format,omitempty"];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.

@@ -28,7 +28,7 @@ import parseError, { ApiError } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url, abortSignal?) {
+  get(url: string, abortSignal?: AbortSignal) {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 

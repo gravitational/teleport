@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -492,6 +493,10 @@ func (m *mockAuthClient) GetIntegration(ctx context.Context, name string) (types
 func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 	result := m.Called(ctx)
 	return result.Get(0).(proto.PingResponse), result.Error(1)
+}
+
+func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	return &proto.MFAAuthenticateResponse{}, nil
 }
 
 // anyContext is an argument matcher for testify mocks that matches any context.

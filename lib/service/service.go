@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -137,8 +138,8 @@ import (
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
+	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -164,6 +165,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -2934,7 +2936,7 @@ func (process *TeleportProcess) initSSH() error {
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
 		// read the host UUID:
-		serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+		serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4320,8 +4322,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
-			// TODO(espadolini): allow this when the implementation is merged
-			if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+			if process.Config.Proxy.QUICProxyPeering {
 				// the stateless reset key is important in case there's a crash
 				// so peers can be told to close their side of the connections
 				// instead of having to wait for a timeout; for this reason, we
@@ -4439,7 +4440,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// read the host UUID:
-	serverID, err := utils.ReadOrMakeHostUUID(cfg.DataDir)
+	serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4624,7 +4625,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
-			FeatureWatchInterval:      utils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
+			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4706,7 +4707,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var peerServer *peer.Server
-	var peerQUICServer *peer.QUICServer
+	var peerQUICServer *peerquic.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4715,9 +4716,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		peerAddrString = peerAddr.String()
 
 		peerServer, err = peer.NewServer(peer.ServerConfig{
-			Log:           process.logger,
-			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-			CipherSuites:  cfg.CipherSuites,
+			Log:          process.logger,
+			Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
+			CipherSuites: cfg.CipherSuites,
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return conn.serverGetCertificate()
 			},
@@ -4749,10 +4750,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if peerQUICTransport != nil {
-			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
-				Log:           process.logger,
-				ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-				CipherSuites:  cfg.CipherSuites,
+			peerQUICServer, err := peerquic.NewServer(peerquic.ServerConfig{
+				Log:    process.logger,
+				Dialer: reversetunnelclient.NewPeerDialer(tsrv),
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},
@@ -4770,13 +4770,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			process.RegisterCriticalFunc("proxy.peer.quic", func() error {
 				if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
-					logger.DebugContext(process.ExitContext(), "Process exiting: failed to start QUIC peer proxy service waiting for reverse tunnel server.")
+					logger.DebugContext(process.ExitContext(), "process exiting: failed to start QUIC peer proxy service waiting for reverse tunnel server")
 					return nil
 				}
 
-				logger.InfoContext(process.ExitContext(), "Starting QUIC peer proxy service.", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
+				logger.InfoContext(process.ExitContext(), "starting QUIC peer proxy service", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
 				err := peerQUICServer.Serve(peerQUICTransport)
-				if err != nil {
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) {
 					return trace.Wrap(err)
 				}
 
@@ -4796,8 +4796,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		logger.InfoContext(process.ExitContext(), "Enabling proxy group labels.", "group_id", cfg.Proxy.ProxyGroupID, "generation", cfg.Proxy.ProxyGroupGeneration)
 	}
 	if peerQUICTransport != nil {
-		staticLabels[types.ProxyPeerQUICLabel] = "x"
-		logger.InfoContext(process.ExitContext(), "Advertising proxy peering QUIC support.")
+		staticLabels[types.UnstableProxyPeerQUICLabel] = "yes"
+		logger.InfoContext(process.ExitContext(), "advertising proxy peering QUIC support")
 	}
 
 	sshProxy, err := regular.New(
@@ -6135,8 +6135,8 @@ func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
 // initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
-	process.logger.DebugContext(process.ExitContext(), "Initializing auth backend.", "backend", process.Config.Auth.StorageConfig.Type)
 	bc := process.Config.Auth.StorageConfig
+	process.logger.DebugContext(process.ExitContext(), "Initializing auth backend.", "type", bc.Type)
 	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6498,7 +6498,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
 		}
-	} else if kubeBackend != nil && utils.HostUUIDExistsLocally(cfg.DataDir) {
+	} else if kubeBackend != nil && hostid.ExistsLocally(cfg.DataDir) {
 		// This case is used when loading a Teleport pre-11 agent with storage attached.
 		// In this case, we have to copy the "host_uuid" from the agent to the secret
 		// in case storage is removed later.
@@ -6537,14 +6537,14 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 	}
 	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
 	// not found in secret.
-	hostID, err := utils.ReadHostUUID(dataDir)
+	hostID, err := hostid.ReadFile(dataDir)
 	return hostID, trace.Wrap(err)
 }
 
 // persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
 func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
-	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}
@@ -6563,7 +6563,7 @@ func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBa
 // loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
 // the expected key: `/host_uuid`.
 func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
-	item, err := kubeBackend.Get(ctx, backend.NewKey(utils.HostUUIDFile))
+	item, err := kubeBackend.Get(ctx, backend.NewKey(hostid.FileName))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -6576,7 +6576,7 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend,
 	_, err := kubeBackend.Put(
 		ctx,
 		backend.Item{
-			Key:   backend.NewKey(utils.HostUUIDFile),
+			Key:   backend.NewKey(hostid.FileName),
 			Value: []byte(id),
 		},
 	)

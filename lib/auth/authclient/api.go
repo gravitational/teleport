@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -1164,7 +1165,7 @@ type Cache interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1235,6 +1236,9 @@ type Cache interface {
 
 	// GetProvisioningState gets a specific provisioning state
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
+
+	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
 }
 
 type NodeWrapper struct {

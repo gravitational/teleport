@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
 
@@ -204,17 +204,17 @@ func (c *ClientTLSConfigGenerator) refreshClientTLSConfigs(ctx context.Context) 
 		}
 
 		select {
-		case <-time.After(utils.FullJitter(time.Second * 3)):
+		case <-time.After(retryutils.FullJitter(time.Second * 3)):
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// watchForCAChanges sets up a cert authority watcher and triggers regeneration of client
-// tls configs for a given cluster whenever a CA associated with that cluster is modified.
-// note that this function errs on the side of regenerating more often than might be
-// strictly necessary.
+// watchForCAChanges sets up a cert authority watcher to ensure that we don't serve outdated
+// tls configs. for the local cluster it aggressively triggers regeneration. for other clusters
+// it invalidates extant state, allowing lazy generation on first need. this function errs on the
+// side of caution and triggers regen/invalidation more often than might be strictly necessary.
 func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error {
 	watcher, err := c.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
 		Name: "client-tls-config-generator",
@@ -254,8 +254,14 @@ func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error 
 					// ignore non-local cluster CA events when we aren't configured to support them
 					continue
 				}
-				// trigger regen of client tls configs for the associated cluster.
-				c.clientTLSConfigs.Generate(event.Resource.GetName())
+
+				if event.Resource.GetName() == c.cfg.ClusterName {
+					// actively regenerate on modifications associated with the local cluster
+					c.clientTLSConfigs.Generate(event.Resource.GetName())
+				} else {
+					// clear extant state on modifications associated with non-local clusters
+					c.clientTLSConfigs.Terminate(event.Resource.GetName())
+				}
 			}
 		case <-ctx.Done():
 			return nil

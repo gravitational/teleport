@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -217,7 +218,7 @@ type ProxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -812,6 +813,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Site specific API
 
+	// get site info
+	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
+
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
@@ -976,6 +980,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+
+	// GET the Microsoft Teams plugin app.zip file.
+	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
@@ -1303,8 +1310,9 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 	return webclient.AuthenticationSettings{
 		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:      connector.GetName(),
+			Display:   connector.GetDisplay(),
+			IssuerURL: connector.GetIssuerURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1323,6 +1331,10 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:                connector.GetName(),
 			Display:             connector.GetDisplay(),
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
+			// Note that we get the connector's primary SSO field, not the MFA SSO field.
+			// These two values are often unique, but should have the same host prefix
+			// (e.g. https://dev-813354.oktapreview.com) in reasonable, functional setups.
+			SSO: connector.GetSSO(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1338,8 +1350,9 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 	return webclient.AuthenticationSettings{
 		Type: constants.Github,
 		Github: &webclient.GithubSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:        connector.GetName(),
+			Display:     connector.GetDisplay(),
+			EndpointURL: connector.GetEndpointURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -2251,6 +2264,16 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 
 	// Extract secret out of the request.
 	secretKey := u.Query().Get("secret_key")
+
+	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
+	// kept a secret on the front end to minimize the risk of a phishing attack.
+	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+		q := u.Query()
+		q.Add("response", string(out))
+		u.RawQuery = q.Encode()
+		return u, nil
+	}
+
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -2863,6 +2886,35 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
+}
+
+type getClusterInfoResponse struct {
+	ui.Cluster
+	IsCloud bool `json:"isCloud"`
+}
+
+// getClusterInfo returns the information about the cluster in the :site param
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	clusterDetails, err := ui.GetClusterDetails(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getClusterInfoResponse{
+		Cluster: *clusterDetails,
+		IsCloud: pingResp.GetServerFeatures().Cloud,
+	}, nil
 }
 
 type getSiteNamespacesResponse struct {

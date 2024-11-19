@@ -65,13 +65,13 @@ type AutoUpdateService interface {
 	DeleteAutoUpdateVersion(ctx context.Context) error
 
 	// CreateAutoUpdateAgentRollout creates the AutoUpdateAgentRollout singleton resource.
-	CreateAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+	CreateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
 
 	// UpdateAutoUpdateAgentRollout updates the AutoUpdateAgentRollout singleton resource.
-	UpdateAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+	UpdateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
 
 	// UpsertAutoUpdateAgentRollout sets the AutoUpdateAgentRollout singleton resource.
-	UpsertAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+	UpsertAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
 
 	// DeleteAutoUpdateAgentRollout deletes the AutoUpdateAgentRollout singleton resource.
 	DeleteAutoUpdateAgentRollout(ctx context.Context) error

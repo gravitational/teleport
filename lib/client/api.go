@@ -495,6 +495,9 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
+	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
+	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
+
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
@@ -521,6 +524,9 @@ type Config struct {
 	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
 	// If nil touchid.HasCredentials is used.
 	HasTouchIDCredentialsFunc func(rpID, user string) bool
+
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -790,8 +796,42 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 	}
 }
 
+// NonRetryableError wraps an error to indicate that the error should fail
+// IsErrorResolvableWithRelogin. This wrapper is used to workaround the false
+// positives like trace.IsBadParameter check in IsErrorResolvableWithRelogin.
+type NonRetryableError struct {
+	// Err is the original error.
+	Err error
+}
+
+// Error returns the error text.
+func (e *NonRetryableError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the original error.
+func (e *NonRetryableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsNonRetryableError checks if the provided error is a NonRetryableError.
+// Equivalent to `errors.As(err, new(*NonRetryableError))`.
+func IsNonRetryableError(err error) bool {
+	return errors.As(err, new(*NonRetryableError))
+}
+
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	if IsNonRetryableError(err) {
+		return false
+	}
+
 	// Private key policy errors indicate that the user must login with an
 	// unexpected private key policy requirement satisfied. This can occur
 	// in the following cases:
@@ -827,6 +867,8 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
 	//  We should fix this and remove the RemoteError condition above as well.
 	//  Any retriable error should be explicitly marked as such.
+	//  Once trace.IsBadParameter check is removed, the nonRetryableError
+	//  workaround can also be removed.
 	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
@@ -885,6 +927,8 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PIVSlot = profile.PIVSlot
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
+	c.SSOHost = profile.SSOHost
+
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -935,6 +979,7 @@ func (c *Config) Profile() *profile.Profile {
 		PIVSlot:                       c.PIVSlot,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
+		SSOHost:                       c.SSOHost,
 	}
 }
 
@@ -2230,7 +2275,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
 			}
 		}
 	}
@@ -2330,13 +2375,11 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				}
 				playing = !playing
 			case keyLeft, keyDown:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(max(current-skipDuration, 0)) // rewind
+				player.SetPos(max(player.LastPlayed()-skipDuration, 0)) // rewind
 				term.Clear()
 				term.SetCursorPos(1, 1)
 			case keyRight, keyUp:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(current + skipDuration) // advance forward
+				player.SetPos(player.LastPlayed() + skipDuration) // advance forward
 			}
 		}
 	}()
@@ -4301,7 +4344,9 @@ You may use the --skip-version-check flag to bypass this check.
 	// cached, there is no need to do this test again.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
-	tc.applyAuthSettings(pr.Auth)
+	if err := tc.applyAuthSettings(pr.Auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tc.lastPing = pr
 
@@ -4580,7 +4625,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 
 // applyAuthSettings updates configuration changes based on the advertised
 // authentication settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
 
 	// If PIVSlot is not already set, default to the server setting.
@@ -4592,6 +4637,25 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
+
+	var ssoURL *url.URL
+	var err error
+	switch {
+	case authSettings.SAML != nil:
+		ssoURL, err = url.Parse(authSettings.SAML.SSO)
+	case authSettings.OIDC != nil:
+		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
+	case authSettings.Github != nil:
+		ssoURL, err = url.Parse(authSettings.Github.EndpointURL)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ssoURL != nil {
+		tc.SSOHost = ssoURL.Host
+	}
+
+	return nil
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests

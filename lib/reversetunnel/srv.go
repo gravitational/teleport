@@ -1233,10 +1233,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.certificateCache = certificateCache
 
 	caRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1262,10 +1262,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}()
 
 	lockRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {

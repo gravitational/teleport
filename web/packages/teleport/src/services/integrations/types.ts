@@ -83,6 +83,23 @@ export type IntegrationSpecAwsOidc = {
   audience?: IntegrationAudience;
 };
 
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
+};
+
 export enum IntegrationStatusCode {
   Unknown = 0,
   Running = 1,
@@ -173,7 +190,8 @@ export type PluginSpec =
   | PluginMattermostSpec
   | PluginOpsgenieSpec
   | PluginDatadogSpec
-  | PluginEmailSpec;
+  | PluginEmailSpec
+  | PluginMsTeamsSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -231,6 +249,14 @@ export type PluginMattermostSpec = {
   channel: string;
   team: string;
   reportToEmail: string;
+};
+
+export type PluginMsTeamsSpec = {
+  appID: string;
+  tenantID: string;
+  teamsAppID: string;
+  region: string;
+  defaultRecipient: string;
 };
 
 export type PluginOpsgenieSpec = {
@@ -458,6 +484,19 @@ export type AwsEksCluster = {
    * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
    */
   joinLabels: Label[];
+
+  /**
+   * AuthenticationMode is the cluster's configured authentication mode.
+   * You can read more about the Authentication Modes here: https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
+   */
+  authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
+
+  /**
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
+   * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
+   * in order to deploy the helm chart.
+   */
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {

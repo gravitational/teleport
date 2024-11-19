@@ -392,7 +392,7 @@
     },
     {
       "source": "/application-access/jwt/",
-      "destination": "/enroll-resources/application-access/jwt/",
+      "destination": "/enroll-resources/application-access/jwt/jwt/",
       "permanent": true
     },
     {
@@ -2238,6 +2238,11 @@
     {
       "source": "/management/dynamic-resources/teleport-operator/",
       "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/terraform-provider/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/terraform-provider/",
       "permanent": true
     },
     {

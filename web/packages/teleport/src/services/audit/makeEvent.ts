@@ -1687,7 +1687,7 @@ export const formatters: Formatters = {
       affected_resource_name,
       affected_resource_source,
     }) =>
-      `${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed an access path`,
+      `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
@@ -1832,6 +1832,27 @@ export const formatters: Formatters = {
     desc: 'File Transfer Completed',
     format: ({ user, server_hostname }) => {
       return `User [${user}] completed a file transfer on [${server_hostname}]`;
+    },
+  },
+  [eventCodes.PLUGIN_CREATE]: {
+    type: 'plugin.create',
+    desc: 'Plugin Created',
+    format: ({ user, name, plugin_type }) => {
+      return `User [${user}] created a plugin [${name}] of type [${plugin_type}]`;
+    },
+  },
+  [eventCodes.PLUGIN_UPDATE]: {
+    type: 'plugin.update',
+    desc: 'Plugin Updated',
+    format: ({ user, name, plugin_type }) => {
+      return `User [${user}] updated a plugin [${name}] of type [${plugin_type}]`;
+    },
+  },
+  [eventCodes.PLUGIN_DELETE]: {
+    type: 'plugin.delete',
+    desc: 'Plugin Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a plugin [${name}]`;
     },
   },
   [eventCodes.UNKNOWN]: {

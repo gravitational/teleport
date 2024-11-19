@@ -1029,6 +1029,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -4866,7 +4867,18 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	// `tsh status` should run without requiring user interaction.
+	// To achieve this, we avoid remote calls that might prompt for
+	// hardware key touch or require a PIN.
+	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
+
+	var accessListsToReview []*accesslist.AccessList
+	if hardwareKeyInteractionRequired {
+		log.Debug("Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement.")
+	} else {
+		accessListsToReview = cf.getAccessListsToReview(tc)
+	}
+	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4879,7 +4891,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	if tc.PrivateKeyPolicy.MFAVerified() {
+	if hardwareKeyInteractionRequired {
 		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,

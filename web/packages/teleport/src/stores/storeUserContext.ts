@@ -125,6 +125,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.clipboardSharingEnabled;
   }
 
+  getReviewRequests() {
+    return this.state.acl.reviewRequests;
+  }
+
   getNodeAccess() {
     return this.state.acl.nodes;
   }
@@ -206,6 +210,10 @@ export default class StoreUserContext extends Store<UserContext> {
       this.hasPrereqAccessToAddAgents() ||
       (this.hasAccessToQueryAgent() && !cfg.hideInaccessibleFeatures)
     );
+  }
+
+  getDiscoveryConfigAccess() {
+    return this.state.acl.discoverConfigs;
   }
 
   getPluginsAccess() {
