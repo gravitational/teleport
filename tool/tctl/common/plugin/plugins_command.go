@@ -205,7 +205,7 @@ type authClient interface {
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
-	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 	UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
 	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)

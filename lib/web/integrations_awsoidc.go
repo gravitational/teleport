@@ -270,7 +270,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName, false)
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -972,7 +972,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(ctx, integrationName, false)
+	ig, err := clt.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1036,7 +1036,7 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(ctx, integrationName, false)
+	ig, err := clt.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1091,7 +1091,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName, false)
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)

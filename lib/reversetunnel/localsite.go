@@ -531,7 +531,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
 
-	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration, false)
+	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
 	if err != nil {
 		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
 	}

@@ -118,7 +118,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	integration, err := clt.GetIntegration(r.Context(), integrationName, false)
+	integration, err := clt.GetIntegration(r.Context(), integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,7 +184,7 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(r.Context(), integrationName, false)
+	ig, err := clt.GetIntegration(r.Context(), integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +212,7 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 
 	startKey := values.Get("startKey")
 
-	igs, nextKey, err := clt.ListIntegrations(r.Context(), int(limit), startKey, false)
+	igs, nextKey, err := clt.ListIntegrations(r.Context(), int(limit), startKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

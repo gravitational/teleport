@@ -3008,7 +3008,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 }
 
 // ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string, withSecrets bool) ([]types.Integration, string, error) {
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
@@ -3017,11 +3017,11 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListIntegrations(ctx, pageSize, nextKey, withSecrets)
+	return rg.reader.ListIntegrations(ctx, pageSize, nextKey)
 }
 
 // GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
+func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
@@ -3030,7 +3030,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string, withSecrets boo
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetIntegration(ctx, name, withSecrets)
+	return rg.reader.GetIntegration(ctx, name)
 }
 
 // ListUserTasks returns a list of UserTask resources.

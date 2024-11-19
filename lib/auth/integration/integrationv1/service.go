@@ -143,13 +143,6 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
-func readVerb(withSecret bool) string {
-	if withSecret {
-		return types.VerbRead
-	}
-	return types.VerbReadNoSecrets
-}
-
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -157,17 +150,11 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, readVerb(req.WithSecrets), types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.WithSecrets {
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey(), req.WithSecrets)
+	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,17 +181,11 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, readVerb(req.WithSecrets)); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.WithSecrets {
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	integration, err := s.cache.GetIntegration(ctx, req.GetName(), req.WithSecrets)
+	integration, err := s.cache.GetIntegration(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +322,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cache.GetIntegration(ctx, req.GetName(), false)
+	ig, err := s.cache.GetIntegration(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

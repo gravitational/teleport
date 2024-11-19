@@ -76,30 +76,20 @@ func NewIntegrationsService(b backend.Backend, opts ...IntegrationsServiceOption
 }
 
 // ListIntegrations returns a paginated list of Integration resources.
-func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.Integration, string, error) {
+func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
 	igs, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
-	}
-
-	if !withSecrets {
-		for i, ig := range igs {
-			igs[i] = ig.WithoutSecrets()
-		}
 	}
 
 	return igs, nextKey, nil
 }
 
 // GetIntegration returns the specified Integration resource.
-func (s *IntegrationsService) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
+func (s *IntegrationsService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	ig, err := s.svc.GetResource(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if !withSecrets {
-		ig = ig.WithoutSecrets()
 	}
 
 	return ig, nil

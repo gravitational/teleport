@@ -38,10 +38,7 @@ type mockIntegrationsTokenGenerator struct {
 }
 
 // GetIntegration returns the specified integration resources.
-func (m *mockIntegrationsTokenGenerator) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
-	if withSecrets {
-		return nil, trace.AccessDenied("access denied")
-	}
+func (m *mockIntegrationsTokenGenerator) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	if ig, found := m.integrations[name]; found {
 		return ig, nil
 	}

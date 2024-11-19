@@ -2288,14 +2288,14 @@ func TestIntegrations(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.integrations.ListIntegrations(ctx, 0, "", false)
+			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
 			return results, err
 		},
 		cacheGet: func(ctx context.Context, name string) (types.Integration, error) {
-			return p.cache.GetIntegration(ctx, name, false)
+			return p.cache.GetIntegration(ctx, name)
 		},
 		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.cache.ListIntegrations(ctx, 0, "", false)
+			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
 			return results, err
 		},
 		update: func(ctx context.Context, i types.Integration) error {

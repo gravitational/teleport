@@ -1411,7 +1411,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		return trace.Wrap(err)
 	}
 
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName(), rc.withSecrets)
+	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -2909,7 +2909,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
-			ig, err := client.GetIntegration(ctx, rc.ref.Name, rc.withSecrets)
+			ig, err := client.GetIntegration(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2921,7 +2921,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var err error
 		var nextKey string
 		for {
-			igs, nextKey, err = client.ListIntegrations(ctx, 0, nextKey, rc.withSecrets)
+			igs, nextKey, err = client.ListIntegrations(ctx, 0, nextKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

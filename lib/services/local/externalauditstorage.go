@@ -258,7 +258,7 @@ func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, i
 	if err != nil {
 		return backend.Key{}, "", trace.Wrap(err)
 	}
-	integration, err := integrationsSvc.GetIntegration(ctx, integrationName, false)
+	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return backend.Key{}, "", trace.Wrap(err, "getting integration")
 	}
