@@ -1,7 +1,7 @@
 # MacOS/Darwin variables for packaging, signing and notarizing.
 #
-# These are parameterized per environment, with `build-prod` for official
-# releases and `build-stage` for development testing. These environment names
+# These are parameterized per environment, with `prod/build` for official
+# releases and `stage/build` for development testing. These environment names
 # come from our configuration in GitHub Actions. These parameters may be
 # moved to the GitHub Actions environments, however we'll always keep the
 # development testing variables defined here so as to be able to run the
@@ -14,12 +14,12 @@
 # Default environment name if not specified. This is currently for running
 # locally instead of from GitHub Actions, where ENVIRONMENT_NAME would not be
 # set.
-ENVIRONMENT_NAME ?= build-stage
+ENVIRONMENT_NAME ?= stage/build
 
 # CLEAN_ENV_NAME replaces hyphens with underscores as hyphens are not valid in
 # environment variable names (make is ok with them, but they get exported, and
 # we want that to be clean).
-CLEAN_ENV_NAME = $(subst -,_,$(ENVIRONMENT_NAME))
+CLEAN_ENV_NAME = $(subst /,_,$(ENVIRONMENT_NAME))
 
 # Variables defined below are defined with the clean environment name suffix to
 # specify the appropriate value for that environment. The unsuffixed names
@@ -51,7 +51,7 @@ TCTL_BUNDLEID = $(TCTL_BUNDLEID_$(CLEAN_ENV_NAME))
 TSH_SKELETON = $(TSH_SKELETON_$(CLEAN_ENV_NAME))
 TCTL_SKELETON = $(TCTL_SKELETON_$(CLEAN_ENV_NAME))
 
-# --- build-prod environment (promote is the old name and will be removed)
+# --- prod/build environment (promote is the old name and will be removed)
 # Key names can be found on https://goteleport.com/security
 TEAMID_build_prod = QH8AA5B8UP
 DEVELOPER_KEY_NAME_build_prod = Developer ID Application: Gravitational Inc.
@@ -71,7 +71,7 @@ TSH_SKELETON_promote = $(TSH_SKELETON_build_prod)
 TCTL_BUNDLEID_promote = $(TCTL_BUNDLEID_build_prod)
 TCTL_SKELETON_promote = $(TCTL_SKELETON_build_prod)
 
-# --- build-stage environment (build is the old name and will be removed)
+# --- stage/build environment (build is the old name and will be removed)
 TEAMID_build_stage = K497G57PDJ
 DEVELOPER_KEY_NAME_build_stage = Developer ID Application: Ada Lin
 INSTALLER_KEY_NAME_build_stage = Developer ID Installer: Ada Lin
