@@ -34,12 +34,15 @@ import (
 )
 
 const (
-	// restartMonitorInterval is the polling interval for determining restart times from LastRestartPath.
-	restartMonitorInterval = 2 * time.Second
-	// minCleanIntervalsBeforeStable is the number of consecutive intervals before the service is determined stable.
-	minCleanIntervalsBeforeStable = 6
-	// maxRestartsBeforeFailure is the number of total restarts allowed before the service is marked as crash-looping.
-	maxRestartsBeforeFailure = 2
+	// crashMonitorInterval is the polling interval for determining restart times from LastRestartPath.
+	crashMonitorInterval = 2 * time.Second
+	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detect
+	// before the service is determined stable.
+	minRunningIntervalsBeforeStable = 6
+	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
+	maxCrashesBeforeFailure = 2
+	// crashMonitorTimeout
+	crashMonitorTimeout = 30 * time.Second
 )
 
 // log keys
@@ -51,8 +54,6 @@ const (
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
 	ServiceName string
-	// LastRestartPath is a path to a file containing the last restart time.
-	LastRestartPath string
 	// PIDPath is a path to a file containing the service's PID.
 	PIDPath string
 	// Log contains a logger.
@@ -84,16 +85,13 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		return trace.Wrap(ErrNotNeeded)
 	}
 
-	// Get initial restart time and initial PID.
+	// Get initial PID for crash monitoring.
 
-	// If getRestartTime fails consistently, error will be returned from monitor.
-	initRestartTime, err := readInt64(s.LastRestartPath)
-	if err != nil {
-		s.Log.DebugContext(ctx, "Initial restart time not present.", unitKey, s.ServiceName)
-	}
 	initPID, err := readInt(s.PIDPath)
-	if err != nil {
-		s.Log.DebugContext(ctx, "Initial PID not present.", unitKey, s.ServiceName)
+	if errors.Is(err, os.ErrNotExist) {
+		s.Log.InfoContext(ctx, "No existing process detected. Skipping crash monitoring.", unitKey, s.ServiceName)
+	} else if err != nil {
+		s.Log.ErrorContext(ctx, "Error reading initial PID value. Skipping crash monitoring.", unitKey, s.ServiceName, errorKey, err)
 	}
 
 	// Attempt graceful reload of running service.
@@ -110,105 +108,40 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
 	default:
 		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
-		if err := s.verifyPID(ctx, initPID); err != nil {
-			return trace.Wrap(err)
-		}
 	}
-	s.Log.InfoContext(ctx, "Monitoring for excessive restarts.", unitKey, s.ServiceName)
-	return trace.Wrap(s.monitor(ctx, initRestartTime))
-}
-
-func (s SystemdService) verifyPID(ctx context.Context, initPID int64) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	tickC := time.NewTicker(restartMonitorInterval).C
-
-	pidC := make(chan int64)
-	g := &errgroup.Group{}
-	g.Go(func() error {
-		return tickFile(ctx, s.PIDPath, pidC, tickC, initPID)
-	})
-	err := s.waitForStablePID(ctx, initPID, tickC)
-	cancel()
-	if err := g.Wait(); err != nil {
-		s.Log.WarnContext(ctx, "Unable to determine PID. Cannot failed reload.", unitKey, s.ServiceName)
-		s.Log.DebugContext(ctx, "Error monitoring for crashing fork.", errorKey, err, unitKey, s.ServiceName)
-	}
-	return trace.Wrap(err)
-}
-
-func (s SystemdService) waitForStablePID(ctx context.Context, baseline int, pidC <-chan int64) error {
-	var warnPID int
-	var pid int
-	for n, last := 0, 0; n < 3; n++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case p := <-pidC:
-			last = pid
-			pid = int(p)
-		}
-		if pid != last ||
-			pid == baseline ||
-			pid == warnPID {
-			n = 0
-			continue
-		}
-		process, err := os.FindProcess(pid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = process.Signal(syscall.Signal(0))
-		if errors.Is(err, syscall.ESRCH) {
-			if pid != warnPID &&
-				pid != baseline {
-				s.Log.WarnContext(ctx, "Detecting crashing fork.", unitKey, s.ServiceName, "pid", pid)
-				warnPID = pid
-			}
-			n = 0
-			continue
-		}
+	if initPID != 0 {
+		s.Log.InfoContext(ctx, "Monitoring PID file to detecting crashes.", unitKey, s.ServiceName)
+		return trace.Wrap(s.monitor(ctx, initPID))
 	}
 	return nil
 }
 
-func readInt64(path string) (int64, error) {
-	p, err := readFileN(path, 32)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	i, err := strconv.ParseInt(string(bytes.TrimSpace(p)), 10, 64)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return i, nil
-}
-
-func readInt(path string) (int, error) {
-	i, err := readInt64(path)
-	return int(i), trace.Wrap(err)
-}
-
-// monitor for excessive restarts by polling the LastRestartPath file.
-// This function detects crash-looping while minimizing its own runtime during updates.
-// To accomplish this, monitor fails after seeing maxRestartsBeforeFailure, and stops checking
-// after seeing minCleanIntervalsBeforeStable clean intervals.
-// initRestartTime may be provided as a baseline restart time, to ensure we catch the initial restart.
-func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) error {
-	ctx, cancel := context.WithCancel(ctx)
+// monitor for the started process to ensure it's running by polling PIDFile.
+// This function detects several types of crashes while minimizing its own runtime during updates.
+// For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
+// or getting stuck on quit (no change in PID).
+// initPID is the PID before the restart operation has been issued.
+func (s SystemdService) monitor(ctx context.Context, initPID int) error {
+	ctx, cancel := context.WithTimeout(ctx, crashMonitorTimeout)
 	defer cancel()
+	tickC := time.NewTicker(crashMonitorInterval).C
 
-	tickC := time.NewTicker(restartMonitorInterval).C
-	restartC := make(chan int64)
+	pidC := make(chan int)
 	g := &errgroup.Group{}
 	g.Go(func() error {
-		return tickFile(ctx, s.LastRestartPath, restartC, tickC, initRestartTime)
+		return tickFile(ctx, s.PIDPath, pidC, tickC)
 	})
-	err := s.monitorRestarts(ctx, restartC, maxRestartsBeforeFailure, minCleanIntervalsBeforeStable)
+	err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
+		initPID, pidC, func(pid int) error {
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(process.Signal(syscall.Signal(0)))
+		})
 	cancel()
 	if err := g.Wait(); err != nil {
-		s.Log.WarnContext(ctx, "Unable to determine last restart time. Cannot detect crash loops.", unitKey, s.ServiceName)
-		s.Log.DebugContext(ctx, "Error monitoring for crash loops.", errorKey, err, unitKey, s.ServiceName)
+		s.Log.ErrorContext(ctx, "Error monitoring for crashing process.", errorKey, err, unitKey, s.ServiceName)
 	}
 	return trace.Wrap(err)
 }
@@ -218,72 +151,74 @@ func (s SystemdService) monitor(ctx context.Context, initRestartTime int64) erro
 // If maxRestarts is exceeded, monitorRestarts returns an error.
 // Each restart time that matches the proceeding restart time counts as a clean reading.
 // If minClean is reached before maxRestarts is exceeded, monitorRestarts runs nil.
-func (s SystemdService) monitorRestarts(ctx context.Context, timeCh <-chan int64, maxRestarts, minClean int) error {
-	var (
-		same, diff  int
-		restartTime int64
-	)
-	for {
-		// wait first to ensure we initial stop has completed
+func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, findPID func(pid int) error) error {
+	pid := baselinePID
+	var last, stale int
+	var crashes int
+	for stable := 0; stable < minStable; stable++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case t := <-timeCh:
-			switch t {
-			case restartTime:
-				same++
-			default:
-				same = 0
-				restartTime = t
-				diff++
+		case p := <-pidC:
+			last = pid
+			pid = p
+		}
+		// A "crash" is defined as a transition away from a new (non-baseline) PID, or
+		// an interval where the current PID remains non-running since the last check.
+		if (last != 0 && pid != last && last != baselinePID) ||
+			(stale != 0 && pid == stale && last == stale) {
+			crashes++
+		}
+		if crashes > maxCrashes {
+			return trace.Errorf("detected crashing process")
+		}
+
+		// PID can only be stable if it is a real PID that is not new, has changed at least once,
+		// and hasn't been observed as missing.
+		if pid == 0 ||
+			pid == baselinePID ||
+			pid == stale ||
+			pid != last {
+			stable = -1
+			continue
+		}
+		err := findPID(pid)
+		// A stale PID most likely indicates that the process forked and crashed without systemd noticing.
+		// There is a small chance that we read the PID file before systemd removed it.
+		// Note: we only perform this check on PIDs that survive one iteration.
+		if errors.Is(err, syscall.ESRCH) {
+			if pid != stale &&
+				pid != baselinePID {
+				stale = pid
+				s.Log.WarnContext(ctx, "Detected stale PID.", unitKey, s.ServiceName, "pid", stale)
 			}
+			stable = -1
+			continue
 		}
-		switch {
-		case diff > maxRestarts+1:
-			return trace.Errorf("detected crash loop")
-		case same >= minClean:
-			return nil
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
+	return nil
 }
 
-// tickRestarts reads the current time on tickC, and outputs the last restart time on ch for each received tick.
-// If the current time cannot be read, tickRestarts sends 0 on ch.
-// Any error from the last attempt to receive restart times is returned when ctx is cancelled.
-// The baseline restart time is sent as soon as the method is called
-func (s SystemdService) tickRestarts(ctx context.Context, ch chan<- int64, tickC <-chan time.Time, baseline int64) error {
-	t := baseline
-	var err error
-	select {
-	case ch <- t:
-	case <-ctx.Done():
-		return err
+func readInt(path string) (int, error) {
+	p, err := readFileN(path, 32)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
-	for {
-		// two select statements -> never skip restarts
-		select {
-		case <-tickC:
-		case <-ctx.Done():
-			return err
-		}
-		var t int64
-		t, err = readInt64(s.LastRestartPath)
-		select {
-		case ch <- t:
-		case <-ctx.Done():
-			return err
-		}
+	i, err := strconv.ParseInt(string(bytes.TrimSpace(p)), 10, 64)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
+	return int(i), nil
 }
 
-func tickFile(ctx context.Context, path string, ch chan<- int64, tickC <-chan time.Time, baseline int64) error {
-	t := baseline
+// tickFile reads the current time on tickC, and outputs the last read int from path on ch for each received tick.
+// If the path cannot be read, tickFile sends 0 on ch.
+// Any error from the last attempt to read path is returned when ctx is cancelled, unless the error is os.ErrNotExist.
+func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time.Time) error {
 	var err error
-	select {
-	case ch <- t:
-	case <-ctx.Done():
-		return err
-	}
 	for {
 		// two select statements -> never skip reads
 		select {
@@ -291,8 +226,11 @@ func tickFile(ctx context.Context, path string, ch chan<- int64, tickC <-chan ti
 		case <-ctx.Done():
 			return err
 		}
-		var t int64
-		t, err = readInt64(path)
+		var t int
+		t, err = readInt(path)
+		if errors.Is(err, os.ErrNotExist) {
+			err = nil
+		}
 		select {
 		case ch <- t:
 		case <-ctx.Done():

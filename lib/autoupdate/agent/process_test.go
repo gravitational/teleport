@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -83,89 +84,165 @@ func TestWaitForStablePID(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name        string
-		ticks       []int64
-		maxRestarts int
-		minClean    int
-		errored     bool
-		canceled    bool
+		name       string
+		ticks      []int
+		baseline   int
+		minStable  int
+		maxCrashes int
+		findErrs   map[int]error
+
+		errored  bool
+		canceled bool
 	}{
 		{
-			name:        "no restarts",
-			ticks:       []int64{1, 1, 1, 1},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
+			name:       "immediate restart",
+			ticks:      []int{2, 2},
+			baseline:   1,
+			minStable:  1,
+			maxCrashes: 1,
 		},
 		{
-			name:        "one restart then stable",
-			ticks:       []int64{1, 1, 1, 2, 2, 2, 2},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
+			name: "zero stable",
 		},
 		{
-			name:        "two restarts then stable",
-			ticks:       []int64{1, 2, 3, 3, 3, 3},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
+			name:       "immediate crash",
+			ticks:      []int{2, 3},
+			baseline:   1,
+			minStable:  1,
+			maxCrashes: 0,
+			errored:    true,
 		},
 		{
-			name:        "too many restarts (slow)",
-			ticks:       []int64{1, 1, 1, 2, 2, 2, 3, 3, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
+			name:       "no changes times out",
+			ticks:      []int{1, 1, 1, 1},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
+			canceled:   true,
 		},
 		{
-			name:        "too many restarts (fast)",
-			ticks:       []int64{1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
+			name:       "baseline restart",
+			ticks:      []int{2, 2, 2, 2},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
 		},
 		{
-			name:        "too many restarts after stable",
-			ticks:       []int64{1, 1, 1, 1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
+			name:       "one restart then stable",
+			ticks:      []int{1, 2, 2, 2, 2},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
 		},
 		{
-			name:        "too many restarts before okay",
-			ticks:       []int64{1, 2, 3, 4, 3, 3, 3},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
+			name:       "two restarts then stable",
+			ticks:      []int{1, 2, 3, 3, 3, 3},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
 		},
 		{
-			name:        "no error if no minClean",
-			ticks:       []int64{1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    0,
-			errored:     false,
+			name:       "three restarts then stable",
+			ticks:      []int{1, 2, 3, 4, 4, 4, 4},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
 		},
 		{
-			name:        "cancel",
-			ticks:       []int64{1, 1, 1},
-			maxRestarts: 2,
-			minClean:    3,
-			canceled:    true,
+			name:       "too many restarts excluding baseline",
+			ticks:      []int{1, 2, 3, 4, 5},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
+			errored:    true,
+		},
+		{
+			name:       "too many restarts including baseline",
+			ticks:      []int{1, 2, 3, 4},
+			baseline:   0,
+			minStable:  3,
+			maxCrashes: 2,
+			errored:    true,
+		},
+		{
+			name:       "too many restarts slow",
+			ticks:      []int{1, 1, 1, 2, 2, 2, 3, 3, 3, 4},
+			baseline:   0,
+			minStable:  3,
+			maxCrashes: 2,
+			errored:    true,
+		},
+		{
+			name:       "too many restarts after stable",
+			ticks:      []int{1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 4},
+			baseline:   0,
+			minStable:  3,
+			maxCrashes: 2,
+		},
+		{
+			name:       "stable after too many restarts",
+			ticks:      []int{1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4},
+			baseline:   0,
+			minStable:  3,
+			maxCrashes: 2,
+			errored:    true,
+		},
+		{
+			name:       "cancel",
+			ticks:      []int{1, 1, 1},
+			baseline:   0,
+			minStable:  3,
+			maxCrashes: 2,
+			canceled:   true,
+		},
+		{
+			name:       "stale PID crash",
+			ticks:      []int{2, 2, 2, 2, 2},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
+			findErrs: map[int]error{
+				2: syscall.ESRCH,
+			},
+			errored: true,
+		},
+		{
+			name:       "stale PID but fixed",
+			ticks:      []int{2, 2, 3, 3, 3, 3},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
+			findErrs: map[int]error{
+				2: syscall.ESRCH,
+			},
+		},
+		{
+			name:       "error PID",
+			ticks:      []int{2, 2, 3, 3, 3, 3},
+			baseline:   1,
+			minStable:  3,
+			maxCrashes: 2,
+			findErrs: map[int]error{
+				2: errors.New("bad"),
+			},
+			errored: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
-			ch := make(chan int64)
+			ch := make(chan int)
 			go func() {
 				defer cancel() // always quit after last tick
 				for _, tick := range tt.ticks {
 					ch <- tick
 				}
 			}()
-			err := svc.monitorRestarts(ctx, ch, tt.maxRestarts, tt.minClean)
+			err := svc.waitForStablePID(ctx, tt.minStable, tt.maxCrashes,
+				tt.baseline, ch, func(pid int) error {
+					return tt.findErrs[pid]
+				})
 			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
 			if !tt.canceled {
 				require.Equal(t, tt.errored, err != nil)
@@ -174,174 +251,79 @@ func TestWaitForStablePID(t *testing.T) {
 	}
 }
 
-func TestMonitorRestarts(t *testing.T) {
+func TestTickFile(t *testing.T) {
 	t.Parallel()
-
-	svc := &SystemdService{
-		Log: slog.Default(),
-	}
-
-	for _, tt := range []struct {
-		name        string
-		ticks       []int64
-		maxRestarts int
-		minClean    int
-		errored     bool
-		canceled    bool
-	}{
-		{
-			name:        "no restarts",
-			ticks:       []int64{1, 1, 1, 1},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
-		},
-		{
-			name:        "one restart then stable",
-			ticks:       []int64{1, 1, 1, 2, 2, 2, 2},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
-		},
-		{
-			name:        "two restarts then stable",
-			ticks:       []int64{1, 2, 3, 3, 3, 3},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
-		},
-		{
-			name:        "too many restarts (slow)",
-			ticks:       []int64{1, 1, 1, 2, 2, 2, 3, 3, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
-		},
-		{
-			name:        "too many restarts (fast)",
-			ticks:       []int64{1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
-		},
-		{
-			name:        "too many restarts after stable",
-			ticks:       []int64{1, 1, 1, 1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     false,
-		},
-		{
-			name:        "too many restarts before okay",
-			ticks:       []int64{1, 2, 3, 4, 3, 3, 3},
-			maxRestarts: 2,
-			minClean:    3,
-			errored:     true,
-		},
-		{
-			name:        "no error if no minClean",
-			ticks:       []int64{1, 2, 3, 4},
-			maxRestarts: 2,
-			minClean:    0,
-			errored:     false,
-		},
-		{
-			name:        "cancel",
-			ticks:       []int64{1, 1, 1},
-			maxRestarts: 2,
-			minClean:    3,
-			canceled:    true,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-			ch := make(chan int64)
-			go func() {
-				defer cancel() // always quit after last tick
-				for _, tick := range tt.ticks {
-					ch <- tick
-				}
-			}()
-			err := svc.monitorRestarts(ctx, ch, tt.maxRestarts, tt.minClean)
-			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
-			if !tt.canceled {
-				require.Equal(t, tt.errored, err != nil)
-			}
-		})
-	}
-}
-
-func TestTickRestarts(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	restartPath := filepath.Join(dir, "restart")
-	svc := &SystemdService{
-		Log:             slog.Default(),
-		LastRestartPath: restartPath,
-	}
 
 	for _, tt := range []struct {
 		name    string
-		init    int64
-		ticks   []int64
+		ticks   []int
 		errored bool
 	}{
 		{
 			name:    "consistent",
-			init:    1,
-			ticks:   []int64{1, 1, 1},
+			ticks:   []int{1, 1, 1},
 			errored: false,
 		},
 		{
 			name:    "divergent",
-			init:    1,
-			ticks:   []int64{1, 2, 3},
+			ticks:   []int{1, 2, 3},
 			errored: false,
 		},
 		{
 			name:    "start error",
-			init:    1,
-			ticks:   []int64{-1, 1, 1},
+			ticks:   []int{-1, 1, 1},
 			errored: false,
 		},
 		{
 			name:    "ephemeral error",
-			init:    1,
-			ticks:   []int64{1, -1, 1},
+			ticks:   []int{1, -1, 1},
 			errored: false,
 		},
 		{
 			name:    "end error",
-			init:    1,
-			ticks:   []int64{1, 1, -1},
+			ticks:   []int{1, 1, -1},
 			errored: true,
 		},
 		{
-			name: "init-only",
+			name:    "start missing",
+			ticks:   []int{0, 1, 1},
+			errored: false,
+		},
+		{
+			name:    "ephemeral missing",
+			ticks:   []int{1, 0, 1},
+			errored: false,
+		},
+		{
+			name:    "end missing",
+			ticks:   []int{1, 1, 0},
+			errored: false,
+		},
+		{
+			name:    "cancel-only",
+			errored: false,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			filePath := filepath.Join(t.TempDir(), "file")
+
 			ctx := context.Background()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			tickC := make(chan time.Time)
-			ch := make(chan int64)
+			ch := make(chan int)
 
 			go func() {
 				defer cancel() // always quit after last tick or fail
-				require.Equal(t, tt.init, <-ch)
 				for _, tick := range tt.ticks {
-					if tick >= 0 {
-						err := os.WriteFile(restartPath, []byte(fmt.Sprintln(tick)), os.ModePerm)
+					_ = os.RemoveAll(filePath)
+					switch {
+					case tick > 0:
+						err := os.WriteFile(filePath, []byte(fmt.Sprintln(tick)), os.ModePerm)
 						require.NoError(t, err)
-					} else {
-						err := os.Remove(restartPath)
-						if err != nil {
-							require.ErrorIs(t, err, os.ErrNotExist)
-						}
+					case tick < 0:
+						err := os.Mkdir(filePath, os.ModePerm)
+						require.NoError(t, err)
 					}
 					tickC <- time.Now()
 					res := <-ch
@@ -351,11 +333,8 @@ func TestTickRestarts(t *testing.T) {
 					require.Equal(t, tick, res)
 				}
 			}()
-			err := svc.tickRestarts(ctx, ch, tickC, tt.init)
+			err := tickFile(ctx, filePath, ch, tickC)
 			require.Equal(t, tt.errored, err != nil)
-			if err != nil {
-				require.ErrorIs(t, err, os.ErrNotExist)
-			}
 		})
 	}
 }

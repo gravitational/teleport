@@ -1,6 +1,6 @@
 # teleport-update
 [Unit]
-Description=Teleport update service
+Description=Teleport auto-update service
 
 [Service]
 Type=oneshot

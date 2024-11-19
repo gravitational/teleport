@@ -1,3 +1,0 @@
-# teleport-update
-[Service]
-ExecStopPost=/bin/bash -c 'date +%%s > /var/lib/teleport/last-restart'

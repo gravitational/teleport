@@ -38,7 +38,6 @@ func TestWriteConfigFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, p := range []string{
-		filepath.Join(linkDir, serviceDir, serviceName+".d", serviceDropinName),
 		filepath.Join(linkDir, serviceDir, updateServiceName),
 		filepath.Join(linkDir, serviceDir, updateTimerName),
 	} {

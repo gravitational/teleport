@@ -167,9 +167,9 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			ReservedFreeInstallDisk: reservedFreeDisk,
 		},
 		Process: &SystemdService{
-			ServiceName:     "teleport.service",
-			LastRestartPath: filepath.Join(cfg.DataDir, "last-restart"),
-			Log:             cfg.Log,
+			ServiceName: "teleport.service",
+			PIDPath:     "/run/teleport.pid",
+			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
 			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)

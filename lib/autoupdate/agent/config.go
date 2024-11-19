@@ -30,13 +30,9 @@ import (
 )
 
 const (
-	teleportDropinTemplate = `# teleport-update
-[Service]
-ExecStopPost=/bin/bash -c 'date +%%s > {{.DataDir}}/last-restart'
-`
 	updateServiceTemplate = `# teleport-update
 [Unit]
-Description=Teleport update service
+Description=Teleport auto-update service
 
 [Service]
 Type=oneshot
@@ -44,7 +40,7 @@ ExecStart={{.LinkDir}}/bin/teleport-update update
 `
 	updateTimerTemplate = `# teleport-update
 [Unit]
-Description=Teleport update timer unit
+Description=Teleport auto-update timer unit
 
 [Timer]
 OnActiveSec=1m
@@ -82,13 +78,8 @@ func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error
 func writeConfigFiles(linkDir, dataDir string) error {
 	// TODO(sclevine): revert on failure
 
-	dropinPath := filepath.Join(linkDir, serviceDir, serviceName+".d", serviceDropinName)
-	err := writeTemplate(dropinPath, teleportDropinTemplate, linkDir, dataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	servicePath := filepath.Join(linkDir, serviceDir, updateServiceName)
-	err = writeTemplate(servicePath, updateServiceTemplate, linkDir, dataDir)
+	err := writeTemplate(servicePath, updateServiceTemplate, linkDir, dataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}

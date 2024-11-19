@@ -1,6 +1,6 @@
 # teleport-update
 [Unit]
-Description=Teleport update timer unit
+Description=Teleport auto-update timer unit
 
 [Timer]
 OnActiveSec=1m
