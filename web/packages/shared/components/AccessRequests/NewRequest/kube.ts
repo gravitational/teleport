@@ -20,11 +20,6 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { PendingListItem } from './RequestCheckout';
 
-export type KubeNamespaceRequest = {
-  kubeCluster: string;
-  search: string;
-};
-
 /**
  * Returns true if the item is a kube cluster or is a namespace
  * of the item.

@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,18 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { render, fireEvent } from 'design/utils/testing';
-
-import DialogConfirmation from './DialogConfirmation';
-
-test('onClose is respected', () => {
-  const onClose = jest.fn();
-  const { container } = render(
-    <DialogConfirmation open={true} onClose={onClose} />
-  );
-
-  fireEvent.keyDown(container, { key: 'Escape' });
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
+/**
+ * An env var which controls whether tsh is going to download an up-to-date version of itself
+ * to ~/.tsh/bin and re-execute itself. In Connect, we always want it to be set to 'off', as Connect
+ * needs to use the bundled tsh where the version of tsh matches exactly the version of Connect.
+ *
+ * See RFD 144 for more details.
+ */
+export const TSH_AUTOUPDATE_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
+export const TSH_AUTOUPDATE_OFF = 'off';

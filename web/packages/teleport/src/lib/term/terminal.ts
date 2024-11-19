@@ -19,6 +19,7 @@
 import '@xterm/xterm/css/xterm.css';
 import { ITheme, Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { CanvasAddon } from '@xterm/addon-canvas';
@@ -50,6 +51,7 @@ export default class TtyTerminal {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _imageAddon = new ImageAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon;
   _canvasAddon = new CanvasAddon();
@@ -88,6 +90,7 @@ export default class TtyTerminal {
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
+    this.term.loadAddon(this._imageAddon);
     // handle context loss and load webgl addon
     try {
       // try to create a new WebglAddon. If webgl is not supported, this
@@ -104,7 +107,7 @@ export default class TtyTerminal {
         this.fallbackToCanvas();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch (err) {
+    } catch {
       this.fallbackToCanvas();
     }
 
@@ -134,7 +137,7 @@ export default class TtyTerminal {
     this._webglAddon = undefined;
     try {
       this.term.loadAddon(this._canvasAddon);
-    } catch (err) {
+    } catch {
       logger.error(
         'Canvas renderer could not be loaded. Falling back to default'
       );
@@ -155,6 +158,7 @@ export default class TtyTerminal {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
+    this._imageAddon.dispose();
     this._webglAddon?.dispose();
     this._canvasAddon?.dispose();
     this._el.innerHTML = null;

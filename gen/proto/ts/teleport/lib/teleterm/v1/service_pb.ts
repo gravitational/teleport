@@ -428,10 +428,6 @@ export interface ListKubernetesResourcesResponse {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource resources = 1;
      */
     resources: KubeResource[];
-    /**
-     * @generated from protobuf field: string next_key = 2;
-     */
-    nextKey: string;
 }
 /**
  * CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -2537,14 +2533,12 @@ export const ListKubernetesResourcesRequest = new ListKubernetesResourcesRequest
 class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesResourcesResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListKubernetesResourcesResponse", [
-            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource },
-            { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource }
         ]);
     }
     create(value?: PartialMessage<ListKubernetesResourcesResponse>): ListKubernetesResourcesResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.resources = [];
-        message.nextKey = "";
         if (value !== undefined)
             reflectionMergePartial<ListKubernetesResourcesResponse>(this, message, value);
         return message;
@@ -2556,9 +2550,6 @@ class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesRes
             switch (fieldNo) {
                 case /* repeated teleport.lib.teleterm.v1.KubeResource resources */ 1:
                     message.resources.push(KubeResource.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* string next_key */ 2:
-                    message.nextKey = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2575,9 +2566,6 @@ class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesRes
         /* repeated teleport.lib.teleterm.v1.KubeResource resources = 1; */
         for (let i = 0; i < message.resources.length; i++)
             KubeResource.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* string next_key = 2; */
-        if (message.nextKey !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.nextKey);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
