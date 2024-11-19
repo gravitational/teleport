@@ -36,11 +36,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
@@ -161,16 +163,11 @@ func (m *mockUsageReporter) DiscoveryFetchEventCount() int {
 }
 
 type mockEC2Client struct {
-	ec2iface.EC2API
 	output *ec2.DescribeInstancesOutput
 }
 
-func (m *mockEC2Client) DescribeInstancesPagesWithContext(
-	ctx context.Context, input *ec2.DescribeInstancesInput,
-	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option,
-) error {
-	f(m.output, true)
-	return nil
+func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+	return m.output, nil
 }
 
 func genEC2InstanceIDs(n int) []string {
@@ -181,17 +178,17 @@ func genEC2InstanceIDs(n int) []string {
 	return ec2InstanceIDs
 }
 
-func genEC2Instances(n int) []*ec2.Instance {
-	var ec2Instances []*ec2.Instance
+func genEC2Instances(n int) []ec2types.Instance {
+	var ec2Instances []ec2types.Instance
 	for _, id := range genEC2InstanceIDs(n) {
-		ec2Instances = append(ec2Instances, &ec2.Instance{
-			InstanceId: aws.String(id),
-			Tags: []*ec2.Tag{{
-				Key:   aws.String("env"),
-				Value: aws.String("dev"),
+		ec2Instances = append(ec2Instances, ec2types.Instance{
+			InstanceId: awsv2.String(id),
+			Tags: []ec2types.Tag{{
+				Key:   awsv2.String("env"),
+				Value: awsv2.String("dev"),
 			}},
-			State: &ec2.InstanceState{
-				Name: aws.String(ec2.InstanceStateNameRunning),
+			State: &ec2types.InstanceState{
+				Name: ec2types.InstanceStateNameRunning,
 			},
 		})
 	}
@@ -301,7 +298,7 @@ func TestDiscoveryServer(t *testing.T) {
 		name string
 		// presentInstances is a list of servers already present in teleport
 		presentInstances          []types.Server
-		foundEC2Instances         []*ec2.Instance
+		foundEC2Instances         []ec2types.Instance
 		ssm                       *mockSSMClient
 		emitter                   *mockEmitter
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
@@ -314,15 +311,15 @@ func TestDiscoveryServer(t *testing.T) {
 		{
 			name:             "no nodes present, 1 found ",
 			presentInstances: []types.Server{},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -372,15 +369,15 @@ func TestDiscoveryServer(t *testing.T) {
 					},
 				},
 			},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -413,15 +410,15 @@ func TestDiscoveryServer(t *testing.T) {
 					},
 				},
 			},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -462,15 +459,15 @@ func TestDiscoveryServer(t *testing.T) {
 		{
 			name:             "no nodes present, 1 found using dynamic matchers",
 			presentInstances: []types.Server{},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -509,15 +506,15 @@ func TestDiscoveryServer(t *testing.T) {
 		{
 			name:             "one node found with Script mode using Integration credentials",
 			presentInstances: []types.Server{},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -571,15 +568,15 @@ func TestDiscoveryServer(t *testing.T) {
 		{
 			name:             "one node found but SSM Run fails and DiscoverEC2 User Task is created",
 			presentInstances: []types.Server{},
-			foundEC2Instances: []*ec2.Instance{
+			foundEC2Instances: []ec2types.Instance{
 				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
+					InstanceId: awsv2.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   awsv2.String("env"),
+						Value: awsv2.String("dev"),
 					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 			},
@@ -644,18 +641,16 @@ func TestDiscoveryServer(t *testing.T) {
 			t.Parallel()
 
 			testCloudClients := &cloud.TestCloudClients{
-				EC2: &mockEC2Client{
-					output: &ec2.DescribeInstancesOutput{
-						Reservations: []*ec2.Reservation{
-							{
-								OwnerId:   aws.String("owner"),
-								Instances: tc.foundEC2Instances,
-							},
-						},
-					},
-				},
 				SSM: tc.ssm,
 			}
+			ec2Client := &mockEC2Client{output: &ec2.DescribeInstancesOutput{
+				Reservations: []ec2types.Reservation{
+					{
+						OwnerId:   awsv2.String("owner"),
+						Instances: tc.foundEC2Instances,
+					},
+				},
+			}}
 
 			ctx := context.Background()
 			// Create and start test auth server.
@@ -696,7 +691,10 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
+				CloudClients: testCloudClients,
+				GetEC2Client: func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+					return ec2Client, nil
+				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -785,24 +783,34 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		},
 	}
 
-	testCloudClients := &cloud.TestCloudClients{
-		EC2: &mockEC2Client{output: &ec2.DescribeInstancesOutput{
-			Reservations: []*ec2.Reservation{{
-				OwnerId: aws.String("123456789012"),
-				Instances: []*ec2.Instance{{
-					InstanceId: aws.String("i-123456789012"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
-					}},
-					PrivateIpAddress: aws.String("172.0.1.2"),
-					VpcId:            aws.String("vpcId"),
-					SubnetId:         aws.String("subnetId"),
-					PrivateDnsName:   aws.String("privateDnsName"),
-					State:            &ec2.InstanceState{Name: aws.String(ec2.InstanceStateNameRunning)},
-				}},
-			}},
-		}},
+	testCloudClients := &cloud.TestCloudClients{}
+
+	ec2Client := &mockEC2Client{
+		output: &ec2.DescribeInstancesOutput{
+			Reservations: []ec2types.Reservation{
+				{
+					OwnerId: awsv2.String("123456789012"),
+					Instances: []ec2types.Instance{
+						{
+							InstanceId: awsv2.String("i-123456789012"),
+							Tags: []ec2types.Tag{
+								{
+									Key:   awsv2.String("env"),
+									Value: awsv2.String("dev"),
+								},
+							},
+							PrivateIpAddress: awsv2.String("172.0.1.2"),
+							VpcId:            awsv2.String("vpcId"),
+							SubnetId:         awsv2.String("subnetId"),
+							PrivateDnsName:   awsv2.String("privateDnsName"),
+							State: &ec2types.InstanceState{
+								Name: ec2types.InstanceStateNameRunning,
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// Create and start test auth server.
@@ -822,9 +830,14 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
+	getEC2Client := func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		return ec2Client, nil
+	}
+
 	// Create Server1
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		CloudClients:     testCloudClients,
+		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
 		KubernetesClient: fake.NewSimpleClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -838,6 +851,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	// Create Server2
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		CloudClients:     testCloudClients,
+		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
 		KubernetesClient: fake.NewSimpleClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
