@@ -603,7 +603,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key backend.Key,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sem, err := services.UnmarshalSemaphore(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -628,7 +628,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key backend.Key,
 		Revision: rev,
 	}
 
-	if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+	if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return lease, nil
@@ -654,7 +654,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease typ
 		return trace.Wrap(err)
 	}
 
-	sem, err := services.UnmarshalSemaphore(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -678,7 +678,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease typ
 		Revision: rev,
 	}
 
-	_, err = s.CompareAndSwap(ctx, *item, newItem)
+	_, err = s.ConditionalUpdate(ctx, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("semaphore %v/%v has been concurrently updated, try again", sem.GetSubKind(), sem.GetName())
@@ -718,7 +718,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 			return trace.Wrap(err)
 		}
 
-		sem, err := services.UnmarshalSemaphore(item.Value)
+		sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -740,7 +740,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 			Revision: rev,
 		}
 
-		_, err = s.CompareAndSwap(ctx, *item, newItem)
+		_, err = s.ConditionalUpdate(ctx, newItem)
 		switch {
 		case err == nil:
 			return nil
