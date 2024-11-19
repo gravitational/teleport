@@ -516,7 +516,7 @@ func TestSessionAuditLog(t *testing.T) {
 	x11Event := nextEvent()
 	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
 
-	// Request a remote port forwarding listener. The event is logged at the end of the session.
+	// Request a remote port forwarding listener.
 	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -538,8 +538,12 @@ func TestSessionAuditLog(t *testing.T) {
 	directPortForwardEvent := nextEvent()
 	require.IsType(t, &apievents.PortForward{}, directPortForwardEvent, "expected PortForward event but got event of type %T", directPortForwardEvent)
 
-	// End the session. Session leave, data, and end events should be emitted, along with the remote
-	// port forwarding event.
+	e = nextEvent()
+	remotePortForwardEvent, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, listener.Addr().String(), remotePortForwardEvent.Addr)
+
+	// End the session. Session leave, data, and end events should be emitted.
 	se.Close()
 
 	e = nextEvent()
@@ -551,11 +555,6 @@ func TestSessionAuditLog(t *testing.T) {
 	dataEvent, ok := e.(*apievents.SessionData)
 	require.True(t, ok, "expected SessionData event but got event of type %T", e)
 	require.Equal(t, sessionID, dataEvent.SessionID)
-
-	e = nextEvent()
-	remotePortForwardEvent, ok := e.(*apievents.PortForward)
-	require.True(t, ok, "expected PortForward event but got event of type %T", e)
-	require.Equal(t, listener.Addr().String(), remotePortForwardEvent.Addr)
 
 	e = nextEvent()
 	endEvent, ok := e.(*apievents.SessionEnd)
