@@ -97,7 +97,9 @@ const preview: Preview = {
         order: ['Teleport', 'TeleportE', 'Teleterm', 'Design', 'Shared'],
       },
     },
+    controls: { expanded: true, disableSaveFromUI: true },
   },
+  argTypes: { userContext: { table: { disable: true } } },
   loaders: [mswLoader],
   decorators: [
     (Story, meta) => (
