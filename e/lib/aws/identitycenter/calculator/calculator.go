@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -121,7 +122,7 @@ func New(config Config) (*AssignmentCalculator, error) {
 // Access List) and invokes the correct assignment recalculation routine.
 // Returns the updated PrincipalAssignment record
 func (calc *AssignmentCalculator) CalcAssignments(ctx context.Context, principal types.Resource, principalAssignment *identitycenterv1.PrincipalAssignment) (*identitycenterv1.PrincipalAssignment, error) {
-	calc.Logger.DebugContext(ctx, "Recalculating", "principal", principal.GetName())
+	calc.Logger.Log(ctx, logutils.TraceLevel, "Recalculating", "principal", principal.GetName())
 	switch p := principal.(type) {
 	case *types.UserV2:
 		return calc.calcUserAssignments(ctx, p, principalAssignment)
