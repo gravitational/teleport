@@ -43,7 +43,6 @@ func main() {
 	ctx, _ = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 	updater := tools.NewUpdater(
-		tools.DefaultClientTools(),
 		toolsDir,
 		version,
 		tools.WithBaseURL(baseURL),

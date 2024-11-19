@@ -49,7 +49,6 @@ func TestUpdate(t *testing.T) {
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
-		tools.DefaultClientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),
@@ -91,7 +90,6 @@ func TestParallelUpdate(t *testing.T) {
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
-		tools.DefaultClientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),
@@ -165,7 +163,6 @@ func TestUpdateInterruptSignal(t *testing.T) {
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
-		tools.DefaultClientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),

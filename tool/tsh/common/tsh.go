@@ -73,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -98,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
+	"github.com/gravitational/teleport/tool/common/updater"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
@@ -706,36 +706,8 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	// At process startup, check if a version has already been downloaded to
-	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
-	// environment variable. If so, re-exec that version of {tsh, tctl}.
-	toolsDir, err := tools.Dir()
-	if err != nil {
+	if err := updater.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
 		return trace.Wrap(err)
-	}
-	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckLocal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if reExec {
-		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
-		defer cancel()
-		// Download the version of client tools required by the cluster. This
-		// is required if the user passed in the TELEPORT_TOOLS_VERSION
-		// explicitly.
-		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			return trace.Wrap(err)
-		}
-		// Re-execute client tools with the correct version of client tools.
-		code, err := updater.Exec()
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Failed to re-exec client tool: %v.", err)
-			os.Exit(code)
-		} else if err == nil {
-			os.Exit(code)
-		}
 	}
 
 	cf := CLIConf{
@@ -1271,6 +1243,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
+	var err error
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1899,7 +1872,7 @@ func onLogin(cf *CLIConf) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+		if err := updater.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1917,7 +1890,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := updater.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1937,7 +1910,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := updater.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2013,7 +1986,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := updater.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -5602,43 +5575,6 @@ const (
 		"environments on shared systems where a memory swap attack is possible.\n" +
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
-
-func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
-	// The user has typed a command like `tsh ssh ...` without being logged in,
-	// if the running binary needs to be updated, update and re-exec.
-	//
-	// If needed, download the new version of {tsh, tctl} and re-exec. Make
-	// sure to exit this process with the same exit code as the child process.
-	//
-	toolsDir, err := tools.Dir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if reExec {
-		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
-		defer cancel()
-		// Download the version of client tools required by the cluster.
-		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			return trace.Wrap(err)
-		}
-		// Re-execute client tools with the correct version of client tools.
-		code, err := updater.Exec()
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Failed to re-exec client tool: %v.", err)
-			os.Exit(code)
-		} else if err == nil {
-			os.Exit(code)
-		}
-	}
-
-	return nil
-}
 
 // Lock the process memory to prevent rsa keys and certificates in memory from being exposed in a swap.
 func tryLockMemory(cf *CLIConf) error {
