@@ -429,8 +429,69 @@ The WorkloadIdentity resource abides the guidelines set out in
 [RFD 153: Resource Guidelines](./0153-resource-guidelines.md).
 
 ```proto
+// WorkloadIdentity represents a single, or group of similar, workload
+// identities and configures the structure of workload identity credentials and
+// authoirzation rules. is a resource that represents the configuration of a trust
+// domain federation.
+message WorkloadIdentity {
+  // The kind of resource represented.
+  string kind = 1;
+  // Differentiates variations of the same kind. All resources should
+  // contain one, even if it is never populated.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // The configured properties of the WorkloadIdentity
+  WorkloadIdentitySpec spec = 5;
+}
 
+// WorkloadIdentityRules holds the allow and deny authorization rules for the
+// WorkloadIdentitySpec.
+//
+// Deny rules take precedence over allow rules.
+message WorkloadIdentityRules {
+  // Allow is a list of rules, each containing a set of attribute matchers.
+  // For a rule to match, all matchers within the rule must match.
+  // If rules are specified, then at least one rule must match for issuance to
+  // be permitted.
+  // If no rules are specified, issuance is permitted.
+  repeated map<string, string> allow = 1;
+  // Deny is a set of rules, each containing a set of attribute matchers.
+  // For a rule to match, all matchers within the rule must match.
+  // If rules are specified, then all rules must not match for issuance to be
+  // permitted.
+  // If no rules are specified, issuance is permitted.
+  repeated map<string, string> deny = 2;
+}
 
+// WorkloadIdentitySPIFFE holds configuration for the issuance of
+// SPIFFE-compatible workload identity credentials when this WorkloadIdentity
+// is used.
+message WorkloadIdentitySPIFFE {
+  // Id is the path of the SPIFFE ID that will be issued in workload identity
+  // credentials when this WorkloadIdentity is used. It can be templated using
+  // attributes.
+  //
+  // Examples:
+  // - `/no/templating/used` -> `spiffe://example.teleport.sh/no/templating/used`
+  // - `/gitlab/{{ join.gitlab.project_path }}` -> `spiffe://example.teleport.sh/gitlab/org/project`
+  string id = 1; 
+}
+
+// WorkloadIdentitySpec holds the configuration element of the WorkloadIdentity
+// resource.
+message WorkloadIdentitySpec {
+  // Rules holds the authorization rules that must pass for this
+  // WorkloadIdentity to be used. See [WorkloadIdentityRules] for further
+  // documentation.
+  WorkloadIdentityRules rules = 1;
+  // SPIFFE holds configuration for the structure of SPIFFE-compatible 
+  // workload identity credentials for this WorkloadIdentity. See 
+  // [WorkloadIdentitySPIFFE] for further documentation.
+  WorkloadIdentitySPIFFE spiffe = 2;
+}
 ```
 
 As per RFD 153, CRUD RPCs will be included for the WorkloadIdentity resource.
@@ -446,6 +507,37 @@ The proto specification of the RPCs is omitted for conciseness.
 ```proto
 
 ```
+
+### Performance
+
+In the initial release, the standard resource cache will be used to improve the
+performance of issuing identities to workloads.
+
+The resource requirements of the initial design scale with the number of 
+WorkloadIdentity resources in use. We should work closely with design partners
+to determine the number of WorkloadIdentity resources in use, and proactively
+perform benchmarks and performance improvements with growing magnitudes of 
+scale in mind.
+
+The flexible templating mechanism is intended to limit the number of Roles,
+Bots and WorkloadIdentitys used for large-scale deployment. For example,
+thousands of CI workflows can share the same Bot and WorkloadIdentity.
+Where possible, we can mitigate the need for growing numbers of WorkloadIdentity
+resources by adding more advanced templating and authorization rule
+functionality.
+
+We should bear in mind the following potential performance improvements:
+
+- Tailored cache with label-based indexing to improve the performance of 
+  resolving label matchers to specific WorkloadIdentity resources.
+- Edge cache in `tbot` that can be enabled to return recently-issued identities
+  without hitting the Auth Service. This will involve some elements of the
+  authorization logic being executed at the edge for the cache.
+- Decoupling the Workload Identity CA and issuance process from the Auth
+  Service.
+
+OpenTelemetry tracing should be included across the credential issuance process
+to highlight performance hot-spots.
 
 ### Deprecation
 
@@ -537,3 +629,7 @@ process workload identities should also abide this.
 We should ensure that this risk and the best practices are explained in the
 product documentation, and, provide a set of example WorkloadIdentity resources 
 for common use-cases.
+
+To simplify responding to this kind of breach, the audit log must include
+sufficient information to trace back issued workload identities to the identity
+that requested them.
