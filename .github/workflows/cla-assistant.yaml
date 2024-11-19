@@ -15,7 +15,7 @@ permissions:
 jobs:
   cla-assistant:
     # Only do job for pull requests. For issues this is skipped making workflow a no-op
-    if: ${{ github.event.issue.pull_request }}
+    if: ${{ github.event_name == 'pull_request_target' || github.event.issue.pull_request }} # triggers on pr updates and coments
     name: "Check Contributor License Agreement Signed"
     runs-on: ubuntu-latest
     steps:
