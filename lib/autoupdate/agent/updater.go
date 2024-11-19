@@ -168,7 +168,6 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		},
 		Process: &SystemdService{
 			ServiceName: "teleport.service",
-			PIDPath:     "/run/teleport.pid",
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
