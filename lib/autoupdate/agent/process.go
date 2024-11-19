@@ -110,7 +110,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
 	if initPID != 0 {
-		s.Log.InfoContext(ctx, "Monitoring PID file to detecting crashes.", unitKey, s.ServiceName)
+		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
 		return trace.Wrap(s.monitor(ctx, initPID))
 	}
 	return nil
@@ -133,11 +133,11 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	})
 	err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
 		initPID, pidC, func(pid int) error {
-			process, err := os.FindProcess(pid)
+			p, err := os.FindProcess(pid)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			return trace.Wrap(process.Signal(syscall.Signal(0)))
+			return trace.Wrap(p.Signal(syscall.Signal(0)))
 		})
 	cancel()
 	if err := g.Wait(); err != nil {
@@ -186,7 +186,8 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 		// A stale PID most likely indicates that the process forked and crashed without systemd noticing.
 		// There is a small chance that we read the PID file before systemd removed it.
 		// Note: we only perform this check on PIDs that survive one iteration.
-		if errors.Is(err, syscall.ESRCH) {
+		if errors.Is(err, os.ErrProcessDone) ||
+			errors.Is(err, syscall.ESRCH) {
 			if pid != stale &&
 				pid != baselinePID {
 				stale = pid
@@ -290,12 +291,16 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 		OutLevel: slog.LevelDebug,
 	}
 	code, err := cmd.Run(ctx, "systemctl", args...)
-	if err != nil {
-		s.Log.Log(ctx, errLevel, "Failed to run systemctl.",
-			"args", args,
-			"code", code,
-			errorKey, err)
+	if err == nil {
+		return code
 	}
+	if code >= 0 {
+		s.Log.Log(ctx, errLevel, "Error running systemctl.",
+			"args", args, "code", code)
+		return code
+	}
+	s.Log.Log(ctx, errLevel, "Unable to run systemctl.",
+		"args", args, "code", code, errorKey, err)
 	return code
 }
 
@@ -314,8 +319,8 @@ type localExec struct {
 // Outputs the status code, or -1 if out-of-range or unstarted.
 func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel}
-	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel}
+	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel, prefix: "[stderr] "}
+	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel, prefix: "[stdout] "}
 	cmd.Stderr = stderr
 	cmd.Stdout = stdout
 	err := cmd.Run()
@@ -334,11 +339,16 @@ func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, 
 
 // lineLogger logs each line written to it.
 type lineLogger struct {
-	ctx   context.Context
-	log   *slog.Logger
-	level slog.Level
+	ctx    context.Context
+	log    *slog.Logger
+	level  slog.Level
+	prefix string
 
 	last bytes.Buffer
+}
+
+func (w *lineLogger) out(s string) {
+	w.log.Log(w.ctx, w.level, w.prefix+s) //nolint:sloglint // msg cannot be constant
 }
 
 func (w *lineLogger) Write(p []byte) (n int, err error) {
@@ -354,13 +364,13 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 	}
 
 	// Newline found, log line
-	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint // msg cannot be constant
+	w.out(w.last.String())
 	n += 1
 	w.last.Reset()
 
 	// Log lines that are already newline-terminated
 	for _, line := range lines[:len(lines)-1] {
-		w.log.Log(w.ctx, w.level, string(line)) //nolint:sloglint // msg cannot be constant
+		w.out(string(line))
 		n += len(line) + 1
 	}
 
@@ -375,6 +385,6 @@ func (w *lineLogger) Flush() {
 	if w.last.Len() == 0 {
 		return
 	}
-	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint // msg cannot be constant
+	w.out(w.last.String())
 	w.last.Reset()
 }

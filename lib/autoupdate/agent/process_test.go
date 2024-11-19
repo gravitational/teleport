@@ -26,7 +26,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 	"time"
 
@@ -202,7 +201,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			findErrs: map[int]error{
-				2: syscall.ESRCH,
+				2: os.ErrProcessDone,
 			},
 			errored: true,
 		},
@@ -213,7 +212,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			findErrs: map[int]error{
-				2: syscall.ESRCH,
+				2: os.ErrProcessDone,
 			},
 		},
 		{
