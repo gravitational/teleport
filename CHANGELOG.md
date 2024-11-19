@@ -1,5 +1,30 @@
 # Changelog
 
+## 16.4.8 (11/19/2024)
+
+* Allow Azure VMs to join from a different subscription than their managed identity. [#49157](https://github.com/gravitational/teleport/pull/49157)
+* Fix an issue loading the license file when Teleport is started without a configuration file. [#49149](https://github.com/gravitational/teleport/pull/49149)
+* Fixed a bug in the `teleport-cluster` Helm chart that can cause token mount to fail when using ArgoCD. [#49069](https://github.com/gravitational/teleport/pull/49069)
+* Fixed app access regression to apps on leaf clusters. [#49056](https://github.com/gravitational/teleport/pull/49056)
+* Added support for directly configuring JWKS for GitHub joining for circumstances where the GHES is not reachable by the Teleport Auth Service. [#49052](https://github.com/gravitational/teleport/pull/49052)
+* Fixed issue resulting in excess CPU usage and connection resets when `teleport-event-handler` is under moderate to high load. [#49036](https://github.com/gravitational/teleport/pull/49036)
+* Fixed OpenSSH remote port forwarding not working for localhost. [#49020](https://github.com/gravitational/teleport/pull/49020)
+* Fixed `tsh app login` prompting for user login when multiple AWS roles are present. [#48997](https://github.com/gravitational/teleport/pull/48997)
+* Fixed incorrect cluster name when querying for Kubernetes namespaces on a leaf cluster for Connect UI. [#48990](https://github.com/gravitational/teleport/pull/48990)
+* Allow to override Teleport license secret name when using `teleport-cluster` Helm chart. [#48979](https://github.com/gravitational/teleport/pull/48979)
+* Added periodic health checks between proxies in proxy peering. [#48929](https://github.com/gravitational/teleport/pull/48929)
+* Fixed users not being able to connect to SQL server instances with PKINIT integration when the cluster is configured with different CAs for database access. [#48924](https://github.com/gravitational/teleport/pull/48924)
+* Fix a bug in the Teleport Operator chart that causes the operator to not be able to list secrets during secret injection. [#48901](https://github.com/gravitational/teleport/pull/48901)
+* The access graph poll interval is now configurable with the `discovery_service.poll_interval` field, whereas before it was fixed to a 15 minute interval. [#48861](https://github.com/gravitational/teleport/pull/48861)
+* The web terminal now supports SIXEL and IIP image protocols. [#48842](https://github.com/gravitational/teleport/pull/48842)
+* Ensure that agentless server information is provided in all audit events. [#48833](https://github.com/gravitational/teleport/pull/48833)
+* Fixed missing access request metadata in `app.session.start` audit events. [#48804](https://github.com/gravitational/teleport/pull/48804)
+* Fixed `missing GetDatabaseFunc` error when `tsh` connects MongoDB databases in cluster with a separate MongoDB port. [#48129](https://github.com/gravitational/teleport/pull/48129)
+* Ensure that Teleport can re-establish broken LDAP connections. [#48008](https://github.com/gravitational/teleport/pull/48008)
+* Improved handling of scoped token when setting up Okta integration. [#5503](https://github.com/gravitational/teleport.e/pull/5503)
+* Fixed access request deletion reconciliation race condition in Okta integration HA setup. [#5385](https://github.com/gravitational/teleport.e/pull/5385)
+* Extend support for `group` claim setting in Entra ID integration. [#5493](https://github.com/gravitational/teleport.e/pull/5493)
+
 ## 16.4.7 (11/11/2024)
 
 * Fixed bug in Kubernetes session recordings where both root and leaf cluster recorded the same Kubernetes session. Recordings of leaf resources are only available in leaf clusters. [#48738](https://github.com/gravitational/teleport/pull/48738)
