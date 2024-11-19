@@ -56,7 +56,6 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
 
   // Help match brands with sub brands:
-
   if (match('adobe', app)) {
     if (match('creative', app)) return 'adobecreativecloud';
     if (match('marketo', app)) return 'adobemarketo';
@@ -86,6 +85,12 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('team', app)) return 'microsoftteams';
     if (match('word', app)) return 'microsoftword';
     return 'microsoft'; // generic
+  }
+  if (match('gcp', app)) {
+    return 'googlecloud';
+  }
+  if (match('azure', app)) {
+    return 'azure';
   }
 
   // Try matching by iterating through all the icon names

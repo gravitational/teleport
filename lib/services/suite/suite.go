@@ -488,6 +488,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
+	srv.Spec.Hostname = "llama"
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
@@ -513,6 +514,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
+	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
@@ -533,6 +535,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
+	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()

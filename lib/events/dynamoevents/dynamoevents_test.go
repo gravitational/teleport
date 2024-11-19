@@ -640,10 +640,14 @@ func TestEndpoints(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			b, err := New(context.Background(), Config{
-				Region:          "us-west-1",
-				Tablename:       "teleport-test",
-				UIDGenerator:    utils.NewFakeUID(),
-				Endpoint:        server.URL,
+				Region:       "us-west-1",
+				Tablename:    "teleport-test",
+				UIDGenerator: utils.NewFakeUID(),
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
+				Insecure:        true,
 				UseFIPSEndpoint: fips,
 				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 					return aws.Credentials{}, nil

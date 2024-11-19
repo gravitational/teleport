@@ -220,7 +220,7 @@ func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]
 		First:  pendingKeyBaseRetryInterval,
 		Driver: retryutils.NewExponentialDriver(pendingKeyBaseRetryInterval),
 		Max:    pendingKeyMaxRetryInterval,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  a.clock,
 	})
 	if err != nil {
