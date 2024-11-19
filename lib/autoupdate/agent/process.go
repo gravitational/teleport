@@ -217,7 +217,7 @@ func readInt(path string) (int, error) {
 
 // tickFile reads the current time on tickC, and outputs the last read int from path on ch for each received tick.
 // If the path cannot be read, tickFile sends 0 on ch.
-// Any error from the last attempt to read path is returned when ctx is cancelled, unless the error is os.ErrNotExist.
+// Any error from the last attempt to read path is returned when ctx is canceled, unless the error is os.ErrNotExist.
 func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time.Time) error {
 	var err error
 	for {

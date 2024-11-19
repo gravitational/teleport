@@ -60,8 +60,6 @@ const (
 	serviceDir = "lib/systemd/system"
 	// serviceName contains the name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
-	// serviceDropinName contains the name of the Teleport Systemd service drop-in to support updates.
-	serviceDropinName = "teleport-update.conf"
 	// updateServiceName contains the name of the Teleport Update Systemd service
 	updateServiceName = "teleport-update.service"
 	// updateTimerName contains the name of the Teleport Update Systemd timer
