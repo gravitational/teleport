@@ -1269,7 +1269,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						IdentityProviderURL: "https://example.com",
 						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
 							{
-								StepUUID: "{foo}",
+								DeploymentEnvironmentUUID: "{foo}",
 							},
 						},
 					},

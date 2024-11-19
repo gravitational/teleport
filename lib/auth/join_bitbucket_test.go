@@ -107,8 +107,6 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 		rule := &types.ProvisionTokenSpecV2Bitbucket_Rule{
 			WorkspaceUUID:             fakeWorkspaceUUID,
 			RepositoryUUID:            fakeRepositoryUUID,
-			StepUUID:                  fakeStepUUID,
-			PipelineUUID:              fakePipelineUUID,
 			DeploymentEnvironmentUUID: fakeDeploymentEnvUUID,
 			BranchName:                fakeBranchName,
 		}
@@ -218,44 +216,6 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 					Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
 						allowRule(func(rule *types.ProvisionTokenSpecV2Bitbucket_Rule) {
 							rule.BranchName = "baz"
-						}),
-					},
-				},
-			},
-			request:     newRequest(validIDToken),
-			assertError: allowRulesNotMatched,
-		},
-		{
-			name:          "incorrect step uuid",
-			setEnterprise: true,
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodBitbucket,
-				Roles:      []types.SystemRole{types.RoleNode},
-				Bitbucket: &types.ProvisionTokenSpecV2Bitbucket{
-					IdentityProviderURL: fakeBitbucketIDPURL,
-					Audience:            fakeAudience,
-					Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Bitbucket_Rule) {
-							rule.StepUUID = "{foo}"
-						}),
-					},
-				},
-			},
-			request:     newRequest(validIDToken),
-			assertError: allowRulesNotMatched,
-		},
-		{
-			name:          "incorrect pipeline uuid",
-			setEnterprise: true,
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodBitbucket,
-				Roles:      []types.SystemRole{types.RoleNode},
-				Bitbucket: &types.ProvisionTokenSpecV2Bitbucket{
-					IdentityProviderURL: fakeBitbucketIDPURL,
-					Audience:            fakeAudience,
-					Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Bitbucket_Rule) {
-							rule.PipelineUUID = "{foo}"
 						}),
 					},
 				},
