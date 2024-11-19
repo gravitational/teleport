@@ -48,7 +48,10 @@ test('dropping a request refreshes resources', async () => {
   const wrapper = ({ children }) => (
     <MockAppContextProvider appContext={appContext}>
       <ResourcesContextProvider>
-        <RequestRefreshSubscriber onResourcesRefreshRequest={refreshListener} />
+        <RequestRefreshSubscriber
+          rootClusterUri={cluster.uri}
+          onResourcesRefreshRequest={refreshListener}
+        />
         {children}
       </ResourcesContextProvider>
     </MockAppContextProvider>
@@ -71,13 +74,15 @@ test('dropping a request refreshes resources', async () => {
     ['mocked-request-id']
   );
   expect(refreshListener).toHaveBeenCalledTimes(1);
-  expect(refreshListener).toHaveBeenCalledWith(cluster.uri);
 });
 
 function RequestRefreshSubscriber(props: {
-  onResourcesRefreshRequest: (rootClusterUri: RootClusterUri) => void;
+  rootClusterUri: RootClusterUri;
+  onResourcesRefreshRequest: () => void;
 }) {
-  const { onResourcesRefreshRequest } = useResourcesContext();
+  const { onResourcesRefreshRequest } = useResourcesContext(
+    props.rootClusterUri
+  );
   useEffect(() => {
     onResourcesRefreshRequest(props.onResourcesRefreshRequest);
   }, [onResourcesRefreshRequest, props.onResourcesRefreshRequest]);

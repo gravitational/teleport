@@ -74,7 +74,7 @@ import {
   ConnectAppActionButton,
   AccessRequestButton,
 } from './ActionButtons';
-import { useResourcesContext, ResourcesContext } from './resourcesContext';
+import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -102,7 +102,7 @@ export function UnifiedResources(props: {
       [rootClusterUri]
     )
   );
-  const { onResourcesRefreshRequest } = useResourcesContext();
+  const { onResourcesRefreshRequest } = useResourcesContext(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
 
   const { unifiedResourcePreferences } = userPreferences;
@@ -263,7 +263,7 @@ const Resources = memo(
     canAddResources: boolean;
     canUseConnectMyComputer: boolean;
     openConnectMyComputerDocument(): void;
-    onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+    onResourcesRefreshRequest(listener: () => void): { cleanup(): void };
     discoverUrl: string;
     getAccessRequestButton: (resource: UnifiedResourceResponse) => JSX.Element;
     getAddedItemsCount: () => number;
@@ -328,11 +328,7 @@ const Resources = memo(
 
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
-      const { cleanup } = onResourcesRefreshRequest(rootClusterUri => {
-        // Refresh root and leaf cluster documents.
-        if (!uri.routing.belongsToProfile(rootClusterUri, props.clusterUri)) {
-          return;
-        }
+      const { cleanup } = onResourcesRefreshRequest(() => {
         void fetch({ clear: true });
       });
       return cleanup;

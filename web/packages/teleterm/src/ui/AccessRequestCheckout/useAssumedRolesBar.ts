@@ -37,7 +37,7 @@ import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContex
 export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
 
   const [duration, setDuration] = useState<Duration>(() =>
     getDurationFromNow({
@@ -53,7 +53,7 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
       await retryWithRelogin(ctx, rootClusterUri, () =>
         ctx.clustersService.dropRoles(rootClusterUri, [assumedRequest.id])
       );
-      requestResourcesRefresh(rootClusterUri);
+      requestResourcesRefresh();
     } catch (err) {
       ctx.notificationsService.notifyError({
         title: 'Could not switch back the role',
