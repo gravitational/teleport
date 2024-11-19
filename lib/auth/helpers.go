@@ -79,7 +79,7 @@ type TestAuthServerConfig struct {
 	// CipherSuites is the list of ciphers that the server supports.
 	CipherSuites []uint16
 	// Clock is used to control time in tests.
-	Clock clockwork.FakeClock
+	Clock clockwork.Clock
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
