@@ -146,12 +146,13 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	return trace.Wrap(err)
 }
 
-// monitorRestarts receives restart times on timeCh.
-// Each restart time that differs from the preceding restart time counts as a restart.
-// If maxRestarts is exceeded, monitorRestarts returns an error.
-// Each restart time that matches the proceeding restart time counts as a clean reading.
-// If minClean is reached before maxRestarts is exceeded, monitorRestarts runs nil.
-func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, findPID func(pid int) error) error {
+// waitForStablePID monitors a service's PID via pidC and determines whether the service is crashing.
+// verifyPID must be passed so that waitForStablePID can determine whether the process is running.
+// verifyPID must return os.ErrProcessDone in the case that the PID cannot be found, or nil otherwise.
+// baselinePID is the initial PID before any operation that might cause the process to start crashing.
+// minStable is the number of times pidC must return the same running PID before waitForStablePID returns nil.
+// minCrashes is the number of times pidC conveys a process crash or bad state before waitForStablePID returns an error.
+func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, verifyPID func(pid int) error) error {
 	pid := baselinePID
 	var last, stale int
 	var crashes int
@@ -164,7 +165,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			pid = p
 		}
 		// A "crash" is defined as a transition away from a new (non-baseline) PID, or
-		// an interval where the current PID remains non-running since the last check.
+		// an interval where the current PID remains non-running (stale) since the last check.
 		if (last != 0 && pid != last && last != baselinePID) ||
 			(stale != 0 && pid == stale && last == stale) {
 			crashes++
@@ -173,8 +174,8 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			return trace.Errorf("detected crashing process")
 		}
 
-		// PID can only be stable if it is a real PID that is not new, has changed at least once,
-		// and hasn't been observed as missing.
+		// PID can only be stable if it is a real PID that is not new,
+		// has changed at least once, and hasn't been observed as missing.
 		if pid == 0 ||
 			pid == baselinePID ||
 			pid == stale ||
@@ -182,7 +183,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			stable = -1
 			continue
 		}
-		err := findPID(pid)
+		err := verifyPID(pid)
 		// A stale PID most likely indicates that the process forked and crashed without systemd noticing.
 		// There is a small chance that we read the PID file before systemd removed it.
 		// Note: we only perform this check on PIDs that survive one iteration.
@@ -203,6 +204,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 	return nil
 }
 
+// readInt reads an integer from a file.
 func readInt(path string) (int, error) {
 	p, err := readFileN(path, 32)
 	if err != nil {
