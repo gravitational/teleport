@@ -585,7 +585,15 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
 	mfaData, err := a.mfaAuthenticator.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
 	if err != nil {
-		return trace.Wrap(err)
+		// invalid MFA verification should be a noop, this way an actionable error will be
+		// returned instead. e.g. "admin-level API request requires MFA verification".
+		//
+		// TODO(Joerger): Currently we get a validation error when a reusable Webauthn response
+		// is provided but it's session data has been overwritten. This happens in bulk
+		// `tctl create` requests with endpoints mixed in that disallow reuse. Ignoring the error
+		// here is harmless, but a better way to handle this would be to add a separate index for
+		// reusable Webauthn session data.
+		return nil
 	}
 
 	authContext.AdminActionAuthState = AdminActionAuthMFAVerified

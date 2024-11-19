@@ -34,7 +34,8 @@ import (
 func WithMFAUnaryInterceptor(mfaCeremony mfa.CeremonyFn) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		// Check for MFA response passed through the context.
-		if mfaResp, err := mfa.MFAResponseFromContext(ctx); err == nil {
+		mfaResp, err := mfa.MFAResponseFromContext(ctx)
+		if err == nil {
 			// If we find an MFA response passed through the context, attach it to the
 			// request. Note: this may still fail if the MFA response allows reuse and
 			// the specified endpoint doesn't allow reuse. In this case, the client
@@ -44,8 +45,16 @@ func WithMFAUnaryInterceptor(mfaCeremony mfa.CeremonyFn) grpc.UnaryClientInterce
 			return trace.Wrap(err)
 		}
 
-		err := invoker(ctx, method, req, reply, cc, opts...)
-		if !errors.Is(trail.FromGRPC(err), &mfa.ErrAdminActionMFARequired) {
+		err = invoker(ctx, method, req, reply, cc, opts...)
+		if err == nil {
+			return nil
+		} else if mfaResp != nil && mfaResp.GetWebauthn() != nil {
+			// TODO(Joerger): DELETE IN v18.0.0
+			// If we passed an WebAuthn response and got an error, it may be that the
+			// backend WebAuthn session data got overwritten. Fallback to retrying with
+			// a fresh MFA response. In v17+, passing an invalid MFA response for an
+			// admin action returns an ErrAdminActionMFARequired as expected.
+		} else if !errors.Is(trail.FromGRPC(err), &mfa.ErrAdminActionMFARequired) {
 			return err
 		}
 
