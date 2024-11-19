@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbsrvconnect "github.com/gravitational/teleport/lib/srv/db/common/srvconnect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -607,7 +608,7 @@ func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	db.SetShuffleFunc(db.ShuffleSort)
+	db.SetShuffleFunc(dbsrvconnect.ShuffleSort)
 }
 
 // testHARootCluster verifies that proxy falls back to a healthy
