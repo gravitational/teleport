@@ -502,6 +502,32 @@ The proto specification of the RPCs is omitted for conciseness.
 
 ### Propagating Join Attributes into X509 Certificates
 
+In order to use the metadata from the join process as part of rule evaluation
+and templating, a few things need to be adjusted:
+
+1. Upon join, the attested metadata must be converted to the equivelant
+  attributes and persisted in the issued Teleport X509 user certificate.
+2. When issuing Teleport X509 user certificates through role impersonation, the
+  attributes should be propagated to the issued certificate if they exist in the
+  original certificate.
+
+The process of converting attested metadata to attribute key-values will be 
+tailored to each individual join method. This is a suitable place for any 
+adjustments to be made to the values and keys to optimize them for ease of 
+templating and rule evaluation.
+
+The attribute key-value set can be represented as a map, with the key being a
+string and the value being a string.
+
+The attribute key-value set will be encoded as JSON into the X509 certificate
+using a new extension (1.3.9999.2.21).
+
+Whilst out of scope of this RFD, the encoding of these values into the X509
+certificate would enable the inclusion of join metadata within audit logs for
+actions taken using Machine ID, allowing specific actions to be directly linked
+to a specific join without correlating the Bot Instance ID from the audit event
+with a `bot.join` evnet.
+
 ### New SVID Issuance RPC
 
 ```proto
