@@ -280,9 +280,51 @@ fit for majority of workload identity uses.
 
 #### Attributes
 
-#### Templating Language
+The attributes available for templating and rule evaluation will come from
+three sources:
+
+- `join`: From the attestation performed at join (e.g GitLab)
+- `workload`: The workload attestation perfomed by `tbot`. This may not be 
+  present for all configurations.
+- `traits`: The traits sourced from the Bot or User.
+
+For ease of operation, the attributes used during a workload identity credential
+issuance will be recorded in the Teleport audit log.
+
+Attributes names are always strings, using '.' to denote levels of a hierarchy,
+e.g:
+
+- `join.gitlab.project_path`
+- `traits.external.email`
+- `workload.unix.gid`
+
+For simplicity, attribute values will typically be converted to a string value.
+
+Metadata from the join process will be explicitly converted to attribute
+key-values by Teleport's internals, rather than automatically converted. This
+will provide us the opportunity to adjust any casting/naming for ease of
+template or rule writing.
+
+#### Templating Language
+
+The existing templating language used for role templating will be re-used. This
+is a simple language but provides the ability to perform basic manipulation of
+attribute values.
 
 #### Rules Evaluation
+
+Each rule consists of a set of attribute keys and values. Each attribute within
+the rule is compared to the attribute set of the requester. If a key is not
+present in the attribute set of the requester, then the value is considered to
+be an empty string.
+
+TODO: Should we support some kind of globby/regexy matching?? Would this be 
+better served by predicate expressions at a later date.
+
+At a later date, the WorkloadIdentity resource could be extended to support
+predicate expressions
+(e.g [CEL](https://github.com/google/cel-spec/blob/master/doc/langdef.md)) for
+more advanced rule construction. This is out of scope of the initial build.
 
 ### Revisiting our use-case
 
@@ -304,7 +346,7 @@ spec:
 ---
 kind: role
 metadata:
-  name: gitlab-workload-id
+  name: production-workload-id
 spec:
   allow:
     workload_identity_labels:
@@ -315,7 +357,7 @@ metadata:
   name: gitlab-workload-id
 spec:
   roles:
-  - gitlab-workload-id
+  - production-workload-id
 ---
 kind: token
 version: v2
@@ -333,14 +375,14 @@ spec:
     - namespace_path: my-org
 ```
 
-The profile can then explicitly be specified inside of the `tbot` configuration:
+With the following `tbot` configuration:
 
 ```yaml
 services:
 - type: spiffe-workload-api
   listen: unix:///opt/machine-id/workload.sock
-  profiles:
-  - gitlab
+  workload_identity_labels:
+   '*': '*'
 ```
 
 ### Future: Ability to further customize SVIDs
@@ -381,7 +423,34 @@ than requiring it to be attribute by attribute?
 
 ## Technical Design
 
-### Encoding Join Metadata into Certificates
+### WorkloadIdentity Resource
+
+The WorkloadIdentity resource abides the guidelines set out in
+[RFD 153: Resource Guidelines](./0153-resource-guidelines.md).
+
+```proto
+
+
+```
+
+As per RFD 153, CRUD RPCs will be included for the WorkloadIdentity resource.
+The ability to execute these RPCs will be governed by the standard verbs with a 
+noun of `workload_identity`.
+
+The proto specification of the RPCs is omitted for conciseness.
+
+### Propagating Join Attributes into X509 Certificates
+
+### New SVID Issuance RPC
+
+```proto
+
+```
+
+### Deprecation
+
+// Unsure. Perhaps leave old ones in place for the purposes of administrative
+// SVID generation.
 
 ## Alternatives
 
@@ -413,3 +482,58 @@ Negatives:
   complexity.
 
 ## Security Considerations
+
+### Auditing
+
+The CRUD RPCs for the WorkloadIdentity resource will emit the standard audit 
+events:
+
+- `workload_identity.create`
+- `workload_identity.update`
+- `workload_identity.delete`
+
+The new RPC for issuing a credential based on a WorkloadIdentity will emit a
+new audit event `workload_identity.generate` which will contain the following
+information:
+
+- Connection Metadata
+- The User or Bot Instance that has requested the issuance
+- Details of the issued credential:
+  - X509 SVID:
+    - SPIFFE ID
+    - Serial Number
+    - NotBefore, NotAfter
+    - Included SANs and Subject
+    - Public Key
+  - JWT SVID:
+    - SPIFFE ID
+    - Claims (e.g iat, exp, jti, sub, aud and any custom claims)
+- The full attribute set that was used during rule and template evaluation.
+- Which WorkloadIdentity was used for the issuance.
+
+### Trustworthiness of Workload Attestation Attributes
+
+The `workload` subset of the attributes is sourced from the workload attestation
+performed by `tbot`. A malicious `tbot`, or someone with credentials exfiltrated
+from `tbot`, is able to provide any values it desires for these attributes.
+
+This is not a risk that has been introduced by the design proposed by this RFD
+and is effectively an underlying concern of most workload identity
+implementations that include an element of workload attestation that is 
+completed using information that is local to the workload.
+
+To make this risk easier to mitigate, care should be taken to distinguish 
+attributes sourced from workload attestation against the more verifiable
+attributes sourced from the join process. This has been achieved by placing
+them under seperate root attribute keys (e.g `join` vs `workload`).
+
+Largely, the blast radius of this risk is mitigated by the use of best practices
+such as ensuring that attributes from the join are included in rules or 
+templates with a higher precedence than that of attributes sourced from 
+workload attestation. This limits a bad actors abiliy to issue credentials
+to a subset of the workload identifier namespace. Authorization rules that
+process workload identities should also abide this.
+
+We should ensure that this risk and the best practices are explained in the
+product documentation, and, provide a set of example WorkloadIdentity resources 
+for common use-cases.
