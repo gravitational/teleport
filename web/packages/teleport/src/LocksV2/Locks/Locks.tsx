@@ -183,7 +183,7 @@ export function Locks() {
 function getFormattedDate(d: string): string {
   try {
     return formatRelative(new Date(d), Date.now());
-  } catch (e) {
+  } catch {
     return '';
   }
 }
