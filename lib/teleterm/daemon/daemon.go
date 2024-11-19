@@ -923,7 +923,12 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.Wrap(err)
 	}
 
-	return cluster.TransferFile(ctx, request, sendProgress)
+	clt, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return cluster.TransferFile(ctx, clt, request, sendProgress)
 }
 
 // CreateConnectMyComputerRole creates a role which allows access to nodes with the label

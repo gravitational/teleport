@@ -159,6 +159,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		},
 		Process: &SystemdService{
 			ServiceName: "teleport.service",
+			PIDPath:     "/run/teleport.pid",
 			Log:         cfg.Log,
 		},
 	}, nil
@@ -530,7 +531,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", errorKey, err)
 			} else {
-				u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+				u.Log.WarnContext(ctx, "Teleport updater encountered an error during the update and successfully reverted the installation.")
 			}
 
 			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
