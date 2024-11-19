@@ -2785,10 +2785,6 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
@@ -3118,14 +3114,19 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
+
+	// Note that the trusted cluster resource name must match the cluster name.
+	// Modify the trusted cluster resource name and expect the upsert to fail.
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+	require.Error(t, err, "expected failure due to tc name mismatch")
+
+	// Modify the trusted cluster resource name back to what it was orignally.
+	trustedCluster.SetName(main.Secrets.SiteName)
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3353,9 +3354,6 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 	// disable cluster
 	trustedCluster.SetEnabled(false)
 
@@ -3493,10 +3491,6 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
@@ -3593,10 +3587,6 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
-
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
@@ -3777,10 +3767,6 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: devsRoleName, Local: []string{devsRoleName}},
 	})
-
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 
 	require.NoError(t, main.Start())
 	require.NoError(t, leaf.Start())

@@ -322,9 +322,10 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 			if remoteClusterName == domainName {
 				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
 			}
-			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
-			// different from cluster name (we had no way of checking this before x509,
-			// because SSH CA was a public key, not a cert with metadata)
+			if trustedCluster.GetName() != remoteClusterName {
+				return nil, trace.CompareFailed("trusted cluster resource name must be the same as the remote cluster name. got: %q, expected: %q",
+					trustedCluster.GetName(), remoteClusterName)
+			}
 		}
 	}
 
