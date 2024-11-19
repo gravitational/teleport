@@ -7,6 +7,17 @@ In this guide, you will configure Machine ID's agent, `tbot`, to run within a
 Bitbucket Pipelines workflow. The bot will be configured to use the `bitbucket`
 delegated joining method to eliminate the need for long-lived secrets.
 
+## How it works
+
+The `bitbucket` join method is a secure way for Machine ID bots to authenticate
+with the Teleport Auth Service without using any shared secrets. Instead, it
+makes use of an OpenID Connect token that Bitbucket Pipelines injects into the
+job environment.
+
+This token is sent to the Teleport Auth Service, and assuming it has been
+configured to trust Bitbucket's identity provider and all identity assertions
+match, the authentication attempt will succeed.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -35,7 +46,7 @@ From this page, note the following values:
 
 In order to allow your Pipelines workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
-by which the Auth Server decides whether or not to allow a bot or node to join.
+by which the Auth Service decides whether or not to allow a bot or node to join.
 
 Create a file named `bot-token.yaml`, ensuring that you replace the
 `identity_provider_url`, `audience`, `workspace_uuid`, and `repository_uuid`
@@ -53,7 +64,7 @@ spec:
   bitbucket:
     identity_provider_url: <Var name="identity-provider-url" />
     audience: <Var name="audience" />
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - workspace_uuid: <Var name="workspace-uuid" />
