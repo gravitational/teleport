@@ -106,6 +106,186 @@ Today:
 
 ## UX
 
+At the core of the UX overhaul is the introduction of a new resource, the
+WorkloadIdentity. This resource is designed to capture the configuration of
+Teleport Workload Identity for a single workload, or, a group of similar 
+workloads for which a structured identifier can be generated from a template.
+It effectively acts as a template for the generation of workload identity
+credentials (e.g SVIDs).
+
+The WorkloadIdentity resource in its simplest form merely specifies an static
+SPIFFE ID path - in this example - the resulting SPIFFE ID would be 
+`spiffe://example.teleport.sh/my/awesome/identity`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-workload-identity
+  labels:
+    env: production
+spec:
+  spiffe:
+    id: /my/awesome/identity
+```
+
+As with most Teleport resources, a basic layer of RBAC based on the label 
+matcher mechanism will be present. A user or bot must hold a role with the 
+appropriate label matchers for a WorkloadIdentity in order to execute it:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-workload-identity
+  labels:
+    env: production
+spec:
+  spiffe:
+    id: /my/awesome/identity
+---
+kind: role
+metadata:
+  name: production-workload-identity
+spec:
+  allow:
+    workload_identity_labels:
+      env: production
+```
+
+In addition to this resource effectively configuring the Teleport control
+plane's authorization rules as to who and what workload identity credentials
+can be issued, the WorkloadIdentity resource will also serve as a form of
+remote configuration for the `tbot` workload identity agent - removing the need
+for explicit configuration of workload identity credentials at the edge.
+
+For example, to configure `tbot` to attempt to issue a specific
+WorkloadIdentity:
+
+```yaml
+services:
+- type: spiffe-workload-api
+  listen: unix:///opt/machine-id/workload.sock
+  workload_identities:
+  - my-workload-identity
+```
+
+Within the `tbot` configuration, the label mechanism can also be leveraged to
+select multiple WorkloadIdentity instances:
+
+```yaml
+services:
+- type: spiffe-workload-api
+  listen: unix:///opt/machine-id/workload.sock
+  workload_identity_labels:
+    env: production
+```
+
+This will attempt to issue any WorkloadIdentity that the Bot has access to that
+matches the specified label.
+
+If the Bot only has access to WorkloadIdentitys with a specific set of labels
+by virtue of its role, then the label matcher within `tbot` will effectively
+select a subset of these WorkloadIdentitys. This enables another configuration
+mode using the '*' wildcard, configuring `tbot` to attempt to issue any
+WorkloadIdentity to which it has access:
+
+```yaml
+services:
+- type: spiffe-workload-api
+  listen: unix:///opt/machine-id/workload.sock
+  workload_identity_labels:
+    '*': '*'
+```
+
+### Templating and Rules
+
+As well as being compatible with Teleport's label mechanism, the
+WorkloadIdentity resource will also be governed by a more powerful authorization
+mechanism internally that leverages attributes of the Bot or User's identity,
+including attested metadata from the join or workload attestation.
+
+The WorkloadIdentity resource will support templating using these attributes.
+For example, attested metadata from the join process can be included in the
+SPIFFE ID - in this case producing
+`spiffe://example.teleport.sh/gitlab/my-org/my-project/staging`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: default-gitlab
+spec:
+  spiffe:
+    id: /gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.environment }}
+```
+
+Including an attribute within the WorkloadIdentity will implicitly restrict the
+issuance of that WorkloadIdentity to workloads that possess this attribute. In
+the given example, the WorkloadIdentity could only be used where a join
+has occurred using the `gitlab` join method.
+
+A more explicit form of restriction on issuance can also be set in the form
+of "rules" based on the requester's attributes.
+
+All specified attributes within a rule must match the attributes of the
+requester for the rule to be considered to match. Where multiple rules are
+specified, only one rule must match. This gives a logical AND within a rule
+and a logical OR across rules within a set.
+
+Rules may either be "allow" or "deny". As with the rest of Teleport RBAC,
+"deny" rules take precedence over "allow" rules.
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-workload-identity
+spec:
+  rules:
+    allow:
+    # (
+      # The CI must be running in the "foo" namespace in GitLab
+    - join.gitlab.namespace_path: "foo"
+      # AND
+      # The CI must be running against the "special" environment
+      join.gitlab.environment: "special"
+    # ) OR (
+      # The CI must be running in the "bar" namespace in GitLab
+    - join.gitlab.namespace_path: "bar"
+    # )
+    deny:
+    # The CI must not be running against the "dev" environment
+    - join.gitlab.environment: "dev"
+  spiffe:
+    # Implicitly, this WorkloadIdentity can only be issued to requester's
+    # with a successful join via the GitLab join method.
+    id: /gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.environment }}
+```
+
+Altogether, the following things are considered in the authorization of issuing
+a credential from a WorkloadIdentity:
+
+1. Does the requester hold a role which grants access to the WorkloadIdentity
+  via label matchers?
+2. Does the requester's attributes not match any deny rule?
+3. Does the requester's attributes match any allow rule?
+4. Does the requester have the appropriate attributes for templating to succeed?
+
+Whilst this seems complex, in a majority of cases, the label matching
+functionality may effectively be disabled by assigning a single role including
+only a wildcard WorkloadIdentity label matcher. This simplifies usage by only
+considering the explicit and implicit attribute based rules - which are a better
+fit for majority of workload identity uses.
+
+#### Attributes
+
+#### Templating Language
+
+#### Rules Evaluation
+
+### Revisiting our use-case
+
 To give the example of our GitLab use-case, all workflows can now share a single
 Bot, Role and Join Token - and they will automatically issue the correct 
 SPIFFE ID in-line with the centralized policy.
@@ -115,6 +295,8 @@ kind: workload_identity
 version: v1
 metadata:
   name: gitlab
+  labels:
+    platform: gitlab
 spec:
   spiffe:
     # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
@@ -125,8 +307,8 @@ metadata:
   name: gitlab-workload-id
 spec:
   allow:
-    workload_identities:
-    - gitlab
+    workload_identity_labels:
+      platform: gitlab
 ---
 kind: bot
 metadata:
@@ -160,33 +342,6 @@ services:
   profiles:
   - gitlab
 ```
-
-Implicitly, the use of any `join.gitlab.` attribute within the `spec.spiffe.id`
-field will enforce that the bot using the profile has joined via the `gitlab`
-join method.
-
-### Explicit Inline Authorization Rules
-
-This UX is further extended by the ability to configure explicit authorization
-rules in-line as part of the WorkloadIdentity. This enables the issuance of a 
-SPIFFE ID to further be restricted:
-
-```yaml
-kind: workload_identity
-version: v1
-metadata:
-  name: gitlab
-spec:
-  rules:
-  - join.gitlab.environment: "production"
-    bot.labels.my-label: "bar"
-    workload.unix.gid: "1"
-  spiffe:
-    # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
-    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
-```
-
-### Label Selectors
 
 ### Future: Ability to further customize SVIDs
 
