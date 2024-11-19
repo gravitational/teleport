@@ -356,8 +356,7 @@ auth_service:
     routing_strategy: unambiguous_match
 
     # License file to start auth server with. Note that this setting is ignored
-    # in the Teleport Community Edition and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
+    # in the Teleport Community Edition and is required only for Teleport Enterprise.
     #
     # The path can be either absolute or relative to the configured `data_dir`
     # and should point to the license file obtained from Teleport Download
