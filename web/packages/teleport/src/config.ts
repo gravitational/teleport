@@ -294,11 +294,7 @@ const cfg = {
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
-    mfaCreateRegistrationChallengePath:
-      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
-
-    mfaRegisterChallengeWithTokenPath:
-      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
+    mfaCreateRegistrationChallengePath: '/v1/webapi/mfa/registerchallenge',
     mfaAuthnChallengePath: '/v1/webapi/mfa/authenticatechallenge',
     mfaAuthnChallengeWithTokenPath:
       '/v1/webapi/mfa/token/:tokenId/authenticatechallenge',
@@ -951,10 +947,8 @@ const cfg = {
     return generatePath(cfg.api.mfaDevicePath, { tokenId, deviceName });
   },
 
-  getMfaCreateRegistrationChallengeUrl(tokenId: string) {
-    return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
-      tokenId,
-    });
+  getMfaCreateRegistrationChallengeUrl() {
+    return cfg.api.mfaCreateRegistrationChallengePath;
   },
 
   getIntegrationsUrl(integrationName?: string) {

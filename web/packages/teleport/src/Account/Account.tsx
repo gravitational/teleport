@@ -100,7 +100,6 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 
 export function Account({
   devices,
-  token,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
@@ -271,7 +270,6 @@ export function Account({
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
-          privilegeToken={token}
           devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}

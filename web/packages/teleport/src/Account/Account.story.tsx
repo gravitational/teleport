@@ -87,7 +87,7 @@ export const LoadingDevicesFailed = () => (
 );
 
 export const RemoveDialog = () => (
-  <Account {...props} token="123" deviceToRemove={props.devices[0]} />
+  <Account {...props} deviceToRemove={props.devices[0]} />
 );
 
 export const RestrictedTokenCreateProcessing = () => (
@@ -110,7 +110,6 @@ export const RestrictedTokenCreateFailed = () => (
 );
 
 const props: AccountProps = {
-  token: '',
   onAddDevice: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },

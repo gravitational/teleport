@@ -19,10 +19,11 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import auth from 'teleport/services/auth';
+import auth, { MfaAuthenticateChallenge, MfaChallengeResponse } from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import { makeWebauthnAssertionResponse } from 'teleport/services/auth';
+import { error } from 'console';
 
 // useReAuthenticate will have different "submit" behaviors depending on:
 //  - If prop field `onMfaResponse` is defined, after a user submits, the
@@ -53,12 +54,12 @@ export default function useReAuthenticate(props: Props) {
       .catch(handleError);
   }
 
-  function submitWithWebauthn() {
+  async function submitWithWebauthn() {
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
-      auth
-        .getWebauthnResponse(props.challengeScope)
+      navigator.credentials.get({publicKey: props.mfaChallenge.webauthnPublicKey})
+        .then(res => makeWebauthnAssertionResponse(res))
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
         )
@@ -66,6 +67,7 @@ export default function useReAuthenticate(props: Props) {
       return;
     }
 
+    // TODO(Joerger): Remove?
     auth
       .createPrivilegeTokenWithWebauthn()
       .then(props.onAuthenticated)
@@ -85,6 +87,26 @@ export default function useReAuthenticate(props: Props) {
       });
   }
 
+  function submitWithSso() {
+    const channel = new BroadcastChannel(props.mfaChallenge.ssoChallenge.channelId);
+    setAttempt({ status: 'processing' });
+
+    if ('onMfaResponse' in props) {
+      waitForMessage(channel, null)
+      .then(event => props.onMfaResponse({
+        sso_response: {
+          requestId: props.mfaChallenge.ssoChallenge.requestId,
+          token: event.data.mfaToken,
+        },
+      }))
+      .finally(channel.close)
+      .catch(handleError);
+    }
+
+    // TODO(Joerger): Remove/handle onAuthenticated?
+    return;
+  }
+
   function clearAttempt() {
     setAttempt({ status: '' });
   }
@@ -94,6 +116,7 @@ export default function useReAuthenticate(props: Props) {
     clearAttempt,
     submitWithTotp,
     submitWithWebauthn,
+    submitWithSso,
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
     actionText,
@@ -121,14 +144,11 @@ type BaseProps = {
 // that accepts a MFA response. No
 // authentication has been done at this point.
 type MfaResponseProps = BaseProps & {
-  onMfaResponse(res: MfaAuthnResponse): void;
-  /**
-   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
-   */
-  challengeScope: MfaChallengeScope;
+  onMfaResponse(res: MfaChallengeResponse): void;
+  mfaChallenge: MfaAuthenticateChallenge;
   onAuthenticated?: never;
 };
-
+ 
 // DefaultProps defines a function that
 // accepts a privilegeTokenId that is only
 // obtained after MFA response has been
@@ -136,9 +156,31 @@ type MfaResponseProps = BaseProps & {
 type DefaultProps = BaseProps & {
   onAuthenticated(privilegeTokenId: string): void;
   onMfaResponse?: never;
-  challengeScope?: never;
+  mfaChallenge?: never;
 };
 
 export type Props = MfaResponseProps | DefaultProps;
 
 export type State = ReturnType<typeof useReAuthenticate>;
+
+function waitForMessage(
+  channel: BroadcastChannel,
+  abortSignal: AbortSignal
+): Promise<MessageEvent> {
+  return new Promise((resolve, reject) => {
+    // Create the event listener
+    function eventHandler(e: MessageEvent) {
+      // Remove the event listener after it triggers
+      channel.removeEventListener('message', eventHandler);
+      // Resolve the promise with the event object
+      resolve(e);
+    }
+
+    // Add the event listener
+    channel.addEventListener('message', eventHandler);
+    abortSignal.onabort = e => {
+      channel.removeEventListener('message', eventHandler);
+      reject(e);
+    };
+  });
+}

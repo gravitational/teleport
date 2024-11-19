@@ -31,7 +31,6 @@ export interface MfaDevice {
 }
 
 export type AddNewTotpDeviceRequest = {
-  tokenId: string;
   deviceName: string;
   secondFactorToken: string;
 };
@@ -48,6 +47,7 @@ export type SaveNewHardwareDeviceRequest = {
 export type DeviceType = 'totp' | 'webauthn' | 'sso';
 
 // MfaAuthnResponse is a response to a MFA device challenge.
+// TODO(Joerger): Delete in favor of MFAChallengeResponse.
 export type MfaAuthnResponse =
   | { totp_code: string }
   | { webauthn_response: WebauthnAssertionResponse };

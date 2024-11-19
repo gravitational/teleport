@@ -43,17 +43,13 @@ export function ReAuthenticate({
   clearAttempt,
   submitWithTotp,
   submitWithWebauthn,
+  submitWithSso,
   onClose,
-  auth2faType,
-  preferredMfaType,
   actionText,
 }: State) {
+
   const [otpToken, setOtpToken] = useState('');
-  const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType,
-    preferredType: preferredMfaType,
-    required: true,
-  });
+  const mfaOptions = createMfaOptions(mfaChallenge);
   const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
 
   function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
@@ -64,6 +60,9 @@ export function ReAuthenticate({
     }
     if (mfaOption?.value === 'otp') {
       submitWithTotp(otpToken);
+    }
+    if (mfaOption?.value === 'sso') {
+      submitWithSso();
     }
   }
 

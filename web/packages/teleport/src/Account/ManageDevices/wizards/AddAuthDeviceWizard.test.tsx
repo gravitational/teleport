@@ -86,7 +86,7 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
 describe('flow without reauthentication', () => {
   test('adds a passkey', async () => {
     render(
-      <TestWizard usage="passwordless" privilegeToken="privilege-token" />
+      <TestWizard usage="passwordless"/>
     );
 
     const createStep = within(screen.getByTestId('create-step'));
@@ -115,7 +115,7 @@ describe('flow without reauthentication', () => {
   });
 
   test('adds a WebAuthn MFA', async () => {
-    render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
+    render(<TestWizard usage="mfa"/>);
 
     const createStep = within(screen.getByTestId('create-step'));
     await user.click(createStep.getByLabelText('Hardware Device'));
@@ -144,7 +144,7 @@ describe('flow without reauthentication', () => {
   });
 
   test('adds an authenticator app', async () => {
-    render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
+    render(<TestWizard usage="mfa"/>);
 
     const createStep = within(screen.getByTestId('create-step'));
     await user.click(createStep.getByLabelText('Authenticator App'));

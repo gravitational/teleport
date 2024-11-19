@@ -39,11 +39,11 @@ import { StepHeader } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
 
-import auth from 'teleport/services/auth/auth';
-import { DeviceUsage } from 'teleport/services/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { DeviceUsage, MfaChallengeResponse } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
-import { MfaDevice } from 'teleport/services/mfa';
+import {  MfaDevice } from 'teleport/services/mfa';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
@@ -62,32 +62,24 @@ interface AddAuthDeviceWizardProps {
    * verification options.
    */
   devices: MfaDevice[];
-  /**
-   * A privilege token that may have been created previously; if present, the
-   * reauthentication step will be skipped.
-   */
-  privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
 }
 
 /** A wizard for adding MFA and passkey devices. */
 export function AddAuthDeviceWizard({
-  privilegeToken: privilegeTokenProp = '',
   usage,
   auth2faType,
   devices,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
-  const reauthRequired = !privilegeTokenProp;
-  const [privilegeToken, setPrivilegeToken] = useState(privilegeTokenProp);
+  const [mfaResponse, setMfaResponse] = useState<MfaChallengeResponse>(null)
   const [credential, setCredential] = useState<Credential>(null);
 
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  });
+  const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
+
+  const mfaOptions = createMfaOptions(mfaChallenge);
 
   /** A new MFA device type, irrelevant if usage === 'passkey'. */
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
@@ -101,18 +93,16 @@ export function AddAuthDeviceWizard({
     >
       <StepSlider
         flows={wizardFlows}
-        currFlow={
-          reauthRequired ? 'withReauthentication' : 'withoutReauthentication'
-        }
+        currFlow={'withReauthentication'}
         // Step properties
         usage={usage}
         auth2faType={auth2faType}
-        privilegeToken={privilegeToken}
+        existingMfaResponse={mfaResponse}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
         devices={devices}
         onClose={onClose}
-        onAuthenticated={setPrivilegeToken}
+        onMfaResponse={setMfaResponse}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
         onDeviceCreated={setCredential}
         onSuccess={onSuccess}
@@ -123,6 +113,7 @@ export function AddAuthDeviceWizard({
 
 const wizardFlows = {
   withReauthentication: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
+  // TODO(Joerger): unused, why does removing cause lint error?
   withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
@@ -133,7 +124,7 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
   auth2faType: Auth2faType;
-  privilegeToken: string;
+  existingMfaResponse: MfaChallengeResponse,
   newMfaDeviceType: Auth2faType;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
   onClose(): void;
@@ -148,7 +139,7 @@ export function CreateDeviceStep({
   flowLength,
   usage,
   auth2faType,
-  privilegeToken,
+  existingMfaResponse,
   newMfaDeviceType,
   onNewMfaDeviceTypeChange,
   onClose,
@@ -159,8 +150,8 @@ export function CreateDeviceStep({
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
-          tokenId: privilegeToken,
           deviceUsage: usage,
+          existingMfaResponse: existingMfaResponse,
         });
         onDeviceCreated(credential);
         next();
@@ -196,7 +187,7 @@ export function CreateDeviceStep({
         <CreateMfaBox
           auth2faType={auth2faType}
           newMfaDeviceType={newMfaDeviceType}
-          privilegeToken={privilegeToken}
+          existingMfaResponse={existingMfaResponse}
           onNewMfaDeviceTypeChange={onNewMfaDeviceTypeChange}
         />
       )}
@@ -223,12 +214,12 @@ export function CreateDeviceStep({
 function CreateMfaBox({
   auth2faType,
   newMfaDeviceType,
-  privilegeToken,
+  existingMfaResponse,
   onNewMfaDeviceTypeChange,
 }: {
   auth2faType: Auth2faType;
   newMfaDeviceType: Auth2faType;
-  privilegeToken: string;
+  existingMfaResponse: MfaChallengeResponse,
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
 }) {
   const mfaOptions = createMfaOptions({
@@ -255,19 +246,22 @@ function CreateMfaBox({
         }}
       />
       {newMfaDeviceType === 'otp' && (
-        <QrCodeBox privilegeToken={privilegeToken} />
+        <QrCodeBox existingMfaResponse={existingMfaResponse} />
       )}
     </>
   );
 }
 
-function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
-  const [fetchQrCodeAttempt, fetchQrCode] = useAsync((privilegeToken: string) =>
-    auth.createMfaRegistrationChallenge(privilegeToken, 'totp')
+function QrCodeBox({ existingMfaResponse }: { existingMfaResponse: MfaChallengeResponse }) {
+  const [fetchQrCodeAttempt, fetchQrCode] = useAsync((existingMfaResponse: MfaChallengeResponse) =>
+    auth.createMfaRegistrationChallenge({
+      deviceType: 'totp',
+      existingMfaResponse: existingMfaResponse, 
+    })
   );
 
   useEffect(() => {
-    fetchQrCode(privilegeToken);
+    fetchQrCode(existingMfaResponse);
   }, []);
 
   return (
@@ -306,7 +300,6 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
 }
 
 interface SaveKeyStepProps {
-  privilegeToken: string;
   credential: Credential;
   usage: DeviceUsage;
   newMfaDeviceType: Auth2faType;
@@ -318,7 +311,7 @@ export function SaveDeviceStep({
   prev,
   stepIndex,
   flowLength,
-  privilegeToken,
+  existingMfaResponse,
   credential,
   usage,
   newMfaDeviceType,
@@ -336,9 +329,9 @@ export function SaveDeviceStep({
       saveAttempt.run(async () => {
         await ctx.mfaService.saveNewWebAuthnDevice({
           addRequest: {
-            tokenId: privilegeToken,
             deviceUsage: usage,
             deviceName,
+            existingMfaResponse,
           },
           credential,
         });
@@ -347,7 +340,6 @@ export function SaveDeviceStep({
     } else {
       saveAttempt.run(async () => {
         await ctx.mfaService.addNewTotpDevice({
-          tokenId: privilegeToken,
           secondFactorToken: authCode,
           deviceName,
         });

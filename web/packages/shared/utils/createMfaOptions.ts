@@ -16,28 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Auth2faType, PreferredMfaType } from 'shared/services/types';
+import { Auth2faType } from 'shared/services/types';
+import { MfaAuthenticateChallenge } from 'teleport/services/auth';
 
-export default function createMfaOptions(opts: Options) {
-  const { auth2faType, required = false } = opts;
+export default function createMfaOptions(mfaChallenge: MfaAuthenticateChallenge) {
   const mfaOptions: MfaOption[] = [];
 
-  if (auth2faType === 'off' || !auth2faType) {
-    return mfaOptions;
-  }
-
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-
-  if (auth2faType === 'webauthn' || mfaEnabled) {
+  if (mfaChallenge.webauthnPublicKey) {
     mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
   }
 
-  if (auth2faType === 'otp' || mfaEnabled) {
+  if (mfaChallenge.totpChallenge) {
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
   }
 
-  if (!required && auth2faType === 'optional') {
-    mfaOptions.push({ value: 'optional', label: 'None' });
+  if (mfaChallenge.ssoChallenge) {
+    // TODO(Joerger): Add better label, etc.
+    mfaOptions.push({ value: 'sso', label: mfaChallenge.ssoChallenge.device.displayName ||mfaChallenge.ssoChallenge.device.connectorId });
   }
 
   return mfaOptions;
@@ -46,11 +41,4 @@ export default function createMfaOptions(opts: Options) {
 export type MfaOption = {
   value: Auth2faType;
   label: string;
-};
-
-type Options = {
-  auth2faType: Auth2faType;
-  // TODO(lisa) remove preferredType, does nothing atm
-  preferredType?: PreferredMfaType;
-  required?: boolean;
 };

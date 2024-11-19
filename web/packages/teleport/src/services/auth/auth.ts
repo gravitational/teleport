@@ -29,6 +29,7 @@ import {
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
+  MfaChallengeResponse,
 } from './makeMfa';
 import {
   ResetPasswordReqWithEvent,
@@ -38,6 +39,7 @@ import {
   CreateNewHardwareDeviceRequest,
   DeviceUsage,
   CreateAuthenticateChallengeRequest,
+  CreateMfaRegistrationChallengeRequest,
 } from './types';
 
 const auth = {
@@ -56,15 +58,14 @@ const auth = {
   checkMfaRequired: checkMfaRequired,
 
   createMfaRegistrationChallenge(
-    tokenId: string,
-    deviceType: DeviceType,
-    deviceUsage: DeviceUsage = 'mfa'
+    req: CreateMfaRegistrationChallengeRequest
   ) {
+    if (!req.deviceUsage) {
+      req.deviceUsage = 'mfa'
+    }
+
     return api
-      .post(cfg.getMfaCreateRegistrationChallengeUrl(tokenId), {
-        deviceType,
-        deviceUsage,
-      })
+      .post(cfg.getMfaCreateRegistrationChallengeUrl(), req)
       .then(makeMfaRegistrationChallenge);
   },
 
@@ -75,14 +76,15 @@ const auth = {
   createNewWebAuthnDevice(
     req: CreateNewHardwareDeviceRequest
   ): Promise<Credential> {
+    const {deviceUsage, existingMfaResponse} = req
     return auth
       .checkWebauthnSupport()
       .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          req.deviceUsage
-        )
+        auth.createMfaRegistrationChallenge({
+          deviceType: 'webauthn',
+          deviceUsage,
+          existingMfaResponse,
+        })
       )
       .then(res =>
         navigator.credentials.create({
@@ -266,7 +268,10 @@ const auth = {
       .post(
         cfg.api.mfaAuthnChallengePath,
         {
+          is_mfa_required_req: req.isMfaRequiredRequest,
           challenge_scope: req.scope,
+          challenge_allow_reuse: req.allowReuse,
+          user_verification_requirement: req.userVerificationRequirement,
         },
         abortSignal
       )

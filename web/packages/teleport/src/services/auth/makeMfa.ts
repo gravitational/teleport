@@ -164,4 +164,5 @@ export type WebauthnAssertionResponse = {
 export type MfaChallengeResponse = {
   webauthn_response?: WebauthnAssertionResponse;
   sso_response?: SsoChallengeResponse;
+  totp_code?: string;
 };

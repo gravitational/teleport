@@ -105,7 +105,7 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
   deviceToDelete: dummyPasskey,
   privilegeToken: 'privilege-token',
   auth2faType: 'optional',
-  onAuthenticated: () => {},
+  onMfaResponse: () => {},
   onClose: () => {},
   onSuccess: () => {},
 };

@@ -21,9 +21,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
-import auth, { DeviceUsage } from 'teleport/services/auth';
+import { DeviceUsage } from 'teleport/services/auth';
 import { MfaDevice } from 'teleport/services/mfa';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
@@ -48,23 +47,7 @@ export default function useManageDevices(ctx: Ctx) {
 
   async function onAddDevice(usage: DeviceUsage) {
     setNewDeviceUsage(usage);
-    const response = await auth.getChallenge({
-      scope: MfaChallengeScope.MANAGE_DEVICES,
-    });
-    // If the user doesn't receieve any challenges from the backend, that means
-    // they have no valid devices to be challenged and should instead use a privilege token
-    // to add a new device.
-    // TODO (avatus): add SSO challenge here as well when we add SSO for MFA
-    if (!response.webauthnPublicKey?.challenge && !response.totpChallenge) {
-      createRestrictedTokenAttempt.run(() =>
-        auth.createRestrictedPrivilegeToken().then(token => {
-          setToken(token);
-          setAddDeviceWizardVisible(true);
-        })
-      );
-    } else {
-      setAddDeviceWizardVisible(true);
-    }
+    setAddDeviceWizardVisible(true);
   }
 
   function onDeviceAdded() {
@@ -94,7 +77,6 @@ export default function useManageDevices(ctx: Ctx) {
 
   return {
     devices,
-    token,
     onAddDevice,
     onRemoveDevice,
     onDeviceAdded,

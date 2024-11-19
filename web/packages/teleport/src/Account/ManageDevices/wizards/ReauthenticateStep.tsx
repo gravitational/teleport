@@ -34,40 +34,50 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { MfaDevice } from 'teleport/services/mfa';
+import { DeviceUsage, MfaAuthenticateChallenge, MfaChallengeResponse } from 'teleport/services/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { useMfa } from 'teleport/lib/useMfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
   auth2faType: Auth2faType;
   devices: MfaDevice[];
-  onAuthenticated(privilegeToken: string): void;
+  onMfaResponse(mfaResponse: MfaChallengeResponse): void;
   onClose(): void;
 };
-export function ReauthenticateStep({
+export async function ReauthenticateStep({
   next,
   refCallback,
   stepIndex,
   flowLength,
   auth2faType,
-  devices,
   onClose,
-  onAuthenticated: onAuthenticatedProp,
+  onMfaResponse: onMfaResponseProp,
 }: ReauthenticateStepProps) {
-  const onAuthenticated = (privilegeToken: string) => {
-    onAuthenticatedProp(privilegeToken);
+  const onMfaResponse = (mfaResponse: MfaChallengeResponse) => {
+    onMfaResponseProp(mfaResponse);
     next();
   };
-  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
-    useReAuthenticate({
-      onAuthenticated,
-    });
-  const mfaOptions = createReauthOptions(auth2faType, devices);
 
+  const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
+
+  if (!mfaChallenge.totpChallenge && !mfaChallenge.webauthnPublicKey && !mfaChallenge.ssoChallenge) {
+    next()
+  }
+  
+  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn, submitWithSso } =
+    await useReAuthenticate({
+      mfaChallenge: mfaChallenge,
+      onMfaResponse,
+    });
+
+  const mfaOptions = createMfaOptions(mfaChallenge);
   const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
     mfaOptions[0]?.value
   );
-  const [authCode, setAuthCode] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
+    setOtpCode(e.target.value);
   };
 
   const onReauthenticate = (
@@ -80,7 +90,10 @@ export function ReauthenticateStep({
       submitWithWebauthn();
     }
     if (mfaOption === 'otp') {
-      submitWithTotp(authCode);
+      submitWithTotp(otpCode);
+    }
+    if (mfaOption === 'sso') {
+      submitWithSso();
     }
   };
 
@@ -123,7 +136,7 @@ export function ReauthenticateStep({
                 rule={requiredField('Authenticator code is required')}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                value={authCode}
+                value={otpCode}
                 placeholder="123 456"
                 onChange={onAuthCodeChanged}
                 readonly={attempt.status === 'processing'}
@@ -179,6 +192,8 @@ function getReauthenticationErrorMessage(
           'administrator.'
         );
       case 'optional':
+      case 'sso':
+        // TODO(Joerger)
       case 'off':
         // This error message is not useful, but this condition should never
         // happen, and if it does, it means something is broken, and we don't
@@ -198,16 +213,4 @@ function getReauthenticationErrorMessage(
       return attempt.statusText;
     }
   }
-}
-
-export function createReauthOptions(
-  auth2faType: Auth2faType,
-  devices: MfaDevice[]
-): MfaOption[] {
-  return createMfaOptions({ auth2faType, required: true }).filter(
-    ({ value }) => {
-      const deviceType = value === 'otp' ? 'totp' : value;
-      return devices.some(({ type }) => type === deviceType);
-    }
-  );
 }

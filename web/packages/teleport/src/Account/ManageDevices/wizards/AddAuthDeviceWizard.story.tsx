@@ -192,7 +192,7 @@ const stepProps: AddAuthDeviceWizardStepProps = {
   ],
   onNewMfaDeviceTypeChange: () => {},
   onDeviceCreated: () => {},
-  onAuthenticated: () => {},
+  onMfaResponse: () => {},
   onClose: () => {},
   onSuccess: () => {},
 };

@@ -78,7 +78,7 @@ export function DeleteAuthDeviceWizard({
         auth2faType={auth2faType}
         privilegeToken={privilegeToken}
         onClose={onClose}
-        onAuthenticated={setPrivilegeToken}
+        onMfaResponse={setPrivilegeToken}
         onSuccess={onSuccess}
       />
     </Dialog>
