@@ -13,5 +13,5 @@ cluster_prefix = "loadtest"
 dns_zone    = "az.teleportdemo.net"
 dns_zone_rg = "teleportdemo-dns"
 
-teleport_version = "15.0.0"
+teleport_version = "17.0.0-alpha.2"
 deploy_teleport  = true
