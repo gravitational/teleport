@@ -56,7 +56,7 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
       requestResourcesRefresh();
     } catch (err) {
       ctx.notificationsService.notifyError({
-        title: 'Could not switch back the role',
+        title: 'Could not drop role',
         description: err.message,
       });
     }
