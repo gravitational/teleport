@@ -696,7 +696,7 @@ export function DatabaseAccessSpecSection({
         label="Database Users"
         toolTipContent={
           <>
-            List of database users that this role is allowed to connect as
+            List of database users that this role is allowed to connect as.
             Special value <MarkInverse>*</MarkInverse> means any user.
           </>
         }
