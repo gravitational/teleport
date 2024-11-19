@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
@@ -96,11 +97,16 @@ func writeTemplate(path, t, linkDir, dataDir string) error {
 	if err := os.MkdirAll(filepath.Dir(path), systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, configFileMode)
+	opts := []renameio.Option{
+		renameio.WithPermissions(configFileMode),
+		renameio.WithExistingPermissions(),
+	}
+	f, err := renameio.NewPendingFile(path, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer f.Close()
+	defer f.Cleanup()
+
 	tmpl, err := template.New(filepath.Base(path)).Parse(t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -109,5 +115,8 @@ func writeTemplate(path, t, linkDir, dataDir string) error {
 		LinkDir string
 		DataDir string
 	}{linkDir, dataDir})
-	return trace.Wrap(f.Close())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(f.CloseAtomicallyReplace())
 }
