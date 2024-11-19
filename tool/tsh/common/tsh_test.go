@@ -6832,3 +6832,294 @@ func TestVersionCompatibilityFlags(t *testing.T) {
 	require.NoError(t, err, output)
 	require.Equal(t, "Teleport CLI", string(bytes.TrimSpace(output)))
 }
+
+// TestSCP validates that tsh scp correctly copy file content while also
+// ensuring that proxy templates are respected.
+func TestSCP(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	accessRoleName := "access"
+	sshHostname := "test-ssh-server"
+
+	accessUser, err := types.NewUser(accessRoleName)
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{accessRoleName})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Username})
+
+	traits := map[string][]string{
+		constants.TraitLogins: {user.Username},
+	}
+	accessUser.SetTraits(traits)
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname(sshHostname),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.DisableCreateHostUser = true
+			cfg.SSH.Labels = map[string]string{
+				"animal": "llama",
+				"env":    "dev",
+			}
+		}),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	// Create a second server to test ambiguous matching.
+	testserver.MakeTestServer(t,
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
+			cfg.Hostname = "second-node"
+			cfg.Auth.Enabled = false
+			cfg.Proxy.Enabled = false
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
+			cfg.SSH.Labels = map[string]string{
+				"animal": "shark",
+				"env":    "dev",
+			}
+		}))
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
+			return
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	tmpHomePath := t.TempDir()
+	rootAuth := rootServer.GetAuthServer()
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", rootProxyAddr.String(),
+		"--user", user.Username,
+	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
+	sourceFile1 := filepath.Join(t.TempDir(), "source-file")
+	expectedFile1 := []byte{6, 7, 8, 9, 0}
+	require.NoError(t, os.WriteFile(sourceFile1, expectedFile1, 0o644))
+
+	sourceFile2 := filepath.Join(t.TempDir(), "source-file2")
+	expectedFile2 := []byte{1, 2, 3, 4, 5}
+	require.NoError(t, os.WriteFile(sourceFile2, expectedFile2, 0o644))
+
+	targetFile1 := uuid.NewString()
+
+	createFile := func(t *testing.T, dir, file string) {
+		t.Helper()
+		f, err := os.CreateTemp(dir, file)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+
+	tests := []struct {
+		name        string
+		source      []string
+		destination func(t *testing.T, dir string) string
+		assertion   require.ErrorAssertionFunc
+		expected    map[string][]byte
+	}{
+		{
+			name:        "no paths provided",
+			destination: func(*testing.T, string) string { return "" },
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "local and remote destinations are required", i...)
+			},
+		},
+		{
+			name:   "source resolved without using templates",
+			source: []string{sshHostname + ":" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "source resolved via predicate from template",
+			source: []string{"2.3.4.5:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "source resolved via search from template",
+			source: []string{"llama.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "source no matching host",
+			source: []string{"asdf.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
+			},
+		},
+		{
+			name:   "source multiple matching hosts",
+			source: []string{"dev.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+			},
+		},
+		{
+			name:   "destination resolved without using templates",
+			source: []string{sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return sshHostname + ":" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "destination resolved via predicate from template",
+			source: []string{sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "2.3.4.5:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "destination resolved via search from template",
+			source: []string{sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "llama.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "destination no matching host",
+			source: []string{sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "asdf.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
+			},
+		},
+		{
+			name:   "destination multiple matching hosts",
+			source: []string{sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "dev.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+			},
+		},
+		{
+			name:        "upload multiple files",
+			source:      []string{sourceFile1, sourceFile2},
+			destination: func(t *testing.T, dir string) string { return "llama.example.com:" + dir },
+			assertion:   require.NoError,
+			expected: map[string][]byte{
+				filepath.Base(sourceFile1): expectedFile1,
+				filepath.Base(sourceFile2): expectedFile2,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		ctx := context.Background()
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			outputDir := t.TempDir()
+			destination := test.destination(t, outputDir)
+
+			args := []string{"scp", "-d", "--no-resume", "--insecure", "-q"}
+			args = append(args, test.source...)
+			args = append(args, destination)
+			err := Run(ctx,
+				args,
+				setHomePath(tmpHomePath),
+				setTSHConfig(client.TSHConfig{
+					ProxyTemplates: client.ProxyTemplates{
+						{
+							Template: `^([0-9\.]+):\d+$`,
+							Query:    `labels["animal"] == "llama"`,
+						},
+						{
+							Template: `^(.*).example.com:\d+$`,
+							Search:   "$1",
+						},
+					},
+				}),
+				func(conf *CLIConf) error {
+					// Relogin is disabled since some of the error cases return a
+					// BadParameter error which triggers the re-authentication flow
+					// and may result in a different authentication related error
+					// being returned instead of the expected errors.
+					conf.Relogin = false
+					return nil
+				},
+			)
+			test.assertion(t, err)
+			if err != nil {
+				return
+			}
+
+			for file, expected := range test.expected {
+				got, err := os.ReadFile(filepath.Join(outputDir, file))
+				require.NoError(t, err)
+				require.Equal(t, expected, got)
+			}
+		})
+	}
+}

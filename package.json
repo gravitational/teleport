@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
+    "@storybook/addon-controls": "^8.3.4",
     "@storybook/addon-toolbars": "^8.3.4",
     "@storybook/components": "^8.3.4",
     "@storybook/react": "^8.3.4",
@@ -43,8 +44,8 @@
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
-    "@types/jest": "^29.5.13",
     "@types/history": "^4.7.11",
+    "@types/jest": "^29.5.13",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",

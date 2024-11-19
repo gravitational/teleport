@@ -31,7 +31,7 @@ export function loadInstallationId(filePath: string): string {
   let id = '';
   try {
     id = fs.readFileSync(filePath, 'utf-8');
-  } catch (error) {
+  } catch {
     return writeInstallationId(filePath);
   }
   if (!UUID_V4_REGEX.test(id)) {
