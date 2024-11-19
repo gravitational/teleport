@@ -171,10 +171,17 @@ Follow the instructions for your Linux distribution:
   ```
 
   <Admonition type="notice" title="Uninstall macOS client tools">
-  If you installed the macOS `tsh` client-only package and/or Teleport Connect for macOS, you can optionally remove those too:
+
+  You may have Teleport in Applications folder if you:
+  - Installed from a macOS tar ball for v17+ that includes `tsh.app` and `tctl.app`
+  - Installed  macOS `tsh` client-only package for v16 or older versions.
+  - Installed Teleport Connect for macOS  
+     
+  You can remove those with these commands:
 
   ```code
   $ sudo rm -rf /Applications/tsh.app
+  $ sudo rm -rf /Applications/tctl.app
   $ sudo rm -rf /Applications/Teleport\ Connect.app
   ```
   </Admonition>
