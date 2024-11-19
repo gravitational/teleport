@@ -28,13 +28,14 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
-func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
+func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
 	config, err := getSftpConfig(request)
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,7 +54,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), serverUUID+":0", config)
+		err := c.clusterClient.TransferFiles(ctx, clt, request.GetLogin(), serverUUID+":0", config)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)

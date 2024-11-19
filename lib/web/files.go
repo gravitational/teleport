@@ -145,7 +145,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
 	}
 
-	err = tc.TransferFiles(ctx, req.login, req.serverID+":0", cfg)
+	cl, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cl.Close()
+
+	err = tc.TransferFiles(ctx, cl, req.login, req.serverID+":0", cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
