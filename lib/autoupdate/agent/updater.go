@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -173,7 +175,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		},
 		Setup: func(ctx context.Context) error {
 			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)
-			if cfg.SelfSetup {
+			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
 			}
 			cmd := exec.CommandContext(ctx, name,
