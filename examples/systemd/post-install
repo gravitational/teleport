@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# this post upgrade script is run each time the teleport package is upgraded
+# This post install script is run each time the teleport package is installed/upgraded.
 
 set -eu
 
 case "$1" in
     configure)
+        echo "Teleport system symlinks creation..."
         /usr/local/teleport-system/bin/teleport-update link
-        echo "Post-install symlink creation completed."
         ;;
 esac
 
-# skip reload and restart when systemd is disabled. This is only relevant when
+# Skip reload and restart when systemd is disabled. This is only relevant when
 # testing in a container.
 if [ -d /run/systemd/system ]; then
     systemctl --system daemon-reload >/dev/null || true
