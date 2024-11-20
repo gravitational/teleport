@@ -202,6 +202,7 @@ export function splitSelectProps<
     onChange,
     onInputChange,
     onKeyDown,
+    openMenuOnClick,
     options,
     placeholder,
     rule,
@@ -239,6 +240,7 @@ export function splitSelectProps<
       onInputChange,
       onKeyDown,
       options,
+      openMenuOnClick,
       placeholder,
       stylesConfig,
       value,
@@ -285,6 +287,7 @@ type KeysRemovedFromOthers =
   | 'onChange'
   | 'onInputChange'
   | 'onKeyDown'
+  | 'openMenuOnClick'
   | 'options'
   | 'placeholder'
   | 'rule'
