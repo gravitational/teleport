@@ -316,7 +316,7 @@ func cmdUnlink(ctx context.Context, ccfg *cliConfig) error {
 	}
 
 	// Error if the updater is running. We could remove its links by accident.
-	unlock, err := libutils.FSTryReadLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSTryWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
 	if errors.Is(err, libutils.ErrUnsuccessfulLockTry) {
 		return trace.Errorf("updater is currently running")
 	}
