@@ -131,7 +131,7 @@ export const ConnectMyComputerContextProvider: FC<
     workspacesService,
     usageService,
   } = ctx;
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   clustersService.useState();
 
   const [
