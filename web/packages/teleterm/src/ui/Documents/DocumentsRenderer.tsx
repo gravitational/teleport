@@ -45,8 +45,6 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
-import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
-
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
@@ -87,25 +85,22 @@ export function DocumentsRenderer(props: {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {/* ConnectMyComputerContext depends on ResourcesContext. */}
-            <ResourcesContextProvider>
-              <ConnectMyComputerContextProvider
-                rootClusterUri={workspace.rootClusterUri}
-              >
-                {workspace.documentsService.getDocuments().length ? (
-                  renderDocuments(workspace.documentsService)
-                ) : (
-                  <KeyboardShortcutsPanel />
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                props.topBarContainerRef.current &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef.current
                 )}
-                {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() &&
-                  props.topBarContainerRef.current &&
-                  createPortal(
-                    <ConnectMyComputerNavigationMenu />,
-                    props.topBarContainerRef.current
-                  )}
-              </ConnectMyComputerContextProvider>
-            </ResourcesContextProvider>
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}

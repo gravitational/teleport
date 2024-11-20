@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package updater
+package tools
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -38,12 +37,12 @@ import (
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
 func CheckAndUpdateLocal(ctx context.Context, currentVersion string) error {
-	toolsDir, err := tools.Dir()
+	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
-	updater := tools.NewUpdater(toolsDir, currentVersion)
+	updater := NewUpdater(toolsDir, currentVersion)
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of client tools.
@@ -66,12 +65,12 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string) error {
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
 func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool) error {
-	toolsDir, err := tools.Dir()
+	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
-	updater := tools.NewUpdater(toolsDir, currentVersion)
+	updater := NewUpdater(toolsDir, currentVersion)
 	// The user has typed a command like `tsh ssh ...` without being logged in,
 	// if the running binary needs to be updated, update and re-exec.
 	//
@@ -88,7 +87,7 @@ func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy stri
 	return nil
 }
 
-func updateAndReExec(ctx context.Context, updater *tools.Updater, toolsVersion string) error {
+func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string) error {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This

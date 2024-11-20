@@ -27,7 +27,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -46,6 +49,10 @@ const (
 	DefaultLinkDir = "/usr/local"
 	// DefaultSystemDir is the location where packaged Teleport binaries and services are installed.
 	DefaultSystemDir = "/usr/local/teleport-system"
+	// VersionsDirName specifies the name of the subdirectory inside the Teleport data dir for storing Teleport versions.
+	VersionsDirName = "versions"
+	// BinaryName specifies the name of the updater binary.
+	BinaryName = "teleport-update"
 )
 
 const (
@@ -136,16 +143,20 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if cfg.SystemDir == "" {
 		cfg.SystemDir = DefaultSystemDir
 	}
-	if cfg.VersionsDir == "" {
-		cfg.VersionsDir = filepath.Join(libdefaults.DataDir, "versions")
+	if cfg.DataDir == "" {
+		cfg.DataDir = libdefaults.DataDir
+	}
+	installDir := filepath.Join(cfg.DataDir, VersionsDirName)
+	if err := os.MkdirAll(installDir, systemDirMode); err != nil {
+		return nil, trace.Errorf("failed to create install directory: %w", err)
 	}
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
+		ConfigPath:         filepath.Join(installDir, updateConfigName),
 		Installer: &LocalInstaller{
-			InstallDir: cfg.VersionsDir,
+			InstallDir: installDir,
 			LinkBinDir: filepath.Join(cfg.LinkDir, "bin"),
 			// For backwards-compatibility with symlinks created by package-based installs, we always
 			// link into /lib/systemd/system, even though, e.g., /usr/local/lib/systemd/system would work.
@@ -162,6 +173,28 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			PIDPath:     "/run/teleport.pid",
 			Log:         cfg.Log,
 		},
+		Setup: func(ctx context.Context) error {
+			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)
+			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
+				name = "/proc/self/exe"
+			}
+			cmd := exec.CommandContext(ctx, name,
+				"--data-dir", cfg.DataDir,
+				"--link-dir", cfg.LinkDir,
+				"setup")
+			cmd.Stderr = os.Stderr
+			cmd.Stdout = os.Stdout
+			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
+			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
+			err := cmd.Run()
+			if cmd.ProcessState.ExitCode() == CodeNotSupported {
+				return ErrNotSupported
+			}
+			return trace.Wrap(err)
+		},
+		Revert: func(ctx context.Context) error {
+			return trace.Wrap(Setup(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
+		},
 	}, nil
 }
 
@@ -175,12 +208,14 @@ type LocalUpdaterConfig struct {
 	// DownloadTimeout is a timeout for file download requests.
 	// Defaults to no timeout.
 	DownloadTimeout time.Duration
-	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions).
-	VersionsDir string
+	// DataDir for Teleport (usually /var/lib/teleport).
+	DataDir string
 	// LinkDir for installing Teleport (usually /usr/local).
 	LinkDir string
 	// SystemDir for package-installed Teleport installations (usually /usr/local/teleport-system).
 	SystemDir string
+	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
+	SelfSetup bool
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
@@ -197,6 +232,10 @@ type Updater struct {
 	Installer Installer
 	// Process manages a running instance of Teleport.
 	Process Process
+	// Setup installs the Teleport updater service using the linked installation.
+	Setup func(ctx context.Context) error
+	// Revert installs the Teleport updater service using the running installation.
+	Revert func(ctx context.Context) error
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -235,6 +274,11 @@ var (
 	ErrNotNeeded = errors.New("not needed")
 	// ErrNotSupported is returned when the operation is not supported on the platform.
 	ErrNotSupported = errors.New("not supported on this platform")
+)
+
+const (
+	// CodeNotSupported is returned when the operation is not supported on the platform.
+	CodeNotSupported = 3
 )
 
 // Process provides an API for interacting with a running Teleport process.
@@ -336,6 +380,8 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if targetVersion == "" {
 		return trace.Errorf("agent version not available from Teleport cluster")
 	}
+
+	u.Log.InfoContext(ctx, "Initiating initial update.", targetVersionKey, targetVersion, activeVersionKey, cfg.Status.ActiveVersion)
 
 	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
 		return trace.Wrap(err)
@@ -477,7 +523,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		}
 	}
 
-	// Install the desired version (or validate existing installation)
+	// Install and link the desired version (or validate existing installation)
 
 	template := cfg.Spec.URLTemplate
 	if template == "" {
@@ -487,6 +533,12 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	if err != nil {
 		return trace.Errorf("failed to install: %w", err)
 	}
+
+	// TODO(sclevine): if the target version has fewer binaries, this will
+	//  leave old binaries linked. This may prevent the installation from
+	//  being removed. To fix this, we should look for orphaned binaries
+	//  and remove them, or alternatively, attempt to remove extra versions.
+
 	revert, err := u.Installer.Link(ctx, targetVersion)
 	if err != nil {
 		return trace.Errorf("failed to link: %w", err)
@@ -495,22 +547,31 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	// If we fail to revert after this point, the next update/enable will
 	// fix the link to restore the active version.
 
-	// Sync process configuration after linking.
-
-	if err := u.Process.Sync(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return trace.Errorf("sync canceled")
-		}
-		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
-		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
+	revertConfig := func(ctx context.Context) bool {
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
-		} else if err := u.Process.Sync(ctx); err != nil {
-			u.Log.ErrorContext(ctx, "Failed to sync configuration after failed restart.", errorKey, err)
-		} else {
+			return false
+		}
+		if err := u.Revert(ctx); err != nil {
+			u.Log.ErrorContext(ctx, "Failed to revert configuration after failed restart.", errorKey, err)
+			return false
+		}
+		return true
+	}
+
+	// Setup teleport-updater configuration and sync systemd.
+
+	err = u.Setup(ctx)
+	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Not syncing systemd configuration because systemd is not running.")
+	} else if errors.Is(err, context.Canceled) {
+		return trace.Errorf("sync canceled")
+	} else if err != nil {
+		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
+		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
+		if ok := revertConfig(ctx); ok {
 			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 		}
-
 		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", targetVersion, err)
 	}
 
@@ -518,22 +579,23 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 
 	if cfg.Status.ActiveVersion != targetVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", targetVersionKey, targetVersion)
-		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-			if errors.Is(err, context.Canceled) {
-				return trace.Errorf("reload canceled")
-			}
-			// If reloading Teleport at the new version fails, revert, resync, and reload.
-			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
-			if ok := revert(ctx); !ok {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks to older version. Installation likely broken.")
-			} else if err := u.Process.Sync(ctx); err != nil {
-				u.Log.ErrorContext(ctx, "Invalid configuration found after reverting Teleport to older version. Installation likely broken.", errorKey, err)
-			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", errorKey, err)
-			} else {
-				u.Log.WarnContext(ctx, "Teleport updater encountered an error during the update and successfully reverted the installation.")
-			}
+		err = u.Process.Reload(ctx)
+		if errors.Is(err, context.Canceled) {
+			return trace.Errorf("reload canceled")
+		}
+		if err != nil &&
+			!errors.Is(err, ErrNotNeeded) && // no output if restart not needed
+			!errors.Is(err, ErrNotSupported) { // already logged above for Sync
 
+			// If reloading Teleport at the new version fails, revert and reload.
+			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
+			if ok := revertConfig(ctx); ok {
+				if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+					u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
+				} else {
+					u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+				}
+			}
 			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
 		}
 		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
@@ -554,7 +616,6 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	if n := len(versions); n > 2 {
 		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
 	}
-
 	return nil
 }
 
@@ -609,7 +670,11 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Group != "" {
 		spec.Group = override.Group
 	}
-	if override.URLTemplate != "" {
+	switch override.URLTemplate {
+	case "":
+	case "default":
+		spec.URLTemplate = ""
+	default:
 		spec.URLTemplate = override.URLTemplate
 	}
 	if spec.URLTemplate != "" &&
@@ -620,7 +685,7 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 }
 
 // LinkPackage creates links from the system (package) installation of Teleport, if they are needed.
-// LinkPackage returns nils and warns if an auto-updates version is already linked, but auto-updates is disabled.
+// LinkPackage returns nil and warns if an auto-updates version is already linked, but auto-updates is disabled.
 // LinkPackage returns an error only if an unknown version of Teleport is present (e.g., manually copied files).
 // This function is idempotent.
 func (u *Updater) LinkPackage(ctx context.Context) error {
