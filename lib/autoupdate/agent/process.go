@@ -252,6 +252,24 @@ func (s SystemdService) Sync(ctx context.Context) error {
 	if code != 0 {
 		return trace.Errorf("unable to reload systemd configuration")
 	}
+	s.Log.InfoContext(ctx, "Systemd configuration synced.", unitKey, s.ServiceName)
+	return nil
+}
+
+// Enable the systemd service.
+func (s SystemdService) Enable(ctx context.Context, now bool) error {
+	if err := s.checkSystem(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	args := []string{"enable", s.ServiceName}
+	if now {
+		args = append(args, "--now")
+	}
+	code := s.systemctl(ctx, slog.LevelError, args...)
+	if code != 0 {
+		return trace.Errorf("unable to enable systemd service")
+	}
+	s.Log.InfoContext(ctx, "Service enabled.", unitKey, s.ServiceName)
 	return nil
 }
 
