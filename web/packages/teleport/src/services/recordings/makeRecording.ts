@@ -85,7 +85,7 @@ function makeSshOrKubeRecording({
   );
 
   let hostname = server_hostname || 'N/A';
-  // SSH interactive/non-interactive and k8s interative sessions user participants are in the participants field.
+  // SSH interactive/non-interactive and k8s interactive sessions user participants are in the participants field.
   let userParticipants = participants;
   // For Kubernetes sessions, put the full pod name as 'hostname'.
   if (proto === 'kube') {
