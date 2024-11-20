@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.vapopov.8"
+.version: &version "18.0.0-dev.vapopov.9"
 
 name: teleport-kube-agent
 apiVersion: v2
