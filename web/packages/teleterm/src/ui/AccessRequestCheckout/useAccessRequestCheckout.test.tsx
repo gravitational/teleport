@@ -135,7 +135,7 @@ test(`fetching requestable roles for a kube cluster's namespaces only creates re
       resource: kube2,
     });
 
-  await appContext.workspacesService
+  appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
     .updateNamespacesForKubeCluster(
       [
@@ -230,14 +230,14 @@ test('after creating an access request, pending requests and specifiable fields 
     wrapper,
   });
 
-  await act(() =>
+  act(() =>
     result.current.setSelectedReviewers([{ value: 'bob', label: 'bob' }])
   );
   expect(result.current.selectedReviewers).toEqual([
     { value: 'bob', label: 'bob' },
   ]);
 
-  await act(() =>
+  act(() =>
     result.current.setSelectedResourceRequestRoles(['apple', 'banana'])
   );
   expect(result.current.selectedResourceRequestRoles).toEqual([
@@ -335,6 +335,12 @@ test('updating kube namespaces', async () => {
     wrapper,
   });
 
+  // Fetching resource roles is done from an effect, let's wait for it to avoid errors about state
+  // updates not being wrapped in act.
+  await waitFor(() => {
+    expect(result.current.fetchResourceRolesAttempt.status).toEqual('success');
+  });
+
   const kubeItem: PendingListKubeClusterWithOriginalItem = {
     kind: 'kube_cluster',
     clusterName: 'local',
@@ -349,7 +355,7 @@ test('updating kube namespaces', async () => {
   };
 
   // Test order of request are retained.
-  await act(() =>
+  await act(async () =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -383,7 +389,7 @@ test('updating kube namespaces', async () => {
   expect(savedRequestIds).toEqual(['n3', 'n2', 'n1']);
 
   // Test order of request are retained a second time.
-  await act(() =>
+  await act(async () =>
     result.current.updateNamespacesForKubeCluster(
       [
         {
@@ -417,33 +423,34 @@ test('updating kube namespaces', async () => {
   expect(savedRequestIds).toEqual(['n2', 'n1', 'n3']);
 
   // Test empty request clears request.
-  await act(() => result.current.updateNamespacesForKubeCluster([], kubeItem));
+  await act(async () =>
+    result.current.updateNamespacesForKubeCluster([], kubeItem)
+  );
   savedRequestIds = result.current.pendingAccessRequests
     .filter(r => r.kind === 'namespace')
     .map(r => r.subResourceName);
   expect(savedRequestIds).toEqual([]);
 
   // Test invalid request.
-  await expect(
-    async () =>
-      await result.current.updateNamespacesForKubeCluster(
-        [
-          {
-            kind: 'namespace',
-            clusterName: 'local',
-            id: kube1.name,
-            name: 'n2',
-            subResourceName: 'n2',
-          },
-          {
-            kind: 'namespace',
-            clusterName: 'local',
-            id: 'some-id-of-different-kube-cluster-which-is-invalid',
-            name: 'n1',
-            subResourceName: 'n1',
-          },
-        ],
-        kubeItem
-      )
-  ).rejects.toThrow();
+  expect(() => {
+    result.current.updateNamespacesForKubeCluster(
+      [
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n2',
+          subResourceName: 'n2',
+        },
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: 'some-id-of-different-kube-cluster-which-is-invalid',
+          name: 'n1',
+          subResourceName: 'n1',
+        },
+      ],
+      kubeItem
+    );
+  }).toThrow(/the same requested kube cluster can be updated/);
 });
