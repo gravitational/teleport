@@ -23,7 +23,9 @@ use crate::{
     CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
     CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
-use ironrdp_pdu::{cast_length, custom_err, PduResult};
+use ironrdp_core::cast_length;
+use ironrdp_pdu::pdu_other_err;
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{
     self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
 };
@@ -137,10 +139,13 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(TdpHandlingError(format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:TdpHandlingError(format!(
+                    "failed to extract name from path: {:?}",
+                    self.path
+                ))
+            ))
         }
     }
 
