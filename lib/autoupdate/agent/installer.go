@@ -707,9 +707,10 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcDir string
 			continue
 		}
 		if err := os.Remove(newname); err != nil {
-			return trace.Errorf("error removing link for %s: %w", filepath.Base(newname), err)
+			li.Log.ErrorContext(ctx, "Unable to remove link.", "oldname", oldname, "newname", newname, errorKey, err)
+			continue
 		}
-		if filepath.Dir(newname) == "teleport" {
+		if filepath.Base(newname) == "teleport" {
 			removeService = true
 		}
 	}
