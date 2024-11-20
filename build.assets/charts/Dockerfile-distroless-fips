@@ -26,6 +26,7 @@ RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
     mkdir -p /opt/staging/usr/local/bin && \
     mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
     mv /opt/staging/usr/local/teleport-system/bin/* /opt/staging/usr/local/bin/ && \
+    rm -f /opt/staging/usr/local/bin/teleport-update && \
     rm -rf /opt/staging/DEBIAN
 
 FROM $BASE_IMAGE
