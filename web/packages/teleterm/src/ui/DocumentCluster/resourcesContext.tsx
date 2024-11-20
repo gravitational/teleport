@@ -40,10 +40,12 @@ export interface ResourcesContext {
   requestResourcesRefresh: (rootClusterUri: RootClusterUri) => void;
   /**
    * onResourcesRefreshRequest registers a listener that will be called any time a refresh is
-   * requested. Typically called from useEffect, for this purpose it returns a cleanup function.
+   * requested for a particular rootClusterUri. Typically called from useEffect, for this purpose it
+   * returns a cleanup function.
    */
   onResourcesRefreshRequest: (
-    listener: (rootClusterUri: RootClusterUri) => void
+    rootClusterUri: RootClusterUri,
+    listener: () => void
   ) => {
     cleanup: () => void;
   };
@@ -64,7 +66,15 @@ export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
   );
 
   const onResourcesRefreshRequest = useCallback(
-    (listener: (rootClusterUri: RootClusterUri) => void) => {
+    (
+      targetRootClusterUri: RootClusterUri,
+      listenerWithoutRootClusterUri: () => void
+    ) => {
+      const listener = (rootClusterUri: RootClusterUri) => {
+        if (rootClusterUri === targetRootClusterUri) {
+          listenerWithoutRootClusterUri();
+        }
+      };
       emitterRef.current.addListener('refresh', listener);
 
       return {
@@ -105,11 +115,7 @@ export const useResourcesContext = (rootClusterUri: RootClusterUri) => {
     ),
     onResourcesRefreshRequest: useCallback(
       (listener: () => void) =>
-        onResourcesRefreshRequestContext(requestedRootClusterUri => {
-          if (requestedRootClusterUri === rootClusterUri) {
-            listener();
-          }
-        }),
+        onResourcesRefreshRequestContext(rootClusterUri, listener),
       [onResourcesRefreshRequestContext, rootClusterUri]
     ),
   };
