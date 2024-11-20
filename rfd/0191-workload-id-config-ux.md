@@ -338,7 +338,7 @@ version: v1
 metadata:
   name: gitlab
   labels:
-    platform: gitlab
+    environment: production
 spec:
   spiffe:
     # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
@@ -350,7 +350,7 @@ metadata:
 spec:
   allow:
     workload_identity_labels:
-      platform: gitlab
+      environment: production
 ---
 kind: bot
 metadata:
@@ -385,11 +385,11 @@ services:
    '*': '*'
 ```
 
-### Future: Ability to further customize SVIDs
+### Future: Ability to further customize workload identity credentials
 
 In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
 resource to specify more than just the SPIFFE ID of the generated identity
-document.
+credential.
 
 This ability serves many purposes:
 
@@ -593,6 +593,11 @@ Where the client has provided label selectors:
 4d. Issue workload identity credential, emit audit log.
 5. Return issued credentials to client. 
 
+If, after evaluation of labels and rules, more than 10 WorkloadIdentity
+resources remain, the client should receive an error encouraging the user to
+leverage labels so that the set of returned WorkloadIdentity falls below this
+threshold. This limits the runaway resource consumption if there is a 
+misconfiguration.
 
 ### Performance
 
@@ -627,8 +632,12 @@ to highlight performance hot-spots.
 
 ### Deprecation
 
-// Unsure. Perhaps leave old ones in place for the purposes of administrative
-// SVID generation.
+For now, the old RBAC and RPCs for Workload Identity will be left in place as
+they provide effectively an "administrative" way of generating workload 
+identity credentials.
+
+When the new mechanism has been available for 2 major versions, we should
+revisit the deprecation of the legacy RPCs and RBAC.
 
 ## Alternatives
 
