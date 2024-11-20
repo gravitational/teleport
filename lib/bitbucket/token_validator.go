@@ -20,13 +20,10 @@ package bitbucket
 
 import (
 	"context"
-	"time"
 
-	"github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
 )
 
 // IDTokenValidator validates a Bitbucket issued ID Token.
@@ -64,14 +61,6 @@ func (id *IDTokenValidator) Validate(
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err, "enforcing nbf")
 	}
 
 	claims := IDTokenClaims{}
