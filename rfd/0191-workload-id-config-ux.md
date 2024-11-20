@@ -126,7 +126,11 @@ metadata:
     env: production
 spec:
   spiffe:
+    # Provide the path element of the workload identifier (SPIFFE ID).
     id: /my/awesome/identity
+    # Optionally provide a "hint" that will be provided to workloads using the
+    # SPIFFE Workload API to fetch workload identity credentials.
+    hint: my-hint
 ```
 
 As with most Teleport resources, a basic layer of RBAC based on the label 
@@ -385,11 +389,11 @@ services:
    '*': '*'
 ```
 
-### Future: Ability to further customize workload identity credentials
+### Future: Customizing workload identity credentials
 
 In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
-resource to specify more than just the SPIFFE ID of the generated identity
-credential.
+resource to specify more than just the SPIFFE ID/workload identifier of the
+generated identity credential.
 
 This ability serves many purposes:
 
@@ -398,12 +402,30 @@ This ability serves many purposes:
 - Allow the encoding of additional information that is only rarely used for
   authorization - or - does not fit well into the structure of a SPIFFE ID for
   other reasons.
+- Support compatablity with services which may require information to be 
+  encoded into non-standard fields.
 
-For JWT SVIDs, this would be the configuration of additional claims. For X509
-SVIDs, this would be the additional SANs or customisation of the Subject
-Distinguished Name.
+The fields for controlling customization of the credentials would also accept
+the same templating logic as `spec.spiffe.id`.
 
-Example configuration:
+For JWTs, the following options are good candidates for inclusion:
+
+- Additional claims using information from attributes, or, encoding all
+  attributes into a specific claim.
+- Constraining acceptable audiences
+- Inclusion or exclusion of standard claims (e.g `jti`)
+
+For X509 certificates, the following options are good candidates for inclusion:
+
+- Additional SANs
+- Control of the Subject CN behaviour (e.g should the CN match the SPIFFE ID or
+  the first DNS SAN)
+- Overriding Subject DN entirely (e.g populate DN attributes with values from
+  the requester's attributes)
+
+The following example configuration is given for demonstrative purposes and
+does not represent a decision on field naming or structure - which is out of
+scope of this RFD:
 
 ```yaml
 kind: workload_identity
@@ -415,11 +437,20 @@ spec:
     id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
     jwt:
       extra_claims:
-        "ref_path": {{ join.gitlab.ref_path }}
+        "gitlab_ref_path": {{ join.gitlab.ref_path }}
+    x509:
+      override_subject:
+        cn: my-lovely-common-name
+      additional_sans:
+        dns:
+        - example.com
 ```
 
-TODO: What about an option to map all attestation values into a claim - rather
-than requiring it to be attribute by attribute?
+We may wish to consider a second-order configuration resource
+(e.g a WorkloadIdentityProfile) which would allow customization settings to be
+shared between WorkloadIdentity resources. This would provide a unified way
+to control customizations which may be necessary for compliance or compatability
+purposes.
 
 ## Technical Design
 
@@ -541,24 +572,73 @@ message WorkloadIdentityNameSelector {
 }
 
 message WorkloadIdentityLabelSelector {
-  map<string, string> labels = 1;
+  string key = 1;
+  repeated string values = 2;
+}
+
+message WorkloadIdentityLabelSelectors {
+  repeated WorkloadIdentityLabelSelector = 1;
 }
 
 message WorkloadAttestationAttributes {
   map<string, string> attributes = 2;
 }
 
+message IssueWorkloadIdentityJWTSVIDRequest {
+  // The value that should be included in the JWT SVID as the `aud` claim.
+  // Required.
+  repeated string audiences = 1;
+  // The requested TTL for the JWT SVID. This request may be modified by
+  // the server according to its policies. It is the client's responsibility
+  // to check the TTL of the returned workload identity credential.
+  google.protobuf.Duration ttl = 2; 
+}
+
+message IssueWorkloadIdentityX509SVIDRequest {
+    // A PKIX, ASN.1 DER encoded public key that should be included in the x509
+  // SVID.
+  // Required.
+  bytes public_key = 1;
+  // The requested TTL for the JWT SVID. This request may be modified by
+  // the server according to its policies. It is the client's responsibility
+  // to check the TTL of the returned workload identity credential.
+  google.protobuf.Duration ttl = 2; 
+}
+
 message IssueWorkloadIdentityRequest {
-  // Selector.
   oneof selector {
+    // Request a specific WorkloadIdentity by name.
     WorkloadIdentityNameSelector name = 1;
+    // Request WorkloadIdentity's by label matcher. All specified labels must
+    // exist on the WorkloadIdentity for it to be selected.
     WorkloadIdentityLabelSelector labels = 2;
   }
+  oneof type {
+    IssueWorkloadIdentityJWTSVIDRequest jwt_svid = 3;
+    IssueWorkloadIdentityX509SVIDRequest x509_svid = 4;
+  }
+
   WorkloadAttestationAttributes workload_attributes = 3;
 }
 
-message IssueWorkloadIdentityResponse {
+message WorkloadIdentityCredential {
+  oneof credential {
+    // Signed JWT-SVID
+    string jwt_svid = 1;
+    // An ASN.1 DER encoded X509-SVID
+    bytes x509_svid = 2;
+  }
+  // The TTL that was chosen by the server.
+  google.protobuf.Duration ttl = 3;
+  // The time that the TTL is reached for this credential.
+  google.protobuf.Timestamp expiry = 4;  
 
+  // TODO: Is it worth returning the full associated WorkloadIdentity resource?
+  string workload_identity_name = 2;
+}
+
+message IssueWorkloadIdentityResponse {
+  repeated WorkloadIdentityCredential credentials = 1;
 }
 ```
 
