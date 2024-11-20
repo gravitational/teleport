@@ -4210,7 +4210,7 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
-func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
+func (a *ServerWithRoles) validateRole(role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",
 			types.TeleportDowngradedLabel, downgradeReason)
@@ -4235,6 +4235,16 @@ func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) err
 		}
 	}
 
+	if role.GetRequestReasonMode(types.Deny) != "" {
+		return trace.BadParameter("request reason mode can be provided only for allow rules")
+	}
+	if role.GetRequestReasonMode(types.Allow) != "" {
+		err := role.GetRequestReasonMode(types.Allow).Check()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -4248,7 +4258,7 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4280,7 +4290,7 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4312,7 +4322,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
