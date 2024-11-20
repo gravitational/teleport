@@ -52,6 +52,8 @@ WantedBy=teleport.service
 `
 )
 
+// Setup installs service and timer files for the teleport-update binary.
+// Afterwords, Setup reloads systemd and enables the timer with --now.
 func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error {
 	err := writeConfigFiles(linkDir, dataDir)
 	if err != nil {
@@ -71,8 +73,6 @@ func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error
 }
 
 func writeConfigFiles(linkDir, dataDir string) error {
-	// TODO(sclevine): revert on failure
-
 	servicePath := filepath.Join(linkDir, serviceDir, updateServiceName)
 	err := writeTemplate(servicePath, updateServiceTemplate, linkDir, dataDir)
 	if err != nil {
@@ -83,7 +83,6 @@ func writeConfigFiles(linkDir, dataDir string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
