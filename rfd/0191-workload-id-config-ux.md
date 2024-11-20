@@ -295,8 +295,8 @@ three sources:
 For ease of operation, the attributes used during a workload identity credential
 issuance will be recorded in the Teleport audit log.
 
-Attributes names are always strings, using '.' to denote levels of a hierarchy,
-e.g:
+Within templates and rules, layers of hierarchy within the attribute set are
+navigated using '.', e.g:
 
 - `join.gitlab.project_path`
 - `traits.external.email`
