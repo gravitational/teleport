@@ -548,7 +548,62 @@ adjustments to be made to the values and keys to optimize them for ease of
 templating and rule evaluation.
 
 The attribute key-value set can be represented as a map, with the key being a
-string and the value being a string.
+string and the value being a string. This format is chosen for ease of 
+encoding into formats such as JSON.
+
+For example, the GitLab join method is based on the validation of an ID Token
+provided by GitLab to CI runs, with the following claims:
+
+```json
+{
+  "namespace_id": "72",
+  "namespace_path": "my-group",
+  "project_id": "20",
+  "project_path": "my-group/my-project",
+  "user_id": "1",
+  "user_login": "sample-user",
+  "user_email": "sample-user@example.com",
+  "user_identities": [
+      {"provider": "github", "extern_uid": "2435223452345"},
+      {"provider": "bitbucket", "extern_uid": "john.smith"},
+  ],
+  "pipeline_id": "574",
+  "pipeline_source": "push",
+  "job_id": "302",
+  "ref": "feature-branch-1",
+  "ref_type": "branch",
+  "ref_path": "refs/heads/feature-branch-1",
+  "ref_protected": "false",
+  "groups_direct": ["mygroup/mysubgroup", "myothergroup/myothersubgroup"],
+  "environment": "test-environment2",
+  "environment_protected": "false",
+  "deployment_tier": "testing",
+  "environment_action": "start",
+  "runner_id": 1,
+  "runner_environment": "self-hosted",
+  "sha": "714a629c0b401fdce83e847fc9589983fc6f46bc",
+  "project_visibility": "public",
+  "ci_config_ref_uri": "gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main",
+  "ci_config_sha": "714a629c0b401fdce83e847fc9589983fc6f46bc",
+  "jti": "235b3a54-b797-45c7-ae9a-f72d7bc6ef5b",
+  "iss": "https://gitlab.example.com",
+  "iat": 1681395193,
+  "nbf": 1681395188,
+  "exp": 1681398793,
+  "sub": "project_path:my-group/my-project:ref_type:branch:ref:feature-branch-1",
+  "aud": "https://vault.example.com"
+}
+```
+
+Upon conversion to attributes, this could be represented as:
+
+```json
+{
+  "join.gitlab.ref_type": "branch",
+  "join.gitlab.ref_path": "refs/heads/feature-branch-1",
+  "join.gitlab.runner_id": "1", // converted from int to str
+}
+```
 
 The attribute key-value set will be encoded as JSON into the X509 certificate
 using a new extension (1.3.9999.2.21).
