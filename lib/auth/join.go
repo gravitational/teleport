@@ -230,6 +230,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	joinAttributes := &machineidv1pb.JoinAttributes{}
 	method := a.tokenJoinMethod(ctx, req.Token)
 	switch method {
 	case types.JoinMethodEC2:
@@ -253,6 +254,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitLabJoinRequest(ctx, req)
 		if claims != nil {
 			joinAttributeSrc = claims
+			joinAttributes.Gitlab = claims.JoinAttributes()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -315,7 +317,13 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, err = a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
+		certs, err = a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req,
+			joinAttributeSrc,
+			joinAttributes,
+		)
 		return certs, trace.Wrap(err)
 	}
 	certs, err = a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
@@ -327,6 +335,7 @@ func (a *Server) generateCertsBot(
 	provisionToken types.ProvisionToken,
 	req *types.RegisterUsingTokenRequest,
 	joinAttributeSrc joinAttributeSourcer,
+	joinAttributes *machineidv1pb.JoinAttributes,
 ) (*proto.Certs, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
@@ -415,6 +424,7 @@ func (a *Server) generateCertsBot(
 		auth,
 		req.BotInstanceID,
 		req.BotGeneration,
+		joinAttributes,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

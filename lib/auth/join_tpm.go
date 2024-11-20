@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -110,7 +111,11 @@ func (a *Server) RegisterUsingTPMMethod(
 
 	if initReq.JoinRequest.Role == types.RoleBot {
 		certs, err := a.generateCertsBot(
-			ctx, ptv2, initReq.JoinRequest, validatedEK,
+			ctx,
+			ptv2,
+			initReq.JoinRequest,
+			validatedEK,
+			&machineidv1pb.JoinAttributes{},
 		)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}

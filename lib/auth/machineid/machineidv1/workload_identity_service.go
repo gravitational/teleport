@@ -405,7 +405,7 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	var joinAttr *pb.JoinAttributes = authCtx.Identity.GetIdentity().BotJoinAttributes
+	joinAttr := authCtx.Identity.GetIdentity().BotJoinAttributes
 	workloadIdentity := &pb.WorkloadIdentity{
 		Spec: &pb.WorkloadIdentitySpec{
 			Spiffe: &pb.WorkloadIdentitySPIFFE{
@@ -466,6 +466,8 @@ func template(in string, join *pb.JoinAttributes) (string, error) {
 		if join.Gitlab != nil {
 			variables["join.gitlab.user_login"] = join.Gitlab.UserLogin
 			variables["join.gitlab.project_path"] = join.Gitlab.ProjectPath
+			variables["join.gitlab.environment"] = join.Gitlab.Environment
+			variables["join.gitlab.namespace_path"] = join.Gitlab.NamespacePath
 		}
 	}
 

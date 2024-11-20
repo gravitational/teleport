@@ -489,6 +489,7 @@ func (a *Server) generateInitialBotCerts(
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, currentIdentityGeneration int32,
+	joinAttributes *machineidv1pb.JoinAttributes,
 ) (*proto.Certs, string, error) {
 	var err error
 
@@ -528,23 +529,17 @@ func (a *Server) generateInitialBotCerts(
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          userState,
-		ttl:           expires.Sub(a.GetClock().Now()),
-		sshPublicKey:  sshPubKey,
-		tlsPublicKey:  tlsPubKey,
-		checker:       checker,
-		traits:        accessInfo.Traits,
-		renewable:     renewable,
-		includeHostCA: true,
-		loginIP:       loginIP,
-		botName:       botName,
-		botJoinAttributes: &machineidv1pb.JoinAttributes{
-			Github: &machineidv1pb.GitHubJoinAttributes{
-				Repository:  "bar/foo",
-				Environment: "production",
-				Workflow:    "deploy",
-			},
-		},
+		user:              userState,
+		ttl:               expires.Sub(a.GetClock().Now()),
+		sshPublicKey:      sshPubKey,
+		tlsPublicKey:      tlsPubKey,
+		checker:           checker,
+		traits:            accessInfo.Traits,
+		renewable:         renewable,
+		includeHostCA:     true,
+		loginIP:           loginIP,
+		botName:           botName,
+		botJoinAttributes: joinAttributes,
 	}
 
 	if existingInstanceID == "" {

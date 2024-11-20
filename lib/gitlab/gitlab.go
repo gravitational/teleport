@@ -21,6 +21,8 @@ package gitlab
 import (
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 )
 
 // GitLab Workload Identity
@@ -128,4 +130,13 @@ func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 		return nil, trace.Wrap(err)
 	}
 	return res, nil
+}
+
+func (c *IDTokenClaims) JoinAttributes() *machineidv1pb.GitlabJoinAttributes {
+	return &machineidv1pb.GitlabJoinAttributes{
+		UserLogin:     c.UserLogin,
+		ProjectPath:   c.ProjectPath,
+		NamespacePath: c.NamespacePath,
+		Environment:   c.Environment,
+	}
 }

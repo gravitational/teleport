@@ -29,6 +29,8 @@ message GitHubJoinAttributes {
 message GitlabJoinAttributes {
   string user_login = 1;
   string project_path = 2;
+  string namespace_path = 3;
+  string environment = 4;
 }
 
 // JoinAttributes holds attributes sourced from attestation that occurs during
