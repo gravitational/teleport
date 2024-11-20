@@ -55,11 +55,15 @@ const (
 	systemDirMode = 0755
 )
 
-var (
+const (
 	// serviceDir contains the relative path to the Teleport SystemD service dir.
-	serviceDir = filepath.Join("lib", "systemd", "system")
+	serviceDir = "lib/systemd/system"
 	// serviceName contains the name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
+	// updateServiceName contains the name of the Teleport Update Systemd service
+	updateServiceName = "teleport-update.service"
+	// updateTimerName contains the name of the Teleport Update Systemd timer
+	updateTimerName = "teleport-update.timer"
 )
 
 // LocalInstaller manages the creation and removal of installations
@@ -431,7 +435,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
-// LinkSystem links the system (package) version into the system LinkBinDir and LinkServiceDir.
+// LinkSystem links the system (package) version into LinkBinDir and LinkServiceDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
@@ -539,7 +543,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 	dst := filepath.Join(li.LinkServiceDir, serviceName)
 	orig, err := forceCopy(dst, src, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return revert, trace.Errorf("failed to create file for %s: %w", serviceName, err)
+		return revert, trace.Errorf("failed to write file %s: %w", serviceName, err)
 	}
 	if orig != nil {
 		revertFiles = append(revertFiles, *orig)
@@ -782,13 +786,5 @@ func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
 			return true, nil
 		}
 	}
-	linkData, err := readFileN(filepath.Join(li.LinkServiceDir, serviceName), maxServiceFileSize)
-	if err != nil {
-		return false, nil
-	}
-	versionData, err := readFileN(filepath.Join(versionDir, serviceDir, serviceName), maxServiceFileSize)
-	if err != nil {
-		return false, nil
-	}
-	return bytes.Equal(linkData, versionData), nil
+	return false, nil
 }
