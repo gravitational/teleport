@@ -551,9 +551,6 @@ const IncludedResourcesSelector = ({
       <HoverTooltip tipContent={'Filter by resource availability'}>
         <ButtonSecondary
           px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
           textTransform="none"
           size="small"
           onClick={handleOpen}
