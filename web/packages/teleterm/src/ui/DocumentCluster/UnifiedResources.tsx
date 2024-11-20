@@ -332,7 +332,7 @@ const Resources = memo(
         void fetch({ clear: true });
       });
       return cleanup;
-    }, [onResourcesRefreshRequest, fetch, props.clusterUri]);
+    }, [onResourcesRefreshRequest, fetch]);
 
     const { getAccessRequestButton } = props;
     // The action callback in the requestAccess action has access to
