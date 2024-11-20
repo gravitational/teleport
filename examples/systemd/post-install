@@ -7,7 +7,7 @@ set -eu
 case "$1" in
     configure)
         echo "Teleport system symlinks creation..."
-        /usr/local/teleport-system/bin/teleport-update link
+        /usr/local/teleport-system/bin/teleport-update link-package
         ;;
 esac
 

@@ -7,7 +7,7 @@ set -eu
 case "$1" in
     remove|deconfigure)
         echo "Removing symlinks from teleport system paths..."
-        /usr/local/teleport-system/bin/teleport-update unlink
+        /usr/local/teleport-system/bin/teleport-update unlink-package
         ;;
 esac
 
