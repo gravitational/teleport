@@ -147,7 +147,7 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
+	r.logger.InfoContext(ctx, "Resource was removed, deleting", "kind", kind, "name", key)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
 		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
 	}
@@ -158,22 +158,23 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 // processNewResource checks the provided new resource against currently
 // registered resources.
 func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, currentResources map[K]T, key K, newT T) error {
+	kind, err := types.GetKind(newT)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
 	registered, ok := currentResources[key]
 	if !ok {
-		kind, err := types.GetKind(newT)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		if r.cfg.Matcher(newT) {
-			r.logger.InfoContext(ctx, "New resource matches, creating", "name", key)
+			r.logger.InfoContext(ctx, "New resource matches, creating", "kind", kind, "name", key)
 			if err := r.cfg.OnCreate(ctx, newT); err != nil {
 				return trace.Wrap(err, "failed to create %v %v", kind, key)
 			}
 			return nil
 		}
-		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "name", key)
+		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "kind", kind, "name", key)
 		return nil
 	}
 
@@ -187,32 +188,28 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		return trace.Wrap(err)
 	}
 	if registeredOrigin != newOrigin {
-		r.logger.WarnContext(ctx, "New resource has different origin, not updating", "name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
+		r.logger.WarnContext(ctx, "New resource has different origin, not updating", "kind", kind, "name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
 		return nil
 	}
 
 	// If the resource is already registered but was updated, see if its
 	// labels still match.
-	kind, err := types.GetKind(registered)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if r.cfg.CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
-			r.logger.InfoContext(ctx, "Existing resource updated, updating", "name", key)
+			r.logger.InfoContext(ctx, "Existing resource updated, updating", "kind", kind, "name", key)
 			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {
 				return trace.Wrap(err, "failed to update %v %v", kind, key)
 			}
 			return nil
 		}
-		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
+		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "kind", kind, "name", key)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
 			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
 		return nil
 	}
 
-	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "name", key)
+	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "kind", kind, "name", key)
 	return nil
 }
 
