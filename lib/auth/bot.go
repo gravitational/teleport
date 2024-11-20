@@ -538,6 +538,13 @@ func (a *Server) generateInitialBotCerts(
 		includeHostCA: true,
 		loginIP:       loginIP,
 		botName:       botName,
+		botJoinAttributes: &machineidv1pb.JoinAttributes{
+			Github: &machineidv1pb.GitHubJoinAttributes{
+				Repository:  "bar/foo",
+				Environment: "production",
+				Workflow:    "deploy",
+			},
+		},
 	}
 
 	if existingInstanceID == "" {

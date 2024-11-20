@@ -1,0 +1,39 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.machineid.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
+
+// GitLabJoinAttributes is the attribute set produced by the `github` join method.
+message GitHubJoinAttributes {
+  string repository = 1;
+  string environment = 2;
+  string workflow = 3;
+}
+
+// JoinAttributes holds attributes sourced from attestation that occurs during
+// the teleport join process.
+message JoinAttributes {
+  GitHubJoinAttributes github = 1;
+}
+
+// Attributes holds attributes describing a workload identity, it is made up
+// from information from multiple sources such as the join process and the
+// any workload attestation.
+message Attributes {
+  JoinAttributes join = 1;
+}
