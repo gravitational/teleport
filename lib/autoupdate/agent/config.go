@@ -87,7 +87,8 @@ func writeConfigFiles(linkDir, dataDir string) error {
 }
 
 func writeTemplate(path, t, linkDir, dataDir string) error {
-	if err := os.MkdirAll(filepath.Dir(path), systemDirMode); err != nil {
+	dir, file := filepath.Split(path)
+	if err := os.MkdirAll(dir, systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
 	opts := []renameio.Option{
@@ -100,7 +101,7 @@ func writeTemplate(path, t, linkDir, dataDir string) error {
 	}
 	defer f.Cleanup()
 
-	tmpl, err := template.New(filepath.Base(path)).Parse(t)
+	tmpl, err := template.New(file).Parse(t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
