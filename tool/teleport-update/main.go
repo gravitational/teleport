@@ -125,7 +125,7 @@ func Run(args []string) error {
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
-	linkCmd := app.Command("link", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
+	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
 
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer.").
 		Hidden()
@@ -302,6 +302,10 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	err := autoupdate.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
+	if errors.Is(err, autoupdate.ErrNotSupported) {
+		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
+		os.Exit(autoupdate.CodeNotSupported)
+	}
 	if err != nil {
 		return trace.Errorf("failed to setup teleport-update service: %w", err)
 	}

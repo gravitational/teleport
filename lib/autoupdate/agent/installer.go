@@ -435,7 +435,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
-// LinkSystem links the system (package) version into the system LinkBinDir and LinkServiceDir.
+// LinkSystem links the system (package) version into LinkBinDir and LinkServiceDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {

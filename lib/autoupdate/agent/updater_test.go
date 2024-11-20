@@ -133,7 +133,7 @@ func TestUpdater_Update(t *testing.T) {
 		flags      InstallFlags
 		inWindow   bool
 		installErr error
-		syncErr    error
+		setupErr   error
 		reloadErr  error
 
 		removedVersion    string
@@ -141,7 +141,6 @@ func TestUpdater_Update(t *testing.T) {
 		installedTemplate string
 		linkedVersion     string
 		requestGroup      string
-		syncCalls         int
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
@@ -167,7 +166,6 @@ func TestUpdater_Update(t *testing.T) {
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -297,7 +295,6 @@ func TestUpdater_Update(t *testing.T) {
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -341,7 +338,6 @@ func TestUpdater_Update(t *testing.T) {
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -351,7 +347,7 @@ func TestUpdater_Update(t *testing.T) {
 			errMatch: "invalid",
 		},
 		{
-			name: "sync fails",
+			name: "setup fails",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -365,17 +361,16 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			},
 			inWindow: true,
-			syncErr:  errors.New("sync error"),
+			setupErr: errors.New("setup error"),
 
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
-			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
 			setupCalls:        1,
-			errMatch:          "sync error",
+			errMatch:          "setup error",
 		},
 		{
 			name: "reload fails",
@@ -398,7 +393,6 @@ func TestUpdater_Update(t *testing.T) {
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
-			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -450,7 +444,10 @@ func TestUpdater_Update(t *testing.T) {
 				linkedVersion     string
 				removedVersion    string
 				installedFlags    InstallFlags
-				revertCalls       int
+				revertFuncCalls   int
+				setupCalls        int
+				revertSetupCalls  int
+				reloadCalls       int
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
@@ -462,7 +459,7 @@ func TestUpdater_Update(t *testing.T) {
 				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
 					linkedVersion = version
 					return func(_ context.Context) bool {
-						revertCalls++
+						revertFuncCalls++
 						return true
 					}, nil
 				},
@@ -474,24 +471,18 @@ func TestUpdater_Update(t *testing.T) {
 					return nil
 				},
 			}
-			var (
-				syncCalls   int
-				reloadCalls int
-			)
 			updater.Process = &testProcess{
-				FuncSync: func(_ context.Context) error {
-					syncCalls++
-					return tt.syncErr
-				},
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
 				},
 			}
-
-			var setupCalls int
 			updater.Setup = func(_ context.Context) error {
 				setupCalls++
+				return tt.setupErr
+			}
+			updater.Revert = func(_ context.Context) error {
+				revertSetupCalls++
 				return nil
 			}
 
@@ -509,9 +500,9 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
-			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
-			require.Equal(t, tt.revertCalls, revertCalls)
+			require.Equal(t, tt.revertCalls, revertSetupCalls)
+			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
 
 			if tt.cfg == nil {
@@ -663,7 +654,7 @@ func TestUpdater_Enable(t *testing.T) {
 		userCfg    OverrideConfig
 		flags      InstallFlags
 		installErr error
-		syncErr    error
+		setupErr   error
 		reloadErr  error
 
 		removedVersion    string
@@ -671,7 +662,6 @@ func TestUpdater_Enable(t *testing.T) {
 		installedTemplate string
 		linkedVersion     string
 		requestGroup      string
-		syncCalls         int
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
@@ -695,7 +685,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
 			requestGroup:      "group",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -721,7 +710,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
 			linkedVersion:     "new-version",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -741,7 +729,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -783,7 +770,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         1,
 			reloadCalls:       0,
 			setupCalls:        1,
 		},
@@ -802,7 +788,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
 			removedVersion:    "backup-version",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -821,7 +806,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
 			removedVersion:    "",
-			syncCalls:         1,
 			reloadCalls:       0,
 			setupCalls:        1,
 		},
@@ -831,7 +815,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -841,7 +824,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         1,
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -851,17 +833,16 @@ func TestUpdater_Enable(t *testing.T) {
 			errMatch: "invalid",
 		},
 		{
-			name:    "sync fails",
-			syncErr: errors.New("sync error"),
+			name:     "setup fails",
+			setupErr: errors.New("setup error"),
 
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         2,
 			reloadCalls:       0,
 			revertCalls:       1,
 			setupCalls:        1,
-			errMatch:          "sync error",
+			errMatch:          "setup error",
 		},
 		{
 			name:      "reload fails",
@@ -870,7 +851,6 @@ func TestUpdater_Enable(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			linkedVersion:     "16.3.0",
-			syncCalls:         2,
 			reloadCalls:       2,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -924,7 +904,10 @@ func TestUpdater_Enable(t *testing.T) {
 				linkedVersion     string
 				removedVersion    string
 				installedFlags    InstallFlags
-				revertCalls       int
+				revertFuncCalls   int
+				reloadCalls       int
+				setupCalls        int
+				revertSetupCalls  int
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
@@ -936,7 +919,7 @@ func TestUpdater_Enable(t *testing.T) {
 				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
 					linkedVersion = version
 					return func(_ context.Context) bool {
-						revertCalls++
+						revertFuncCalls++
 						return true
 					}, nil
 				},
@@ -948,23 +931,18 @@ func TestUpdater_Enable(t *testing.T) {
 					return nil
 				},
 			}
-			var (
-				syncCalls   int
-				reloadCalls int
-			)
 			updater.Process = &testProcess{
-				FuncSync: func(_ context.Context) error {
-					syncCalls++
-					return tt.syncErr
-				},
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
 				},
 			}
-			var setupCalls int
 			updater.Setup = func(_ context.Context) error {
 				setupCalls++
+				return tt.setupErr
+			}
+			updater.Revert = func(_ context.Context) error {
+				revertSetupCalls++
 				return nil
 			}
 
@@ -982,9 +960,9 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
-			require.Equal(t, tt.syncCalls, syncCalls)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
-			require.Equal(t, tt.revertCalls, revertCalls)
+			require.Equal(t, tt.revertCalls, revertSetupCalls)
+			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
 
 			if tt.cfg == nil && err != nil {
