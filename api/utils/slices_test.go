@@ -223,3 +223,25 @@ func TestCountBy(t *testing.T) {
 		})
 	}
 }
+
+func TestTransform(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		dst := Transform(([]int)(nil), strconv.Itoa)
+		require.Nil(t, dst)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		dst := Transform([]int{}, strconv.Itoa)
+		require.NotNil(t, dst)
+		require.Empty(t, dst)
+	})
+
+	t.Run("populated", func(t *testing.T) {
+		src := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}
+		dst := Transform(src, strconv.Itoa)
+		require.Equal(t,
+			[]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
+			dst,
+		)
+	})
+}

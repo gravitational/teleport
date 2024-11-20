@@ -1281,7 +1281,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
@@ -1352,7 +1352,12 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+		checkKind := kind
+		if kind == types.KindIdentityCenterAccount {
+			checkKind = types.KindIdentityCenter
+		}
+
+		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, checkKind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1822,9 +1827,12 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
+
+	case services.UnifiedResource153Adapter[services.IdentityCenterAccount]:
+		return r.CheckAccess(rr, state)
 	}
 
-	return trace.BadParameter("could not check access to resource type %T", r)
+	return trace.BadParameter("could not check access to resource type %T", resource)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
@@ -1839,7 +1847,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindKubeServer,
 		types.KindUserGroup,
 		types.KindUnifiedResource,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)

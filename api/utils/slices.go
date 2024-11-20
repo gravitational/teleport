@@ -129,3 +129,17 @@ func CountBy[S ~[]E, E any](elements S, mapper func(E) string) map[string]int {
 	}
 	return out
 }
+
+// Transform transforms a slice of values into a new slice, with values being converted by the
+// supplied mapping function
+func Transform[S ~[]T, T any, U any](src S, mapper func(T) U) []U {
+	// preserve nil in case it matters
+	if src == nil {
+		return nil
+	}
+	dst := make([]U, len(src))
+	for i, t := range src {
+		dst[i] = mapper(t)
+	}
+	return dst
+}

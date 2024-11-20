@@ -178,6 +178,10 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// AppSubKindIdentityCenterAccount indicates that an App actually represents
+	// an Identity Center account
+	AppSubKindIdentityCenterAccount = KindIdentityCenterAccount
+
 	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
 	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
 	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
@@ -831,6 +835,10 @@ const (
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
 	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
 	ReqAnnotationTeamsLabel = "/teams"
+
+	// IdentityCenterAccountLabel annotates an Identity Center resource with the
+	// AWS account it applies to
+	IdentityCenterAccountLabel = TeleportNamespace + "/aws-ic-account"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"

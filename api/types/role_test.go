@@ -811,3 +811,61 @@ func TestRoleFilterMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentityCenterAccountLabels(t *testing.T) {
+	role, err := NewRole(t.Name(), RoleSpecV6{
+		Allow: RoleConditions{
+			AccountAssignments: []IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "some-permission-set",
+				},
+				{
+					Account:       "11111111",
+					PermissionSet: "some-other-permission-set",
+				},
+				{
+					Account:       "22222222",
+					PermissionSet: "*",
+				},
+			},
+		},
+		Deny: RoleConditions{
+			AccountAssignments: []IdentityCenterAccountAssignment{
+				{
+					Account:       "33333333",
+					PermissionSet: "some-other-permission-set",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name             string
+		condition        RoleConditionType
+		expectedAccounts []string
+	}{
+		{
+			name:             "allow",
+			condition:        Allow,
+			expectedAccounts: []string{"11111111", "22222222"},
+		},
+		{
+			name:             "deny",
+			condition:        Deny,
+			expectedAccounts: []string{"33333333"},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(y *testing.T) {
+			labelMatchers, err := role.GetLabelMatchers(test.condition, KindIdentityCenterAccount)
+			require.NoError(t, err)
+			require.Empty(t, labelMatchers.Expression)
+			require.Len(t, labelMatchers.Labels, 1)
+			require.Contains(t, labelMatchers.Labels, IdentityCenterAccountLabel)
+			require.ElementsMatch(t, test.expectedAccounts, labelMatchers.Labels[IdentityCenterAccountLabel])
+		})
+	}
+}

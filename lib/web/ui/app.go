@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -34,6 +35,9 @@ import (
 type App struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
+	// Subkind is the subkind of the app resource. Used to differentiate different
+	// flavors of app.
+	Subkind string `json:"subkind,omitempty"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
@@ -66,6 +70,9 @@ type App struct {
 	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	Integration string `json:"integration,omitempty"`
+	// PermissionSets holds the permission sets that this app grants access to.
+	// Only valid for Identity Center Account apps
+	PermissionSets []IdentityCenterPermissionSet `json:"permission_sets,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -74,6 +81,14 @@ type UserGroupAndDescription struct {
 	Name string `json:"name"`
 	// Description is the description of the user group.
 	Description string `json:"description"`
+}
+
+// IdentityCenterPermissionSet holds information about Identity Center
+// Permission Sets for transmission to the UI
+type IdentityCenterPermissionSet struct {
+	Name            string `json:"name"`
+	ARN             string `json:"arn"`
+	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -131,6 +146,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 	resultApp := App{
 		Kind:            types.KindApp,
+		Subkind:         app.GetSubKind(),
 		Name:            app.GetName(),
 		Description:     description,
 		URI:             app.GetURI(),
@@ -144,6 +160,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
 		Integration:     app.GetIntegration(),
+		PermissionSets:  apiutils.Transform(app.GetIdentityCenter().GetPermissionSets(), mapPermissionSet),
 	}
 
 	if app.IsAWSConsole() {
@@ -153,6 +170,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	return resultApp
+}
+
+func mapPermissionSet(ps *types.IdentityCenterPermissionSet) IdentityCenterPermissionSet {
+	return IdentityCenterPermissionSet{
+		Name: ps.Name,
+		ARN:  ps.ARN,
+	}
 }
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
