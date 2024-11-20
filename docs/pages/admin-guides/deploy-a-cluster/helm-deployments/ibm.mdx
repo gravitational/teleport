@@ -35,7 +35,7 @@ To follow this guide you will need:
 
 ## Step 1/7. Create the postgres Database
 
-In this step, we'll create the PostgreSQL database Telpeort will use as a backend.
+In this step, we'll create the PostgreSQL database Teleport will use as a backend.
 
 Select *Create Resource*, search *PostgreSQL*, and select *Databases for PostgreSQL*.
 Fill the PostgreSQL creation form with the following settings:
@@ -184,7 +184,7 @@ auth:
       storage:
         type: postgresql
         # replace the database address and port with the values you saved during the PostgreSQL creation
-        # the result should look like: "postgres://teleport@60d25e94-edf5-4494-a6cc-5fcae28aa7c2.c0v4phir0ah9ul9trho0.databases.appdomain.cloud:31766/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem"
+        # the result should look like: "postgres://teleport@60d25e94-edf5-4494-a6cc-5fcae28aa7c2.c0v4ph4r0ah9ul9tr6o0.databases.appdomain.cloud:31766/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem"
         conn_string: postgres://teleport@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem
         # replace the database address and port with the values you saved during the PostgreSQL creation
         change_feed_conn_string: postgresql://repl@<DATABASE ADDRESS>:<DATABASE PORT>/teleport_backend?sslmode=verify-full&sslrootcert=/var/lib/postgres-ca/cacert.pem
@@ -303,9 +303,9 @@ In this step you will create a new user and access the web UI:
 
 - create a new Teleport user:
   ```code
-  $ kubectl exec -it -n teleport-cluster deployment/teleport-auth -- tctl users add myusername --roles=editor,auditor,access
+  $ kubectl exec -it -n teleport-cluster deployment/teleport-auth -- tctl users add myuser --roles=editor,auditor,access
 
-  User "myusername" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+  User "myuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
   https://teleport.example.com:443/web/invite/...
   ```
 
