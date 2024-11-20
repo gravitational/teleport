@@ -1,7 +1,7 @@
 include install.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-GENTERRAFORMPATH := $(shell go env GOPATH)/bin
+PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
@@ -48,12 +48,12 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
 # This version must match the version installed by .github/workflows/lint.yaml
 PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.0
-PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
+PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
 gen-tfschema:
 ifndef PROTOC_GEN_TERRAFORM_EXISTS
-	@echo "protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION) is not installed. Please, refer to README.md for installation instructions."
+	@echo "protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION) is not installed. Please, see https://github.com/gravitational/protoc-gen-terraform for installation instructions."
 	@exit -1
 endif
 
@@ -64,7 +64,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -73,7 +73,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -83,35 +83,35 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-loginrule.yaml:./tfschema \
 		teleport/loginrule/v1/loginrule.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-devicetrust.yaml:./tfschema \
 		teleport/legacy/types/device.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-accessmonitoringrules.yaml:./tfschema \
 		teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
 		teleport/userprovisioning/v2/statichostuser.proto
 
