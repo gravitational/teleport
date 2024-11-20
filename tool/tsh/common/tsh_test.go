@@ -390,6 +390,29 @@ func TestAlias(t *testing.T) {
 	}
 }
 
+// TestNoEnvVars checks if tsh is able to work without any env vars provided.
+// This is important for VNet on macOS. When launchd starts VNet's launch daemon, it executes "tsh
+// vnet-daemon" with only the following env vars available:
+//
+// XPC_SERVICE_NAME=com.goteleport.tshdev.vnetd
+// PATH=/usr/bin:/bin:/usr/sbin:/sbin
+// XPC_FLAGS=1
+//
+// …plus whatever is set in the launch daemon plist under the EnvironmentVariables key.
+func TestNoEnvVars(t *testing.T) {
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+	// Execute an actual command and not jut `tsh help` which goes through a different code path.
+	cmd := exec.Command(testExecutable, "version", "--client")
+	// Run the command with no env vars except tshBinMainTestEnv, otherwise the test would hang.
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
+
+	t.Logf("running command %v", cmd)
+	output, err := cmd.CombinedOutput()
+	t.Logf("executable output: %v", string(output))
+	require.NoError(t, err)
+}
+
 func TestFailedLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
