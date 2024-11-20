@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -93,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/tool/common/updater"
 )
 
 const (
@@ -678,7 +678,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	if err := updater.CheckAndUpdateRemote(ctx, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+	if err := tools.CheckAndUpdateRemote(ctx, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 		return trace.Wrap(err)
 	}
 
