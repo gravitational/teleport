@@ -417,17 +417,23 @@ func TestAlias(t *testing.T) {
 //
 // …plus whatever is set in the launch daemon plist under the EnvironmentVariables key.
 func TestNoEnvVars(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
 	// Execute an actual command and not jut `tsh help` which goes through a different code path.
-	cmd := exec.Command(testExecutable, "version", "--client")
+	cmd := exec.CommandContext(ctx, testExecutable, "version", "--client")
 	// Run the command with no env vars except tshBinMainTestEnv, otherwise the test would hang.
 	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
 
 	t.Logf("running command %v", cmd)
 	output, err := cmd.CombinedOutput()
 	t.Logf("executable output: %v", string(output))
-	require.NoError(t, err)
+	// By checking the ctx error together with err, the error report will include "context deadline
+	// exceeded" if the command doesn't complete within the timeout. Otherwise the error would be just
+	// "signal: killed".
+	require.NoError(t, trace.NewAggregate(err, ctx.Err()))
 }
 
 func TestFailedLogin(t *testing.T) {
