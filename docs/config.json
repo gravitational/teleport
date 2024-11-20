@@ -211,6 +211,11 @@
   },
   "redirects": [
     {
+      "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
+      "permanent": true
+    },
+    {
       "source": "/machine-id/deployment/aws/",
       "destination": "/enroll-resources/machine-id/deployment/aws/",
       "permanent": true
@@ -1952,7 +1957,7 @@
     },
     {
       "source": "/deploy-a-cluster/deployments/ibm/",
-      "destination": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
       "permanent": true
     },
     {
