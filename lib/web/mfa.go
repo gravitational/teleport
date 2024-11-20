@@ -257,7 +257,7 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 }
 
 // createRegisterChallenge creates and returns an MFA register challenges for a new device for the specified device type.
-func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req createRegisterChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -283,7 +283,12 @@ func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	chal, err := clt.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
 		ExistingMFAResponse: existingMFAResponse,
 		DeviceType:          deviceType,
 		DeviceUsage:         deviceUsage,

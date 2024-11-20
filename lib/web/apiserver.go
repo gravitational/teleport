@@ -917,7 +917,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/mfa/token/:token/devices", h.WithLimiter(h.getMFADevicesWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/authenticatechallenge", h.WithLimiter(h.createAuthenticateChallengeWithTokenHandle))
 	h.POST("/webapi/mfa/token/:token/registerchallenge", h.WithLimiter(h.createRegisterChallengeWithTokenHandle))
-	h.POST("/webapi/mfa/registerchallenge", h.WithLimiter(h.createRegisterChallenge))
+	h.POST("/webapi/mfa/registerchallenge", h.WithClusterAuth(h.createRegisterChallenge))
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
