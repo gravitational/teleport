@@ -91,12 +91,23 @@ export default function useReAuthenticate(props: Props) {
       });
   }
 
-  function submitWithSso({ channelId, requestId }: SSOChallenge) {
+  function submitWithSso({ channelId, requestId, redirectUrl }: SSOChallenge) {
     const channel = new BroadcastChannel(channelId);
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
-      waitForMessage(channel, null)
+      // try to center the screen
+      const width = 1045;
+      const height = 550;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+
+      // these params will open a tiny window.
+      const params = `width=${width},height=${height},left=${left},top=${top}`;
+      window.open(redirectUrl, '_blank', params);
+
+      const abortController = new AbortController();
+      waitForMessage(channel, abortController.signal)
         .then(event =>
           props.onMfaResponse({
             sso_response: {

@@ -2774,7 +2774,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	return makeAuthenticateChallenge(mfaChallenge), nil
+	return makeAuthenticateChallenge(mfaChallenge, "" /*ssoChannelID*/), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
