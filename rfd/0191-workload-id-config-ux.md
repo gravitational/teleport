@@ -632,6 +632,9 @@ message WorkloadIdentityCredential {
   google.protobuf.Duration ttl = 3;
   // The time that the TTL is reached for this credential.
   google.protobuf.Timestamp expiry = 4;  
+  // The hint configured for this Workload Identity - if any. This is provided
+  // to workloads using the SPIFFE Workload API to fetch credentials.
+  string hint = 5;
 
   // TODO: Is it worth returning the full associated WorkloadIdentity resource?
   string workload_identity_name = 2;
