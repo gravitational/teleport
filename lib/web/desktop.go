@@ -25,7 +25,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"sync"

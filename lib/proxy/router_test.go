@@ -21,7 +21,7 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"testing"
 
