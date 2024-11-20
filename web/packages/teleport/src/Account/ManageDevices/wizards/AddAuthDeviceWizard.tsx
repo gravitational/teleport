@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { OutlineDanger } from 'design/Alert/Alert';
+import { Alert, OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
@@ -44,8 +44,6 @@ import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceUsage, MfaChallengeResponse } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
-import { MfaDevice } from 'teleport/services/mfa';
-
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
 import {
@@ -58,11 +56,6 @@ interface AddAuthDeviceWizardProps {
   usage: DeviceUsage;
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
-  /**
-   * A list of user's devices, used for computing the list of available identity
-   * verification options.
-   */
-  devices: MfaDevice[];
   onClose(): void;
   onSuccess(): void;
 }
@@ -71,58 +64,48 @@ interface AddAuthDeviceWizardProps {
 export function AddAuthDeviceWizard({
   usage,
   auth2faType,
-  devices,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
   const [mfaResponse, setMfaResponse] = useState<MfaChallengeResponse>(null);
   const [credential, setCredential] = useState<Credential>(null);
 
-  // const mfaChallenge = await auth.getChallenge({scope: MfaChallengeScope.MANAGE_DEVICES})
-
-  /** A new MFA device type, irrelevant if usage === 'passkey'. */
+  // Choose a new device type from the options available for the given 2fa type.
+  // irrelevant if usage === 'passkey'.
   const mfaOptions = createOptionsFromAuth2faType(auth2faType);
-
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
 
+  // Attempt to get an MFA challenge for an existing device. If the challenge is
+  // empty, the user has no existing device (e.g. SSO user) and can register their
+  // first device without re-authentication.
   const [challenge, getChallenge] = useAsync(async () => {
     return auth.getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES });
   });
 
   useEffect(() => {
     getChallenge();
-    // async function checkChallenges() {
-    //   // error is handled further down in react coponent
-    //   const [data] = await getChallenge();
-    //   if (data.webauthnPublicKey) {
-    //     next();
-    //   }
-
-    //   if (
-    //     !data.ssoChallenge &&
-    //     !data.totpChallenge &&
-    //     !data.webauthnPublicKey
-    //   ) {
-    //     next();
-    //   }
-    // }
-
-    // checkChallenges();
   }, []);
-
-  // loading or error
-  if (challenge.status === 'processing') {
-    return <div>spinner</div>;
-  }
-
-  if (challenge.status === 'error') {
-    return <div>{challenge.statusText}</div>;
-  }
 
   const hasChallenge =
     challenge.data?.ssoChallenge ||
     challenge.data?.webauthnPublicKey ||
     challenge.data?.totpChallenge;
+
+  // Handle potential error states first.
+  switch (challenge.status) {
+    case 'processing':
+      return (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      );
+    case 'error':
+      return <Alert children={challenge.statusText} />;
+    case 'success':
+      break;
+    default:
+      return null;
+  }
 
   return (
     <Dialog
@@ -139,11 +122,10 @@ export function AddAuthDeviceWizard({
         // Step properties
         mfaChallenge={challenge.data}
         usage={usage}
-        auth2faType={auth2faType}
+        mfaOptions={mfaOptions}
         existingMfaResponse={mfaResponse}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
-        devices={devices}
         onClose={onClose}
         onMfaResponse={setMfaResponse}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
@@ -156,7 +138,6 @@ export function AddAuthDeviceWizard({
 
 const wizardFlows = {
   withReauthentication: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
-  // TODO(Joerger): unused, why does removing cause lint error?
   withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
@@ -166,7 +147,7 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   SaveKeyStepProps;
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
-  auth2faType: Auth2faType;
+  mfaOptions: MfaOption[];
   existingMfaResponse: MfaChallengeResponse;
   newMfaDeviceType: Auth2faType;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
@@ -181,9 +162,9 @@ export function CreateDeviceStep({
   stepIndex,
   flowLength,
   usage,
-  auth2faType,
   existingMfaResponse,
   newMfaDeviceType,
+  mfaOptions,
   onNewMfaDeviceTypeChange,
   onClose,
   onDeviceCreated,
@@ -228,7 +209,7 @@ export function CreateDeviceStep({
       )}
       {usage === 'mfa' && (
         <CreateMfaBox
-          auth2faType={auth2faType}
+          mfaOptions={mfaOptions}
           newMfaDeviceType={newMfaDeviceType}
           existingMfaResponse={existingMfaResponse}
           onNewMfaDeviceTypeChange={onNewMfaDeviceTypeChange}
@@ -255,20 +236,19 @@ export function CreateDeviceStep({
 }
 
 function CreateMfaBox({
-  auth2faType,
+  mfaOptions,
   newMfaDeviceType,
   existingMfaResponse,
   onNewMfaDeviceTypeChange,
 }: {
-  auth2faType: Auth2faType;
+  mfaOptions: MfaOption[];
   newMfaDeviceType: Auth2faType;
   existingMfaResponse: MfaChallengeResponse;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
 }) {
-  const mfaOptions = createOptionsFromAuth2faType(auth2faType).map(
-    (o: MfaOption) =>
-      // Be more specific about the WebAuthn device type (it's not a passkey).
-      o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
+  // Be more specific about the WebAuthn device type (it's not a passkey).
+  mfaOptions = mfaOptions.map((o: MfaOption) =>
+    o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
   );
 
   return (

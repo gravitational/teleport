@@ -33,17 +33,14 @@ import Box from 'design/Box';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import { MfaDevice } from 'teleport/services/mfa';
 import {
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
 } from 'teleport/services/auth';
 
 export type ReauthenticateStepProps = StepComponentProps & {
-  auth2faType: Auth2faType;
-  devices: MfaDevice[];
-  onMfaResponse(mfaResponse: MfaChallengeResponse): void;
   mfaChallenge: MfaAuthenticateChallenge;
+  onMfaResponse(mfaResponse: MfaChallengeResponse): void;
   onClose(): void;
 };
 
@@ -52,10 +49,9 @@ export function ReauthenticateStep({
   refCallback,
   stepIndex,
   flowLength,
-  auth2faType,
-  onClose,
   mfaChallenge,
   onMfaResponse: onMfaResponseProp,
+  onClose,
 }: ReauthenticateStepProps) {
   const onMfaResponse = (mfaResponse: MfaChallengeResponse) => {
     onMfaResponseProp(mfaResponse);
@@ -77,9 +73,9 @@ export function ReauthenticateStep({
   const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
     mfaOptions[0]?.value
   );
-  const [otpCode, setOtpCode] = useState('');
 
-  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [otpCode, setOtpCode] = useState('');
+  const onOtpCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
     setOtpCode(e.target.value);
   };
 
@@ -100,11 +96,7 @@ export function ReauthenticateStep({
     }
   };
 
-  const errorMessage = getReauthenticationErrorMessage(
-    auth2faType,
-    mfaOptions.length,
-    attempt
-  );
+  const errorMessage = getReauthenticationErrorMessage(attempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -141,7 +133,7 @@ export function ReauthenticateStep({
                 autoComplete="one-time-code"
                 value={otpCode}
                 placeholder="123 456"
-                onChange={onAuthCodeChanged}
+                onChange={onOtpCodeChanged}
                 readonly={attempt.status === 'processing'}
               />
             )}
@@ -166,48 +158,7 @@ export function ReauthenticateStep({
     </div>
   );
 }
-function getReauthenticationErrorMessage(
-  auth2faType: Auth2faType,
-  numMfaOptions: number,
-  attempt: Attempt
-): string {
-  if (numMfaOptions === 0) {
-    switch (auth2faType) {
-      case 'on':
-        return (
-          "Identity verification is required, but you don't have any" +
-          'passkeys or MFA methods registered. This may mean that the' +
-          'server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'otp':
-        return (
-          'Identity verification using authenticator app is required, but ' +
-          "you don't have any authenticator apps registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'webauthn':
-        return (
-          'Identity verification using a passkey or security key is required, but ' +
-          "you don't have any such devices registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'optional':
-      case 'sso':
-        // TODO(Joerger)
-        break;
-      case 'off':
-        // This error message is not useful, but this condition should never
-        // happen, and if it does, it means something is broken, and we don't
-        // have a clue anyway.
-        return 'Unable to verify identity';
-      default:
-        auth2faType satisfies never;
-    }
-  }
-
+function getReauthenticationErrorMessage(attempt: Attempt): string {
   if (attempt.status === 'failed') {
     // This message relies on the status message produced by the auth server in
     // lib/auth/Server.checkOTP function. Please keep these in sync.
