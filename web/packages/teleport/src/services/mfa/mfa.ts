@@ -18,7 +18,7 @@
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import auth, { makeWebauthnCreationResponse } from 'teleport/services/auth';
+import auth, { makeWebauthnCreationResponse, MfaChallengeResponse } from 'teleport/services/auth';
 
 import {
   MfaDevice,
@@ -35,8 +35,15 @@ class MfaService {
       .then(devices => devices.map(makeMfaDevice));
   }
 
-  removeDevice(tokenId: string, deviceName: string) {
+  removeDeviceWithToken(tokenId: string, deviceName: string) {
     return api.delete(cfg.getMfaDeviceUrl(tokenId, deviceName));
+  }
+
+  removeDevice(deviceName: string, existingMfaResponse: MfaChallengeResponse) {
+    return api.delete(cfg.api.mfaDevicesPath, {
+      deviceName,
+      existingMfaResponse,
+    });
   }
 
   fetchDevices(): Promise<MfaDevice[]> {

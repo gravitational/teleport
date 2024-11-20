@@ -5009,7 +5009,6 @@ func TestAddMFADevice(t *testing.T) {
 			// Add device.
 			endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 			_, err := pack.clt.PostJSON(ctx, endpoint, addMFADeviceRequest{
-				PrivilegeTokenID:         privilegeToken,
 				DeviceName:               tc.deviceName,
 				SecondFactorToken:        totpCode,
 				WebauthnRegisterResponse: webauthnRegResp,

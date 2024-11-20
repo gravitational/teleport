@@ -123,10 +123,10 @@ export function AddAuthDeviceWizard({
         mfaChallenge={challenge.data}
         usage={usage}
         mfaOptions={mfaOptions}
-        existingMfaResponse={mfaResponse}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
         onClose={onClose}
+        existingMfaResponse={mfaResponse}
         onMfaResponse={setMfaResponse}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
         onDeviceCreated={setCredential}
@@ -175,7 +175,7 @@ export function CreateDeviceStep({
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
           deviceUsage: usage,
-          existingMfaResponse: existingMfaResponse,
+          existingMfaResponse,
         });
         onDeviceCreated(credential);
         next();
@@ -337,7 +337,7 @@ export function SaveDeviceStep({
   prev,
   stepIndex,
   flowLength,
-  existingMfaResponse,
+  existingMfaResponse: existingMfaResponse,
   credential,
   usage,
   newMfaDeviceType,

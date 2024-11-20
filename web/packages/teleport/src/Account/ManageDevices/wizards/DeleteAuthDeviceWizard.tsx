@@ -21,9 +21,8 @@ import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Auth2faType } from 'shared/services';
 
 import Box from 'design/Box';
 
@@ -37,15 +36,11 @@ import {
   ReauthenticateStep,
   ReauthenticateStepProps,
 } from './ReauthenticateStep';
+import { MfaChallengeResponse } from 'teleport/services/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { useAsync } from 'shared/hooks/useAsync';
 
 interface DeleteAuthDeviceWizardProps {
-  /** MFA type setting, as configured in the cluster's configuration. */
-  auth2faType: Auth2faType;
-  /**
-   * A list of user's devices, used for computing the list of available identity
-   * verification options.
-   */
-  devices: MfaDevice[];
   /** Device to be removed. */
   deviceToDelete: MfaDevice;
   onClose(): void;
@@ -54,14 +49,21 @@ interface DeleteAuthDeviceWizardProps {
 
 /** A wizard for deleting MFA and passkey devices. */
 export function DeleteAuthDeviceWizard({
-  auth2faType,
-  devices,
   deviceToDelete,
   onClose,
   onSuccess,
 }: DeleteAuthDeviceWizardProps) {
-  const [privilegeToken, setPrivilegeToken] = useState('');
+  const [mfaResponse, setMfaResponse] = useState<MfaChallengeResponse>(null);
 
+  // Get an MFA challenge for an existing device.
+  const [challenge, getChallenge] = useAsync(async () => {
+    return auth.getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES });
+  });
+
+  useEffect(() => {
+    getChallenge();
+  }, []);
+  
   return (
     <Dialog
       open={true}
@@ -73,12 +75,11 @@ export function DeleteAuthDeviceWizard({
         flows={wizardFlows}
         currFlow="default"
         // Step properties
-        devices={devices}
         deviceToDelete={deviceToDelete}
-        auth2faType={auth2faType}
-        privilegeToken={privilegeToken}
+        mfaChallenge={challenge.data}
+        existingMfaResponse={mfaResponse}
+        onMfaResponse={setMfaResponse}
         onClose={onClose}
-        onMfaResponse={setPrivilegeToken}
         onSuccess={onSuccess}
       />
     </Dialog>
@@ -99,7 +100,7 @@ export type DeleteAuthDeviceWizardStepProps = StepComponentProps &
 
 type DeleteDeviceStepProps = StepComponentProps & {
   deviceToDelete: MfaDevice;
-  privilegeToken: string;
+  existingMfaResponse: MfaChallengeResponse;
   onClose(): void;
   onSuccess(): void;
 };
@@ -109,7 +110,7 @@ export function DeleteDeviceStep({
   stepIndex,
   flowLength,
   deviceToDelete,
-  privilegeToken,
+  existingMfaResponse,
   onClose,
   onSuccess,
 }: DeleteAuthDeviceWizardStepProps) {
@@ -117,7 +118,7 @@ export function DeleteDeviceStep({
   const { run, attempt } = useAttempt();
   const onDelete = () => {
     run(async () => {
-      await ctx.mfaService.removeDevice(privilegeToken, deviceToDelete.name);
+      await ctx.mfaService.removeDevice(deviceToDelete.name, existingMfaResponse);
       onSuccess();
     });
   };

@@ -81,7 +81,7 @@ test('deletes a device with WebAuthn reauthentication', async () => {
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
-  expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
+  expect(ctx.mfaService.removeDeviceWithToken).toHaveBeenCalledWith(
     'webauthn-privilege-token',
     'TouchID'
   );
@@ -102,7 +102,7 @@ test('deletes a device with OTP reauthentication', async () => {
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
-  expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
+  expect(ctx.mfaService.removeDeviceWithToken).toHaveBeenCalledWith(
     'totp-privilege-token-654987',
     'TouchID'
   );

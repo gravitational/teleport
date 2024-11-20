@@ -88,7 +88,7 @@ type addMFADeviceRequest struct {
 	DeviceUsage string `json:"deviceUsage"`
 }
 
-// addMFADeviceHandle adds a new mfa device for the user defined in the token.
+// addMFADeviceHandle adds a new mfa device for the user.
 func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req addMFADeviceRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
@@ -124,6 +124,41 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	}
 
 	if _, err := clt.AddMFADeviceSync(r.Context(), protoReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+type deleteMFADeviceHandle struct {
+	// DeviceName is the name of new mfa device.
+	DeviceName string `json:"deviceName"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse client.MFAChallengeResponse `json:"existingMfaResponse"`
+}
+
+// deleteMFADeviceHandle deletes an mfa device for the user.
+func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req deleteMFADeviceHandle
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingMFAResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
+		DeviceName:          req.DeviceName,
+		ExistingMFAResponse: existingMFAResponse,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -257,7 +292,7 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 }
 
 // createRegisterChallenge creates and returns an MFA register challenges for a new device for the specified device type.
-func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req createRegisterChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -283,7 +318,7 @@ func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
