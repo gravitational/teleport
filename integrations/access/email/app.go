@@ -18,12 +18,15 @@ package email
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -48,9 +51,10 @@ const (
 type App struct {
 	conf Config
 
-	apiClient teleport.Client
-	client    Client
-	mainJob   lib.ServiceJob
+	apiClient             teleport.Client
+	client                Client
+	mainJob               lib.ServiceJob
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
@@ -91,13 +95,24 @@ func (a *App) run(ctx context.Context) error {
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	watcherJob, err := watcherjob.NewJob(
+
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -106,6 +121,18 @@ func (a *App) run(ctx context.Context) error {
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
 	}
 
 	a.mainJob.SetReady(ok)
@@ -146,6 +173,19 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.apiClient,
+		PluginType: types.PluginTypeEmail,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, recipient string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: recipient,
+				ID:   recipient,
+				Kind: common.RecipientKindEmail,
+			}, nil
+		},
+	})
+
 	log.Debug("Starting client connection health check...")
 	if err = a.client.CheckHealth(ctx); err != nil {
 		return trace.Wrap(err, "client connection health check failed")
@@ -170,8 +210,20 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 	return pong, trace.Wrap(err)
 }
 
-// onWatcherEvent processes new incoming access request
+// onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
+// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+// handleAccessRequest processes new incoming access request
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -238,13 +290,14 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	if isNew {
-		if recipients := a.getEmailRecipients(ctx, req.GetRoles(), req.GetSuggestedReviewers()); len(recipients) > 0 {
-			if err := a.sendNewThreads(ctx, recipients, reqID, reqData); err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
+		recipients := a.getRecipients(ctx, req)
+		if len(recipients) == 0 {
 			log.Warning("No recipients to send")
 			return nil
+		}
+
+		if err := a.sendNewThreads(ctx, recipients, reqID, reqData); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -288,27 +341,38 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.sendResolution(ctx, reqID, Resolution{Tag: ResolvedExpired})
 }
 
-// getEmailRecipients converts suggested reviewers to email recipients
-func (a *App) getEmailRecipients(ctx context.Context, roles, suggestedReviewers []string) []string {
+func (a *App) getRecipients(ctx context.Context, req types.AccessRequest) []common.Recipient {
 	log := logger.Get(ctx)
-	validEmailRecipients := []string{}
 
-	recipients := a.conf.RoleToRecipients.GetRawRecipientsFor(roles, suggestedReviewers)
+	recipientSet := common.NewRecipientSet()
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
 
-	for _, recipient := range recipients {
-		if !lib.IsEmail(recipient) {
-			log.Warningf("Failed to notify a reviewer: %q does not look like a valid email", recipient)
-			continue
-		}
-
-		validEmailRecipients = append(validEmailRecipients, recipient)
+	// Return the set of recipients if it is not empty.
+	// Otherwise, use the legacy role to recipients map to search for recipients.
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
 	}
 
-	return validEmailRecipients
+	rawRecipients := a.conf.RoleToRecipients.GetRawRecipientsFor(req.GetRoles(), req.GetSuggestedReviewers())
+	for _, rawRecipient := range rawRecipients {
+		if !lib.IsEmail(rawRecipient) {
+			log.Warningf("Failed to notify a reviewer: %q does not look like a valid email", rawRecipient)
+			continue
+		}
+		recipientSet.Add(common.Recipient{
+			ID:   rawRecipient,
+			Name: rawRecipient,
+			Kind: common.RecipientKindEmail,
+		})
+	}
+	return recipientSet.ToSlice()
 }
 
 // broadcastNewThreads sends notifications on a new request
-func (a *App) sendNewThreads(ctx context.Context, recipients []string, reqID string, reqData RequestData) error {
+func (a *App) sendNewThreads(ctx context.Context, recipients []common.Recipient, reqID string, reqData RequestData) error {
 	threadsSent, err := a.client.SendNewThreads(ctx, recipients, reqID, reqData)
 
 	if len(threadsSent) == 0 && err != nil {
