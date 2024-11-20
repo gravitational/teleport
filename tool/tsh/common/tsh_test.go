@@ -400,6 +400,7 @@ func TestAlias(t *testing.T) {
 //
 // …plus whatever is set in the launch daemon plist under the EnvironmentVariables key.
 func TestNoEnvVars(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 
