@@ -96,6 +96,60 @@ func (x *GitHubJoinAttributes) GetWorkflow() string {
 	return ""
 }
 
+// TODO
+type GitlabJoinAttributes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	UserLogin   string `protobuf:"bytes,1,opt,name=user_login,json=userLogin,proto3" json:"user_login,omitempty"`
+	ProjectPath string `protobuf:"bytes,2,opt,name=project_path,json=projectPath,proto3" json:"project_path,omitempty"`
+}
+
+func (x *GitlabJoinAttributes) Reset() {
+	*x = GitlabJoinAttributes{}
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitlabJoinAttributes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitlabJoinAttributes) ProtoMessage() {}
+
+func (x *GitlabJoinAttributes) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitlabJoinAttributes.ProtoReflect.Descriptor instead.
+func (*GitlabJoinAttributes) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GitlabJoinAttributes) GetUserLogin() string {
+	if x != nil {
+		return x.UserLogin
+	}
+	return ""
+}
+
+func (x *GitlabJoinAttributes) GetProjectPath() string {
+	if x != nil {
+		return x.ProjectPath
+	}
+	return ""
+}
+
 // JoinAttributes holds attributes sourced from attestation that occurs during
 // the teleport join process.
 type JoinAttributes struct {
@@ -104,11 +158,12 @@ type JoinAttributes struct {
 	unknownFields protoimpl.UnknownFields
 
 	Github *GitHubJoinAttributes `protobuf:"bytes,1,opt,name=github,proto3" json:"github,omitempty"`
+	Gitlab *GitlabJoinAttributes `protobuf:"bytes,2,opt,name=gitlab,proto3" json:"gitlab,omitempty"`
 }
 
 func (x *JoinAttributes) Reset() {
 	*x = JoinAttributes{}
-	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[1]
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +175,7 @@ func (x *JoinAttributes) String() string {
 func (*JoinAttributes) ProtoMessage() {}
 
 func (x *JoinAttributes) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[1]
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -133,12 +188,19 @@ func (x *JoinAttributes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinAttributes.ProtoReflect.Descriptor instead.
 func (*JoinAttributes) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP(), []int{1}
+	return file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *JoinAttributes) GetGithub() *GitHubJoinAttributes {
 	if x != nil {
 		return x.Github
+	}
+	return nil
+}
+
+func (x *JoinAttributes) GetGitlab() *GitlabJoinAttributes {
+	if x != nil {
+		return x.Gitlab
 	}
 	return nil
 }
@@ -156,7 +218,7 @@ type Attributes struct {
 
 func (x *Attributes) Reset() {
 	*x = Attributes{}
-	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[2]
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +230,7 @@ func (x *Attributes) String() string {
 func (*Attributes) ProtoMessage() {}
 
 func (x *Attributes) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[2]
+	mi := &file_teleport_machineid_v1_identity_attributes_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +243,7 @@ func (x *Attributes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attributes.ProtoReflect.Descriptor instead.
 func (*Attributes) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP(), []int{2}
+	return file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Attributes) GetJoin() *JoinAttributes {
@@ -205,13 +267,23 @@ var file_teleport_machineid_v1_identity_attributes_proto_rawDesc = []byte{
 	0x12, 0x20, 0x0a, 0x0b, 0x65, 0x6e, 0x76, 0x69, 0x72, 0x6f, 0x6e, 0x6d, 0x65, 0x6e, 0x74, 0x18,
 	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x65, 0x6e, 0x76, 0x69, 0x72, 0x6f, 0x6e, 0x6d, 0x65,
 	0x6e, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x22, 0x55,
-	0x0a, 0x0e, 0x4a, 0x6f, 0x69, 0x6e, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73,
-	0x12, 0x43, 0x0a, 0x06, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x77, 0x6f, 0x72, 0x6b, 0x66, 0x6c, 0x6f, 0x77, 0x22, 0x58,
+	0x0a, 0x14, 0x47, 0x69, 0x74, 0x6c, 0x61, 0x62, 0x4a, 0x6f, 0x69, 0x6e, 0x41, 0x74, 0x74, 0x72,
+	0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x12, 0x1d, 0x0a, 0x0a, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x6c,
+	0x6f, 0x67, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x75, 0x73, 0x65, 0x72,
+	0x4c, 0x6f, 0x67, 0x69, 0x6e, 0x12, 0x21, 0x0a, 0x0c, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74,
+	0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x70, 0x72, 0x6f,
+	0x6a, 0x65, 0x63, 0x74, 0x50, 0x61, 0x74, 0x68, 0x22, 0x9a, 0x01, 0x0a, 0x0e, 0x4a, 0x6f, 0x69,
+	0x6e, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x12, 0x43, 0x0a, 0x06, 0x67,
+	0x69, 0x74, 0x68, 0x75, 0x62, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2b, 0x2e, 0x74, 0x65,
+	0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6d, 0x61, 0x63, 0x68, 0x69, 0x6e, 0x65, 0x69, 0x64,
+	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x69, 0x74, 0x48, 0x75, 0x62, 0x4a, 0x6f, 0x69, 0x6e, 0x41, 0x74,
+	0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x52, 0x06, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
+	0x12, 0x43, 0x0a, 0x06, 0x67, 0x69, 0x74, 0x6c, 0x61, 0x62, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x2b, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6d, 0x61, 0x63, 0x68,
-	0x69, 0x6e, 0x65, 0x69, 0x64, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x69, 0x74, 0x48, 0x75, 0x62, 0x4a,
+	0x69, 0x6e, 0x65, 0x69, 0x64, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x69, 0x74, 0x6c, 0x61, 0x62, 0x4a,
 	0x6f, 0x69, 0x6e, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x52, 0x06, 0x67,
-	0x69, 0x74, 0x68, 0x75, 0x62, 0x22, 0x47, 0x0a, 0x0a, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75,
+	0x69, 0x74, 0x6c, 0x61, 0x62, 0x22, 0x47, 0x0a, 0x0a, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75,
 	0x74, 0x65, 0x73, 0x12, 0x39, 0x0a, 0x04, 0x6a, 0x6f, 0x69, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x25, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6d, 0x61, 0x63,
 	0x68, 0x69, 0x6e, 0x65, 0x69, 0x64, 0x2e, 0x76, 0x31, 0x2e, 0x4a, 0x6f, 0x69, 0x6e, 0x41, 0x74,
@@ -236,20 +308,22 @@ func file_teleport_machineid_v1_identity_attributes_proto_rawDescGZIP() []byte {
 	return file_teleport_machineid_v1_identity_attributes_proto_rawDescData
 }
 
-var file_teleport_machineid_v1_identity_attributes_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_machineid_v1_identity_attributes_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_machineid_v1_identity_attributes_proto_goTypes = []any{
 	(*GitHubJoinAttributes)(nil), // 0: teleport.machineid.v1.GitHubJoinAttributes
-	(*JoinAttributes)(nil),       // 1: teleport.machineid.v1.JoinAttributes
-	(*Attributes)(nil),           // 2: teleport.machineid.v1.Attributes
+	(*GitlabJoinAttributes)(nil), // 1: teleport.machineid.v1.GitlabJoinAttributes
+	(*JoinAttributes)(nil),       // 2: teleport.machineid.v1.JoinAttributes
+	(*Attributes)(nil),           // 3: teleport.machineid.v1.Attributes
 }
 var file_teleport_machineid_v1_identity_attributes_proto_depIdxs = []int32{
 	0, // 0: teleport.machineid.v1.JoinAttributes.github:type_name -> teleport.machineid.v1.GitHubJoinAttributes
-	1, // 1: teleport.machineid.v1.Attributes.join:type_name -> teleport.machineid.v1.JoinAttributes
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 1: teleport.machineid.v1.JoinAttributes.gitlab:type_name -> teleport.machineid.v1.GitlabJoinAttributes
+	2, // 2: teleport.machineid.v1.Attributes.join:type_name -> teleport.machineid.v1.JoinAttributes
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_identity_attributes_proto_init() }
@@ -263,7 +337,7 @@ func file_teleport_machineid_v1_identity_attributes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_machineid_v1_identity_attributes_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

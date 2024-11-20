@@ -23,10 +23,12 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"net"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -45,6 +47,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -371,6 +374,125 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	return res, nil
+}
+
+func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
+	ctx context.Context, req *pb.IssueWorkloadIdentityRequest,
+) (*pb.IssueWorkloadIdentityResponse, error) {
+	authCtx, err := wis.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch info that will be needed for all SPIFFE SVIDs requested
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
+	}
+	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting CA cert and key")
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var joinAttr *pb.JoinAttributes = authCtx.Identity.GetIdentity().BotJoinAttributes
+	workloadIdentity := &pb.WorkloadIdentity{
+		Spec: &pb.WorkloadIdentitySpec{
+			Spiffe: &pb.WorkloadIdentitySPIFFE{
+				Id: "/github/{{join.github.repository}}/{{join.github.environment}}",
+			},
+		},
+	}
+
+	templateIDPath, err := template(workloadIdentity.GetSpec().GetSpiffe().GetId(), joinAttr)
+	if err != nil {
+		return nil, trace.Wrap(err, "templating spiffe id")
+	}
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName.GetClusterName(),
+		Path:   templateIDPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
+	}
+
+	ttl := defaultX509SVIDTTL
+	notAfter := wis.clock.Now().Add(ttl)
+	notBefore := wis.clock.Now().UTC().Add(-1 * time.Minute)
+
+	pemBytes, _, err := signx509SVID(
+		notBefore,
+		notAfter,
+		tlsCA,
+		req.PublicKey,
+		spiffeID.URL(),
+		[]string{},
+		[]net.IP{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &pb.IssueWorkloadIdentityResponse{
+		X509: pemBytes,
+	}, nil
+}
+
+// This place is not a place of honor...
+// no highly esteemed deed is commemorated here...
+// nothing valued is here.
+//
+// What is here was dangerous and repulsive to us.
+// This message is a warning about danger.
+func template(in string, join *pb.JoinAttributes) (string, error) {
+	variables := map[string]typical.Variable{}
+	if join != nil {
+		if join.Github != nil {
+			variables["join.github.repository"] = join.Github.Repository
+			variables["join.github.environment"] = join.Github.Environment
+			variables["join.github.workflow"] = join.Github.Workflow
+		}
+		if join.Gitlab != nil {
+			variables["join.gitlab.user_login"] = join.Gitlab.UserLogin
+			variables["join.gitlab.project_path"] = join.Gitlab.ProjectPath
+		}
+	}
+
+	parser, err := typical.NewParser[map[string]string, string](typical.ParserSpec[map[string]string]{
+		Variables: variables,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	re := regexp.MustCompile(`\{\{(.*?)\}\}`)
+	matches := re.FindAllStringSubmatch(in, -1)
+
+	for _, match := range matches {
+		fmt.Println(strings.Trim(match[0], "{}"))
+		expr, err := parser.Parse(strings.Trim(match[0], "{}"))
+		if err != nil {
+			panic(err)
+		}
+		value, err := expr.Evaluate(map[string]string{})
+		if err != nil {
+			panic(err)
+		}
+		in = strings.Replace(in, match[0], value, 1)
+	}
+
+	return in, nil
 }
 
 func (wis *WorkloadIdentityService) signJWTSVID(

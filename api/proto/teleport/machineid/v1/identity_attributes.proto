@@ -25,10 +25,17 @@ message GitHubJoinAttributes {
   string workflow = 3;
 }
 
+// TODO
+message GitlabJoinAttributes {
+  string user_login = 1;
+  string project_path = 2;
+}
+
 // JoinAttributes holds attributes sourced from attestation that occurs during
 // the teleport join process.
 message JoinAttributes {
   GitHubJoinAttributes github = 1;
+  GitlabJoinAttributes gitlab = 2;
 }
 
 // Attributes holds attributes describing a workload identity, it is made up

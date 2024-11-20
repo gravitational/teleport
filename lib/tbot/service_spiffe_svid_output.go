@@ -143,14 +143,14 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 		if res == nil || privateKey == nil {
 			var err error
-			res, privateKey, jwtSVIDs, err = s.requestSVID(ctx)
+			_, privateKey, jwtSVIDs, err = s.requestSVID(ctx)
 			if err != nil {
 				s.log.ErrorContext(ctx, "Failed to request SVID", "error", err)
 				failures++
 				continue
 			}
 		}
-		if err := s.render(ctx, bundleSet, res, privateKey, jwtSVIDs); err != nil {
+		if err := s.render(ctx, bundleSet, []byte{}, privateKey, jwtSVIDs); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
 			failures++
 			continue
@@ -162,7 +162,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 func (s *SPIFFESVIDOutputService) requestSVID(
 	ctx context.Context,
 ) (
-	*machineidv1pb.SignX509SVIDsResponse,
+	[]byte,
 	crypto.Signer,
 	map[string]string,
 	error,
@@ -198,16 +198,27 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	}
 	defer impersonatedClient.Close()
 
-	res, privateKey, err := generateSVID(
-		ctx,
-		impersonatedClient,
-		[]config.SVIDRequest{s.cfg.SVID},
-		s.botCfg.CertificateTTL,
-	)
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(impersonatedClient),
+		cryptosuites.BotSVID)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
+	res, err := impersonatedClient.WorkloadIdentityServiceClient().IssueWorkloadIdentity(ctx,
+		&machineidv1pb.IssueWorkloadIdentityRequest{
+			PublicKey: pubBytes,
+		},
+	)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	/**
 	jwtSvids, err := generateJWTSVIDs(
 		ctx,
 		impersonatedClient,
@@ -216,15 +227,15 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.botCfg.CertificateTTL)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
-	}
+	}*/
 
-	return res, privateKey, jwtSvids, nil
+	return []byte(res.X509), privateKey, map[string]string{}, nil
 }
 
 func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
 	bundleSet *spiffe.BundleSet,
-	res *machineidv1pb.SignX509SVIDsResponse,
+	cert []byte,
 	privateKey crypto.Signer,
 	jwtSVIDs map[string]string,
 ) error {
@@ -257,18 +268,13 @@ func (s *SPIFFESVIDOutputService) render(
 		Bytes: privBytes,
 	})
 
-	if len(res.Svids) != 1 {
-		return trace.BadParameter("expected 1 SVID, got %d", len(res.Svids))
-
-	}
-	svid := res.Svids[0]
 	if err := s.cfg.Destination.Write(ctx, config.SVIDKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  pemCertificate,
-		Bytes: svid.Certificate,
+		Bytes: cert,
 	})
 	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
 		return trace.Wrap(err, "writing svid certificate")

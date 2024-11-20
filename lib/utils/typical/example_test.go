@@ -30,6 +30,34 @@ type expressionEnv struct {
 	labels func(key string) string
 }
 
+func Example2() {
+	joinAttrMap := map[string]string{
+		"github.repository":  "test"
+		"github.environment": "bar"
+	}
+
+	parser, err := typical.NewCachedParser[map[string]string, string](typical.ParserSpec[map[string]string]{
+		Variables: map[string]typical.Variable{
+			"join": typical.DynamicMapFunction(func(env map[string]string, key string) (string, error) {
+				return env[key], nil
+			}),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	expr, err := parser.Parse("/github/{{join.github.repository}}/{{join.github.environment}}")
+	if err != nil {
+		panic(err)
+	}
+	res, err := expr.Evaluate(joinAttrMap)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+}
+
 func Example() {
 	parser, err := typical.NewParser[expressionEnv, bool](typical.ParserSpec[expressionEnv]{
 		Variables: map[string]typical.Variable{
