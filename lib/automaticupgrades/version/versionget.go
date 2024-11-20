@@ -36,13 +36,40 @@ type Getter interface {
 	GetVersion(context.Context) (string, error)
 }
 
+// FailoverGetter wraps multiple Getters and tries them sequentially.
+// Any error is considered fatal, except for the trace.NotImplementedErr
+// which indicates the version getter is not supported yet and we should
+// failover to the next version getter.
+type FailoverGetter []Getter
+
+// GetVersion implements Getter
+// Getters are evaluated sequentially, the result of the first getter not returning
+// trace.NotImplementedErr is used.
+func (f FailoverGetter) GetVersion(ctx context.Context) (string, error) {
+	for _, getter := range f {
+		version, err := getter.GetVersion(ctx)
+		switch {
+		case err == nil:
+			return version, nil
+		case trace.IsNotImplemented(err):
+			continue
+		default:
+			return "", trace.Wrap(err)
+		}
+	}
+	return "", trace.NotFound("every versionGetter returned NotImplemented")
+}
+
 // ValidVersionChange receives the current version and the candidate next version
 // and evaluates if the version transition is valid.
 func ValidVersionChange(ctx context.Context, current, next string) bool {
 	log := ctrllog.FromContext(ctx).V(1)
 	// Cannot upgrade to a non-valid version
 	if !semver.IsValid(next) {
-		log.Error(trace.BadParameter("next version is not following semver"), "version change is invalid", "nextVersion", next)
+		log.Error(
+			trace.BadParameter("next version is not following semver"), "version change is invalid", "nextVersion",
+			next,
+		)
 		return false
 	}
 	switch semver.Compare(next, current) {
