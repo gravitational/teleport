@@ -51,7 +51,7 @@ test('fetch session recordings, response formatting', async () => {
         playable: false,
         recordingType: 'k8s',
         sid: '456b933c-4ec4-59f1-862c-90ca9f7648b1',
-        users: 'wov@esde.ro',
+        users: 'onuweeme@wiuke.mh',
       },
     ],
     startKey: '',

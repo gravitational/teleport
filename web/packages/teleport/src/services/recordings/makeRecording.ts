@@ -66,7 +66,7 @@ function makeDesktopRecording({
 
 function makeSshOrKubeRecording({
   participants,
-  kubernetes_users,
+  user,
   time,
   session_start,
   session_stop,
@@ -90,8 +90,8 @@ function makeSshOrKubeRecording({
   // For Kubernetes sessions, put the full pod name as 'hostname'.
   if (proto === 'kube') {
     hostname = `${kubernetes_cluster}/${kubernetes_pod_namespace}/${kubernetes_pod_name}`;
-    // For non-interactive k8s sessions the user participants are in kubernetes_users
-    if (!interactive) userParticipants = kubernetes_users;
+    // For non-interactive k8s sessions the participant is the Teleport user running the command
+    if (!interactive) userParticipants = [user];
   }
 
   // Description set to play for interactive so users can search by "play".
