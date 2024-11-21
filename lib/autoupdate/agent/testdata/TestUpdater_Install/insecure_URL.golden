@@ -3,7 +3,7 @@ kind: update_config
 spec:
     proxy: ""
     group: ""
-    url_template: ""
+    url_template: http://example.com
     enabled: false
     pinned: false
 status:

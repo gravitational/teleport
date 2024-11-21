@@ -106,7 +106,7 @@ func Run(args []string) error {
 
 	versionCmd := app.Command("version", fmt.Sprintf("Print the version of your %s binary.", autoupdate.BinaryName))
 
-	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial update.")
+	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial installation or update.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group for this agent installation.").
@@ -118,6 +118,18 @@ func Run(args []string) error {
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
+
+	pinCmd := app.Command("pin", "Install Teleport and lock the updater on the installed version.")
+	pinCmd.Flag("proxy", "Address of the Teleport Proxy.").
+		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
+	pinCmd.Flag("group", "Update group for this agent installation.").
+		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	pinCmd.Flag("template", "Go template used to override Teleport download URL.").
+		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	pinCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
+		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
@@ -144,7 +156,11 @@ func Run(args []string) error {
 
 	switch command {
 	case enableCmd.FullCommand():
-		err = cmdEnable(ctx, &ccfg)
+		ccfg.Enabled = true
+		err = cmdInstall(ctx, &ccfg)
+	case pinCmd.FullCommand():
+		ccfg.Pinned = true
+		err = cmdInstall(ctx, &ccfg)
 	case disableCmd.FullCommand():
 		err = cmdDisable(ctx, &ccfg)
 	case updateCmd.FullCommand():
@@ -207,8 +223,8 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdEnable enables updates and triggers an initial update.
-func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
+// cmdInstall installs Teleport and sets configuration.
+func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
@@ -230,7 +246,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	if err := updater.Enable(ctx, ccfg.OverrideConfig); err != nil {
+	if err := updater.Install(ctx, ccfg.OverrideConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
