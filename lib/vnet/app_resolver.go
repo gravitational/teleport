@@ -56,7 +56,7 @@ type AppProvider interface {
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
 	// clients for that cluster so that new working clients will be returned from [GetCachedClient].
-	ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error)
+	ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error)
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
@@ -297,12 +297,26 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	if err != nil {
 		return nil, trace.Wrap(err, "getting dial options for profile %q", profileName)
 	}
+	clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:       app.GetName(),
+		PublicAddr: app.GetPublicAddr(),
+		// ClusterName must not be set to "" when targeting an app from a root cluster. Otherwise the
+		// connection routed through a local proxy will just get lost somewhere in the cluster (with no
+		// clear error being reported) and hang forever.
+		ClusterName: clusterClient.ClusterName(),
+		URI:         app.GetURI(),
+	}
 
 	appCertIssuer := &appCertIssuer{
 		appProvider:     r.appProvider,
 		profileName:     profileName,
 		leafClusterName: leafClusterName,
-		app:             app,
+		routeToApp:      routeToApp,
 	}
 	certChecker := client.NewCertChecker(appCertIssuer, r.clock)
 	middleware := &localProxyMiddleware{
@@ -348,7 +362,7 @@ type appCertIssuer struct {
 	appProvider     AppProvider
 	profileName     string
 	leafClusterName string
-	app             types.Application
+	routeToApp      proto.RouteToApp
 	group           singleflight.Group
 }
 
@@ -359,7 +373,7 @@ func (i *appCertIssuer) CheckCert(cert *x509.Certificate) error {
 
 func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	cert, err, _ := i.group.Do("", func() (any, error) {
-		return i.appProvider.ReissueAppCert(ctx, i.profileName, i.leafClusterName, i.app)
+		return i.appProvider.ReissueAppCert(ctx, i.profileName, i.leafClusterName, i.routeToApp)
 	})
 	return cert.(tls.Certificate), trace.Wrap(err)
 }

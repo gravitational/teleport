@@ -291,7 +291,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}, nil
 }
 
-func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	return p.reissueAppCert(), nil
 }
 
