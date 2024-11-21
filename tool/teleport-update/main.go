@@ -127,7 +127,7 @@ func Run(args []string) error {
 	pinCmd.Flag("template", "Go template used to override Teleport download URL.").
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
 	pinCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
-		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 

@@ -359,7 +359,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	case skipVersion:
 		u.Log.WarnContext(ctx, "Target version was previously marked as broken. Retrying update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 	default:
-		u.Log.InfoContext(ctx, "Initiating initial update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Initiating installation.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 	}
 
 	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
