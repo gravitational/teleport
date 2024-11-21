@@ -27,9 +27,9 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// ProviderTimeout is the maximum time allowed to fetch provider metadata before
+// providerTimeout is the maximum time allowed to fetch provider metadata before
 // giving up.
-const ProviderTimeout time.Duration = 15 * time.Second
+const providerTimeout = 15 * time.Second
 
 // IDTokenValidator validates a Bitbucket issued ID Token.
 type IDTokenValidator struct {
