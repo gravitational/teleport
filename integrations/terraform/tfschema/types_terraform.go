@@ -898,6 +898,33 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "DynamicLabels are the app's command labels.",
 					Optional:    true,
 				},
+				"identity_center": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_id": {
+							Description: "Account ID is the AWS-assigned ID of the account",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"permission_sets": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"arn": {
+									Description: "ARN is the fully-formed ARN of the Permission Set.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Description: "Name is the human-readable name of the Permission Set.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "PermissionSets lists the available permission sets on the given account",
+							Optional:    true,
+						},
+					}),
+					Description: "IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps.",
+					Optional:    true,
+				},
 				"insecure_skip_verify": {
 					Description: "InsecureSkipVerify disables app's TLS certificate verification.",
 					Optional:    true,
@@ -10599,6 +10626,104 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["identity_center"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.IdentityCenter = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.IdentityCenter = &github_com_gravitational_teleport_api_types.AppIdentityCenter{}
+									obj := obj.IdentityCenter
+									{
+										a, ok := tf.Attrs["account_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.AccountID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.AccountID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.AccountID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["permission_sets"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.PermissionSets = make([]*github_com_gravitational_teleport_api_types.IdentityCenterPermissionSet, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_types.IdentityCenterPermissionSet
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_types.IdentityCenterPermissionSet{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["arn"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.ARN"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.ARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ARN = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.Name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Name = t
+																		}
+																	}
+																}
+															}
+															obj.PermissionSets[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -11813,6 +11938,162 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								v.Unknown = false
 								tf.Attrs["cors"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["identity_center"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["identity_center"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.IdentityCenter == nil {
+									v.Null = true
+								} else {
+									obj := obj.IdentityCenter
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["account_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.AccountID"})
+										} else {
+											v, ok := tf.Attrs["account_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.IdentityCenter.AccountID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.AccountID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.AccountID) == ""
+											}
+											v.Value = string(obj.AccountID)
+											v.Unknown = false
+											tf.Attrs["account_id"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["permission_sets"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["permission_sets"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.PermissionSets)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.PermissionSets))
+													}
+												}
+												if obj.PermissionSets != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.PermissionSets) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.PermissionSets))
+													}
+													for k, a := range obj.PermissionSets {
+														v, ok := tf.Attrs["permission_sets"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["arn"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.ARN"})
+																} else {
+																	v, ok := tf.Attrs["arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.IdentityCenter.PermissionSets.ARN", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.ARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ARN) == ""
+																	}
+																	v.Value = string(obj.ARN)
+																	v.Unknown = false
+																	tf.Attrs["arn"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.Name"})
+																} else {
+																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.IdentityCenter.PermissionSets.Name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Name) == ""
+																	}
+																	v.Value = string(obj.Name)
+																	v.Unknown = false
+																	tf.Attrs["name"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.PermissionSets) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["permission_sets"] = c
+											}
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["identity_center"] = v
 							}
 						}
 					}
