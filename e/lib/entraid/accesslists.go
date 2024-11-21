@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path"
 	"reflect"
-	"regexp"
-	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -25,7 +25,8 @@ import (
 func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
 	groupsMap map[string]*msgraph.Group,
-	groupMembersMap map[string][]msgraph.GroupMember) error {
+	groupMembersMap map[string][]msgraph.GroupMember,
+) error {
 	teleportAccessLists, err := listTeleportAccessLists(ctx, r.accessListSvc)
 	if err != nil {
 		return trace.Wrap(err)
@@ -294,23 +295,17 @@ func convertGroupMember(ctx context.Context, in msgraph.GroupMember, al *accessl
 	}
 }
 
+// uuidNamespace is the namespace used for generating UUIDs for access lists.
+// It is a UUID derived from the string "entraid".
+var uuidNamespace = uuid.NewSHA1(uuid.Nil, []byte("entraid"))
+
 func accessListName(displayName string, id string) string {
-	// form a unique name by getting rid of invalid characters and appending the unique ID
-	// TODO(justinas): we can shorten this by e.g. hashing the ID and truncating it to a reasonable length
-	return resourceNameClean(displayName) + "-" + id
-}
-
-var resourceNameCleanRegexp = regexp.MustCompile("[^A-z0-9-.+]+")
-
-// resourceNameClean transforms the given string into one that is a valid name for Teleport resource names.
-// It does so by replacing spaces with dashes `-`, and removing any non-alphanumeric characters altogether.
-// E.g.:
-//   - `Access List #1` is transformed to `access-list-1`
-//   - `interns-dev` is kept as is (the name is composed of only valid characters).
-func resourceNameClean(s string) string {
-	s = strings.ReplaceAll(s, " ", "-")
-	s = resourceNameCleanRegexp.ReplaceAllString(s, "")
-	return s
+	p := path.Join(id, displayName)
+	// generate a UUID from the path to ensure uniqueness
+	// and to avoid collisions with other access lists.
+	// This is necessary because access list names are used as keys in the backend
+	// and must be unique and deterministic.
+	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
 }
 
 func preserveAccessListMemberMetadata(dst, src *accesslist.AccessListMember) {

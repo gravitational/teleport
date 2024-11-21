@@ -225,3 +225,49 @@ func TestUnwindGroupMembership(t *testing.T) {
 func valToPTR[T any](v T) *T {
 	return &v
 }
+
+// Test_accessListName tests the accessListName function
+// to ensure that it generates a consistent name for an access list
+// based on the display name and ID.
+func Test_accessListName(t *testing.T) {
+	type args struct {
+		displayName string
+		id          string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "valid display name",
+			args: args{
+				displayName: "test",
+				id:          "123",
+			},
+			want: "a76a00bd-bc8e-51f5-afbd-81cf8ee5632f",
+		},
+		{
+			name: "invalid display name",
+			args: args{
+				displayName: "test[]^!#$",
+				id:          "123",
+			},
+			want: "df8ac2aa-2e0b-5fcf-b2cb-f5e210c994a3",
+		},
+		{
+			name: "empty",
+			args: args{
+				displayName: "",
+				id:          "",
+			},
+			want: "1f81d2df-49d5-53d5-b54a-cb9680d84e1e",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := accessListName(tt.args.displayName, tt.args.id)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
