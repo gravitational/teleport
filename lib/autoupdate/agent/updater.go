@@ -365,6 +365,9 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
 		return trace.Wrap(err)
 	}
+	if targetVersion == cfg.Status.SkipVersion {
+		cfg.Status.SkipVersion = ""
+	}
 
 	// Only write the configuration file if the initial update succeeds.
 	// Note: skip_version is never set on failed enable, only failed update.

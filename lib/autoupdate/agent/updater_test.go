@@ -769,6 +769,23 @@ func TestUpdater_Install(t *testing.T) {
 			setupCalls:        1,
 		},
 		{
+			name: "override skip",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					SkipVersion:   "16.3.0",
+				},
+			},
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
+		{
 			name: "insecure URL",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
