@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // UnifiedResource153 is a type constraint that requires a type to implement
