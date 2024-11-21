@@ -53,7 +53,7 @@ func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, issuerURL, audience, token string,
 ) (*IDTokenClaims, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, ProviderTimeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 
 	p, err := oidc.NewProvider(timeoutCtx, issuerURL)
