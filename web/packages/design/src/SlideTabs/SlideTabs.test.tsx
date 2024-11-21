@@ -27,7 +27,11 @@ describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(3)', () => {
     render(
       <SlideTabs
-        tabs={['aws', 'automatically', 'manually']}
+        tabs={[
+          { key: 'aws', title: 'aws' },
+          { key: 'automatically', title: 'automatically' },
+          { key: 'manually', title: 'manually' },
+        ]}
         onChange={() => {}}
         activeIndex={0}
       />
@@ -43,7 +47,13 @@ describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(5)', () => {
     render(
       <SlideTabs
-        tabs={['aws', 'automatically', 'manually', 'apple', 'purple']}
+        tabs={[
+          { key: 'aws', title: 'aws' },
+          { key: 'automatically', title: 'automatically' },
+          { key: 'manually', title: 'manually' },
+          { key: 'apple', title: 'apple' },
+          { key: 'purple', title: 'purple' },
+        ]}
         onChange={() => {}}
         activeIndex={0}
       />
@@ -76,8 +86,8 @@ describe('design/SlideTabs', () => {
     render(
       <Component
         tabs={[
-          { id: 'id1', content: 'first', controls: 'tabpanel-1' },
-          { id: 'id2', content: 'second', controls: 'tabpanel-2' },
+          { key: 'id1', title: 'first', controls: 'tabpanel-1' },
+          { key: 'id2', title: 'second', controls: 'tabpanel-2' },
         ]}
       />
     );
