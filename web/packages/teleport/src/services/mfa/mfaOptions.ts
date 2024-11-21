@@ -18,7 +18,7 @@
 
 import { Auth2faType } from 'shared/services';
 
-import { DeviceType, MfaAuthenticateChallenge, SSOChallenge } from './types';
+import { DeviceType, MfaAuthenticateChallenge, SsoChallenge } from './types';
 
 export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   const mfaOptions: MfaOption[] = [];
@@ -73,7 +73,7 @@ export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
   label: 'SSO',
 };
 
-const getSsoMfaOption = (ssoChallenge: SSOChallenge): MfaOption => {
+const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
   return {
     value: 'sso',
     label:

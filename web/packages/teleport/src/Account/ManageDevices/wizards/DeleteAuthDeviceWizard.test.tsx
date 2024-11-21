@@ -24,7 +24,7 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
+import MfaService, { SsoChallenge } from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
 
 import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
@@ -37,15 +37,18 @@ let ctx: TeleportContext;
 let user: UserEvent;
 let onSuccess: jest.Mock;
 
+const dummyMfaChallenge = {
+  totpChallenge: true,
+  webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+  ssoChallenge: {} as SsoChallenge,
+};
+
 beforeEach(() => {
   ctx = new TeleportContext();
   user = userEvent.setup();
   onSuccess = jest.fn();
 
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({
-    totpChallenge: true,
-    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
-  });
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(dummyMfaChallenge);
   jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
     .spyOn(auth, 'createPrivilegeToken')
@@ -82,6 +85,11 @@ test('deletes a device with WebAuthn reauthentication', async () => {
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'webauthn',
+    ''
+  );
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
     'privilege-token',
     'TouchID'
@@ -106,6 +114,35 @@ test('deletes a device with OTP reauthentication', async () => {
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'totp',
+    '654987'
+  );
+  expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
+    'privilege-token',
+    'TouchID'
+  );
+});
+
+test('deletes a device with SSO reauthentication', async () => {
+  render(<TestWizard />);
+
+  let reauthenticateStep;
+  await waitFor(() => {
+    reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+  });
+  await user.click(reauthenticateStep.getByText('SSO'));
+  await user.click(reauthenticateStep.getByText('Verify my identity'));
+
+  const deleteStep = within(screen.getByTestId('delete-step'));
+  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
+
+  expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+    dummyMfaChallenge,
+    'sso',
+    ''
+  );
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
     'privilege-token',
     'TouchID'

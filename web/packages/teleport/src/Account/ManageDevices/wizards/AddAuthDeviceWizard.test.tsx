@@ -24,7 +24,7 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
+import MfaService, { SsoChallenge } from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
 
 import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
@@ -172,11 +172,16 @@ describe('flow without reauthentication', () => {
 });
 
 describe('flow with reauthentication', () => {
+  const dummyMfaChallenge = {
+    totpChallenge: true,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    ssoChallenge: {} as SsoChallenge,
+  };
+
   beforeEach(() => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({
-      totpChallenge: true,
-      webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
-    });
+    jest
+      .spyOn(auth, 'getMfaChallenge')
+      .mockResolvedValueOnce(dummyMfaChallenge);
     jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
     jest
       .spyOn(auth, 'createPrivilegeToken')
@@ -197,6 +202,11 @@ describe('flow with reauthentication', () => {
     });
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
+    );
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'webauthn',
+      ''
     );
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
@@ -238,6 +248,53 @@ describe('flow with reauthentication', () => {
     });
     await user.click(
       createStep.getByRole('button', { name: 'Create a passkey' })
+    );
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'totp',
+      '654987'
+    );
+    expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
+      tokenId: 'privilege-token',
+      deviceUsage: 'passwordless',
+    });
+
+    const saveStep = within(screen.getByTestId('save-step'));
+    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-passkey');
+    await user.click(
+      saveStep.getByRole('button', { name: 'Save the Passkey' })
+    );
+    expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
+      credential: dummyCredential,
+      addRequest: {
+        deviceName: 'new-passkey',
+        deviceUsage: 'passwordless',
+        tokenId: 'privilege-token',
+      },
+    });
+    expect(onSuccess).toHaveBeenCalled();
+  });
+
+  test('adds a passkey with SSO reauthentication', async () => {
+    render(<TestWizard usage="passwordless" />);
+
+    const reauthenticateStep = await waitFor(() => {
+      return within(screen.getByTestId('reauthenticate-step'));
+    });
+
+    await user.click(reauthenticateStep.getByText('SSO'));
+    await user.click(reauthenticateStep.getByText('Verify my identity'));
+
+    const createStep = await waitFor(() => {
+      return within(screen.getByTestId('create-step'));
+    });
+    await user.click(
+      createStep.getByRole('button', { name: 'Create a passkey' })
+    );
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      dummyMfaChallenge,
+      'sso',
+      ''
     );
     expect(auth.createNewWebAuthnDevice).toHaveBeenCalledWith({
       tokenId: 'privilege-token',
