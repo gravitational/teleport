@@ -465,7 +465,7 @@ func uuidWithLabel(label string) string {
 	return fmt.Sprintf("%s-%s", label, uuid.New().String())
 }
 
-func splitHostPort(hostport string) (string, uint16, error) {
+func splitHostPort(hostport string) (string, int, error) {
 	host, portString, err := net.SplitHostPort(hostport)
 	if err != nil {
 		return "", 0, trace.Wrap(err)
@@ -476,5 +476,5 @@ func splitHostPort(hostport string) (string, uint16, error) {
 		return "", 0, trace.Wrap(err)
 	}
 
-	return host, uint16(port), nil
+	return host, int(port), nil
 }

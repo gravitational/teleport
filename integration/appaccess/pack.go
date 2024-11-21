@@ -111,8 +111,8 @@ type Pack struct {
 	rootTCPMultiPortMessageAlpha string
 	rootTCPMultiPortMessageBeta  string
 	rootTCPMultiPortAppURI       string
-	rootTCPMultiPortAppPortAlpha uint16
-	rootTCPMultiPortAppPortBeta  uint16
+	rootTCPMultiPortAppPortAlpha int
+	rootTCPMultiPortAppPortBeta  int
 
 	jwtAppName        string
 	jwtAppPublicAddr  string
@@ -150,8 +150,8 @@ type Pack struct {
 	leafTCPMultiPortMessageAlpha string
 	leafTCPMultiPortMessageBeta  string
 	leafTCPMultiPortAppURI       string
-	leafTCPMultiPortAppPortAlpha uint16
-	leafTCPMultiPortAppPortBeta  uint16
+	leafTCPMultiPortAppPortAlpha int
+	leafTCPMultiPortAppPortBeta  int
 
 	headerAppName        string
 	headerAppPublicAddr  string
@@ -384,7 +384,7 @@ type CreateAppSessionParams struct {
 	Username      string
 	ClusterName   string
 	AppPublicAddr string
-	AppTargetPort uint16
+	AppTargetPort int
 }
 
 func (p *Pack) CreateAppSession(t *testing.T, params CreateAppSessionParams) types.WebSession {
@@ -510,7 +510,7 @@ type tlsConfigParams struct {
 	publicAddr  string
 	clusterName string
 	pinnedIP    string
-	targetPort  uint16
+	targetPort  int
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.

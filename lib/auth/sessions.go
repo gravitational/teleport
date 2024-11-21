@@ -416,7 +416,7 @@ type NewAppSessionRequest struct {
 	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	AppURI string
 	// AppTargetPort signifies that the session is made to a specific port of a multi-port TCP app.
-	AppTargetPort uint16
+	AppTargetPort int
 	// Identity is the identity of the user.
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.

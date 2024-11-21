@@ -48,8 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/app"
 )
 
 // TestAppAccess runs the full application access integration test suite.
@@ -734,7 +734,7 @@ func TestTCP(t *testing.T) {
 				username:    sessionUsername,
 				publicAddr:  pack.rootTCPPublicAddr,
 				clusterName: pack.rootAppClusterName,
-				targetPort:  uint16(rootTCPAppPort),
+				targetPort:  rootTCPAppPort,
 			},
 			outMessage: pack.rootTCPMessage,
 		},
@@ -744,7 +744,7 @@ func TestTCP(t *testing.T) {
 				username:    sessionUsername,
 				publicAddr:  pack.rootTCPPublicAddr,
 				clusterName: pack.rootAppClusterName,
-				targetPort:  uint16(rootTCPAppPort - 1),
+				targetPort:  rootTCPAppPort - 1,
 			},
 			wantReadErr: io.EOF,
 		},
@@ -807,7 +807,7 @@ func TestTCP(t *testing.T) {
 				clusterName: pack.rootAppClusterName,
 				// 42 should not be handed out to a non-root user when creating a listener on port 0, so
 				// it's unlikely that 42 is going to end up in the app spec.
-				targetPort: uint16(42),
+				targetPort: 42,
 			},
 			wantReadErr: io.EOF,
 		},
