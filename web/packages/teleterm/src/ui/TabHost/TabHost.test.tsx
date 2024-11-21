@@ -31,6 +31,7 @@ import {
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { routing } from 'teleterm/ui/uri';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 function getMockDocuments(): Document[] {
   return [
@@ -86,7 +87,9 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+      <ResourcesContextProvider>
+        <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+      </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 

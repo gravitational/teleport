@@ -162,7 +162,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	if g.usageEvents != nil {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
-			g.log.Debug("Error emitting usage event during user login state generation, skipping")
+			g.log.WithError(err).Debug("Error emitting usage event during user login state generation, skipping")
 		}
 	}
 
