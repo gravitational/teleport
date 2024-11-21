@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
@@ -117,7 +116,7 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 
 // OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	return nil
 }
 

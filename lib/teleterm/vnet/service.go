@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -453,11 +452,11 @@ func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*
 // That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
-		uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(app.GetName())
+		uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(routeToApp.Name)
 
 		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
 		// If it's a short-lived connection, inheriting its context would interrupt reporting.
