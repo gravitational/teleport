@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -645,10 +646,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		return trace.Errorf("failed to install: %w", err)
 	}
 
-	// TODO(sclevine): if the target version has fewer binaries, this will
-	//  leave old binaries linked. This may prevent the installation from
-	//  being removed. To fix this, we should look for orphaned binaries
-	//  and remove them, or alternatively, attempt to remove extra versions.
+	// If the target version has fewer binaries, this will leave old binaries linked.
+	// This may prevent the installation from being removed.
+	// Cleanup logic at the end of this function will ensure that they are removed
+	// eventually.
 
 	revert, err := u.Installer.Link(ctx, targetVersion)
 	if err != nil {
@@ -719,8 +720,15 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		u.Log.InfoContext(ctx, "Backup version set.", backupVersionKey, v)
 	}
 
-	// Cleanup orphans.
+	return trace.Wrap(u.cleanup(ctx, []string{
+		targetVersion,
+		activeVersion,
+		backupVersion,
+	}))
+}
 
+// cleanup orphan installations
+func (u *Updater) cleanup(ctx context.Context, keep []string) error {
 	versions, err := u.Installer.List(ctx)
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
@@ -731,8 +739,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	}
 	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(versions))
 	for _, v := range versions {
-		switch v {
-		case "", targetVersion, activeVersion, backupVersion:
+		if v == "" || slices.Contains(keep, v) {
 			continue
 		}
 		err := u.Installer.Remove(ctx, v)
