@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/fido2"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // fido2Command adapts fido2.Command for tctl.
@@ -35,6 +35,6 @@ func (c *fido2Command) Initialize(app *kingpin.Application, _ *servicecfg.Config
 	c.impl = fido2.NewCommand(app)
 }
 
-func (c *fido2Command) TryRun(ctx context.Context, cmd string, _ commonClient.InitFunc) (match bool, err error) {
+func (c *fido2Command) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	return c.impl.TryRun(ctx, cmd)
 }

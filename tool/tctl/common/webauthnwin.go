@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // webauthnwinCommand adapts webauthnwin.Command for tctl.
@@ -35,6 +35,6 @@ func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *servicecfg.
 	c.impl = webauthnwin.NewCommand(app)
 }
 
-func (c *webauthnwinCommand) TryRun(ctx context.Context, cmd string, _ commonClient.InitFunc) (match bool, err error) {
+func (c *webauthnwinCommand) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	return c.impl.TryRun(ctx, cmd)
 }

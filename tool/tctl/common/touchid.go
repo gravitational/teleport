@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/touchid"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // touchIDCommand adapts touchid.Command for tclt.
@@ -35,6 +35,6 @@ func (c *touchIDCommand) Initialize(app *kingpin.Application, _ *servicecfg.Conf
 	c.impl = touchid.NewCommand(app)
 }
 
-func (c *touchIDCommand) TryRun(ctx context.Context, cmd string, _ commonClient.InitFunc) (match bool, err error) {
+func (c *touchIDCommand) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	return c.impl.TryRun(ctx, cmd)
 }

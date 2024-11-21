@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // NotificationCommand implements the `tctl notifications` family of commands.
@@ -99,7 +99,7 @@ func (n *NotificationCommand) Initialize(app *kingpin.Application, _ *servicecfg
 }
 
 // TryRun takes the CLI command as an argument and executes it.
-func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case n.create.FullCommand():

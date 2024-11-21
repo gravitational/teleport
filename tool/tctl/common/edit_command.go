@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -69,7 +69,7 @@ func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 
-func (e *EditCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (bool, error) {
+func (e *EditCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
 	if cmd != e.cmd.FullCommand() {
 		return false, nil
 	}

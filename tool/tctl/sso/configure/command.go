@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // SSOConfigureCommand implements common.CLICommand interface
@@ -60,7 +60,7 @@ func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servic
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	for _, subCommand := range cmd.AuthCommands {
 		if subCommand.Parsed {
 			// the default tctl logging behavior is to ignore all logs, unless --debug is present.

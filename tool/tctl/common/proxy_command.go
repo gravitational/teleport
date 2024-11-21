@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // ProxyCommand returns information about connected proxies
@@ -73,7 +73,7 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.C
 }
 
 // TryRun runs the proxy command
-func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case p.lsCmd.FullCommand():

@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 const (
@@ -107,7 +107,7 @@ func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.
 }
 
 // TryRun attempts to run subcommands.
-func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.envCmd.FullCommand():
 		client, clientClose, err := clientFunc(ctx)

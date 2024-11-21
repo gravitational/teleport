@@ -39,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
-	tctlConfig "github.com/gravitational/teleport/tool/tctl/common/config"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 const (
@@ -66,7 +66,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error)
+	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -137,7 +137,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		commands[i].Initialize(app, cfg)
 	}
 
-	var ccf tctlConfig.GlobalCLIFlags
+	var ccf tctlcfg.GlobalCLIFlags
 
 	// If the config file path is being overridden by environment variable, set that.
 	// If not, check whether the default config file path exists and set that if so.
@@ -195,7 +195,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	cfg.Debug = ccf.Debug
 
 	ctx := context.Background()
-	clientFunc := commonClient.GetInitFunc(ccf, cfg)
+	clientFunc := commonclient.GetInitFunc(ccf, cfg)
 	// Execute whatever is selected.
 	for _, c := range commands {
 		match, err := c.TryRun(ctx, selectedCmd, clientFunc)

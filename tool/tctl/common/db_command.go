@@ -34,7 +34,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // DBCommand implements "tctl db" group of commands.
@@ -69,7 +69,7 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Conf
 }
 
 // TryRun attempts to run subcommands like "db ls".
-func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.dbList.FullCommand():

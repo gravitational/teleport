@@ -55,7 +55,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.Wrap(err)
 	}
 	if profile.IsExpired(time.Now()) {
-		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
+		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
 	}
 
 	c := client.MakeDefaultConfig()

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // RecordingsCommand implements "tctl recordings" group of commands.
@@ -69,7 +69,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, config *service
 }
 
 // TryRun attempts to run subcommands like "recordings ls".
-func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.recordingsList.FullCommand():

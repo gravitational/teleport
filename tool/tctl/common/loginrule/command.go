@@ -37,12 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 type subcommand interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error)
 }
 
 // Command implements all commands under "tctl login_rule".
@@ -65,7 +65,7 @@ func (t *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 
 // TryRun calls tryRun for each subcommand, and if none of them match returns
 // (false, nil)
-func (t *Command) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (t *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	for _, subcommand := range t.subcommands {
 		match, err = subcommand.tryRun(ctx, cmd, clientFunc)
 		if err != nil {
@@ -113,7 +113,7 @@ Examples:
   > echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml`)
 }
 
-func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand != t.cmd.FullCommand() {
 		return false, nil
 	}

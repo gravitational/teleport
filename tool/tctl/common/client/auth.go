@@ -21,10 +21,10 @@ package client
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -38,16 +38,16 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	tctlConfig "github.com/gravitational/teleport/tool/tctl/common/config"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
 type InitFunc func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error)
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
-func GetInitFunc(ccf tctlConfig.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
+func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
-		clientConfig, err := tctlConfig.ApplyConfig(&ccf, cfg)
+		clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -117,10 +117,10 @@ func GetInitFunc(ccf tctlConfig.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc
 			defer cancel()
 			if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
 				types.AlertSeverity_HIGH); err != nil {
-				log.WithError(err).Warn("Failed to display cluster alerts.")
+				slog.WarnContext(ctx, "Failed to display cluster alerts.", "error", err)
 			}
 			if err := client.Close(); err != nil {
-				log.WithError(err).Warn("Failed to close client.")
+				slog.WarnContext(ctx, "Failed to close client.", "error", err)
 			}
 		}, nil
 	}

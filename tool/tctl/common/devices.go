@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // DevicesCommand implements the `tctl devices` command.
@@ -113,7 +113,7 @@ type runner interface {
 	Run(context.Context, *authclient.Client) error
 }
 
-func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	innerCmd, ok := map[string]runner{
 		"devices add":    &c.add,
 		"devices ls":     &c.ls,

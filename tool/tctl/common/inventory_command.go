@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
@@ -86,7 +86,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
-func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.inventoryStatus.FullCommand():

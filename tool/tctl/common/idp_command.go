@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // subcommandRunner is used to create pluggable subcommand under
@@ -47,7 +47,7 @@ import (
 // $ tctl idp oidc <command> [<args> ...]
 type subcommandRunner interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error)
 }
 
 // IdPCommand implements all commands under "tctl idp".
@@ -81,7 +81,7 @@ Examples:
 }
 
 // TryRun calls tryRun for each subcommand, and returns (false, nil) if none of them match.
-func (i *IdPCommand) TryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (i *IdPCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	for _, subcommandRunner := range i.subcommandRunners {
 		match, err = subcommandRunner.tryRun(ctx, cmd, clientFunc)
 		if err != nil {
@@ -123,7 +123,7 @@ Examples:
 	s.testAttributeMapping.cmd = testAttrMap
 }
 
-func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
 		client, clientClose, err := clientFunc(ctx)

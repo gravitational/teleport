@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	commonClient "github.com/gravitational/teleport/tool/tctl/common/client"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // implements common.CLICommand interface
@@ -52,7 +52,7 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Con
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonClient.InitFunc) (match bool, err error) {
+func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand == cmd.exportCmd.FullCommand() {
 		client, clientClose, err := clientFunc(ctx)
 		if err != nil {
