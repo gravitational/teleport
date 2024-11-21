@@ -21,10 +21,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
 import {
-  makeMfaAuthenticateChallenge,
+  makeMfaChallenge,
   makeWebauthnAssertionResponse,
-  SSOChallenge,
-} from 'teleport/services/auth';
+} from 'teleport/services/mfa/makeMfa';
+import { SSOChallenge } from 'teleport/services/mfa';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{
@@ -130,7 +130,7 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
     let ssoChallengeAbortController: AbortController | undefined;
     const challengeHandler = (challengeJson: string) => {
       const { webauthnPublicKey, ssoChallenge, totpChallenge } =
-        makeMfaAuthenticateChallenge(challengeJson);
+        makeMfaChallenge(challengeJson);
 
       setState(prevState => ({
         ...prevState,

@@ -17,17 +17,25 @@
  */
 
 import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64';
-
-import { MfaAuthenticateChallenge, MfaRegistrationChallenge } from './types';
+import {
+  MfaAuthenticateChallenge,
+  MfaRegistrationChallenge,
+  WebauthnAssertionResponse,
+  WebauthnAttestationResponse,
+} from './types';
 
 // makeMfaRegistrationChallenge formats fetched register challenge JSON.
-// Webauthn challange contains Base64URL(byte) fields that needs to
-// be converted to ArrayBuffer expected by navigator.credentials.create:
-// - challenge
-// - user.id
-// - excludeCredentials[i].id
-export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
-  const webauthnPublicKey = json.webauthn?.publicKey;
+export function makeMfaRegistrationChallenge(
+  json: string | MfaRegistrationChallenge
+): MfaRegistrationChallenge {
+  const challenge = typeof json === 'string' ? JSON.parse(json) : json;
+  const { webauthnPublicKey, qrCode } = challenge;
+
+  // WebAuthn challenge contains Base64URL(byte) fields that needs to
+  // be converted to ArrayBuffer expected by navigator.credentials.create:
+  // - challenge
+  // - user.id
+  // - excludeCredentials[i].id
   if (webauthnPublicKey) {
     const challenge = webauthnPublicKey.challenge || '';
     const id = webauthnPublicKey.user?.id || '';
@@ -44,20 +52,22 @@ export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
   }
 
   return {
-    qrCode: json.totp?.qrCode,
+    qrCode: qrCode,
     webauthnPublicKey,
   };
 }
 
-// makeMfaAuthenticateChallenge formats fetched authenticate challenge JSON.
-// Webauthn challenge contains Base64URL(byte) fields that needs to
-// be converted to ArrayBuffer expected by navigator.credentials.get:
-// - challenge
-// - allowCredentials[i].id
-export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
+// makeMfaChallenge formats fetched authenticate challenge JSON.
+export function makeMfaChallenge(
+  json: string | MfaAuthenticateChallenge
+): MfaAuthenticateChallenge {
   const challenge = typeof json === 'string' ? JSON.parse(json) : json;
   const { sso_challenge, webauthn_challenge, totp_challenge } = challenge;
 
+  // WebAuthn challenge contains Base64URL(byte) fields that needs to
+  // be converted to ArrayBuffer expected by navigator.credentials.get:
+  // - challenge
+  // - allowCredentials[i].id
   const webauthnPublicKey = webauthn_challenge?.publicKey;
   if (webauthnPublicKey) {
     const challenge = webauthnPublicKey.challenge || '';
@@ -79,89 +89,71 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   };
 }
 
-// makeWebauthnCreationResponse takes response from navigator.credentials.create
-// and creates a credential object expected by the server with ArrayBuffer
-// fields converted to Base64URL:
-// - rawId
-// - response.attestationObject
-// - response.clientDataJSON
-export function makeWebauthnCreationResponse(res) {
+// makeWebauthnCreationResponse takes a credential returned from navigator.credentials.create
+// and returns the credential attestation response.
+export function makeWebauthnCreationResponse(
+  cred: Credential
+): WebauthnAttestationResponse {
+  const publicKey = cred as PublicKeyCredential;
+
   // Response can be null if no Credential object can be created.
-  if (!res) {
+  if (!publicKey) {
     throw new Error('error creating credential, please try again');
   }
 
-  const clientExtentions = res.getClientExtensionResults();
+  const clientExtentions = publicKey.getClientExtensionResults();
+  const attestationResponse =
+    publicKey.response as AuthenticatorAttestationResponse;
+
   return {
-    id: res.id,
-    type: res.type,
+    id: cred.id,
+    type: cred.type,
     extensions: {
       appid: Boolean(clientExtentions?.appid),
       credProps: clientExtentions?.credProps,
     },
-    rawId: bufferToBase64url(res.rawId),
+    rawId: bufferToBase64url(publicKey.rawId),
     response: {
-      attestationObject: bufferToBase64url(res.response?.attestationObject),
-      clientDataJSON: bufferToBase64url(res.response?.clientDataJSON),
+      attestationObject: bufferToBase64url(
+        attestationResponse?.attestationObject
+      ),
+      clientDataJSON: bufferToBase64url(attestationResponse?.clientDataJSON),
     },
   };
 }
 
-// makeWebauthnAssertionResponse takes response from navigator.credentials.get
-// and creates a credential object expected by the server with ArrayBuffer
-// fields converted to Base64URL:
-// - rawId
-// - response.authenticatorData
-// - response.clientDataJSON
-// - response.signature
-// - response.userHandle
-export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
+// makeWebauthnAssertionResponse takes a credential returned from navigator.credentials.get
+// and returns the credential assertion response.
+export function makeWebauthnAssertionResponse(
+  cred: Credential
+): WebauthnAssertionResponse {
+  const publicKey = cred as PublicKeyCredential;
+
   // Response can be null if Credential cannot be unambiguously obtained.
-  if (!res) {
+  if (!publicKey) {
     throw new Error(
       'error obtaining credential from the hardware key, please try again'
     );
   }
 
-  const clientExtentions = res.getClientExtensionResults();
+  const clientExtentions = publicKey.getClientExtensionResults();
+  const assertionResponse =
+    publicKey.response as AuthenticatorAssertionResponse;
 
   return {
-    id: res.id,
-    type: res.type,
+    id: cred.id,
+    type: cred.type,
     extensions: {
       appid: Boolean(clientExtentions?.appid),
     },
-    rawId: bufferToBase64url(res.rawId),
+    rawId: bufferToBase64url(publicKey.rawId),
     response: {
-      authenticatorData: bufferToBase64url(res.response?.authenticatorData),
-      clientDataJSON: bufferToBase64url(res.response?.clientDataJSON),
-      signature: bufferToBase64url(res.response?.signature),
-      userHandle: bufferToBase64url(res.response?.userHandle),
+      authenticatorData: bufferToBase64url(
+        assertionResponse?.authenticatorData
+      ),
+      clientDataJSON: bufferToBase64url(assertionResponse?.clientDataJSON),
+      signature: bufferToBase64url(assertionResponse?.signature),
+      userHandle: bufferToBase64url(assertionResponse?.userHandle),
     },
   };
 }
-
-export type SsoChallengeResponse = {
-  requestId: string;
-  token: string;
-};
-
-export type WebauthnAssertionResponse = {
-  id: string;
-  type: string;
-  extensions: {
-    appid: boolean;
-  };
-  rawId: string;
-  response: {
-    authenticatorData: string;
-    clientDataJSON: string;
-    signature: string;
-    userHandle: string;
-  };
-};
-
-export type MfaChallengeResponse = {
-  webauthn_response?: WebauthnAssertionResponse;
-  sso_response?: SsoChallengeResponse;
-};
