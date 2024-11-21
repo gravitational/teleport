@@ -4,7 +4,9 @@ spec:
     proxy: localhost
     group: ""
     url_template: ""
-    enabled: true
+    enabled: false
+    pinned: false
 status:
     active_version: 16.3.0
     backup_version: old-version
+    skip_version: ""
