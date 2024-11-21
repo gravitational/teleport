@@ -126,6 +126,7 @@ func Run(args []string) error {
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
+	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
 
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer.").
 		Hidden()
@@ -151,6 +152,8 @@ func Run(args []string) error {
 		err = cmdUpdate(ctx, &ccfg)
 	case linkCmd.FullCommand():
 		err = cmdLink(ctx, &ccfg)
+	case unlinkCmd.FullCommand():
+		err = cmdUnlink(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
 	case versionCmd.FullCommand():
@@ -294,6 +297,39 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 	}()
 
 	if err := updater.LinkPackage(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// cmdUnlink remove system package links.
+func cmdUnlink(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		DataDir:   ccfg.DataDir,
+		LinkDir:   ccfg.LinkDir,
+		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+
+	// Error if the updater is running. We could remove its links by accident.
+	unlock, err := libutils.FSTryWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	if errors.Is(err, libutils.ErrUnsuccessfulLockTry) {
+		return trace.Errorf("updater is currently running")
+	}
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	if err := updater.UnlinkPackage(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
