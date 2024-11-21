@@ -64,6 +64,16 @@ func (*MsTeamsPluginSpec) PluginSpecType() types.PluginType {
 	return types.PluginTypeMSTeams
 }
 
+type EmailPluginSpec struct {
+	Sender            string `json:"sender,omitempty"`
+	FallbackRecipient string `json:"fallbackRecipient,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for EmailPluginSpec
+func (*EmailPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeEmail
+}
+
 // Plugin holds a UI-visible representation of a hosted plugin instance
 type Plugin struct {
 	// Name of the plugin
@@ -239,6 +249,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Incidents will be created at %q and notify %q recipient`, settings.Datadog.ApiEndpoint, settings.Datadog.FallbackRecipient)
 	case *types.PluginSpecV1_Msteams:
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the default recipient "%s"`, settings.Msteams.DefaultRecipient)
+	case *types.PluginSpecV1_Email:
+		return fmt.Sprintf(`Emails will be sent by %q to %q`, settings.Email.Sender, settings.Email.FallbackRecipient)
 	default:
 		return ""
 	}
@@ -284,6 +296,12 @@ func pluginSpec(p types.Plugin) PluginSpec {
 		return &DatadogPluginSpec{
 			ApiEndpoint:       settings.Datadog.ApiEndpoint,
 			FallbackRecipient: settings.Datadog.FallbackRecipient,
+		}
+
+	case *types.PluginSpecV1_Email:
+		return &EmailPluginSpec{
+			Sender:            settings.Email.Sender,
+			FallbackRecipient: settings.Email.FallbackRecipient,
 		}
 
 	default:

@@ -358,5 +358,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeMSTeams,
 		},
+		{
+			Type: types.PluginTypeEmail,
+		},
 	}, resp.PluginTypes)
 }

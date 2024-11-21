@@ -93,7 +93,8 @@ export const NotificationRoutingRulesDialog = forwardRef<
             r.kind === 'slack' ||
             r.kind === 'mattermost' ||
             r.kind === 'datadog' ||
-            r.kind === 'msteams'
+            r.kind === 'msteams' ||
+            r.kind === 'email'
         );
         setPlugins(filteredPlugins);
       })

@@ -25,6 +25,7 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'servicenow',
   'jira',
   'pagerduty',
+  'email',
   'discord',
   'mattermost',
   'entra-id',

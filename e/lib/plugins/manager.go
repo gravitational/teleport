@@ -77,6 +77,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeDatadog:           datadogInstanceFactory,
 			types.PluginTypeAWSIdentityCenter: withLeaderLock(awsIdentityCenterInstanceFactory),
 			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
+			types.PluginTypeEmail:             emailInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -99,6 +100,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeDatadog:           pluginInstallerFn(installDatadogPlugin),
 	types.PluginTypeAWSIdentityCenter: awsICPluginDescriptor{},
 	types.PluginTypeMSTeams:           pluginInstallerFn(installMSTeamsPlugin),
+	types.PluginTypeEmail:             pluginInstallerFn(installEmailPlugin),
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -749,6 +751,161 @@ func installMSTeamsPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		return nil, trace.Wrap(err)
 	}
 	return ui, nil
+}
+
+func installEmailPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	switch r.FormValue("service") {
+	case "mailgun":
+		return installMailgunPlugin(ctx, sessCtx, w, r, p)
+	case "smtp":
+		return installSMTPPlugin(ctx, sessCtx, w, r, p)
+	default:
+		return nil, trace.BadParameter("unknown email service type: %q", r.FormValue("service"))
+	}
+}
+
+func installMailgunPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	sender := r.FormValue("sender")
+	if sender == "" {
+		return nil, trace.BadParameter("missing Sender")
+	}
+	fallbackRecipient := r.FormValue("fallbackRecipient")
+	if fallbackRecipient == "" {
+		return nil, trace.BadParameter("missing Fallback Recipient")
+	}
+	domain := r.FormValue("domain")
+	if domain == "" {
+		return nil, trace.BadParameter("missing Mailgun Domain")
+	}
+	privateKey := r.FormValue("privateKey")
+	if privateKey == "" {
+		return nil, trace.BadParameter("missing Mailgun Private Key")
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeEmail,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Email{
+					Email: &types.PluginEmailSettings{
+						Sender:            sender,
+						FallbackRecipient: fallbackRecipient,
+						Spec: &types.PluginEmailSettings_MailgunSpec{
+							MailgunSpec: &types.MailgunSpec{
+								Domain: domain,
+							},
+						},
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"mailgun/domain": domain,
+						"mailgun/sender": sender,
+					},
+					Name: types.PluginTypeEmail,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: privateKey,
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	return ui, trace.Wrap(err)
+}
+
+func installSMTPPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	sender := r.FormValue("sender")
+	if sender == "" {
+		return nil, trace.BadParameter("missing Sender")
+	}
+	fallbackRecipient := r.FormValue("fallbackRecipient")
+	if fallbackRecipient == "" {
+		return nil, trace.BadParameter("missing Fallback Recipient")
+	}
+	host := r.FormValue("host")
+	if host == "" {
+		return nil, trace.BadParameter("missing SMTP Host")
+	}
+	port, err := strconv.Atoi(r.FormValue("port"))
+	if err != nil {
+		return nil, trace.BadParameter("SMTP port must be a valid port value")
+	}
+	startTLSPolicy := r.FormValue("startTLSPolicy")
+	if startTLSPolicy == "" {
+		return nil, trace.BadParameter("missing Start TLS Policy")
+	}
+	username := r.FormValue("username")
+	if username == "" {
+		return nil, trace.BadParameter("missing SMTP Username")
+	}
+	password := r.FormValue("password")
+	if password == "" {
+		return nil, trace.BadParameter("missing SMTP Password")
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeEmail,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Email{
+					Email: &types.PluginEmailSettings{
+						Sender:            sender,
+						FallbackRecipient: fallbackRecipient,
+						Spec: &types.PluginEmailSettings_SmtpSpec{
+							SmtpSpec: &types.SMTPSpec{
+								Host:           host,
+								Port:           int32(port),
+								StartTlsPolicy: startTLSPolicy,
+							},
+						},
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"smtp/host":   host,
+						"smtp/port":   strconv.Itoa(port),
+						"smtp/sender": sender,
+					},
+					Name: types.PluginTypeEmail,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+					BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+						Username: username,
+						Password: password,
+					},
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	return ui, trace.Wrap(err)
 }
 
 // slackDescriptor defines the custom behavior of the Slack plugin. Contains

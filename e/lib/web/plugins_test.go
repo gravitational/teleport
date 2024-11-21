@@ -133,6 +133,39 @@ func TestCreatePluginHandle(t *testing.T) {
 			},
 			expectedResp: `Incidents will be created at \"https://www.some-apiendpoint.com\" and notify \"root@example.com\" recipient`,
 		},
+		{
+			name:     "Email (mailgun) plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":              {"email"},
+				"service":           {"mailgun"},
+				"sender":            {"sender@example.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"domain":            {"sandbox.mailgun.org"},
+				"privateKey":        {"some-private-key"},
+				"csrf_token":        {webPack.csrfToken},
+			},
+			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
+			delete:       true,
+		},
+		{
+			name:     "Email (smtp) plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":              {"email"},
+				"service":           {"smtp"},
+				"sender":            {"sender@example.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"host":              {"smtp.example.com"},
+				"port":              {"587"},
+				"startTLSPolicy":    {"mandatory"},
+				"username":          {"user@example.com"},
+				"password":          {"example-password"},
+				"csrf_token":        {webPack.csrfToken},
+			},
+			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
+			delete:       true,
+		},
 	}
 
 	for _, tc := range testCases {

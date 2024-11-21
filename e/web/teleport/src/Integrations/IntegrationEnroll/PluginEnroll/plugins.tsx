@@ -32,6 +32,10 @@ import { RunScript } from './MultiStep/Entra/RunScript';
 
 import { AwsIdentityCenterPlugin } from './MultiStep/AwsIdentityCenter/Plugin';
 
+import { CreateEmail } from './MultiStep/Email/CreateEmail';
+import { EmailService } from './MultiStep/Email/EmailService';
+import { FormMixin as EmailFormMixin } from './MultiStep/Email/FormMixin';
+
 import type {
   SelfHostedPlugin,
   CloudHostablePlugin,
@@ -1099,8 +1103,54 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     name: 'Email',
     icon: 'email',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/',
-    cloudHostable: false,
+    fullName: 'Email Integration',
+    cloudHostable: true,
     selfHostable: true,
+    Description: () => (
+      <Text>
+        <P>
+          The Teleport integration with Email allows you to send Just-in-Time
+          Access Request notifications to users via email.
+        </P>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <ol>
+          <li>
+            Configure the desired sender email and default fallback recipient.
+          </li>
+          <li>
+            Currently supported services are <strong>Mailgun</strong> and
+            generic <strong>SMTP</strong>. Select the desired email service and
+            click next for further configuration.
+          </li>
+        </ol>
+      </Text>
+    ),
+    views: () => [
+      { title: 'Connect Email', component: CreateEmail },
+      { title: 'Set up Email Service', component: EmailService },
+      { title: 'Finished', component: PluginEnrollSuccess, hide: true },
+    ],
+    FormMixin: EmailFormMixin,
+    NextSteps: () => {
+      return (
+        <Text>
+          <P>
+            For help with configuring access request notification routing rules,
+            consult the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/notification-routing-rules"
+            >
+              Notification Routing Rules
+            </Link>{' '}
+            section of Teleport's documentation.
+          </P>
+        </Text>
+      );
+    },
   },
   {
     type: 'discord',

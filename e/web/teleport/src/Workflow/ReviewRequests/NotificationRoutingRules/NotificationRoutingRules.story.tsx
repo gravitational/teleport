@@ -79,6 +79,18 @@ const validRuleObjectMsteams = {
   },
 };
 
+const validRuleObjectEmail = {
+  metadata: { name: 'sample-email' },
+  spec: {
+    subjects: ['access_request'],
+    condition: 'contains_any(access_request.spec.roles, set("access"))',
+    notification: {
+      name: 'email-plugin',
+      recipients: ['user@example.com'],
+    },
+  },
+};
+
 const invalidRuleObject = {
   metadata: { name: 'invalid-fields-default-to-yaml-editor' },
   spec: {
@@ -163,6 +175,13 @@ const withPlugins = http.get(cfg.getPluginUrl(), () =>
         defaultRecipient: 'some-fallback-recipient',
       },
     },
+    {
+      name: 'email-plugin',
+      details: '',
+      statusCode: '',
+      type: 'email',
+      spec: { fallbackRecipient: 'foo@example.com' },
+    },
   ])
 );
 
@@ -191,6 +210,12 @@ const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
       {
         object: {
           ...validRuleObjectDatadog,
+        },
+        yaml: ``,
+      },
+      {
+        object: {
+          ...validRuleObjectEmail,
         },
         yaml: ``,
       },

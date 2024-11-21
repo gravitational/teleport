@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -48,6 +49,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeDatadog,
 		types.PluginTypeAWSIdentityCenter,
 		types.PluginTypeMSTeams,
+		types.PluginTypeEmail,
 	}
 }
 
@@ -147,6 +149,9 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	}
 
 	if err := validateEntraTenantID(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := validateEmailPlugin(plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -290,6 +295,9 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	}
 
 	if err := validateEntraTenantID(inPlugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := validateEmailPlugin(inPlugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -862,4 +870,21 @@ func validateEntraTenantID(plugin *types.PluginV1) error {
 	}
 
 	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
+}
+
+func validateEmailPlugin(plugin *types.PluginV1) error {
+	if plugin.Spec.GetEmail() == nil {
+		return nil
+	}
+	if plugin.Spec.GetEmail().GetSmtpSpec() == nil {
+		return nil
+	}
+
+	// The Email plugin with generic SMTP is unsupported with Cloud-Hosted
+	// Teleport. This is to prevent the plugin being abused to probe SMTP
+	// servers or send spam.
+	if cloud.IsCloudEnv() {
+		return trace.Errorf("email plugin with smtp is unsupported on Cloud-Hosted Teleport")
+	}
+	return nil
 }
