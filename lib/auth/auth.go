@@ -38,7 +38,7 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	insecurerand "math/rand"
+	mathrand "math/rand/v2"
 	"net"
 	"os"
 	"regexp"
@@ -1337,8 +1337,7 @@ func (a *Server) runPeriodicOperations() {
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
+	period := retryutils.HalfJitter(2 * defaults.HighResPollingPeriod)
 
 	ticker := interval.NewMulti(
 		a.GetClock(),
@@ -1433,7 +1432,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(a.closeCtx, r)
+				a.refreshRemoteClusters(a.closeCtx)
 			}
 		}
 	}()
@@ -1862,7 +1861,7 @@ var (
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
-func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
@@ -1876,7 +1875,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
 		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
 	})
 
@@ -4828,7 +4827,7 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	id := insecurerand.Uint64()
+	id := mathrand.Uint64()
 
 	if !req.ControlLog {
 		// this ping doesn't pass through the control log, so just execute it immediately.
