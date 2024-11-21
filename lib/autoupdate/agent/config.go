@@ -160,7 +160,7 @@ type FindResp struct {
 	// Flags describing the edition of Teleport
 	Flags InstallFlags `yaml:"flags"`
 	// InWindow is true when the install should happen now.
-	InWindow bool `yaml:"active"`
+	InWindow bool `yaml:"in_window"`
 	// Jitter duration before an automated install
 	Jitter time.Duration `yaml:"jitter"`
 }
