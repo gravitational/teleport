@@ -152,6 +152,30 @@ Insecure paths are also visible in a user's access paths. To view them, click on
 from the context menu. This will show the Teleport permissions granted to the user, the resources they can access,
 and any detected insecure paths.
 
+**Access Graph: Dedicated `ssh_keys` SQL View**  
+
+Starting in version **v1.25.0**, Access Graph introduces a dedicated `ssh_keys` SQL view for managing SSH access paths. 
+This view excludes access paths granted through Teleport and focuses on:  
+- Displaying identified access paths between identities and SSH nodes.  
+- Listing existing SSH Authorized Keys configured for nodes, even if `tsh scan keys` fails to detect matching SSH private keys.  
+
+Below are a few example queries demonstrating how the `ssh_keys` view can be useful for identifying potential backdoors.
+
+- List all SSH access paths for Teleport SSH nodes and users:  
+   ```sql
+   SELECT * FROM ssh_keys;
+   ```  
+
+- View insecure access paths and SSH Authorized Keys for a specific node:
+   ```sql
+   SELECT * FROM ssh_keys WHERE resource='<Var name="resource name" />';
+   ```  
+
+- View insecure access paths and SSH Authorized Keys for a subset of nodes using labels:
+   ```sql
+   SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
+   ```  
+
 
 ## Jamf Pro Integration
 
