@@ -1818,6 +1818,80 @@ func TestS_GetUserTrustedDeviceIDs(t *testing.T) {
 	}
 }
 
+func TestS_ListDevicesByUser(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+	const user = "llama"
+	const otherUser = "otherUser"
+
+	var userDevices []*devicepb.Device
+	for i, assetTag := range []string{"phone", "laptop", "tablet"} {
+		dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: fmt.Sprintf("%s-%d", user, i),
+		}, user)
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
+		}
+		userDevices = append(userDevices, dev)
+	}
+
+	// Add devices owned by other users to ensure they are not returned.
+	for i, assetTag := range []string{"otheruser-device1", "otheruser-device2"} {
+		_, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: fmt.Sprintf("%s-%d", otherUser, i),
+		}, otherUser)
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
+		}
+	}
+
+	slices.SortFunc(userDevices, func(a, b *devicepb.Device) int {
+		return strings.Compare(a.Id, b.Id)
+	})
+
+	t.Run("iterate until no nextPageToken", func(t *testing.T) {
+		const defaultPageSize = 10
+
+		nextPageToken := ""
+		var gotDevices []*devicepb.Device
+
+		for {
+			devs, gotNextToken, err := s.ListDevicesByUser(ctx, defaultPageSize, nextPageToken, user)
+			if err != nil {
+				t.Fatalf("ListDevicesByUser failed: %v", err)
+			}
+
+			gotDevices = append(gotDevices, devs...)
+
+			nextPageToken = gotNextToken
+
+			if nextPageToken == "" {
+				break
+			}
+		}
+
+		// make sure collected data exists, but don't check specifics
+		for i, dev := range gotDevices {
+			if dev.CollectedData == nil {
+				t.Errorf("ListDevicesByUser device response missing collected data\nindex: %d\ndevice: %v", i, dev)
+			}
+			dev.CollectedData = nil
+		}
+
+		diff := cmp.Diff(userDevices, gotDevices, protocmp.Transform())
+		if diff != "" {
+			t.Errorf("ListDevicesByUser mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
 func TestS_ListDevices(t *testing.T) {
 	t.Parallel()
 

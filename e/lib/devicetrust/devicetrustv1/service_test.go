@@ -1398,6 +1398,45 @@ func TestService_DeleteDevice(t *testing.T) {
 	}
 }
 
+func TestService_ListDevicesByUser(t *testing.T) {
+	const tag = "llama-mac"
+
+	env := testenv.NewUsingT(t)
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// create some device and don't enroll
+	_, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "cool-laptop",
+		},
+	})
+	require.NoError(t, err)
+
+	var wantDevs []*devicepb.Device
+	// create another device and enroll
+	dev, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: tag,
+	})
+	require.NoError(t, err)
+	wantDevs = append(wantDevs, dev)
+
+	resp, err := devices.ListDevicesByUser(ctx, &devicepb.ListDevicesByUserRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Devices)
+
+	// make sure collected data exists, but don't check specifics
+	for i, dev := range resp.Devices {
+		require.NotNil(t, dev.CollectedData, "resp.Devices[%d].CollectedData is nil", i)
+		dev.CollectedData = nil
+	}
+
+	require.Equal(t, wantDevs, resp.Devices)
+}
+
 func TestService_ListDevices(t *testing.T) {
 	env := testenv.NewUsingT(t)
 

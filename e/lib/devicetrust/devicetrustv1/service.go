@@ -548,6 +548,23 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 	}, nil
 }
 
+func (s *Service) ListDevicesByUser(ctx context.Context, req *devicepb.ListDevicesByUserRequest) (*devicepb.ListDevicesByUserResponse, error) {
+	authCtx, err := s.authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	devs, nextToken, err := s.storage.ListDevicesByUser(ctx, int(req.PageSize), req.PageToken, authCtx.User.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.ListDevicesByUserResponse{
+		Devices:       devs,
+		NextPageToken: nextToken,
+	}, nil
+}
+
 func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
 	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate)
 	if err != nil {

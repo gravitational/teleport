@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1092,6 +1093,83 @@ func (s *S) GetUserTrustedDeviceIDs(ctx context.Context, user string) ([]string,
 		deviceIDs[i] = ref.DeviceID
 	}
 	return deviceIDs, nil
+}
+
+// ListDevicesByUser is a paginated search of devices for the user. It returns the found devices
+// and the page token for the next call.
+//
+// Use an empty pageToken to start the search and the returned nextPageToken for
+// subsequent calls. An empty nextPageToken signifies the end of the search.
+// Callers are not expected to change other parameters in the same
+// series of invocations.
+//
+// The requested pageSize is not guaranteed, as the server may change it at its
+// discretion.
+func (s *S) ListDevicesByUser(ctx context.Context, pageSize int, pageToken string, user string) (devices []*devicepb.Device, nextPageToken string, err error) {
+	// maxPageSize is the max size a page can be when fetching devices.
+	const maxPageSize = 200
+
+	devIDs, err := s.GetUserTrustedDeviceIDs(ctx, user)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// sort the slice so we can binary search for the nextPageToken
+	slices.Sort(devIDs)
+	startIndex, _ := slices.BinarySearch(devIDs, pageToken)
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+
+	const maxActiveGoroutines = 2
+	var g errgroup.Group
+	g.SetLimit(maxActiveGoroutines)
+
+	// Calculate the end index for slicing
+	endIndex := startIndex + pageSize
+	if l := len(devIDs); endIndex >= l {
+		endIndex = len(devIDs)
+	} else {
+		// Get nextPageToken before slicing.
+		nextPageToken = devIDs[endIndex]
+	}
+
+	devIDs = devIDs[startIndex:endIndex]
+
+	var mu sync.Mutex // guards devices
+	for _, id := range devIDs {
+		g.Go(func() error {
+			dev, err := s.GetDeviceByID(ctx, id)
+			if err != nil {
+				s.logger.ErrorContext(ctx,
+					"Failed to get device",
+					"id", id,
+					"error", err,
+				)
+				return nil
+			}
+			if dev.Owner != user {
+				return nil
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			devices = append(devices, dev)
+			return nil
+		})
+
+	}
+
+	// Wait() should never error, as the goroutines don't themselves.
+	_ = g.Wait()
+
+	slices.SortFunc(devices, func(a, b *devicepb.Device) int {
+		return strings.Compare(a.Id, b.Id)
+	})
+
+	return devices, nextPageToken, nil
 }
 
 // ListDevices is a paginated search of devices. It returns the found devices

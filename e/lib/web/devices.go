@@ -50,6 +50,42 @@ func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, param
 	}, nil
 }
 
+func (p *Plugin) listDevicesByUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	// most defaults in the web UI are 30 for tables
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query := r.URL.Query()
+	// limit value is expected to be non empty and convertible to int.
+	limit := query.Get("limit")
+
+	var pageSize int32 // Use server default if not provided.
+	if limit != "" {
+		parsedLimit, err := strconv.ParseInt(limit, 10, 32)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse limit: %v", query.Get("limit"))
+		}
+		pageSize = int32(parsedLimit)
+	}
+
+	listReq := &devicepb.ListDevicesByUserRequest{
+		PageSize:  pageSize,
+		PageToken: query.Get("startKey"),
+	}
+
+	resp, err := clt.DevicesClient().ListDevicesByUser(r.Context(), listReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListDevicesResponse{
+		Items:    toUIDevices(resp.Devices),
+		StartKey: resp.NextPageToken,
+	}, nil
+}
+
 // valuesToProtoListDevicesRequest builds devicepb.ListDevicesRequest from http request url.Values
 func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesRequest, error) {
 	// limit value is expected to be non empty and convertible to int.
@@ -70,13 +106,15 @@ func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesReq
 func toUIDevices(devices []*devicepb.Device) []ui.Device {
 	uiDevices := make([]ui.Device, 0, len(devices))
 	for _, v := range devices {
-		uiDevices = append(uiDevices, ui.Device{
-			ID:           v.Id,
-			AssetTag:     v.AssetTag,
-			OSType:       devicetrust.FriendlyOSType(v.OsType),
-			EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
-			Owner:        v.Owner,
-		})
+		uiDevices = append(uiDevices,
+			ui.Device{
+				ID:           v.Id,
+				AssetTag:     v.AssetTag,
+				OSType:       devicetrust.FriendlyOSType(v.OsType),
+				EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
+				Owner:        v.Owner,
+			},
+		)
 	}
 
 	return uiDevices
