@@ -422,6 +422,12 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	}
 }
 
+func (s *Server) LoggingConfig() srv.LoggingConfig {
+	return srv.LoggingConfig{
+		LoggerLevel: &slog.LevelVar{},
+	}
+}
+
 // Context returns parent context, used to signal
 // that parent server has been closed
 func (s *Server) Context() context.Context {

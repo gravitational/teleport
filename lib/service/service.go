@@ -3395,6 +3395,12 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
 			regular.SetSELinuxEnabled(cfg.SSH.EnableSELinux),
+			regular.SetLoggingConfig(srv.LoggingConfig{
+				LoggerLevel: cfg.LoggerLevel,
+				LogOutput:   cfg.LogOutput,
+				LogFormat:   cfg.LogFormat,
+				LogFields:   cfg.LogFields,
+			}),
 		)
 		if err != nil {
 			return trace.Wrap(err)

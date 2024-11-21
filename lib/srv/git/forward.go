@@ -721,6 +721,12 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
 }
 
+func (s *ForwardServer) LoggingConfig() srv.LoggingConfig {
+	return srv.LoggingConfig{
+		LoggerLevel: &slog.LevelVar{},
+	}
+}
+
 type serverContextKey struct{}
 
 const (

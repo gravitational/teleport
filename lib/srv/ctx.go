@@ -192,6 +192,15 @@ type Server interface {
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
+
+	LoggingConfig() LoggingConfig
+}
+
+type LoggingConfig struct {
+	LoggerLevel slog.Leveler
+	LogOutput   string
+	LogFormat   string
+	LogFields   []string
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -1088,6 +1097,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		return nil, trace.BadParameter("ExecCommand requires permit for one of ssh access or proxying to be set (this is a bug)")
 	}
 
+	loggingConfig := c.srv.LoggingConfig()
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
 		Command:               command,
@@ -1106,6 +1117,9 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
+		LogFormat:             loggingConfig.LogFormat,
+		LogLevel:              int(loggingConfig.LoggerLevel.Level()),
+		LogFields:             loggingConfig.LogFields,
 	}, nil
 }
 

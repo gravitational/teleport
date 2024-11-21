@@ -111,6 +111,8 @@ type Server struct {
 	proxyPublicAddr utils.NetAddr
 	publicAddrs     []utils.NetAddr
 
+	loggingConfig srv.LoggingConfig
+
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
 	uuid string
@@ -263,6 +265,10 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerLabels:    s.getAllLabels(),
 		ServerHostname:  s.hostname,
 	}
+}
+
+func (s *Server) LoggingConfig() srv.LoggingConfig {
+	return s.loggingConfig
 }
 
 // GetClock returns server clock implementation
@@ -752,6 +758,13 @@ func SetSELinuxEnabled(enabled bool) ServerOption {
 func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	return func(s *Server) error {
 		s.publicAddrs = addrs
+		return nil
+	}
+}
+
+func SetLoggingConfig(config srv.LoggingConfig) ServerOption {
+	return func(s *Server) error {
+		s.loggingConfig = config
 		return nil
 	}
 }

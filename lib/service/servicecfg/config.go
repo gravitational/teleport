@@ -229,6 +229,10 @@ type Config struct {
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
+	LogOutput string
+	LogFormat string
+	LogFields []string
+
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
 

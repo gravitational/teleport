@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -68,6 +69,8 @@ const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
 	CommandFile FileFD = 3 + iota
+	// LoggingFile is used to emit logs from the child process.
+	LoggingFile
 	// ContinueFile is used to communicate to the child process that
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
@@ -166,6 +169,12 @@ type ExecCommand struct {
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
+
+	LogFormat string `json:"log_format"`
+
+	LogLevel int `json:"log_level"`
+
+	LogFields []string `json:"log_fields"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -252,6 +261,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
 		return io.Discard, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+
+	initializeLogging(c, "exec")
 
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
@@ -595,6 +606,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	initializeLogging(c, "networking")
+
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
 	// networking requests.
@@ -934,6 +947,38 @@ func runPark() (errw io.Writer, code int, err error) {
 	}
 }
 
+func initializeLogging(cmd ExecCommand, command string) {
+	loggingWriter := os.NewFile(LoggingFile, fdName(LoggingFile))
+	if loggingWriter == nil {
+		return
+	}
+
+	configuredFields, err := logutils.ValidateFields(cmd.LogFields)
+	if err != nil {
+		return
+	}
+
+	switch strings.ToLower(cmd.LogFormat) {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		slog.SetDefault(slog.New(logutils.NewSlogTextHandler(loggingWriter, logutils.SlogTextHandlerConfig{
+			Level:            slog.Level(cmd.LogLevel),
+			EnableColors:     false,
+			ConfiguredFields: configuredFields,
+		})).With(teleport.ComponentKey, "child", "command", command))
+	case "json":
+		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(loggingWriter, logutils.SlogJSONHandlerConfig{
+			Level:            slog.Level(cmd.LogLevel),
+			ConfiguredFields: configuredFields,
+		})).With(teleport.ComponentKey, "child", "command", command))
+	default:
+		return
+	}
+
+	return
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -1243,6 +1288,14 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	env := &envutils.SafeEnv{}
 	env.AddExecEnvironment()
 
+	var loggingFile *os.File
+	switch ctx.GetServer().LoggingConfig().LogOutput {
+	case "", "stderr", "error", "2":
+		loggingFile = os.Stderr
+	case "stdout", "out", "1":
+		loggingFile = os.Stdout
+	}
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
@@ -1251,6 +1304,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
+			loggingFile,
 			ctx.contr,
 			ctx.readyw,
 			ctx.killShellr,
