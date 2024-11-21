@@ -5,6 +5,8 @@ spec:
     group: ""
     url_template: https://example.com
     enabled: true
+    pinned: false
 status:
     active_version: 16.3.0
     backup_version: backup-version
+    skip_version: ""
