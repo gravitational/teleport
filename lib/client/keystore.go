@@ -20,6 +20,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -110,6 +111,12 @@ func (fs *FSKeyStore) userKeyPath(idx KeyIndex) string {
 // tlsCertPath returns the TLS certificate path given KeyIndex.
 func (fs *FSKeyStore) tlsCertPath(idx KeyIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCertPathFuture returns the future TLS certificate path used in Teleport v17 and
+// newer given KeyIndex.
+func (fs *FSKeyStore) tlsCertPathFuture(idx KeyIndex) string {
+	return keypaths.TLSCertPathFuture(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // sshDir returns the SSH certificate path for the given KeyIndex.
@@ -306,6 +313,33 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	return nil
 }
 
+// FutureCertPathError will be returned when [(*FSKeyStore).GetKeyRing] does not
+// find a user TLS certificate at the expected path used in v16- but does find
+// one at the future path used in Teleport v17+.
+type FutureCertPathError struct {
+	wrappedError            error
+	expectedPath, foundPath string
+}
+
+func newFutureCertPathError(wrappedError error, expectedPath, foundPath string) *FutureCertPathError {
+	return &FutureCertPathError{
+		wrappedError: wrappedError,
+		expectedPath: expectedPath,
+		foundPath:    foundPath,
+	}
+}
+
+// Error implements the error interface.
+func (e *FutureCertPathError) Error() string {
+	return fmt.Sprintf(
+		"user TLS certificate was found at unsupported v17+ path (expected path: %s, found path: %s)",
+		e.expectedPath, e.foundPath)
+}
+
+func (e *FutureCertPathError) Unwrap() error {
+	return e.wrappedError
+}
+
 // GetKey returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
 func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
@@ -322,6 +356,12 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			if _, statErr := os.Stat(fs.tlsCertPathFuture(idx)); statErr == nil {
+				return nil, newFutureCertPathError(err, fs.tlsCertPath(idx), fs.tlsCertPathFuture(idx))
+			}
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 
