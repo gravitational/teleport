@@ -132,7 +132,7 @@ func Run(args []string) error {
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
-	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it be updated.")
+	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
