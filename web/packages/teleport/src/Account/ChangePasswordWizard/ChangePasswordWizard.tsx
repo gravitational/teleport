@@ -172,13 +172,16 @@ export function ReauthenticateStep({
   const [reauthenticateAttempt, reauthenticate] = useAsync(
     async (m: ReauthenticationMethod) => {
       if (m === 'passwordless' || m === 'mfaDevice') {
-        const res = await auth.getChallenge({
+        const challenge = await auth.getMfaChallenge({
           scope: MfaChallengeScope.CHANGE_PASSWORD,
           userVerificationRequirement:
             m === 'passwordless' ? 'required' : 'discouraged',
         });
-        const challengeResponse = await auth.getWebAuthnChallengeResponse(res);
-        onAuthenticated(challengeResponse.webauthn_response);
+
+        const response = await auth.getMfaChallengeResponse(challenge);
+
+        // TODO(Joerger): handle non-webauthn response.
+        onAuthenticated(response.webauthn_response);
       }
       next();
     }

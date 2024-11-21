@@ -26,14 +26,15 @@ import {
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import makePasswordToken from './makePasswordToken';
-import { makeChangedUserAuthn } from './make';
 import {
   makeMfaAuthenticateChallenge,
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from '../mfa/makeMfa';
+
+import makePasswordToken from './makePasswordToken';
+import { makeChangedUserAuthn } from './make';
 import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
@@ -239,8 +240,8 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .getChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(auth.getWebAuthnChallengeResponse)
+      .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .then(auth.getMfaChallengeResponse)
       .then(res => {
         const request = {
           action: 'accept',
@@ -263,7 +264,9 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async getChallenge(
+  // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
+  // is provided and it is found that MFA is not required, returns null instead.
+  async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
   ) {
@@ -279,6 +282,17 @@ const auth = {
         abortSignal
       )
       .then(makeMfaAuthenticateChallenge);
+  },
+
+  // getChallengeResponse gets an MFA challenge response for the provided parameters.
+  // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
+  async getMfaChallengeResponse(
+    challenge: MfaAuthenticateChallenge,
+    abortSignal?: AbortSignal
+  ) {
+    // TODO(Joerger): Handle SSO MFA. We need to provide some global context which we
+    // can use to display the MFA component currently found in useMFA.
+    return auth.getWebAuthnChallengeResponse(challenge);
   },
 
   async getWebAuthnChallengeResponse(
@@ -302,10 +316,11 @@ const auth = {
   createPrivilegeTokenWithWebauthn() {
     // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     return auth
-      .getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getWebAuthnChallengeResponse)
+      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(auth.getMfaChallengeResponse)
       .then(res =>
         api.post(cfg.api.createPrivilegeTokenPath, {
+          // TODO(Joerger): Handle non-webauthn challenges.
           webauthnAssertionResponse: makeWebauthnAssertionResponse(
             res.webauthn_response
           ),
@@ -317,7 +332,7 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  // TODO(Joerger): Get rid of one-shot webauthn flow in favor of two-shot mfa flow.
+  // TODO(Joerger): Remove once /e is no longer using it.
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
@@ -352,25 +367,32 @@ const auth = {
     }
 
     return auth
-      .getChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(auth.getWebAuthnChallengeResponse)
+      .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
+      .then(challenge => auth.getMfaChallengeResponse(challenge, abortSignal))
       .then(res => makeWebauthnAssertionResponse(res.webauthn_response));
   },
 
-  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
     // If the client is checking if MFA is required for an admin action,
     // but we know admin action MFA is not enforced, return early.
     if (!cfg.isAdminActionMfaEnforced()) {
       return;
     }
 
-    return auth.getWebauthnResponse(
-      MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
-      {
-        admin_action: {},
-      }
-    );
+    return auth
+      .getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse: allowReuse,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      })
+      .then(auth.getMfaChallengeResponse);
+  },
+
+  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
+  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
   },
 };
 

@@ -22,9 +22,10 @@ import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
+import { MfaChallengeResponse } from 'teleport/services/mfa';
+
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
-import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 const logger = Logger.create('Tty');
 

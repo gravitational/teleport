@@ -17,6 +17,7 @@
  */
 
 import { AuthProviderType } from 'shared/services';
+
 import { Base64urlString, DeviceUsage } from '../auth/types';
 import { CreateNewHardwareDeviceRequest } from '../auth/types';
 

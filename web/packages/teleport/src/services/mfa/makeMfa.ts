@@ -17,6 +17,7 @@
  */
 
 import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64';
+
 import {
   MfaAuthenticateChallenge,
   MfaRegistrationChallenge,
@@ -60,6 +61,9 @@ export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
 export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   const challenge = typeof json === 'string' ? JSON.parse(json) : json;
   const { sso_challenge, webauthn_challenge, totp_challenge } = challenge;
+  if (!sso_challenge && !webauthn_challenge && !totp_challenge) {
+    return null;
+  }
 
   const webauthnPublicKey = webauthn_challenge?.publicKey;
   if (webauthnPublicKey) {

@@ -21,7 +21,7 @@ import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
 import { storageService } from '../storageService';
-import { WebauthnAssertionResponse } from '../mfa';
+import { MfaChallengeResponse, WebauthnAssertionResponse } from '../mfa';
 
 import parseError, { ApiError } from './parseError';
 
@@ -32,7 +32,7 @@ const api = {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
-  post(url, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+  post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
@@ -40,11 +40,11 @@ const api = {
         method: 'POST',
         signal: abortSignal,
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
-  postFormData(url, formData, webauthnResponse?: WebauthnAssertionResponse) {
+  postFormData(url, formData, mfaResponse?: MfaChallengeResponse) {
     if (formData instanceof FormData) {
       return api.fetchJsonWithMfaAuthnRetry(
         url,
@@ -60,21 +60,21 @@ const api = {
             // 2) https://stackoverflow.com/a/64653976
           },
         },
-        webauthnResponse
+        mfaResponse
       );
     }
 
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?, webauthnResponse?: WebauthnAssertionResponse) {
+  delete(url, data?, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'DELETE',
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
@@ -82,7 +82,7 @@ const api = {
     url,
     headers?: Record<string, string>,
     signal?,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
@@ -91,19 +91,19 @@ const api = {
         headers,
         signal,
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
   // TODO (avatus) add abort signal to this
-  put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
+  put(url, data, mfaResponse?: MfaChallengeResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
@@ -111,7 +111,7 @@ const api = {
     url,
     data,
     headers?: Record<string, string>,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
@@ -120,7 +120,7 @@ const api = {
         method: 'PUT',
         headers,
       },
-      webauthnResponse
+      mfaResponse
     );
   },
 
@@ -140,9 +140,9 @@ const api = {
   async fetchJsonWithMfaAuthnRetry(
     url: string,
     customOptions: RequestInit,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
-    const response = await api.fetch(url, customOptions, webauthnResponse);
+    const response = await api.fetch(url, customOptions, mfaResponse);
 
     let json;
     try {
@@ -174,26 +174,27 @@ const api = {
     const isAdminActionMfaError = isAdminActionRequiresMfaError(
       parseError(json)
     );
-    const shouldRetry = isAdminActionMfaError && !webauthnResponse;
+    const shouldRetry = isAdminActionMfaError && !mfaResponse;
     if (!shouldRetry) {
       throw new ApiError(parseError(json), response, undefined, json.messages);
     }
 
-    let webauthnResponseForRetry;
+    let mfaResponseForRetry;
     try {
-      webauthnResponseForRetry = await auth.getWebauthnResponse(
-        MfaChallengeScope.ADMIN_ACTION
-      );
+      const challenge = await auth.getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+      });
+      mfaResponseForRetry = await auth.getMfaChallengeResponse(challenge);
     } catch {
       throw new Error(
-        'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
       );
     }
 
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       customOptions,
-      webauthnResponseForRetry
+      mfaResponseForRetry
     );
   },
 
@@ -242,7 +243,7 @@ const api = {
   fetch(
     url: string,
     customOptions: RequestInit = {},
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     url = window.location.origin + url;
     const options = {
@@ -255,9 +256,10 @@ const api = {
       ...getAuthHeaders(),
     };
 
-    if (webauthnResponse) {
+    if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({
-        webauthnAssertionResponse: webauthnResponse,
+        // TODO(Joerger): Handle non-webauthn response.
+        webauthnAssertionResponse: mfaResponse.webauthn_response,
       });
     }
 
