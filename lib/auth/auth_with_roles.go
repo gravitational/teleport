@@ -1352,12 +1352,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		checkKind := kind
+		// IdentityCenter resources are bundled under the umbrella KindIdentityCenter
+		// so we need to check that as well as the actual concrete kind
 		if kind == types.KindIdentityCenterAccount {
-			checkKind = types.KindIdentityCenter
+			err := a.action(apidefaults.Namespace, types.KindIdentityCenter, actionVerbs...)
+			if err != nil {
+				resourceAccess.kindAccessMap[kind] = err
+				continue
+			}
 		}
 
-		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, checkKind, actionVerbs...)
+		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list

@@ -5690,7 +5690,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+
+	require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
 	require.Nil(t, resp)
 
 	// Validate that an error is returned when a subset of kinds are requested.
