@@ -445,14 +445,16 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	serviceDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", req.Region, aws.ToString(req.ClusterName), aws.ToString(req.ServiceName))
-
 	return &DeployServiceResponse{
 		ClusterARN:          aws.ToString(cluster.ClusterArn),
 		ServiceARN:          aws.ToString(service.ServiceArn),
 		TaskDefinitionARN:   taskDefinitionARN,
-		ServiceDashboardURL: serviceDashboardURL,
+		ServiceDashboardURL: serviceDashboardURL(req.Region, aws.ToString(req.ClusterName), aws.ToString(req.ServiceName)),
 	}, nil
+}
+
+func serviceDashboardURL(region, clusterName, serviceName string) string {
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", region, clusterName, serviceName)
 }
 
 type upsertTaskRequest struct {
