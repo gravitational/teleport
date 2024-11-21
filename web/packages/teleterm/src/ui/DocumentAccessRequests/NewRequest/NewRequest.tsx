@@ -85,7 +85,7 @@ export function NewRequest() {
         />
       </Box>
       <Info mb={0}>
-        To request access to a resource, go to the{' '}
+        To request access to a resource, go to{' '}
         {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
         <Link
           css={`
@@ -94,7 +94,7 @@ export function NewRequest() {
           `}
           onClick={openClusterDocument}
         >
-          resources view
+          the resources view
         </Link>{' '}
         {doesUnifiedResourcesShowBothAccessibleAndRequestableResources
           ? 'or find it in the search bar.'
