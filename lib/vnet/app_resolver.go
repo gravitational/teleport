@@ -284,7 +284,6 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 type tcpAppHandler struct {
 	profileName     string
 	leafClusterName string
-	app             types.Application
 	lp              *alpnproxy.LocalProxy
 }
 
@@ -334,7 +333,6 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	return &tcpAppHandler{
 		profileName:     profileName,
 		leafClusterName: leafClusterName,
-		app:             app,
 		lp:              lp,
 	}, nil
 }
