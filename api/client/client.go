@@ -5190,3 +5190,19 @@ func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceCl
 func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
 	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }
+
+func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*machineidv1pb.WorkloadIdentity, error) {
+	return nil, nil
+}
+
+func (c *Client) CreateWorkloadIdentity(ctx context.Context, in *machineidv1pb.WorkloadIdentity) (*machineidv1pb.WorkloadIdentity, error) {
+	return nil, nil
+}
+
+func (c *Client) UpsertWorkloadIdentity(ctx context.Context, in *machineidv1pb.WorkloadIdentity) (*machineidv1pb.WorkloadIdentity, error) {
+	return nil, nil
+}
+
+func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error {
+	return nil
+}

@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
-import "google/protobuf/struct.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
