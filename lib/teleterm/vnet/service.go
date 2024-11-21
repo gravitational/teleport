@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -375,16 +376,16 @@ func (p *appProvider) getCachedClient(ctx context.Context, profileName, leafClus
 	return client, trace.Wrap(err)
 }
 
-func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
-	appURI := clusterURI.AppendApp(app.GetName())
+	appURI := clusterURI.AppendApp(routeToApp.Name)
 
 	reloginReq := &apiteleterm.ReloginRequest{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
 			VnetCertExpired: &apiteleterm.VnetCertExpired{
 				TargetUri:  appURI.String(),
-				PublicAddr: app.GetPublicAddr(),
+				PublicAddr: routeToApp.GetPublicAddr(),
 			},
 		},
 	}
@@ -402,7 +403,7 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 			return trace.Wrap(err)
 		}
 
-		cert, err = cluster.ReissueAppCert(ctx, client, app)
+		cert, err = cluster.ReissueAppCert(ctx, client, routeToApp)
 		return trace.Wrap(err)
 	}
 
@@ -411,7 +412,7 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 					TargetUri:  appURI.String(),
-					PublicAddr: app.GetPublicAddr(),
+					PublicAddr: routeToApp.PublicAddr,
 					Error:      err.Error(),
 				},
 			},
