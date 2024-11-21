@@ -1,6 +1,6 @@
-import React, { useEffect, PropsWithChildren, useState } from 'react';
-import { useHistory, Link } from 'react-router-dom';
-import { Indicator, Box, Alert, Flex, ButtonIcon, Text, Label } from 'design';
+import React, { PropsWithChildren, useEffect, useState } from 'react';
+import { Link, useHistory } from 'react-router-dom';
+import { Alert, Box, ButtonIcon, Flex, Indicator, Label, Text } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useParams } from 'react-router';
 import { ArrowLeft } from 'design/Icon';
@@ -8,9 +8,10 @@ import { ArrowLeft } from 'design/Icon';
 import { FeatureBox } from 'teleport/components/Layout';
 import {
   IntegrationStatusCode,
-  PluginKind,
   Plugin,
+  PluginKind,
 } from 'teleport/services/integrations';
+import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import cfg from 'teleport/config';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceIcon } from 'design/ResourceIcon';
@@ -38,12 +39,10 @@ export function IntegrationStatus() {
     if (type === 'okta') {
       run(() => pluginsService.fetchPlugin(name).then(setPlugin));
     } else {
-      // a "pluginKind" can be a integration kind, which
-      // requires a different endpoint specifically for
-      // getting integration.
+      // If type is not supported in enterprise, we clear the attempt and default to the OSS Integration Status.
       setAttempt({
-        status: 'failed',
-        statusText: `status page for ${type} not implemented`,
+        status: 'success',
+        statusText: undefined,
       });
     }
   }, []);
@@ -79,7 +78,7 @@ export function IntegrationStatus() {
     );
   }
 
-  if (plugin.kind === 'okta') {
+  if (plugin?.kind === 'okta') {
     return (
       <FeatureContainer {...props}>
         <OktaStatusDetails
@@ -97,7 +96,7 @@ export function IntegrationStatus() {
     );
   }
 
-  return <>{plugin.kind} not implemented</>;
+  return <OSSIntegrationStatus />;
 }
 
 type FeatureContainerProps = {
