@@ -2313,6 +2313,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		SessionID:    *sid,
 		Streamer:     streamer,
 		SkipIdleTime: skipIdleTime,
+		Context:      ctx,
 	})
 	if err != nil {
 		return trace.Wrap(err)
