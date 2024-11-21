@@ -397,6 +397,24 @@ func (u *Updater) Disable(ctx context.Context) error {
 	return nil
 }
 
+// Unpin allows the current version to be changed by Update.
+// This function is idempotent.
+func (u *Updater) Unpin(ctx context.Context) error {
+	cfg, err := readConfig(u.ConfigPath)
+	if err != nil {
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+	}
+	if !cfg.Spec.Pinned {
+		u.Log.InfoContext(ctx, "Current version not pinned.", activeVersionKey, cfg.Status.ActiveVersion)
+		return nil
+	}
+	cfg.Spec.Pinned = false
+	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+	}
+	return nil
+}
+
 // Update initiates an agent update.
 // If the update succeeds, the new installed version is marked as active.
 // Otherwise, the auto-updates configuration is not changed.

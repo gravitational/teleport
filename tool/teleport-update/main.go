@@ -132,6 +132,7 @@ func Run(args []string) error {
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
+	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it be updated.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
@@ -163,6 +164,8 @@ func Run(args []string) error {
 		err = cmdInstall(ctx, &ccfg)
 	case disableCmd.FullCommand():
 		err = cmdDisable(ctx, &ccfg)
+	case unpinCmd.FullCommand():
+		err = cmdUnpin(ctx, &ccfg)
 	case updateCmd.FullCommand():
 		err = cmdUpdate(ctx, &ccfg)
 	case linkCmd.FullCommand():
@@ -218,6 +221,33 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 	if err := updater.Disable(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// cmdUnpin unpins the current version.
+func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		DataDir:   ccfg.DataDir,
+		LinkDir:   ccfg.LinkDir,
+		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+	if err := updater.Unpin(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
