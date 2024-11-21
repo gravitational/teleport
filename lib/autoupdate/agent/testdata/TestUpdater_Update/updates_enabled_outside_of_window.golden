@@ -9,4 +9,3 @@ spec:
 status:
     active_version: old-version
     backup_version: ""
-    skip_version: ""

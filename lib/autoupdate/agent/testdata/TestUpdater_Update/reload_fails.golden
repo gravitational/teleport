@@ -2,7 +2,6 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    group: ""
     url_template: https://example.com
     enabled: true
     pinned: false
