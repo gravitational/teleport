@@ -23,8 +23,8 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
-  SSOChallenge,
-} from 'teleport/services/auth';
+} from 'teleport/services/mfa/makeMfa';
+import { SSOChallenge } from 'teleport/services/mfa';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{

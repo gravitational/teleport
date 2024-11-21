@@ -17,8 +17,11 @@
  */
 
 import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64';
-
-import { MfaAuthenticateChallenge, MfaRegistrationChallenge } from './types';
+import {
+  MfaAuthenticateChallenge,
+  MfaRegistrationChallenge,
+  WebauthnAssertionResponse,
+} from './types';
 
 // makeMfaRegistrationChallenge formats fetched register challenge JSON.
 // Webauthn challange contains Base64URL(byte) fields that needs to
@@ -140,28 +143,3 @@ export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
     },
   };
 }
-
-export type SsoChallengeResponse = {
-  requestId: string;
-  token: string;
-};
-
-export type WebauthnAssertionResponse = {
-  id: string;
-  type: string;
-  extensions: {
-    appid: boolean;
-  };
-  rawId: string;
-  response: {
-    authenticatorData: string;
-    clientDataJSON: string;
-    signature: string;
-    userHandle: string;
-  };
-};
-
-export type MfaChallengeResponse = {
-  webauthn_response?: WebauthnAssertionResponse;
-  sso_response?: SsoChallengeResponse;
-};

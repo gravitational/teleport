@@ -29,33 +29,6 @@ export type UserCredentials = {
   password: string;
 };
 
-export type AuthnChallengeRequest = {
-  tokenId?: string;
-  userCred: UserCredentials;
-};
-
-export type SSOChallenge = {
-  channelId: string;
-  redirectUrl: string;
-  requestId: string;
-  device: {
-    connectorId: string;
-    connectorType: AuthProviderType;
-    displayName: string;
-  };
-};
-
-export type MfaAuthenticateChallenge = {
-  ssoChallenge: SSOChallenge;
-  totpChallenge: boolean;
-  webauthnPublicKey: PublicKeyCredentialRequestOptions;
-};
-
-export type MfaRegistrationChallenge = {
-  qrCode: Base64urlString;
-  webauthnPublicKey: PublicKeyCredentialCreationOptions;
-};
-
 export type RecoveryCodes = {
   codes?: string[];
   createdDate: Date;

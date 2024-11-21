@@ -29,7 +29,7 @@ import {
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-} from './makeMfa';
+} from '../mfa/makeMfa';
 import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
