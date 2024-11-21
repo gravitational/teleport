@@ -26,18 +26,16 @@ import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Link } from 'design';
 import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
 
-interface UsageDataProps {
+export function UsageData(props: {
   onCancel(): void;
-
   onAllow(): void;
-
   onDecline(): void;
-}
-
-export function UsageData(props: UsageDataProps) {
+  hidden?: boolean;
+}) {
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',

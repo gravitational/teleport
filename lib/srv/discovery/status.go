@@ -412,7 +412,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)

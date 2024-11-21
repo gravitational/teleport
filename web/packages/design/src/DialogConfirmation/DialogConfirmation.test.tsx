@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package inventory
+import { render, fireEvent } from 'design/utils/testing';
 
-import (
-	"github.com/gravitational/teleport/api/utils/retryutils"
-)
+import { DialogConfirmation } from './DialogConfirmation';
 
-// we use dedicated global jitters for all the intervals/retries in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
-)
+test('onClose is respected', () => {
+  const onClose = jest.fn();
+  const { container } = render(
+    <DialogConfirmation open={true} onClose={onClose} />
+  );
+
+  fireEvent.keyDown(container, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});

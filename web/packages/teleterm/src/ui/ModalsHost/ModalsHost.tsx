@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { Fragment } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -38,25 +38,59 @@ import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
-  const { regular: regularDialog, important: importantDialog } =
+  const { regular: regularDialog, important: importantDialogs } =
     modalsService.useState();
 
   const closeRegularDialog = () => modalsService.closeRegularDialog();
-  const closeImportantDialog = () => modalsService.closeImportantDialog();
 
   return (
     <>
-      {renderDialog(regularDialog, closeRegularDialog)}
-      {renderDialog(importantDialog, closeImportantDialog)}
+      {renderDialog({
+        dialog: regularDialog,
+        handleClose: closeRegularDialog,
+        hidden: !!importantDialogs.length,
+      })}
+      {importantDialogs.map(({ dialog, id }, index) => {
+        const isLast = index === importantDialogs.length - 1;
+        return (
+          <Fragment key={id}>
+            {renderDialog({
+              dialog: dialog,
+              handleClose: () => modalsService.closeImportantDialog(id),
+              hidden: !isLast,
+            })}
+          </Fragment>
+        );
+      })}
     </>
   );
 }
 
-function renderDialog(dialog: Dialog, handleClose: () => void) {
+/**
+ * Renders a dialog.
+ * Each dialog must implement a `hidden` prop which visually hides the dialog
+ * without unmounting it.
+ * This is needed because tshd may want to display more than one dialog.
+ * Also, we hide a regular dialog, when an important one is visible.
+ */
+function renderDialog({
+  dialog,
+  handleClose,
+  hidden,
+}: {
+  dialog: Dialog;
+  handleClose: () => void;
+  hidden: boolean;
+}) {
+  if (!dialog) {
+    return null;
+  }
+
   switch (dialog.kind) {
     case 'device-trust-authorize': {
       return (
         <AuthenticateWebDevice
+          hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           onAuthorize={dialog.onAuthorize}
           onCancel={() => {
@@ -70,6 +104,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'cluster-connect': {
       return (
         <ClusterConnect
+          hidden={hidden}
           dialog={{
             ...dialog,
             onCancel: () => {
@@ -87,6 +122,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'cluster-logout': {
       return (
         <ClusterLogout
+          hidden={hidden}
           clusterUri={dialog.clusterUri}
           clusterTitle={dialog.clusterTitle}
           onClose={handleClose}
@@ -96,6 +132,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'documents-reopen': {
       return (
         <DocumentsReopen
+          hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           numberOfDocuments={dialog.numberOfDocuments}
           onCancel={() => {
@@ -112,6 +149,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'usage-data': {
       return (
         <UsageData
+          hidden={hidden}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -130,6 +168,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'user-job-role': {
       return (
         <UserJobRole
+          hidden={hidden}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -141,10 +180,10 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-
     case 'resource-search-errors': {
       return (
         <ResourceSearchErrors
+          hidden={hidden}
           errors={dialog.errors}
           getClusterName={dialog.getClusterName}
           onCancel={() => {
@@ -154,10 +193,10 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-
     case 'headless-authn': {
       return (
         <HeadlessAuthentication
+          hidden={hidden}
           rootClusterUri={dialog.rootClusterUri}
           headlessAuthenticationId={dialog.headlessAuthenticationId}
           clientIp={dialog.headlessAuthenticationClientIp}
@@ -173,10 +212,10 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-
     case 'reauthenticate': {
       return (
         <ReAuthenticate
+          hidden={hidden}
           promptMfaRequest={dialog.promptMfaRequest}
           onOtpSubmit={totpCode => {
             handleClose();
@@ -194,6 +233,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'change-access-request-kind': {
       return (
         <ChangeAccessRequestKind
+          hidden={hidden}
           onConfirm={() => {
             handleClose();
             dialog.onConfirm();
@@ -208,6 +248,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-pin': {
       return (
         <AskPin
+          hidden={hidden}
           req={dialog.req}
           onSuccess={res => {
             handleClose();
@@ -223,6 +264,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-touch': {
       return (
         <Touch
+          hidden={hidden}
           req={dialog.req}
           onCancel={() => {
             handleClose();
@@ -234,6 +276,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-pin-change': {
       return (
         <ChangePin
+          hidden={hidden}
           req={dialog.req}
           onSuccess={dialog.onSuccess}
           onCancel={() => {
@@ -246,6 +289,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
     case 'hardware-key-slot-overwrite': {
       return (
         <OverwriteSlot
+          hidden={hidden}
           req={dialog.req}
           onConfirm={dialog.onConfirm}
           onCancel={() => {
@@ -254,10 +298,6 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           }}
         />
       );
-    }
-
-    case 'none': {
-      return null;
     }
 
     default: {

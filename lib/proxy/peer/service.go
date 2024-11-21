@@ -19,22 +19,22 @@
 package peer
 
 import (
+	"context"
 	"log/slog"
-	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
-	clusterDialer ClusterDialer
-	log           *slog.Logger
+	dialer peerdial.Dialer
+	log    *slog.Logger
 }
 
 // DialNode opens a bidirectional stream to the requested node.
@@ -75,7 +75,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		AddrNetwork: dial.Destination.Network,
 	}
 
-	nodeConn, err := s.clusterDialer.Dial(clusterName, DialParams{
+	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
 		From:     source,
 		To:       destination,
 		ServerID: dial.NodeID,
@@ -107,6 +107,10 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	return trace.Wrap(err)
 }
 
+func (s *proxyService) Ping(ctx context.Context, _ *proto.ProxyServicePingRequest) (*proto.ProxyServicePingResponse, error) {
+	return new(proto.ProxyServicePingResponse), nil
+}
+
 // splitServerID splits a server id in to a node id and cluster name.
 func splitServerID(address string) (string, string, error) {
 	split := strings.Split(address, ".")
@@ -115,16 +119,4 @@ func splitServerID(address string) (string, string, error) {
 	}
 
 	return split[0], strings.Join(split[1:], "."), nil
-}
-
-// ClusterDialer dials a node in the given cluster.
-type ClusterDialer interface {
-	Dial(clusterName string, request DialParams) (net.Conn, error)
-}
-
-type DialParams struct {
-	From     *utils.NetAddr
-	To       *utils.NetAddr
-	ServerID string
-	ConnType types.TunnelType
 }

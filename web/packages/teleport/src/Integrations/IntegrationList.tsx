@@ -365,7 +365,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         icon = <IconContainer name="datadog" />;
         break;
       case 'aws-identity-center':
-        formattedText = 'AWS Identity Center';
+        formattedText = 'AWS IAM Identity Center';
         icon = <IconContainer name="aws" />;
         break;
     }

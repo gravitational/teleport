@@ -197,7 +197,7 @@ export function parseRepoAddress(repoAddr: string): {
   let url;
   try {
     url = new URL(repoAddr);
-  } catch (e) {
+  } catch {
     throw new Error('Must be a valid URL');
   }
 

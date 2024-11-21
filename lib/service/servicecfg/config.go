@@ -561,6 +561,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
+	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()

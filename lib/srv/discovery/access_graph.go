@@ -299,7 +299,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)
@@ -502,6 +502,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 			ctx,
 			aws_sync.Config{
 				CloudClients:        s.CloudClients,
+				GetEC2Client:        s.GetEC2Client,
 				AssumeRole:          assumeRole,
 				Regions:             awsFetcher.Regions,
 				Integration:         awsFetcher.Integration,
