@@ -24,14 +24,15 @@ import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
 } from 'teleport/services/mfa/makeMfa';
-import { SSOChallenge } from 'teleport/services/mfa';
+import { SsoChallenge } from 'teleport/services/mfa';
+import auth from 'teleport/services/auth/auth';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{
     errorText: string;
     addMfaToScpUrls: boolean;
     webauthnPublicKey: PublicKeyCredentialRequestOptions;
-    ssoChallenge: SSOChallenge;
+    ssoChallenge: SsoChallenge;
     totpChallenge: boolean;
   }>({
     addMfaToScpUrls: false,
@@ -59,15 +60,7 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       return;
     }
 
-    // try to center the screen
-    const width = 1045;
-    const height = 550;
-    const left = (screen.width - width) / 2;
-    const top = (screen.height - height) / 2;
-
-    // these params will open a tiny window.
-    const params = `width=${width},height=${height},left=${left},top=${top}`;
-    window.open(state.ssoChallenge.redirectUrl, '_blank', params);
+    auth.openSsoChallengeRedirect(state.ssoChallenge);
   }
 
   function onWebauthnAuthenticate() {
@@ -101,26 +94,20 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
 
   const waitForSsoChallengeResponse = useCallback(
     async (
-      ssoChallenge: SSOChallenge,
+      ssoChallenge: SsoChallenge,
       abortSignal: AbortSignal
     ): Promise<void> => {
-      const channel = new BroadcastChannel(ssoChallenge.channelId);
-
       try {
-        const event = await waitForMessage(channel, abortSignal);
-        emitterSender.sendChallengeResponse({
-          sso_response: {
-            requestId: ssoChallenge.requestId,
-            token: event.data.mfaToken,
-          },
-        });
+        const resp = await auth.waitForSsoChallengeResponse(
+          ssoChallenge,
+          abortSignal
+        );
+        emitterSender.sendChallengeResponse(resp);
         clearChallenges();
       } catch (error) {
         if (error.name !== 'AbortError') {
           throw error;
         }
-      } finally {
-        channel.close();
       }
     },
     [emitterSender]
@@ -141,7 +128,6 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       }));
 
       if (ssoChallenge) {
-        ssoChallengeAbortController?.abort();
         ssoChallengeAbortController = new AbortController();
         void waitForSsoChallengeResponse(
           ssoChallenge,
@@ -189,7 +175,7 @@ export type MfaState = {
   requested: boolean;
   addMfaToScpUrls: boolean;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
-  ssoChallenge: SSOChallenge;
+  ssoChallenge: SsoChallenge;
 };
 
 // used for testing

@@ -49,12 +49,12 @@ export type SaveNewHardwareDeviceRequest = {
 export type DeviceType = 'totp' | 'webauthn' | 'sso';
 
 export type MfaAuthenticateChallenge = {
-  ssoChallenge: SSOChallenge;
+  ssoChallenge: SsoChallenge;
   totpChallenge: boolean;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
 };
 
-export type SSOChallenge = {
+export type SsoChallenge = {
   channelId: string;
   redirectUrl: string;
   requestId: string;

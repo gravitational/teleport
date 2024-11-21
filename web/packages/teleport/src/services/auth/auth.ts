@@ -22,6 +22,7 @@ import {
   DeviceType,
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
+  SsoChallenge,
 } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
@@ -286,22 +287,30 @@ const auth = {
 
   // getChallengeResponse gets an MFA challenge response for the provided parameters.
   // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
-  async getMfaChallengeResponse(
-    challenge: MfaAuthenticateChallenge,
-    abortSignal?: AbortSignal
-  ) {
-    // TODO(Joerger): Handle SSO MFA. We need to provide some global context which we
-    // can use to display the MFA component currently found in useMFA.
-    return auth.getWebAuthnChallengeResponse(challenge);
+  async getMfaChallengeResponse(challenge: MfaAuthenticateChallenge) {
+    // TODO(Joerger): Ideally we'd have some global context which we can use to display
+    // a component to select WebAuthn or SSO, like we do in useMFA. For now, we just prefer
+    // WebAuthn over SSO and continue automatically.
+
+    if (challenge.webauthnPublicKey) {
+      return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
+    }
+
+    if (challenge.ssoChallenge) {
+      return auth.getSsoChallengeResponse(challenge.ssoChallenge);
+    }
+
+    // No viable challenge, return empty response.
+    return null;
   },
 
   async getWebAuthnChallengeResponse(
-    challenge: MfaAuthenticateChallenge
+    webauthnPublicKey: PublicKeyCredentialRequestOptions
   ): Promise<MfaChallengeResponse> {
     return auth.checkWebauthnSupport().then(() =>
       navigator.credentials
         .get({
-          publicKey: challenge.webauthnPublicKey,
+          publicKey: webauthnPublicKey,
         })
         .then(cred => {
           return makeWebauthnAssertionResponse(cred);
@@ -310,6 +319,50 @@ const auth = {
           return { webauthn_response: resp };
         })
     );
+  },
+
+  async getSsoChallengeResponse(
+    challenge: SsoChallenge
+  ): Promise<MfaChallengeResponse> {
+    const abortController = new AbortController();
+
+    auth.openSsoChallengeRedirect(challenge, abortController);
+    return await auth.waitForSsoChallengeResponse(
+      challenge,
+      abortController.signal
+    );
+  },
+
+  openSsoChallengeRedirect(
+    { redirectUrl }: SsoChallenge,
+    abortController?: AbortController
+  ) {
+    // try to center the screen
+    const width = 1045;
+    const height = 550;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    // these params will open a tiny window.
+    const params = `width=${width},height=${height},left=${left},top=${top}`;
+    const w = window.open(redirectUrl, '_blank', params);
+
+    // If the redirect URL window is closed prematurely, abort.
+    w.onclose = abortController?.abort;
+  },
+
+  async waitForSsoChallengeResponse(
+    { channelId, requestId }: SsoChallenge,
+    abortSignal: AbortSignal
+  ): Promise<MfaChallengeResponse> {
+    const channel = new BroadcastChannel(channelId);
+    const msg = await waitForMessage(channel, abortSignal);
+    return {
+      sso_response: {
+        requestId,
+        token: msg.data.mfaToken,
+      },
+    };
   },
 
   // TODO(Joerger): Combine with otp endpoint.
@@ -368,7 +421,7 @@ const auth = {
 
     return auth
       .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(challenge => auth.getMfaChallengeResponse(challenge, abortSignal))
+      .then(challenge => auth.getMfaChallengeResponse(challenge))
       .then(res => makeWebauthnAssertionResponse(res.webauthn_response));
   },
 
@@ -410,6 +463,30 @@ function base64EncodeUnicode(str: string) {
       return String.fromCharCode(Number(hexadecimalStr));
     })
   );
+}
+
+function waitForMessage(
+  channel: BroadcastChannel,
+  abortSignal: AbortSignal
+): Promise<MessageEvent> {
+  return new Promise((resolve, reject) => {
+    // Create the event listener
+    function eventHandler(e: MessageEvent) {
+      // Remove the event listener after it triggers
+      channel.removeEventListener('message', eventHandler);
+      // Resolve the promise with the event object
+      resolve(e);
+    }
+
+    // Add the event listener
+    channel.addEventListener('message', eventHandler);
+
+    // Close the event listener early if aborted.
+    abortSignal.onabort = e => {
+      channel.removeEventListener('message', eventHandler);
+      reject(e);
+    };
+  });
 }
 
 export default auth;
