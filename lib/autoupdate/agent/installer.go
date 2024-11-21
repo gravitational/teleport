@@ -849,19 +849,6 @@ func (li *LocalInstaller) versionDir(version string) (string, error) {
 	return versionDir, nil
 }
 
-// IsLinked returns true if the version is linked or partially linked.
-// Returns os.ErrNotExist error if the version does not exist.
-// See Installer interface for additional specs.
-func (li *LocalInstaller) IsLinked(ctx context.Context, version string) (bool, error) {
-	versionDir, err := li.versionDir(version)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	b, err := li.isLinked(filepath.Join(versionDir, "bin"))
-	return b, trace.Wrap(err)
-
-}
-
 // isLinked returns true if any binaries in binDir are linked.
 // Returns os.ErrNotExist error if the binDir does not exist.
 func (li *LocalInstaller) isLinked(binDir string) (bool, error) {

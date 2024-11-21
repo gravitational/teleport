@@ -742,6 +742,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		}
 		if err != nil {
 			u.Log.WarnContext(ctx, "Failed to remove unused version of Teleport.", errorKey, err, "version", v)
+			continue
 		}
 		u.Log.WarnContext(ctx, "Deleted unused version of Teleport.", "version", v)
 	}
