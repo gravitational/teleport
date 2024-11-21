@@ -14,22 +14,26 @@
 
 syntax = "proto3";
 
-package teleport.authorization.v1alpha1;
+package teleport.decision.v1alpha1;
 
-import "teleport/authorization/v1alpha1/ssh_access.proto";
+import "teleport/decision/v1alpha1/database_access.proto";
+import "teleport/decision/v1alpha1/ssh_access.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authorization/v1alpha1;authzpb";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionv1alpha1";
 
-// AuthorizationService performs authorization decisions for Teleport.
+// DecisionService performs authorization decisions for Teleport.
 //
-// AuthorizationService acts the PDP (Policy Decision Point) for Teleport
+// DecisionService acts the PDP (Policy Decision Point) for Teleport
 // services, whereas the services themselves act as the PEP (Policy Enforcement
 // Point). In other words, it calculates the outcome of an authorization request
 // but does not enforce it - each Teleport service must do so.
 //
-// Authorization responses carry all the data necessary for the enforcement of a
+// Decision responses carry all the data necessary for the enforcement of a
 // decision.
-service AuthorizationService {
-  // AuthorizeSSHAccess calculates the outcome of an SSH access attempt.
-  rpc AuthorizeSSHAccess(AuthorizeSSHAccessRequest) returns (AuthorizeSSHAccessResponse);
+service DecisionService {
+  // EvaluateSSHAccess decides wether or not to permit an SSH access attempt.
+  rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (SSHAccessPermit);
+
+  // EvaluateDatabaseAccess decides wether or not to permit a database access attempt.
+  rpc EvaluateDatabaseAccess(EvaluateDatabaseAccessRequest) returns (DatabaseAccessPermit);
 }

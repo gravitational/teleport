@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package teleport.authorization.v1alpha1;
+package teleport.decision.v1alpha1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authorization/v1alpha1;authzpb";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionv1alpha1";
 
-// Metadata common for Authorize operations.
-message AuthorizeMetadata {}
+// Metadata common for authorization Request operations.
+message RequestMetadata {}
