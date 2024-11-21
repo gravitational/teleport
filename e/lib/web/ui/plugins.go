@@ -238,7 +238,7 @@ func pluginDetails(p types.Plugin) string {
 	case *types.PluginSpecV1_Datadog:
 		return fmt.Sprintf(`Incidents will be created at %q and notify %q recipient`, settings.Datadog.ApiEndpoint, settings.Datadog.FallbackRecipient)
 	case *types.PluginSpecV1_Msteams:
-		return fmt.Sprintf(`Microsoft Teams plugin will be the default recipient "%s"`, settings.Msteams.DefaultRecipient)
+		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the default recipient "%s"`, settings.Msteams.DefaultRecipient)
 	default:
 		return ""
 	}
