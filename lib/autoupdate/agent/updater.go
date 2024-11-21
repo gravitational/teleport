@@ -324,7 +324,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	return nil
 }
 
-// Status returns
+// Status returns all available local and remote fields related to agent auto-updates.
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
