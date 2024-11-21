@@ -29,6 +29,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -144,6 +145,8 @@ func Run(args []string) error {
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer.").
 		Hidden()
 
+	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
+
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -175,6 +178,8 @@ func Run(args []string) error {
 		err = cmdUnlink(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
+	case statusCmd.FullCommand():
+		err = cmdStatus(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
@@ -212,7 +217,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		Log:       plog,
 	})
 	if err != nil {
-		return trace.Errorf("failed to setup updater: %w", err)
+		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
 	if err != nil {
@@ -266,7 +271,7 @@ func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 		Log:       plog,
 	})
 	if err != nil {
-		return trace.Errorf("failed to setup updater: %w", err)
+		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 
 	// Ensure enable can't run concurrently.
@@ -295,7 +300,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 		Log:       plog,
 	})
 	if err != nil {
-		return trace.Errorf("failed to setup updater: %w", err)
+		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 	// Ensure update can't run concurrently.
 	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
@@ -324,7 +329,7 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 		Log:       plog,
 	})
 	if err != nil {
-		return trace.Errorf("failed to setup updater: %w", err)
+		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 
 	// Skip operation and warn if the updater is currently running.
@@ -392,4 +397,24 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Errorf("failed to setup teleport-update service: %w", err)
 	}
 	return nil
+}
+
+// cmdStatus displays auto-update status.
+func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		DataDir:   ccfg.DataDir,
+		LinkDir:   ccfg.LinkDir,
+		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to initialize updater: %w", err)
+	}
+	status, err := updater.Status(ctx)
+	if err != nil {
+		return trace.Errorf("failed to get status: %w", err)
+	}
+	enc := yaml.NewEncoder(os.Stdout)
+	return trace.Wrap(enc.Encode(status))
 }

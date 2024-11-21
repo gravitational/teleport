@@ -2,11 +2,8 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    group: ""
-    url_template: ""
     enabled: false
     pinned: false
 status:
     active_version: 16.3.0
     backup_version: ""
-    skip_version: ""
