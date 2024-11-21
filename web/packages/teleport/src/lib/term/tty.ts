@@ -19,14 +19,12 @@
 import Logger from 'shared/libs/logger';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
-import {
-  MfaChallengeResponse,
-  WebauthnAssertionResponse,
-} from 'teleport/services/auth';
+import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 const logger = Logger.create('Tty');
 

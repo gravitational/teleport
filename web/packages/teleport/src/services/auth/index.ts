@@ -18,7 +18,7 @@
 
 import service from './auth';
 
-export * from './makeMfa';
+export * from '../mfa/makeMfa';
 export * from './make';
 export * from './types';
 export default service;

@@ -25,11 +25,11 @@ import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
 import {
-  makeMfaAuthenticateChallenge,
+  makeMfaChallenge,
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-} from './makeMfa';
+} from '../mfa/makeMfa';
 import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
@@ -94,7 +94,7 @@ const auth = {
   createMfaAuthnChallengeWithToken(tokenId: string) {
     return api
       .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
-      .then(makeMfaAuthenticateChallenge);
+      .then(makeMfaChallenge);
   },
 
   // mfaLoginBegin retrieves users mfa challenges for their
@@ -107,7 +107,7 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaAuthenticateChallenge);
+      .then(makeMfaChallenge);
   },
 
   login(userId: string, password: string, otpCode: string) {
@@ -270,7 +270,7 @@ const auth = {
         },
         abortSignal
       )
-      .then(makeMfaAuthenticateChallenge);
+      .then(makeMfaChallenge);
   },
 
   async fetchWebAuthnChallenge(
@@ -291,7 +291,7 @@ const auth = {
             },
             abortSignal
           )
-          .then(makeMfaAuthenticateChallenge)
+          .then(makeMfaChallenge)
       )
       .then(res =>
         navigator.credentials.get({

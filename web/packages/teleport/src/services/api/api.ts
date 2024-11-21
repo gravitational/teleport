@@ -21,7 +21,7 @@ import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
 import { storageService } from '../storageService';
-import { WebauthnAssertionResponse } from '../auth';
+import { WebauthnAssertionResponse } from '../mfa';
 
 import parseError, { ApiError } from './parseError';
 
