@@ -67,7 +67,7 @@ type AppProvider interface {
 	//
 	// The connection won't be established until OnNewConnection returns. Returning an error prevents
 	// the connection from being made.
-	OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error
+	OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
@@ -322,7 +322,7 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	middleware := &localProxyMiddleware{
 		certChecker:     certChecker,
 		appProvider:     r.appProvider,
-		app:             app,
+		routeToApp:      routeToApp,
 		profileName:     profileName,
 		leafClusterName: leafClusterName,
 	}
@@ -397,7 +397,7 @@ func fullyQualify(domain string) string {
 // localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
 // OnNewConnection method calls the same method of [AppProvider].
 type localProxyMiddleware struct {
-	app             types.Application
+	routeToApp      proto.RouteToApp
 	profileName     string
 	leafClusterName string
 	certChecker     *client.CertChecker
@@ -410,7 +410,7 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.app))
+	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.routeToApp))
 }
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
