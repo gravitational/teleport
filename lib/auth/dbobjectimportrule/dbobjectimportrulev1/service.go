@@ -87,7 +87,7 @@ func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminA
 	}
 
 	if adminAction {
-		err = authCtx.AuthorizeAdminAction()
+		err = authCtx.AuthorizeAdminActionAllowReusedMFA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -153,7 +153,6 @@ func (rs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-
 }
 
 // UpsertDatabaseObjectImportRule creates a new DatabaseObjectImportRule or forcefully updates an existing DatabaseObjectImportRule.

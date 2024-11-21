@@ -532,7 +532,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}
 
 	start := time.Now()
-	if err := l.UploadHandler.Download(l.ctx, sessionID, rawSession); err != nil {
+	if err := l.UploadHandler.Download(ctx, sessionID, rawSession); err != nil {
 		_ = rawSession.Close()
 		if errors.Is(err, fs.ErrNotExist) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)

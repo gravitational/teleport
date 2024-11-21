@@ -28,7 +28,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -74,42 +72,11 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	// The user has typed a command like `tsh ssh ...` without being logged in,
-	// if the running binary needs to be updated, update and re-exec.
-	//
-	// If needed, download the new version of {tsh, tctl} and re-exec. Make
-	// sure to exit this process with the same exit code as the child process.
-	//
-	toolsDir, err := tools.Dir()
-	if err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
 		utils.FatalError(err)
-	}
-	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckLocal()
-	if err != nil {
-		utils.FatalError(err)
-	}
-	if reExec {
-		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(ctx)
-		defer cancel()
-		// Download the version of client tools required by the cluster. This
-		// is required if the user passed in the TELEPORT_TOOLS_VERSION
-		// explicitly.
-		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			utils.FatalError(err)
-		}
-		// Re-execute client tools with the correct version of client tools.
-		code, err := updater.Exec()
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Failed to re-exec client tool: %v.", err)
-			os.Exit(code)
-		} else if err == nil {
-			os.Exit(code)
-		}
 	}
 
-	err = TryRun(commands, os.Args[1:])
+	err := TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
