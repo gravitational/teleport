@@ -238,7 +238,7 @@ type RouteToApp struct {
 	// TargetPort is the port to which connections should be routed to. Used only for multi-port TCP
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
-	TargetPort uint16
+	TargetPort int
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -647,7 +647,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type: AppTargetPortASN1ExtensionOID,
 				// asn1 doesn't seem to handle uint16, hence the string.
-				Value: strconv.Itoa(int(id.RouteToApp.TargetPort)),
+				Value: strconv.Itoa(id.RouteToApp.TargetPort),
 			},
 		)
 	}
@@ -976,7 +976,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err != nil {
 					return nil, trace.Wrap(err, "parsing target port")
 				}
-				id.RouteToApp.TargetPort = uint16(targetPort)
+				id.RouteToApp.TargetPort = int(targetPort)
 			}
 		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)
