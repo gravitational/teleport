@@ -39,6 +39,7 @@ import (
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -710,7 +711,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcDir string
 			li.Log.ErrorContext(ctx, "Unable to remove link.", "oldname", oldname, "newname", newname, errorKey, err)
 			continue
 		}
-		if filepath.Base(newname) == "teleport" {
+		if filepath.Base(newname) == teleport.ComponentTeleport {
 			removeService = true
 		}
 	}
