@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -255,6 +256,9 @@ type privilegeTokenRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnResponse is the response from authenticators.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse client.MFAChallengeResponse `json:"existingMfaResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
@@ -265,8 +269,14 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	protoReq := &proto.CreatePrivilegeTokenRequest{}
+	existingMFAResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	switch {
+	case existingMFAResponse != nil:
+		protoReq.ExistingMFAResponse = existingMFAResponse
 	case req.SecondFactorToken != "":
 		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{Code: req.SecondFactorToken},

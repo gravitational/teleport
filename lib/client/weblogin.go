@@ -515,6 +515,7 @@ type MFARegisterChallenge struct {
 // TOTPRegisterChallenge contains a TOTP challenge.
 type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
+	ID     string `json:"id"`
 }
 
 // initClient creates a new client to the HTTPS web proxy.

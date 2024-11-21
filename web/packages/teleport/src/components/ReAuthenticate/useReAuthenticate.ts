@@ -91,9 +91,15 @@ export default function useReAuthenticate(props: Props) {
       });
   }
 
-  function submitWithSso({ channelId, requestId, redirectUrl }: SSOChallenge) {
+  async function submitWithSso({
+    channelId,
+    requestId,
+    redirectUrl,
+  }: SSOChallenge) {
     const channel = new BroadcastChannel(channelId);
     setAttempt({ status: 'processing' });
+
+    let ssoChallengeAbortController: AbortController | undefined;
 
     if ('onMfaResponse' in props) {
       // try to center the screen
@@ -106,8 +112,8 @@ export default function useReAuthenticate(props: Props) {
       const params = `width=${width},height=${height},left=${left},top=${top}`;
       window.open(redirectUrl, '_blank', params);
 
-      const abortController = new AbortController();
-      waitForMessage(channel, abortController.signal)
+      ssoChallengeAbortController = new AbortController();
+      waitForMessage(channel, ssoChallengeAbortController.signal)
         .then(event =>
           props.onMfaResponse({
             sso_response: {
@@ -121,7 +127,9 @@ export default function useReAuthenticate(props: Props) {
     }
 
     // TODO(Joerger): Remove/handle onAuthenticated?
-    return;
+    return () => {
+      ssoChallengeAbortController?.abort();
+    };
   }
 
   function clearAttempt() {
@@ -135,8 +143,6 @@ export default function useReAuthenticate(props: Props) {
     submitWithWebauthn,
     submitWithSso,
     mfaChallenge: props.mfaChallenge,
-    auth2faType: cfg.getAuth2faType(),
-    preferredMfaType: cfg.getPreferredMfaType(),
     actionText,
     onClose,
   };

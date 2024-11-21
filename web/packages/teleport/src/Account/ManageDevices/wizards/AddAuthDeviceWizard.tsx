@@ -41,7 +41,11 @@ import Box from 'design/Box';
 import { P } from 'design/Text/Text';
 
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DeviceUsage, MfaChallengeResponse } from 'teleport/services/auth';
+import {
+  DeviceUsage,
+  MfaChallengeResponse,
+  MfaRegistrationChallenge,
+} from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
@@ -50,6 +54,7 @@ import {
   ReauthenticateStep,
   ReauthenticateStepProps,
 } from './ReauthenticateStep';
+import { register } from 'module';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -75,9 +80,14 @@ export function AddAuthDeviceWizard({
   const mfaOptions = createOptionsFromAuth2faType(auth2faType);
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
 
+  const [registerChallenge, setRegisterChallenge] =
+    useState<MfaRegistrationChallenge>(null);
+
   // Attempt to get an MFA challenge for an existing device. If the challenge is
   // empty, the user has no existing device (e.g. SSO user) and can register their
   // first device without re-authentication.
+  //
+  // TODO(Joerger): When going backwards, we need to generate a new challenge.
   const [challenge, getChallenge] = useAsync(async () => {
     return auth.getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES });
   });
@@ -128,6 +138,8 @@ export function AddAuthDeviceWizard({
         onClose={onClose}
         existingMfaResponse={mfaResponse}
         onMfaResponse={setMfaResponse}
+        registerChallenge={registerChallenge}
+        onRegisterChallenge={setRegisterChallenge}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
         onDeviceCreated={setCredential}
         onSuccess={onSuccess}
@@ -151,6 +163,7 @@ interface CreateDeviceStepProps {
   existingMfaResponse: MfaChallengeResponse;
   newMfaDeviceType: Auth2faType;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
+  onRegisterChallenge(c: MfaRegistrationChallenge): void;
   onClose(): void;
   onDeviceCreated(c: Credential): void;
 }
@@ -165,6 +178,7 @@ export function CreateDeviceStep({
   existingMfaResponse,
   newMfaDeviceType,
   mfaOptions,
+  onRegisterChallenge,
   onNewMfaDeviceTypeChange,
   onClose,
   onDeviceCreated,
@@ -239,11 +253,13 @@ function CreateMfaBox({
   mfaOptions,
   newMfaDeviceType,
   existingMfaResponse,
+  onRegisterChallenge,
   onNewMfaDeviceTypeChange,
 }: {
   mfaOptions: MfaOption[];
   newMfaDeviceType: Auth2faType;
   existingMfaResponse: MfaChallengeResponse;
+  onRegisterChallenge(c: MfaRegistrationChallenge): void;
   onNewMfaDeviceTypeChange(o: Auth2faType): void;
 }) {
   // Be more specific about the WebAuthn device type (it's not a passkey).
@@ -267,7 +283,10 @@ function CreateMfaBox({
         }}
       />
       {newMfaDeviceType === 'otp' && (
-        <QrCodeBox existingMfaResponse={existingMfaResponse} />
+        <QrCodeBox
+          existingMfaResponse={existingMfaResponse}
+          onRegisterChallenge={onRegisterChallenge}
+        />
       )}
     </>
   );
@@ -275,10 +294,12 @@ function CreateMfaBox({
 
 function QrCodeBox({
   existingMfaResponse,
+  onRegisterChallenge,
 }: {
   existingMfaResponse: MfaChallengeResponse;
+  onRegisterChallenge(c: MfaRegistrationChallenge): void;
 }) {
-  const [fetchQrCodeAttempt, fetchQrCode] = useAsync(
+  const [totpRegisterChallenge, fetchTotpRegisterChallenge] = useAsync(
     (existingMfaResponse: MfaChallengeResponse) =>
       auth.createMfaRegistrationChallenge({
         deviceType: 'totp',
@@ -287,7 +308,8 @@ function QrCodeBox({
   );
 
   useEffect(() => {
-    fetchQrCode(existingMfaResponse);
+    fetchTotpRegisterChallenge(existingMfaResponse);
+    onRegisterChallenge(registerChallenge);
   }, []);
 
   return (
@@ -300,15 +322,15 @@ function QrCodeBox({
       bg="interactive.tonal.neutral.0"
     >
       <Flex height="168px" justifyContent="center" alignItems="center">
-        {fetchQrCodeAttempt.status === 'error' && (
+        {totpRegisterChallenge.status === 'error' && (
           <OutlineDanger>
-            Could not load the QR code. {fetchQrCodeAttempt.statusText}
+            Could not load the QR code. {totpRegisterChallenge.statusText}
           </OutlineDanger>
         )}
-        {fetchQrCodeAttempt.status === 'processing' && <Indicator />}
-        {fetchQrCodeAttempt.status === 'success' && (
+        {totpRegisterChallenge.status === 'processing' && <Indicator />}
+        {totpRegisterChallenge.status === 'success' && (
           <Image
-            src={`data:image/png;base64,${fetchQrCodeAttempt.data.qrCode}`}
+            src={`data:image/png;base64,${totpRegisterChallenge.data.totpChallenge.qrCode}`}
             height="100%"
             style={{
               boxSizing: 'border-box',
@@ -337,7 +359,7 @@ export function SaveDeviceStep({
   prev,
   stepIndex,
   flowLength,
-  existingMfaResponse: existingMfaResponse,
+  existingMfaResponse,
   credential,
   usage,
   newMfaDeviceType,
@@ -346,7 +368,7 @@ export function SaveDeviceStep({
   const ctx = useTeleport();
   const saveAttempt = useAttempt();
   const [deviceName, setDeviceName] = useState('');
-  const [authCode, setAuthCode] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   const onSave = (e: FormEvent<HTMLFormElement>, validator: Validator) => {
     e.preventDefault();
@@ -366,7 +388,10 @@ export function SaveDeviceStep({
     } else {
       saveAttempt.run(async () => {
         await ctx.mfaService.addNewTotpDevice({
-          secondFactorToken: authCode,
+          totpRegisterResponse: {
+            code: otpCode,
+            id: null,
+          },
           deviceName,
         });
         onSuccess();
@@ -378,8 +403,8 @@ export function SaveDeviceStep({
     setDeviceName(e.target.value);
   };
 
-  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
+  const onOtpCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtpCode(e.target.value);
   };
 
   const label =
@@ -422,9 +447,9 @@ export function SaveDeviceStep({
                 rule={requiredField('Authenticator code is required')}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                value={authCode}
+                value={otpCode}
                 placeholder="123 456"
-                onChange={onAuthCodeChanged}
+                onChange={onOtpCodeChanged}
                 readonly={saveAttempt.attempt.status === 'processing'}
               />
             )}

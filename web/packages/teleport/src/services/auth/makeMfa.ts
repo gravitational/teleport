@@ -27,7 +27,10 @@ import { MfaAuthenticateChallenge, MfaRegistrationChallenge } from './types';
 // - user.id
 // - excludeCredentials[i].id
 export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
-  const webauthnPublicKey = json.webauthn?.publicKey;
+  const challenge = typeof json === 'string' ? JSON.parse(json) : json;
+  const { webauthn_challenge, totp_challenge } = challenge;
+
+  const webauthnPublicKey = webauthn_challenge?.publicKey;
   if (webauthnPublicKey) {
     const challenge = webauthnPublicKey.challenge || '';
     const id = webauthnPublicKey.user?.id || '';
@@ -44,7 +47,7 @@ export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
   }
 
   return {
-    qrCode: json.totp?.qrCode,
+    totpChallenge: totp_challenge,
     webauthnPublicKey,
   };
 }

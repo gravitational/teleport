@@ -32,7 +32,12 @@ export interface MfaDevice {
 
 export type AddNewTotpDeviceRequest = {
   deviceName: string;
-  secondFactorToken: string;
+  totpRegisterResponse: TotpRegisterResponse;
+};
+
+export type TotpRegisterResponse = {
+  code: string;
+  id: string;
 };
 
 export type AddNewHardwareDeviceRequest = CreateNewHardwareDeviceRequest & {

@@ -55,8 +55,13 @@ export type MfaAuthenticateChallenge = {
 };
 
 export type MfaRegistrationChallenge = {
-  qrCode: Base64urlString;
+  totpChallenge: MfaTotpRegistrationChallenge;
   webauthnPublicKey: PublicKeyCredentialCreationOptions;
+};
+
+export type MfaTotpRegistrationChallenge = {
+  qrCode: Base64urlString;
+  id: string;
 };
 
 export type RecoveryCodes = {

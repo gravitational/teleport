@@ -18,7 +18,10 @@
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import auth, { makeWebauthnCreationResponse, MfaChallengeResponse } from 'teleport/services/auth';
+import auth, {
+  makeWebauthnCreationResponse,
+  MfaChallengeResponse,
+} from 'teleport/services/auth';
 
 import {
   MfaDevice,

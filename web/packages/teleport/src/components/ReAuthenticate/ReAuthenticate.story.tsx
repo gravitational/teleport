@@ -40,11 +40,11 @@ export const Failed = () => (
 
 const props: State = {
   attempt: { status: '' },
+  mfaChallenge: null,
   clearAttempt: () => null,
   submitWithTotp: () => null,
   submitWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
+  submitWithSso: () => null,
   onClose: () => null,
-  auth2faType: 'on',
   actionText: 'performing this action',
 };

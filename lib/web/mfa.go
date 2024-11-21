@@ -80,14 +80,24 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 type addMFADeviceRequest struct {
 	// DeviceName is the name of new mfa device.
 	DeviceName string `json:"deviceName"`
+	// TODO(Joerger): deprecate.
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
 	WebauthnRegisterResponse *wantypes.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	// TOTPRegisterResponse is a TOTP registration challenge response.
+	TOTPRegisterResponse *totpRegisterResponse `json:"totpRegisterResponse"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.
 	DeviceUsage string `json:"deviceUsage"`
+}
+
+type totpRegisterResponse struct {
+	// Code is the otp code from the TOTP device to be registered.
+	Code string `json:"code,omitempty"`
+	// ID of the TOTP challenge, as informed by the TOTPRegisterChallenge.
+	ID string `json:"id,omitempty"`
 }
 
 // addMFADeviceHandle adds a new mfa device for the user.
@@ -116,6 +126,13 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	case req.SecondFactorToken != "":
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
+		}}
+	case req.TOTPRegisterResponse != nil:
+		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{
+				Code: req.TOTPRegisterResponse.Code,
+				ID:   req.TOTPRegisterResponse.ID,
+			},
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
@@ -352,6 +369,7 @@ func (h *Handler) createRegisterChallenge(w http.ResponseWriter, r *http.Request
 	case *proto.MFARegisterChallenge_TOTP:
 		resp.TOTP = &client.TOTPRegisterChallenge{
 			QRCode: chal.GetTOTP().GetQRCode(),
+			ID:     chal.GetTOTP().GetID(),
 		}
 	case *proto.MFARegisterChallenge_Webauthn:
 		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
