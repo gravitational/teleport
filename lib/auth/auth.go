@@ -2201,7 +2201,7 @@ type certRequest struct {
 	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
 	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
 	// used in other contexts (e.g., access requests).
-	appTargetPort uint16
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2451,7 +2451,7 @@ type AppTestCertRequest struct {
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
 	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
-	TargetPort uint16
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
