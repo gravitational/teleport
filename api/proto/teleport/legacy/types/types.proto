@@ -1317,6 +1317,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
   // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
+  // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
+  ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1660,6 +1662,49 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
   // and provide standard JWKS endpoints.
   string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
+message ProvisionTokenSpecV2Bitbucket {
+  // Rule is a set of properties the Bitbucket-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // WorkspaceUUID is the UUID of the workspace for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
+
+    // RepositoryUUID is the UUID of the repository for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
+
+    // DeploymentEnvironmentUUID is the UUID of the deployment environment
+    // targeted by this pipelines run, if any. These values may be found in the
+    // "Pipelines -> OpenID Connect -> Deployment environments" section of the
+    // repository settings.
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
+
+    // BranchName is the name of the branch on which this pipeline executed.
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is a Bitbucket-specified audience value for this token. It is
+  // unique to each Bitbucket repository, and must be set to the value as
+  // written in the Pipelines -> OpenID Connect section of the repository
+  // settings.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC
+  // tokens. It is unique to each Bitbucket repository, and must be set to the
+  // value as written in the Pipelines -> OpenID Connect section of the
+  // repository settings.
+  string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
