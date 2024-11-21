@@ -9,7 +9,7 @@ provide a visual representation of the access patterns and help you enhance the 
 
 This functionality gives you insights into the following areas:
 
-- Which servers have SSH Authorized Keys that could be used to bypass Teleport?
+- Which servers have SSH authorized keys that could be used to bypass Teleport?
 - Which users have SSH Private Keys that grant access to SSH servers?
 - Which laptops have unprotected SSH Private Keys?
 
@@ -26,9 +26,9 @@ Teleport and Teleport Policy's Access Graph synchronize various resources, inclu
 These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../teleport-policy.mdx).
 
-### Importing SSH Authorized Keys
+### Importing SSH authorized keys
 
-Teleport-protected servers running the Teleport SSH Service continuously scan for SSH Authorized Keys present on the server.
+Teleport-protected servers running the Teleport SSH Service continuously scan for SSH authorized keys present on the server.
 The public fingerprint of these keys is sent to the Teleport Auth Service, which then pushes them to the Access Graph.
 Together with the key fingerprint, the Teleport-protected server also sends the following metadata:
 
@@ -43,7 +43,7 @@ Here, `$HOME` refers to the home directory of each user on the system, whether t
 ### Importing User's SSH Private Keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
-It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows, 
+It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows,
 by peeking into files to identify SSH private keys.
 
 The `tsh` tool authenticates with the Teleport cluster through the [Device Trust](../../access-controls/device-trust/device-trust.mdx) feature,
@@ -83,9 +83,9 @@ how to set up Access Graph.
 
 ## Step 1/3. Enable SSH Key Scanning
 
-To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH Authorized Keys.
+To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH authorized keys.
 
-To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file: 
+To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file:
 
 ```code
 $ tctl edit access_graph_settings
@@ -103,9 +103,9 @@ version: v1
 ```
 
 Save the changes and exit the editor. The Teleport cluster will now start informing the Teleport-protected servers to scan for
-SSH Authorized Keys. This process may take a few minutes to complete.
+SSH authorized keys. This process may take a few minutes to complete.
 
-After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH Authorized Keys
+After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH authorized keys
 and local users.
 
 ## Step 2/3. Scan for SSH Private Keys
@@ -137,7 +137,7 @@ output is the only place where the private key paths are displayed. The paths ar
 
 ## Step 3/3. View Access Graph
 
-Once the SSH Authorized Keys and Private Keys have been imported, you can view them on the Access Graph page.
+Once the SSH authorized keys and Private Keys have been imported, you can view them on the Access Graph page.
 Users whose devices have private keys will see direct paths to the servers they can access.
 
 The access paths shown include the following relationships:
@@ -152,29 +152,29 @@ Insecure paths are also visible in a user's access paths. To view them, click on
 from the context menu. This will show the Teleport permissions granted to the user, the resources they can access,
 and any detected insecure paths.
 
-**Access Graph: Dedicated `ssh_keys` SQL View**  
+### Access Graph: Dedicated `ssh_keys` SQL View
 
-Starting in version **v1.25.0**, Access Graph introduces a dedicated `ssh_keys` SQL view for managing SSH access paths. 
-This view excludes access paths granted through Teleport and focuses on:  
-- Displaying identified access paths between identities and SSH nodes.  
-- Listing existing SSH Authorized Keys configured for nodes, even if `tsh scan keys` fails to detect matching SSH private keys.  
+Starting in version **v1.25.0**, Access Graph introduces a dedicated `ssh_keys` SQL view for managing SSH access paths.
+This view excludes access paths granted through Teleport and focuses on:
+- Displaying identified access paths between identities and SSH nodes.
+- Listing existing SSH authorized keys configured for nodes, even if `tsh scan keys` fails to detect matching SSH private keys.
 
 Below are a few example queries demonstrating how the `ssh_keys` view can be useful for identifying potential backdoors.
 
-- List all SSH access paths for Teleport SSH nodes and users:  
+- List all SSH access paths for Teleport SSH nodes and users:
    ```sql
    SELECT * FROM ssh_keys;
-   ```  
+   ```
 
-- View insecure access paths and SSH Authorized Keys for a specific node:
+- View insecure access paths and SSH authorized keys for a specific node:
    ```sql
    SELECT * FROM ssh_keys WHERE resource='<Var name="resource name" />';
-   ```  
+   ```
 
-- View insecure access paths and SSH Authorized Keys for a subset of nodes using labels:
+- View insecure access paths and SSH authorized keys for a subset of nodes using labels:
    ```sql
    SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
-   ```  
+   ```
 
 
 ## Jamf Pro Integration
