@@ -24,13 +24,14 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
+import { MfaChallengeResponse } from 'teleport/services/mfa';
+
 import {
   ChangePasswordWizardProps,
   createReauthOptions,
 } from './ChangePasswordWizard';
 
 import { ChangePasswordWizard } from '.';
-import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 const dummyChallengeResponse: MfaChallengeResponse = {
   webauthn_response: {
@@ -86,7 +87,7 @@ beforeEach(() => {
   onSuccess = jest.fn();
 
   jest
-    .spyOn(auth, 'getWebAuthnChallengeResponse')
+    .spyOn(auth, 'getMfaChallengeResponse')
     .mockResolvedValueOnce(dummyChallengeResponse);
   jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 });
@@ -102,7 +103,7 @@ describe('with passwordless reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('Passkey'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.getChallenge).toHaveBeenCalledWith({
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'required',
     });
@@ -193,7 +194,7 @@ describe('with WebAuthn MFA reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('MFA Device'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.getChallenge).toHaveBeenCalledWith({
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'discouraged',
     });
@@ -295,7 +296,7 @@ describe('with OTP MFA reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('Authenticator App'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.getChallenge).not.toHaveBeenCalled();
+    expect(auth.getMfaChallengeResponse).not.toHaveBeenCalled();
   }
 
   it('changes password', async () => {
@@ -419,7 +420,7 @@ describe('without reauthentication', () => {
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
-    expect(auth.getChallenge).not.toHaveBeenCalled();
+    expect(auth.getMfaChallengeResponse).not.toHaveBeenCalled();
     expect(auth.changePassword).toHaveBeenCalledWith({
       oldPassword: 'current-pass',
       newPassword: 'new-pass1234',

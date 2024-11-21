@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import session from 'teleport/services/websession';
 
-import { WebauthnAssertionResponse } from '../mfa';
+import { MfaChallengeResponse, WebauthnAssertionResponse } from '../mfa';
 
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
@@ -86,14 +86,14 @@ const service = {
   createUser(
     user: User,
     excludeUserField: ExcludeUserField,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
       .post(
         cfg.getUsersUrl(),
         withExcludedField(user, excludeUserField),
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(makeUser);
   },
@@ -101,15 +101,10 @@ const service = {
   createResetPasswordToken(
     name: string,
     type: ResetPasswordType,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
-      .post(
-        cfg.api.resetPasswordTokenPath,
-        { name, type },
-        null,
-        webauthnResponse
-      )
+      .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
       .then(makeResetToken);
   },
 

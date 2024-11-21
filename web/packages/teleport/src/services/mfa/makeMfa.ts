@@ -64,6 +64,14 @@ export function parseMfaRegistrationChallengeJson(
 export function parseMfaChallengeJson(
   challenge: MfaAuthenticateChallengeJson
 ): MfaAuthenticateChallenge {
+  if (
+    !challenge.sso_challenge &&
+    !challenge.webauthn_challenge &&
+    !challenge.totp_challenge
+  ) {
+    return null;
+  }
+
   // WebAuthn challenge contains Base64URL(byte) fields that needs to
   // be converted to ArrayBuffer expected by navigator.credentials.get:
   // - challenge

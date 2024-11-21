@@ -58,11 +58,10 @@ export default function useReAuthenticate(props: Props) {
 
     if ('onMfaResponse' in props) {
       auth
-        .getWebauthnResponse(props.challengeScope)
-        .then(webauthnResponse =>
-          props.onMfaResponse({ webauthn_response: webauthnResponse })
-        )
+        .getMfaChallenge({ scope: props.challengeScope })
+        .then(auth.getMfaChallengeResponse)
         .catch(handleError);
+
       return;
     }
 

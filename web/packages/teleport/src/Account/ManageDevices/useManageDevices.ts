@@ -48,14 +48,15 @@ export default function useManageDevices(ctx: Ctx) {
 
   async function onAddDevice(usage: DeviceUsage) {
     setNewDeviceUsage(usage);
-    const response = await auth.getChallenge({
+    const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.MANAGE_DEVICES,
     });
     // If the user doesn't receieve any challenges from the backend, that means
     // they have no valid devices to be challenged and should instead use a privilege token
     // to add a new device.
     // TODO (avatus): add SSO challenge here as well when we add SSO for MFA
-    if (!response.webauthnPublicKey?.challenge && !response.totpChallenge) {
+    // TODO(Joerger): privilege token is no longer required to add first device.
+    if (!challenge) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);
