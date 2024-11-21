@@ -66,7 +66,7 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -94,7 +94,7 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -158,7 +158,7 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
