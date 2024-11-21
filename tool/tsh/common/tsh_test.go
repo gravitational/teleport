@@ -406,7 +406,7 @@ func TestNoEnvVars(t *testing.T) {
 
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
-	// Execute an actual command and not jut `tsh help` which goes through a different code path.
+	// Execute an actual command and not just `tsh help` which goes through a different code path.
 	cmd := exec.CommandContext(ctx, testExecutable, "version", "--client")
 	// Run the command with no env vars except tshBinMainTestEnv, otherwise the test would hang.
 	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
