@@ -106,7 +106,7 @@ func Run(args []string) error {
 
 	versionCmd := app.Command("version", fmt.Sprintf("Print the version of your %s binary.", autoupdate.BinaryName))
 
-	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial update.")
+	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial installation or update.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group for this agent installation.").
@@ -119,7 +119,20 @@ func Run(args []string) error {
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
+	pinCmd := app.Command("pin", "Install Teleport and lock the updater on the installed version.")
+	pinCmd.Flag("proxy", "Address of the Teleport Proxy.").
+		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
+	pinCmd.Flag("group", "Update group for this agent installation.").
+		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	pinCmd.Flag("template", "Go template used to override Teleport download URL.").
+		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	pinCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
+		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
+	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
+	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
@@ -145,9 +158,15 @@ func Run(args []string) error {
 
 	switch command {
 	case enableCmd.FullCommand():
-		err = cmdEnable(ctx, &ccfg)
+		ccfg.Enabled = true
+		err = cmdInstall(ctx, &ccfg)
+	case pinCmd.FullCommand():
+		ccfg.Pinned = true
+		err = cmdInstall(ctx, &ccfg)
 	case disableCmd.FullCommand():
 		err = cmdDisable(ctx, &ccfg)
+	case unpinCmd.FullCommand():
+		err = cmdUnpin(ctx, &ccfg)
 	case updateCmd.FullCommand():
 		err = cmdUpdate(ctx, &ccfg)
 	case linkCmd.FullCommand():
@@ -210,8 +229,35 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdEnable enables updates and triggers an initial update.
-func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
+// cmdUnpin unpins the current version.
+func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		DataDir:   ccfg.DataDir,
+		LinkDir:   ccfg.LinkDir,
+		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+	if err := updater.Unpin(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// cmdInstall installs Teleport and sets configuration.
+func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
@@ -233,7 +279,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	if err := updater.Enable(ctx, ccfg.OverrideConfig); err != nil {
+	if err := updater.Install(ctx, ccfg.OverrideConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

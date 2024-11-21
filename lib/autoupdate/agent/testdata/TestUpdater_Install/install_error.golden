@@ -3,8 +3,10 @@ kind: update_config
 spec:
     proxy: ""
     group: ""
-    url_template: http://example.com
+    url_template: ""
     enabled: false
+    pinned: false
 status:
     active_version: ""
     backup_version: ""
+    skip_version: ""

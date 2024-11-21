@@ -103,6 +103,8 @@ type UpdateSpec struct {
 	URLTemplate string `yaml:"url_template"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
+	// Pinned controls whether the active_version is pinned.
+	Pinned bool `yaml:"pinned"`
 }
 
 // UpdateStatus describes the status field in update.yaml.
@@ -111,6 +113,8 @@ type UpdateStatus struct {
 	ActiveVersion string `yaml:"active_version"`
 	// BackupVersion is the last working version of Teleport.
 	BackupVersion string `yaml:"backup_version"`
+	// SkipVersion is the last reverted version of Teleport.
+	SkipVersion string `yaml:"skip_version"`
 }
 
 // NewLocalUpdater returns a new Updater that auto-updates local
@@ -315,26 +319,18 @@ const (
 // OverrideConfig contains overrides for individual update operations.
 // If validated, these overrides may be persisted to disk.
 type OverrideConfig struct {
-	// Proxy address, scheme and port optional.
-	// Overrides existing value if specified.
-	Proxy string
-	// Group identifier for updates (e.g., staging)
-	// Overrides existing value if specified.
-	Group string
-	// URLTemplate for the Teleport tgz download URL
-	// Overrides existing value if specified.
-	URLTemplate string
+	UpdateSpec
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
 	ForceFlags InstallFlags
 }
 
-// Enable enables agent updates and attempts an initial update.
-// If the initial update succeeds, auto-updates are enabled and the configuration is persisted.
-// Otherwise, the auto-updates configuration is not changed.
+// Install attempts an initial installation of Teleport.
+// If the initial installation succeeds, the override configuration is persisted.
+// Otherwise, the configuration is not changed.
 // This function is idempotent.
-func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
+func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
@@ -343,56 +339,42 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.Spec.Proxy == "" {
-		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
-	}
+
+	activeVersion := cfg.Status.ActiveVersion
+	skipVersion := cfg.Status.SkipVersion
 
 	// Lookup target version from the proxy.
 
-	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	resp, err := u.find(ctx, cfg)
 	if err != nil {
-		return trace.Errorf("failed to parse proxy server address: %w", err)
+		return trace.Wrap(err)
 	}
-	targetVersion := override.ForceVersion
-	flags := override.ForceFlags
-	if targetVersion == "" {
-		resp, err := webclient.Find(&webclient.Config{
-			Context:     ctx,
-			ProxyAddr:   addr.Addr,
-			Insecure:    u.InsecureSkipVerify,
-			Timeout:     30 * time.Second,
-			UpdateGroup: cfg.Spec.Group,
-			Pool:        u.Pool,
-		})
-		if err != nil {
-			return trace.Errorf("failed to request version from proxy: %w", err)
-		}
-		targetVersion = resp.AutoUpdate.AgentVersion
-		switch resp.Edition {
-		case modules.BuildEnterprise:
-			flags |= FlagEnterprise
-		case modules.BuildOSS, modules.BuildCommunity:
-		default:
-			u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
-		}
-		if resp.FIPS {
-			flags |= FlagFIPS
-		}
+	targetVersion := resp.version
+	flags := resp.flags
+	flags |= override.ForceFlags
+	if override.ForceVersion != "" {
+		targetVersion = override.ForceVersion
 	}
 
-	if targetVersion == "" {
+	switch targetVersion {
+	case "":
 		return trace.Errorf("agent version not available from Teleport cluster")
+	case skipVersion:
+		u.Log.WarnContext(ctx, "Target version was previously marked as broken. Retrying update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+	default:
+		u.Log.InfoContext(ctx, "Initiating installation.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 	}
-
-	u.Log.InfoContext(ctx, "Initiating initial update.", targetVersionKey, targetVersion, activeVersionKey, cfg.Status.ActiveVersion)
 
 	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
 		return trace.Wrap(err)
 	}
+	if targetVersion == cfg.Status.SkipVersion {
+		cfg.Status.SkipVersion = ""
+	}
 
-	// Always write the configuration file if enable succeeds.
+	// Only write the configuration file if the initial update succeeds.
+	// Note: skip_version is never set on failed enable, only failed update.
 
-	cfg.Spec.Enabled = true
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
@@ -418,6 +400,24 @@ func (u *Updater) Disable(ctx context.Context) error {
 	return nil
 }
 
+// Unpin allows the current version to be changed by Update.
+// This function is idempotent.
+func (u *Updater) Unpin(ctx context.Context) error {
+	cfg, err := readConfig(u.ConfigPath)
+	if err != nil {
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+	}
+	if !cfg.Spec.Pinned {
+		u.Log.InfoContext(ctx, "Current version not pinned.", activeVersionKey, cfg.Status.ActiveVersion)
+		return nil
+	}
+	cfg.Spec.Pinned = false
+	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+	}
+	return nil
+}
+
 // Update initiates an agent update.
 // If the update succeeds, the new installed version is marked as active.
 // Otherwise, the auto-updates configuration is not changed.
@@ -433,50 +433,36 @@ func (u *Updater) Update(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	activeVersion := cfg.Status.ActiveVersion
+	skipVersion := cfg.Status.SkipVersion
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeVersionKey, activeVersion)
 		return nil
 	}
-	if cfg.Spec.Proxy == "" {
-		return trace.Errorf("Teleport proxy URL must be present in %s", updateConfigName)
-	}
 
-	// Lookup target version from the proxy.
-
-	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	resp, err := u.find(ctx, cfg)
 	if err != nil {
-		return trace.Errorf("failed to parse proxy server address: %w", err)
+		return trace.Wrap(err)
 	}
-	resp, err := webclient.Find(&webclient.Config{
-		Context:     ctx,
-		ProxyAddr:   addr.Addr,
-		Insecure:    u.InsecureSkipVerify,
-		Timeout:     30 * time.Second,
-		UpdateGroup: cfg.Spec.Group,
-		Pool:        u.Pool,
-	})
-	if err != nil {
-		return trace.Errorf("failed to request version from proxy: %w", err)
-	}
-	targetVersion := resp.AutoUpdate.AgentVersion
-	var flags InstallFlags
-	switch resp.Edition {
-	case modules.BuildEnterprise:
-		flags |= FlagEnterprise
-	case modules.BuildOSS, modules.BuildCommunity:
-	default:
-		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
-	}
-	if resp.FIPS {
-		flags |= FlagFIPS
+	targetVersion := resp.version
+
+	if cfg.Spec.Pinned {
+		switch targetVersion {
+		case activeVersion:
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. Installation is pinned to prevent future updates.", activeVersionKey, activeVersion)
+		default:
+			u.Log.InfoContext(ctx, "Teleport version is pinned. Skipping update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		}
+		return nil
 	}
 
-	if !resp.AutoUpdate.AgentAutoUpdate {
+	if !resp.active {
 		switch targetVersion {
 		case "":
 			u.Log.WarnContext(ctx, "Cannot determine target agent version. Waiting for both version and update window.")
 		case activeVersion:
 			u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is not active.", activeVersionKey, activeVersion)
+		case skipVersion:
+			u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Update window is not active.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 		default:
 			u.Log.InfoContext(ctx, "Update available, but update window is not active.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 		}
@@ -490,24 +476,68 @@ func (u *Updater) Update(ctx context.Context) error {
 	case activeVersion:
 		u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeVersionKey, activeVersion)
 		return nil
+	case skipVersion:
+		u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Skipping update during the update window.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		return nil
 	default:
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
 	}
+	time.Sleep(resp.jitter)
 
+	updateErr := u.update(ctx, cfg, targetVersion, resp.flags)
+	writeErr := writeConfig(u.ConfigPath, cfg)
+	if writeErr != nil {
+		writeErr = trace.Errorf("failed to write %s: %w", updateConfigName, writeErr)
+	} else {
+		u.Log.InfoContext(ctx, "Configuration updated.")
+	}
+	return trace.NewAggregate(updateErr, writeErr)
+}
+
+func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (findResp, error) {
+	if cfg.Spec.Proxy == "" {
+		return findResp{}, trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
+	}
+	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	if err != nil {
+		return findResp{}, trace.Errorf("failed to parse proxy server address: %w", err)
+	}
+	resp, err := webclient.Find(&webclient.Config{
+		Context:     ctx,
+		ProxyAddr:   addr.Addr,
+		Insecure:    u.InsecureSkipVerify,
+		Timeout:     30 * time.Second,
+		UpdateGroup: cfg.Spec.Group,
+		Pool:        u.Pool,
+	})
+	if err != nil {
+		return findResp{}, trace.Errorf("failed to request version from proxy: %w", err)
+	}
+	var flags InstallFlags
+	switch resp.Edition {
+	case modules.BuildEnterprise:
+		flags |= FlagEnterprise
+	case modules.BuildOSS, modules.BuildCommunity:
+	default:
+		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
+	}
+	if resp.FIPS {
+		flags |= FlagFIPS
+	}
 	jitterSec := resp.AutoUpdate.AgentUpdateJitterSeconds
-	time.Sleep(time.Duration(jitterSec) * time.Second)
+	return findResp{
+		version: resp.AutoUpdate.AgentVersion,
+		flags:   flags,
+		active:  resp.AutoUpdate.AgentAutoUpdate,
+		jitter:  time.Duration(jitterSec) * time.Second,
+	}, nil
+}
 
-	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Write the configuration file if update succeeds.
-
-	if err := writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
-	}
-	u.Log.InfoContext(ctx, "Configuration updated.")
-	return nil
+type findResp struct {
+	version string
+	flags   InstallFlags
+	active  bool
+	jitter  time.Duration
 }
 
 func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion string, flags InstallFlags) error {
@@ -551,6 +581,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	// fix the link to restore the active version.
 
 	revertConfig := func(ctx context.Context) bool {
+		cfg.Status.SkipVersion = targetVersion
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
 			return false
@@ -614,9 +645,8 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 
 	versions, err := u.Installer.List(ctx)
 	if err != nil {
-		return trace.Errorf("failed to list installed versions: %w", err)
-	}
-	if n := len(versions); n > 2 {
+		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
+	} else if n := len(versions); n > 2 {
 		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
 	}
 	return nil
@@ -683,6 +713,12 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if spec.URLTemplate != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
 		return trace.Errorf("Teleport download URL must use TLS (https://)")
+	}
+	if override.Enabled {
+		spec.Enabled = true
+	}
+	if override.Pinned {
+		spec.Pinned = true
 	}
 	return nil
 }
