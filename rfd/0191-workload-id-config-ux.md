@@ -272,8 +272,8 @@ a credential from a WorkloadIdentity:
 
 1. Does the requester hold a role which grants access to the WorkloadIdentity
   via label matchers?
-2. Does the requester's attributes not match any deny rule?
-3. Does the requester's attributes match any allow rule?
+2. Do the requester's attributes not match any deny rule?
+3. Do the requester's attributes match any allow rule?
 4. Does the requester have the appropriate attributes for templating to succeed?
 
 Whilst this seems complex, in a majority of cases, the label matching
