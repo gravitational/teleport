@@ -3,4 +3,27 @@ title: Enrolling Teleport Resources
 description: Provides step-by-step instructions for enrolling servers, databases, and other infrastructure resources with your Teleport cluster.
 ---
 
+You can use Teleport to protect infrastructure resources like servers,
+databases, and Kubernetes clusters. Once an infrastructure resource is protected
+by Teleport, you can restrict access to the resource using the Teleport
+[role-based access controls
+system](../admin-guides/access-controls/access-controls.mdx) and use Teleport
+features like session recordings and audit events to understand how your users
+interact with the resource.
+
+To enroll a resource with Teleport, you deploy a Teleport Agent, an instance of
+the `teleport` binary configured to run certain services, such as the Teleport
+SSH Service and Teleport Database Service. You then configure the Agent to proxy
+a resource by querying a service discovery API (Auto Discovery), using a
+[dynamic Teleport
+resource](../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx), or
+naming the resource in the Agent's configuration file. Read more about [Teleport
+Agent architecture](../reference/architecture/agents.mdx).
+
+You can also create a Teleport bot user and set up Machine ID to enable service
+accounts to access Teleport-protected resources.
+
+Read the following documentation for more information on enrolling
+infrastructure resources with Teleport:
+
 (!toc!)

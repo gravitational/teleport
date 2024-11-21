@@ -29,20 +29,24 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   AccessSpec,
   AppAccessSpec,
+  DatabaseAccessSpec,
   KubernetesAccessSpec,
   newAccessSpec,
   newRole,
   roleToRoleEditorModel,
   ServerAccessSpec,
   StandardEditorModel,
+  WindowsDesktopAccessSpec,
 } from './standardmodel';
 import {
   AppAccessSpecSection,
+  DatabaseAccessSpecSection,
   KubernetesAccessSpecSection,
   SectionProps,
   ServerAccessSpecSection,
   StandardEditor,
   StandardEditorProps,
+  WindowsDesktopAccessSpecSection,
 } from './StandardEditor';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
@@ -76,6 +80,8 @@ test('adding and removing sections', async () => {
     'Kubernetes',
     'Servers',
     'Applications',
+    'Databases',
+    'Windows Desktops',
   ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
@@ -84,7 +90,12 @@ test('adding and removing sections', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add New Specifications' })
   );
-  expect(getAllMenuItemNames()).toEqual(['Kubernetes', 'Applications']);
+  expect(getAllMenuItemNames()).toEqual([
+    'Kubernetes',
+    'Applications',
+    'Databases',
+    'Windows Desktops',
+  ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
   expect(getAllSectionNames()).toEqual([
@@ -351,6 +362,62 @@ test('AppAccessSpecSection', async () => {
     ],
     gcpServiceAccounts: ['admin@some-project.iam.gserviceaccount.com'],
   } as AppAccessSpec);
+});
+
+test('DatabaseAccessSpecSection', async () => {
+  const user = userEvent.setup();
+  const onChange = jest.fn();
+  render(
+    <StatefulSection<DatabaseAccessSpec>
+      component={DatabaseAccessSpecSection}
+      defaultValue={newAccessSpec('db')}
+      onChange={onChange}
+    />
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(screen.getByPlaceholderText('label key'), 'env');
+  await user.type(screen.getByPlaceholderText('label value'), 'prod');
+  await selectEvent.create(screen.getByLabelText('Database Names'), 'stuff', {
+    createOptionText: 'Database Name: stuff',
+  });
+  await selectEvent.create(screen.getByLabelText('Database Users'), 'mary', {
+    createOptionText: 'Database User: mary',
+  });
+  await selectEvent.create(screen.getByLabelText('Database Roles'), 'admin', {
+    createOptionText: 'Database Role: admin',
+  });
+  expect(onChange).toHaveBeenLastCalledWith({
+    kind: 'db',
+    labels: [{ name: 'env', value: 'prod' }],
+    names: [expect.objectContaining({ label: 'stuff', value: 'stuff' })],
+    roles: [expect.objectContaining({ label: 'admin', value: 'admin' })],
+    users: [expect.objectContaining({ label: 'mary', value: 'mary' })],
+  } as DatabaseAccessSpec);
+});
+
+test('WindowsDesktopAccessSpecSection', async () => {
+  const user = userEvent.setup();
+  const onChange = jest.fn();
+  render(
+    <StatefulSection<WindowsDesktopAccessSpec>
+      component={WindowsDesktopAccessSpecSection}
+      defaultValue={newAccessSpec('windows_desktop')}
+      onChange={onChange}
+    />
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(screen.getByPlaceholderText('label key'), 'os');
+  await user.type(screen.getByPlaceholderText('label value'), 'win-xp');
+  await selectEvent.create(screen.getByLabelText('Logins'), 'julio', {
+    createOptionText: 'Login: julio',
+  });
+  expect(onChange).toHaveBeenLastCalledWith({
+    kind: 'windows_desktop',
+    labels: [{ name: 'os', value: 'win-xp' }],
+    logins: [expect.objectContaining({ label: 'julio', value: 'julio' })],
+  } as WindowsDesktopAccessSpec);
 });
 
 const reactSelectValueContainer = (input: HTMLInputElement) =>

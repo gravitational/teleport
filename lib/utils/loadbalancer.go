@@ -22,7 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sync"
 	"time"
@@ -94,7 +94,7 @@ func randomPolicy() loadBalancerPolicy {
 		if len(backends) == 0 {
 			return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
 		}
-		i := rand.Intn(len(backends))
+		i := rand.N(len(backends))
 		return backends[i], nil
 	}
 }
