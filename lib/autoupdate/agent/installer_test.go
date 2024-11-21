@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -393,7 +394,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:     versionsDir,
 				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, "lib/systemd/system"),
+				LinkServiceDir: filepath.Join(linkDir, serviceDir),
 				Log:            slog.Default(),
 			}
 			ctx := context.Background()
@@ -635,7 +636,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:     versionsDir,
 				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, "lib/systemd/system"),
+				LinkServiceDir: filepath.Join(linkDir, serviceDir),
 				Log:            slog.Default(),
 			}
 			ctx := context.Background()
@@ -773,8 +774,8 @@ func TestLocalInstaller_Remove(t *testing.T) {
 
 			installer := &LocalInstaller{
 				InstallDir:     versionsDir,
-				LinkBinDir:     linkDir,
-				LinkServiceDir: linkDir,
+				LinkBinDir:     filepath.Join(linkDir, "bin"),
+				LinkServiceDir: filepath.Join(linkDir, serviceDir),
 				Log:            slog.Default(),
 			}
 			ctx := context.Background()
@@ -792,6 +793,185 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			require.NoError(t, err)
 			_, err = os.Stat(filepath.Join(versionDir, "bin", tt.removeVersion))
 			require.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
+}
+
+func TestLocalInstaller_Unlink(t *testing.T) {
+	t.Parallel()
+	const version = "existing-version"
+	servicePath := filepath.Join(serviceDir, serviceName)
+
+	tests := []struct {
+		name    string
+		bins    []string
+		svcOrig []byte
+
+		links   []symlink
+		svcCopy []byte
+
+		remaining []string
+		errMatch  string
+	}{
+		{
+			name:    "normal",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+			svcCopy: []byte("orig"),
+		},
+		{
+			name:    "different services",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+			svcCopy:   []byte("custom"),
+			remaining: []string{servicePath},
+		},
+		{
+			name:    "missing target service",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+		},
+		{
+			name: "missing source service",
+			bins: []string{"teleport", "tsh"},
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+			svcCopy:   []byte("custom"),
+			remaining: []string{servicePath},
+			errMatch:  "no such",
+		},
+		{
+			name:    "missing teleport link",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+			svcCopy:   []byte("orig"),
+			remaining: []string{servicePath},
+		},
+		{
+			name:    "missing other link",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+			},
+			svcCopy: []byte("orig"),
+		},
+		{
+			name:    "wrong teleport link",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "other", newname: "bin/teleport"},
+				{oldname: "bin/tsh", newname: "bin/tsh"},
+			},
+			svcCopy:   []byte("orig"),
+			remaining: []string{servicePath, "bin/teleport"},
+		},
+		{
+			name:    "wrong other link",
+			bins:    []string{"teleport", "tsh"},
+			svcOrig: []byte("orig"),
+			links: []symlink{
+				{oldname: "bin/teleport", newname: "bin/teleport"},
+				{oldname: "wrong", newname: "bin/tsh"},
+			},
+			svcCopy:   []byte("orig"),
+			remaining: []string{"bin/tsh"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			versionsDir := t.TempDir()
+			versionDir := filepath.Join(versionsDir, version)
+			err := os.MkdirAll(versionDir, 0o755)
+			require.NoError(t, err)
+			linkDir := t.TempDir()
+
+			var files []smallFile
+			for _, n := range tt.bins {
+				files = append(files, smallFile{
+					name: filepath.Join(versionDir, "bin", n),
+					data: []byte("binary"),
+					mode: os.ModePerm,
+				})
+			}
+			if tt.svcOrig != nil {
+				files = append(files, smallFile{
+					name: filepath.Join(versionDir, servicePath),
+					data: tt.svcOrig,
+					mode: os.ModePerm,
+				})
+			}
+			if tt.svcCopy != nil {
+				files = append(files, smallFile{
+					name: filepath.Join(linkDir, servicePath),
+					data: tt.svcCopy,
+					mode: os.ModePerm,
+				})
+			}
+
+			for _, n := range files {
+				err = os.MkdirAll(filepath.Dir(n.name), os.ModePerm)
+				require.NoError(t, err)
+				err = os.WriteFile(n.name, n.data, n.mode)
+				require.NoError(t, err)
+			}
+			for _, n := range tt.links {
+				newname := filepath.Join(linkDir, n.newname)
+				oldname := filepath.Join(versionDir, n.oldname)
+				err = os.MkdirAll(filepath.Dir(newname), os.ModePerm)
+				require.NoError(t, err)
+				err = os.Symlink(oldname, newname)
+				require.NoError(t, err)
+			}
+
+			installer := &LocalInstaller{
+				InstallDir:     versionsDir,
+				LinkBinDir:     filepath.Join(linkDir, "bin"),
+				LinkServiceDir: filepath.Join(linkDir, serviceDir),
+				Log:            slog.Default(),
+			}
+			ctx := context.Background()
+			err = installer.Unlink(ctx, version)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
+			for _, n := range tt.remaining {
+				_, err = os.Lstat(filepath.Join(linkDir, n))
+				require.NoError(t, err)
+			}
+			for _, n := range tt.links {
+				if slices.Contains(tt.remaining, n.newname) {
+					continue
+				}
+				_, err = os.Lstat(filepath.Join(linkDir, n.newname))
+				require.ErrorIs(t, err, os.ErrNotExist)
+			}
+			if !slices.Contains(tt.remaining, servicePath) {
+				_, err = os.Lstat(filepath.Join(linkDir, servicePath))
+				require.ErrorIs(t, err, os.ErrNotExist)
+			}
 		})
 	}
 }

@@ -255,10 +255,13 @@ type Installer interface {
 	// Unlike Link, TryLink will fail if existing links to other locations are present.
 	// TryLink must be idempotent.
 	TryLink(ctx context.Context, version string) error
-	// TryLinkSystem links the system installation of Teleport into the linking locations.
+	// TryLinkSystem links the system (package) installation of Teleport into the linking locations.
 	// Unlike LinkSystem, TryLinkSystem will fail if existing links to other locations are present.
 	// TryLinkSystem must be idempotent.
 	TryLinkSystem(ctx context.Context) error
+	// UnlinkSystem unlinks the system (package) installation of Teleport from the linking locations.
+	// TryLinkSystem must be idempotent.
+	UnlinkSystem(ctx context.Context) error
 	// List the installed versions of Teleport.
 	List(ctx context.Context) (versions []string, err error)
 	// Remove the Teleport agent at version.
@@ -710,10 +713,22 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	} else if err != nil {
 		return trace.Errorf("failed to link system package installation: %w", err)
 	}
-	// TODO(sclevine): only if systemd files change
 	if err := u.Process.Sync(ctx); err != nil {
-		return trace.Errorf("failed to validate configuration for packaged installation of Teleport: %w", err)
+		return trace.Errorf("failed to sync systemd configuration: %w", err)
 	}
 	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
+	return nil
+}
+
+// UnlinkPackage removes links from the system (package) installation of Teleport, if they are present.
+// This function is idempotent.
+func (u *Updater) UnlinkPackage(ctx context.Context) error {
+	if err := u.Installer.UnlinkSystem(ctx); err != nil {
+		return trace.Errorf("failed to unlink system package installation: %w", err)
+	}
+	if err := u.Process.Sync(ctx); err != nil {
+		return trace.Errorf("failed to sync systemd configuration: %w", err)
+	}
+	u.Log.InfoContext(ctx, "Successfully unlinked system package installation.")
 	return nil
 }
