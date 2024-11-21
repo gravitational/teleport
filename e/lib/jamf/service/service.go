@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -199,10 +199,7 @@ func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry
 	case spec.SyncDelay > 0: // as specified
 		delayFn = func() time.Duration { return time.Duration(spec.SyncDelay) }
 	default: // random
-		delayFn = func() time.Duration {
-			n := rand.Int63n(int64(2 * time.Minute))
-			return time.Duration(n)
-		}
+		delayFn = func() time.Duration { return rand.N(2 * time.Minute) }
 	}
 
 	return mdm.NewSyncScheduler(
