@@ -96,12 +96,16 @@ func TestVariableDurationIncDec(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vd.Inc()
+			if i%2 == 0 {
+				vd.Inc()
+			} else {
+				vd.Add(i)
+			}
 		}()
 	}
 
 	wg.Wait()
-	require.Equal(t, int64(100), vd.Count())
+	require.Equal(t, int64(50+50*49+50), vd.Count())
 
 	wg = sync.WaitGroup{}
 
@@ -109,20 +113,28 @@ func TestVariableDurationIncDec(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vd.Dec()
+			if i%2 == 0 {
+				vd.Dec()
+			} else {
+				vd.Add(-i)
+			}
 		}()
 	}
 
 	wg.Wait()
-	require.Equal(t, int64(50), vd.Count())
+	require.Equal(t, int64(50+50*49+50-(25+25*24+25)), vd.Count())
 
 	wg = sync.WaitGroup{}
 
-	for i := 0; i < 50; i++ {
+	for i := 50; i < 100; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vd.Dec()
+			if i%2 == 0 {
+				vd.Dec()
+			} else {
+				vd.Add(-i)
+			}
 		}()
 	}
 
