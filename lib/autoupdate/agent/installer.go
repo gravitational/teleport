@@ -39,6 +39,7 @@ import (
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -443,6 +444,46 @@ func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.C
 	return revert, trace.Wrap(err)
 }
 
+// TryLink links the specified version, but only in the case that
+// no installation of Teleport is already linked or partially linked.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(li.tryLinks(ctx,
+		filepath.Join(versionDir, "bin"),
+		filepath.Join(versionDir, serviceDir),
+	))
+}
+
+// TryLinkSystem links the system installation, but only in the case that
+// no installation of Teleport is already linked or partially linked.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
+	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceDir))
+}
+
+// Unlink unlinks a version from LinkBinDir and LinkServiceDir.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) Unlink(ctx context.Context, version string) error {
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(li.removeLinks(ctx,
+		filepath.Join(versionDir, "bin"),
+		filepath.Join(versionDir, serviceDir),
+	))
+}
+
+// UnlinkSystem unlinks the system (package) version from LinkBinDir and LinkServiceDir.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) UnlinkSystem(ctx context.Context) error {
+	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServiceDir))
+}
+
 // symlink from oldname to newname
 type symlink struct {
 	oldname, newname string
@@ -640,25 +681,67 @@ func readFileN(name string, n int64) ([]byte, error) {
 	return data, trace.Wrap(err)
 }
 
-// TryLink links the specified version, but only in the case that
-// no installation of Teleport is already linked or partially linked.
-// See Installer interface for additional specs.
-func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
-	versionDir, err := li.versionDir(version)
+func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcDir string) error {
+	removeService := false
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		oldname := filepath.Join(binDir, entry.Name())
+		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		v, err := os.Readlink(newname)
+		if errors.Is(err, os.ErrNotExist) ||
+			errors.Is(err, os.ErrInvalid) ||
+			errors.Is(err, syscall.EINVAL) {
+			li.Log.DebugContext(ctx, "Link not present.", "oldname", oldname, "newname", newname)
+			continue
+		}
+		if err != nil {
+			return trace.Errorf("error reading link for %s: %w", filepath.Base(newname), err)
+		}
+		if v != oldname {
+			li.Log.DebugContext(ctx, "Skipping link to different binary.", "oldname", oldname, "newname", newname)
+			continue
+		}
+		if err := os.Remove(newname); err != nil {
+			li.Log.ErrorContext(ctx, "Unable to remove link.", "oldname", oldname, "newname", newname, errorKey, err)
+			continue
+		}
+		if filepath.Base(newname) == teleport.ComponentTeleport {
+			removeService = true
+		}
+	}
+	// only remove service if teleport was removed
+	if !removeService {
+		li.Log.DebugContext(ctx, "Teleport binary not unlinked. Skipping removal of teleport.service.")
+		return nil
+	}
+	src := filepath.Join(svcDir, serviceName)
+	srcBytes, err := readFileN(src, maxServiceFileSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(li.tryLinks(ctx,
-		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir),
-	))
-}
-
-// TryLinkSystem links the system installation, but only in the case that
-// no installation of Teleport is already linked or partially linked.
-// See Installer interface for additional specs.
-func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
-	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceDir))
+	dst := filepath.Join(li.LinkServiceDir, serviceName)
+	dstBytes, err := readFileN(dst, maxServiceFileSize)
+	if errors.Is(err, os.ErrNotExist) {
+		li.Log.DebugContext(ctx, "Service not present.", "path", dst)
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !bytes.Equal(srcBytes, dstBytes) {
+		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
+		return nil
+	}
+	if err := os.Remove(dst); err != nil {
+		return trace.Errorf("error removing copy of %s: %w", filepath.Base(dst), err)
+	}
+	return nil
 }
 
 // tryLinks create binary and service links for files in binDir and svcDir if links are not already present.
