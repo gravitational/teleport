@@ -735,7 +735,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcDir string
 		return trace.Wrap(err)
 	}
 	if !bytes.Equal(srcBytes, dstBytes) {
-		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service.")
+		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
 		return nil
 	}
 	if err := os.Remove(dst); err != nil {
