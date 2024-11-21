@@ -30,10 +30,23 @@ import {
 } from './ChangePasswordWizard';
 
 import { ChangePasswordWizard } from '.';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
-const dummyCredential: Credential = {
-  id: 'cred-id',
-  type: 'public-key',
+const dummyChallengeResponse: MfaChallengeResponse = {
+  webauthn_response: {
+    id: 'cred-id',
+    type: 'public-key',
+    extensions: {
+      appid: true,
+    },
+    rawId: 'rawId',
+    response: {
+      authenticatorData: 'authenticatorData',
+      clientDataJSON: 'clientDataJSON',
+      signature: 'signature',
+      userHandle: 'userHandle',
+    },
+  },
 };
 let user: UserEvent;
 let onSuccess: jest.Mock;
@@ -73,8 +86,8 @@ beforeEach(() => {
   onSuccess = jest.fn();
 
   jest
-    .spyOn(auth, 'fetchWebAuthnChallenge')
-    .mockResolvedValueOnce(dummyCredential);
+    .spyOn(auth, 'getWebAuthnChallengeResponse')
+    .mockResolvedValueOnce(dummyChallengeResponse);
   jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 });
 
@@ -89,7 +102,7 @@ describe('with passwordless reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('Passkey'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).toHaveBeenCalledWith({
+    expect(auth.getChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'required',
     });
@@ -113,7 +126,7 @@ describe('with passwordless reauthentication', () => {
       oldPassword: '',
       newPassword: 'new-pass1234',
       secondFactorToken: '',
-      credential: dummyCredential,
+      credential: dummyChallengeResponse.webauthn_response,
     });
     expect(onSuccess).toHaveBeenCalled();
   });
@@ -180,7 +193,7 @@ describe('with WebAuthn MFA reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('MFA Device'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).toHaveBeenCalledWith({
+    expect(auth.getChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'discouraged',
     });
@@ -208,7 +221,7 @@ describe('with WebAuthn MFA reauthentication', () => {
       oldPassword: 'current-pass',
       newPassword: 'new-pass1234',
       secondFactorToken: '',
-      credential: dummyCredential,
+      credential: dummyChallengeResponse.webauthn_response,
     });
     expect(onSuccess).toHaveBeenCalled();
   });
@@ -282,7 +295,7 @@ describe('with OTP MFA reauthentication', () => {
     );
     await user.click(reauthenticateStep.getByText('Authenticator App'));
     await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).not.toHaveBeenCalled();
+    expect(auth.getChallenge).not.toHaveBeenCalled();
   }
 
   it('changes password', async () => {
@@ -406,7 +419,7 @@ describe('without reauthentication', () => {
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
-    expect(auth.fetchWebAuthnChallenge).not.toHaveBeenCalled();
+    expect(auth.getChallenge).not.toHaveBeenCalled();
     expect(auth.changePassword).toHaveBeenCalledWith({
       oldPassword: 'current-pass',
       newPassword: 'new-pass1234',

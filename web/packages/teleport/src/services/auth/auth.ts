@@ -18,7 +18,12 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+import {
+  DeviceType,
+  DeviceUsage,
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+} from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -235,11 +240,12 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .getChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .then(auth.getWebAuthnChallengeResponse)
       .then(res => {
         const request = {
           action: 'accept',
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          webauthnAssertionResponse: res.webauthn_response,
         };
 
         return api.put(cfg.getHeadlessSsoPath(transactionId), request);
@@ -266,47 +272,45 @@ const auth = {
       .post(
         cfg.api.mfaAuthnChallengePath,
         {
+          is_mfa_required_req: req.isMfaRequiredRequest,
           challenge_scope: req.scope,
+          challenge_allow_reuse: req.allowReuse,
+          user_verification_requirement: req.userVerificationRequirement,
         },
         abortSignal
       )
       .then(parseMfaChallengeJson);
   },
 
-  async fetchWebAuthnChallenge(
-    req: CreateAuthenticateChallengeRequest,
-    abortSignal?: AbortSignal
-  ) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() =>
-        api
-          .post(
-            cfg.api.mfaAuthnChallengePath,
-            {
-              is_mfa_required_req: req.isMfaRequiredRequest,
-              challenge_scope: req.scope,
-              challenge_allow_reuse: req.allowReuse,
-              user_verification_requirement: req.userVerificationRequirement,
-            },
-            abortSignal
-          )
-          .then(parseMfaChallengeJson)
-      )
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: res.webauthnPublicKey,
+  // TODO(Joerger): Replace with getMfaResponse
+  async getWebAuthnChallengeResponse(
+    challenge: MfaAuthenticateChallenge
+  ): Promise<MfaChallengeResponse> {
+    return auth.checkWebauthnSupport().then(() =>
+      navigator.credentials
+        .get({
+          publicKey: challenge.webauthnPublicKey,
         })
-      );
+        .then(cred => {
+          return makeWebauthnAssertionResponse(cred);
+        })
+        .then(resp => {
+          return { webauthn_response: resp };
+        })
+    );
   },
 
+  // TODO(Joerger): Combine with otp endpoint.
   createPrivilegeTokenWithWebauthn() {
     // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     return auth
-      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .getChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(auth.getWebAuthnChallengeResponse)
       .then(res =>
         api.post(cfg.api.createPrivilegeTokenPath, {
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(
+            res.webauthn_response
+          ),
         })
       );
   },
@@ -315,6 +319,7 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
+  // TODO(Joerger): Get rid of one-shot webauthn flow in favor of two-shot mfa flow.
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
@@ -349,11 +354,9 @@ const auth = {
     }
 
     return auth
-      .fetchWebAuthnChallenge(
-        { scope, allowReuse, isMfaRequiredRequest },
-        abortSignal
-      )
-      .then(res => makeWebauthnAssertionResponse(res));
+      .getChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
+      .then(auth.getWebAuthnChallengeResponse)
+      .then(res => makeWebauthnAssertionResponse(res.webauthn_response));
   },
 
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
