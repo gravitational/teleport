@@ -134,9 +134,15 @@ func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 
 func (c *IDTokenClaims) JoinAttributes() *machineidv1pb.GitlabJoinAttributes {
 	return &machineidv1pb.GitlabJoinAttributes{
-		UserLogin:     c.UserLogin,
-		ProjectPath:   c.ProjectPath,
-		NamespacePath: c.NamespacePath,
-		Environment:   c.Environment,
+		UserLogin:      c.UserLogin,
+		ProjectPath:    c.ProjectPath,
+		NamespacePath:  c.NamespacePath,
+		Environment:    c.Environment,
+		Sha:            c.SHA,
+		PipelineSource: c.PipelineSource,
+		PipelineId:     c.PipelineID,
+		Ref:            c.Ref,
+		RefType:        c.RefType,
+		RunnerId:       int64(c.RunnerID),
 	}
 }

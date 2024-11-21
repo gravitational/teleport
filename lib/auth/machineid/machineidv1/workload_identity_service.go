@@ -19,6 +19,7 @@
 package machineidv1
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -32,11 +33,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -406,11 +412,18 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	}
 
 	workloadIdentity := &pb.WorkloadIdentity{
+		Metadata: &headerv1.Metadata{
+			Name: "gitlab-pipeline",
+		},
 		Spec: &pb.WorkloadIdentitySpec{
 			Rules: &pb.WorkloadIdentityRules{
 				Allow: []*pb.WorkloadIdentityRule{
 					{
 						Conditions: []*pb.WorkloadIdentityRuleCondition{
+							{
+								Attribute: "join.gitlab.namespace_path",
+								Equals:    "strideynet",
+							},
 							{
 								Attribute: "join.gitlab.user_login",
 								Equals:    "strideynet",
@@ -436,7 +449,14 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	}
 
 	attrs := &pb.Attributes{
-		Join: authCtx.Identity.GetIdentity().BotJoinAttributes,
+		Join:   authCtx.Identity.GetIdentity().BotJoinAttributes,
+		Traits: []*v1.Trait{},
+	}
+	for k, values := range authCtx.Identity.GetIdentity().Traits {
+		attrs.Traits = append(attrs.Traits, &v1.Trait{
+			Key:    k,
+			Values: values,
+		})
 	}
 
 	if ruleMatch(workloadIdentity.GetSpec().GetRules().GetDeny(), attrs) {
@@ -465,7 +485,7 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	notAfter := wis.clock.Now().Add(ttl)
 	notBefore := wis.clock.Now().UTC().Add(-1 * time.Minute)
 
-	pemBytes, _, err := signx509SVID(
+	pemBytes, serialNumber, err := signx509SVID(
 		notBefore,
 		notAfter,
 		tlsCA,
@@ -476,6 +496,43 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Convert Attrs proto to Structpb for audit log event...
+	jsonAttrs, err := (protojson.MarshalOptions{
+		UseProtoNames: true,
+	}).Marshal(attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshalling attributes")
+	}
+	attrStruct := &gogotypes.Struct{}
+	if err := jsonpb.Unmarshal(bytes.NewReader(jsonAttrs), attrStruct); err != nil {
+		return nil, trace.Wrap(err, "failed to unmarshal attributes into struct...")
+	}
+
+	evt := &apievents.SPIFFESVIDIssued{
+		Metadata: apievents.Metadata{
+			Type: events.SPIFFESVIDIssuedEvent,
+			Code: events.SPIFFESVIDIssuedSuccessCode,
+		},
+		UserMetadata:         authz.ClientUserMetadata(ctx),
+		ConnectionMetadata:   authz.ConnectionMetadata(ctx),
+		SVIDType:             "x509",
+		WorkloadIdentityName: workloadIdentity.GetMetadata().GetName(),
+		AttributeContext: &apievents.Struct{
+			Struct: *attrStruct,
+		},
+	}
+	if serialNumber != nil {
+		evt.SerialNumber = serialString(serialNumber)
+	}
+	if !spiffeID.IsZero() {
+		evt.SPIFFEID = spiffeID.String()
+	}
+	if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+		wis.logger.WarnContext(
+			ctx, "Failed to emit SPIFFE SVID issued event", "error", err,
+		)
 	}
 
 	return &pb.IssueWorkloadIdentityResponse{
