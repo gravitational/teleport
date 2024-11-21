@@ -20,11 +20,16 @@ package bitbucket
 
 import (
 	"context"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
+
+// ProviderTimeout is the maximum time allowed to fetch provider metadata before
+// giving up.
+const ProviderTimeout time.Duration = 15 * time.Second
 
 // IDTokenValidator validates a Bitbucket issued ID Token.
 type IDTokenValidator struct {
@@ -48,7 +53,10 @@ func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, issuerURL, audience, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(ctx, issuerURL)
+	timeoutCtx, cancel := context.WithTimeout(ctx, ProviderTimeout)
+	defer cancel()
+
+	p, err := oidc.NewProvider(timeoutCtx, issuerURL)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating oidc provider")
 	}
@@ -58,12 +66,12 @@ func (id *IDTokenValidator) Validate(
 		Now:      id.clock.Now,
 	})
 
-	idToken, err := verifier.Verify(ctx, token)
+	idToken, err := verifier.Verify(timeoutCtx, token)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	claims := IDTokenClaims{}
+	var claims IDTokenClaims
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}

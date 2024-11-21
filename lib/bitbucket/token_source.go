@@ -18,16 +18,19 @@
 
 package bitbucket
 
-import "github.com/gravitational/trace"
-
-type envGetter func(key string) string
+import (
+	"github.com/gravitational/trace"
+)
 
 // IDTokenSource allows a Bitbucket OIDC token to be fetched whilst within a
 // Pipelines execution.
 type IDTokenSource struct {
-	getEnv envGetter
+	// getEnv is a function that returns a string from the environment, usually
+	// os.Getenv except in tests.
+	getEnv func(key string) string
 }
 
+// GetIDToken attempts to fetch a Bitbucket OIDC token from the environment.
 func (its *IDTokenSource) GetIDToken() (string, error) {
 	tok := its.getEnv("BITBUCKET_STEP_OIDC_TOKEN")
 	if tok == "" {
@@ -39,7 +42,9 @@ func (its *IDTokenSource) GetIDToken() (string, error) {
 	return tok, nil
 }
 
-func NewIDTokenSource(getEnv envGetter) *IDTokenSource {
+// NewIDTokenSource builds a helper that can extract a Bitbucket OIDC token from
+// the environment, using `getEnv`.
+func NewIDTokenSource(getEnv func(key string) string) *IDTokenSource {
 	return &IDTokenSource{
 		getEnv,
 	}

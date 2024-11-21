@@ -62,8 +62,8 @@ type IDTokenClaims struct {
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into
 // audit events related to a specific join.
-func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
+func (c *IDTokenClaims) JoinAuditAttributes() (map[string]any, error) {
+	res := map[string]any{}
 	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
 		Result:  &res,
