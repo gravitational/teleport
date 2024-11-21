@@ -160,11 +160,16 @@ message WorkloadIdentity {
   WorkloadIdentitySpec spec = 5;
 }
 
+// TODO
+message WorkloadIdentityRuleCondition {
+  string attribute = 1;
+  string equals = 2;
+}
+
 // WorkloadIdentityRule holds a key-value pair that must match for the rule to
 // match.
 message WorkloadIdentityRule {
-  string attribute = 1;
-  string equals = 2;
+  repeated WorkloadIdentityRuleCondition conditions = 1;
 }
 
 // WorkloadIdentityRules holds the allow and deny authorization rules for the

@@ -405,16 +405,50 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	joinAttr := authCtx.Identity.GetIdentity().BotJoinAttributes
 	workloadIdentity := &pb.WorkloadIdentity{
 		Spec: &pb.WorkloadIdentitySpec{
+			Rules: &pb.WorkloadIdentityRules{
+				Allow: []*pb.WorkloadIdentityRule{
+					{
+						Conditions: []*pb.WorkloadIdentityRuleCondition{
+							{
+								Attribute: "join.gitlab.user_login",
+								Equals:    "strideynet",
+							},
+						},
+					},
+				},
+				Deny: []*pb.WorkloadIdentityRule{
+					{
+						Conditions: []*pb.WorkloadIdentityRuleCondition{
+							{
+								Attribute: "join.gitlab.environment",
+								Equals:    "dev",
+							},
+						},
+					},
+				},
+			},
 			Spiffe: &pb.WorkloadIdentitySPIFFE{
-				Id: "/github/{{join.github.repository}}/{{join.github.environment}}",
+				Id: "/gitlab/{{join.gitlab.project_path}}/{{join.gitlab.environment}}",
 			},
 		},
 	}
 
-	templateIDPath, err := template(workloadIdentity.GetSpec().GetSpiffe().GetId(), joinAttr)
+	attrs := &pb.Attributes{
+		Join: authCtx.Identity.GetIdentity().BotJoinAttributes,
+	}
+
+	if ruleMatch(workloadIdentity.GetSpec().GetRules().GetDeny(), attrs) {
+		return nil, trace.AccessDenied("denied by workload identity deny rules")
+	}
+	if !ruleMatch(workloadIdentity.GetSpec().GetRules().GetAllow(), attrs) {
+		return nil, trace.AccessDenied("denied by lack of workload identity allow rules")
+	}
+
+	templateIDPath, err := template(
+		workloadIdentity.GetSpec().GetSpiffe().GetId(), attrs,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "templating spiffe id")
 	}
@@ -449,26 +483,56 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	}, nil
 }
 
+func ruleMatch(rules []*pb.WorkloadIdentityRule, attr *pb.Attributes) bool {
+	attrMap := attrsToMap(attr)
+ruleLoop:
+	for _, rule := range rules {
+		for _, cond := range rule.Conditions {
+			v, ok := attrMap[cond.Attribute]
+			if !ok {
+				continue ruleLoop
+			}
+			if v != cond.Equals {
+				continue ruleLoop
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func attrsToMap(attrs *pb.Attributes) map[string]string {
+	if attrs == nil {
+		return map[string]string{}
+	}
+	out := map[string]string{}
+	join := attrs.Join
+	if join != nil {
+		if join.Github != nil {
+			out["join.github.repository"] = join.Github.Repository
+			out["join.github.environment"] = join.Github.Environment
+			out["join.github.workflow"] = join.Github.Workflow
+		}
+		if join.Gitlab != nil {
+			out["join.gitlab.user_login"] = join.Gitlab.UserLogin
+			out["join.gitlab.project_path"] = join.Gitlab.ProjectPath
+			out["join.gitlab.environment"] = join.Gitlab.Environment
+			out["join.gitlab.namespace_path"] = join.Gitlab.NamespacePath
+		}
+	}
+	return out
+}
+
 // This place is not a place of honor...
 // no highly esteemed deed is commemorated here...
 // nothing valued is here.
 //
 // What is here was dangerous and repulsive to us.
 // This message is a warning about danger.
-func template(in string, join *pb.JoinAttributes) (string, error) {
+func template(in string, attrs *pb.Attributes) (string, error) {
 	variables := map[string]typical.Variable{}
-	if join != nil {
-		if join.Github != nil {
-			variables["join.github.repository"] = join.Github.Repository
-			variables["join.github.environment"] = join.Github.Environment
-			variables["join.github.workflow"] = join.Github.Workflow
-		}
-		if join.Gitlab != nil {
-			variables["join.gitlab.user_login"] = join.Gitlab.UserLogin
-			variables["join.gitlab.project_path"] = join.Gitlab.ProjectPath
-			variables["join.gitlab.environment"] = join.Gitlab.Environment
-			variables["join.gitlab.namespace_path"] = join.Gitlab.NamespacePath
-		}
+	for k, v := range attrsToMap(attrs) {
+		variables[k] = v
 	}
 
 	parser, err := typical.NewParser[map[string]string, string](typical.ParserSpec[map[string]string]{
