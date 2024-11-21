@@ -76,7 +76,7 @@ func FullJitter(d time.Duration) time.Duration {
 		return 0
 	}
 
-	return time.Duration(rand.Int64N(int64(d)))
+	return rand.N(d)
 }
 
 // HalfJitter is a jitter on the range [d/2, d). This is a large range and most
@@ -92,7 +92,7 @@ func HalfJitter(d time.Duration) time.Duration {
 		return d
 	}
 
-	return d - frac + time.Duration(rand.Int64N(int64(frac)))
+	return d - frac + rand.N(frac)
 }
 
 // SeventhJitter returns a jitter on the range [6d/7, d). Prefer smaller jitters
@@ -108,5 +108,5 @@ func SeventhJitter(d time.Duration) time.Duration {
 		return d
 	}
 
-	return d - frac + time.Duration(rand.Int64N(int64(frac)))
+	return d - frac + rand.N(frac)
 }
