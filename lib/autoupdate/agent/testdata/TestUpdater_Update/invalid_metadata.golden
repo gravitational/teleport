@@ -2,11 +2,8 @@ version: ""
 kind: ""
 spec:
     proxy: localhost
-    group: ""
-    url_template: ""
     enabled: false
     pinned: false
 status:
     active_version: ""
     backup_version: ""
-    skip_version: ""

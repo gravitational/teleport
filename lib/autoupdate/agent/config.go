@@ -56,9 +56,9 @@ type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
 	// Group specifies the update group identifier for the agent.
-	Group string `yaml:"group"`
+	Group string `yaml:"group,omitempty"`
 	// URLTemplate for the Teleport tgz download URL.
-	URLTemplate string `yaml:"url_template"`
+	URLTemplate string `yaml:"url_template,omitempty"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
@@ -72,7 +72,7 @@ type UpdateStatus struct {
 	// BackupVersion is the last working version of Teleport.
 	BackupVersion string `yaml:"backup_version"`
 	// SkipVersion is the last reverted version of Teleport.
-	SkipVersion string `yaml:"skip_version"`
+	SkipVersion string `yaml:"skip_version,omitempty"`
 }
 
 // readConfig reads UpdateConfig from a file.
