@@ -669,6 +669,19 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			syncCalls:          0,
 		},
 		{
+			name: "pinned",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Pinned: true,
+				},
+			},
+
+			tryLinkSystemCalls: 0,
+			syncCalls:          0,
+		},
+		{
 			name: "updates disabled",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -761,6 +774,244 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			}
 			require.Equal(t, tt.tryLinkSystemCalls, tryLinkSystemCalls)
 			require.Equal(t, tt.syncCalls, syncCalls)
+		})
+	}
+}
+
+func TestUpdater_Remove(t *testing.T) {
+	t.Parallel()
+
+	const version = "active-version"
+
+	tests := []struct {
+		name           string
+		cfg            *UpdateConfig // nil -> file not present
+		linkSystemErr  error
+		isEnabledErr   error
+		syncErr        error
+		reloadErr      error
+		processEnabled bool
+
+		unlinkedVersion string
+		teardownCalls   int
+		syncCalls       int
+		revertFuncCalls int
+		linkSystemCalls int
+		reloadCalls     int
+		errMatch        string
+	}{
+		{
+			name: "no config",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: "",
+				},
+			},
+			teardownCalls: 1,
+		},
+		{
+			name: "no active version",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+			},
+			teardownCalls: 1,
+		},
+		{
+			name: "no system links, process enabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			processEnabled:  true,
+			errMatch:        "refusing to remove",
+		},
+		{
+			name: "no system links, process disabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+		},
+		{
+			name: "no system links, process disabled, no systemd",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			isEnabledErr:    ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+		},
+		{
+			name: "active version",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       1,
+			reloadCalls:     1,
+			teardownCalls:   1,
+		},
+		{
+			name: "active version, no systemd",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       1,
+			reloadCalls:     1,
+			teardownCalls:   1,
+			syncErr:         ErrNotSupported,
+			reloadErr:       ErrNotSupported,
+		},
+		{
+			name: "active version, no reload",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       1,
+			reloadCalls:     1,
+			teardownCalls:   1,
+			reloadErr:       ErrNotNeeded,
+		},
+		{
+			name: "active version, sync error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       2,
+			revertFuncCalls: 1,
+			syncErr:         errors.New("sync error"),
+			errMatch:        "configuration",
+		},
+		{
+			name: "active version, reload error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: version,
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       2,
+			reloadCalls:     2,
+			revertFuncCalls: 1,
+			reloadErr:       errors.New("reload error"),
+			errMatch:        "start",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			var (
+				linkSystemCalls int
+				revertFuncCalls int
+				syncCalls       int
+				reloadCalls     int
+				teardownCalls   int
+				unlinkedVersion string
+			)
+			updater.Installer = &testInstaller{
+				FuncLinkSystem: func(_ context.Context) (revert func(context.Context) bool, err error) {
+					linkSystemCalls++
+					return func(_ context.Context) bool {
+						revertFuncCalls++
+						return true
+					}, tt.linkSystemErr
+				},
+				FuncUnlink: func(_ context.Context, version string) error {
+					unlinkedVersion = version
+					return nil
+				},
+			}
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return tt.syncErr
+				},
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
+				},
+				FuncIsEnabled: func(_ context.Context) (bool, error) {
+					return tt.processEnabled, tt.isEnabledErr
+				},
+			}
+			updater.Teardown = func(_ context.Context) error {
+				teardownCalls++
+				return nil
+			}
+
+			ctx := context.Background()
+			err = updater.Remove(ctx)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.syncCalls, syncCalls)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.linkSystemCalls, linkSystemCalls)
+			require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
+			require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
+			require.Equal(t, tt.teardownCalls, teardownCalls)
 		})
 	}
 }
@@ -995,6 +1246,27 @@ func TestUpdater_Install(t *testing.T) {
 			setupCalls:        1,
 			errMatch:          "reload error",
 		},
+		{
+			name:      "no systemd",
+			reloadErr: ErrNotSupported,
+			setupErr:  ErrNotSupported,
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
+		{
+			name:      "no need to reload",
+			reloadErr: ErrNotNeeded,
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1135,6 +1407,7 @@ type testInstaller struct {
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
 	FuncTryLink       func(ctx context.Context, version string) error
 	FuncTryLinkSystem func(ctx context.Context) error
+	FuncUnlink        func(ctx context.Context, version string) error
 	FuncUnlinkSystem  func(ctx context.Context) error
 	FuncList          func(ctx context.Context) (versions []string, err error)
 }
@@ -1163,6 +1436,10 @@ func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {
 	return ti.FuncTryLinkSystem(ctx)
 }
 
+func (ti *testInstaller) Unlink(ctx context.Context, version string) error {
+	return ti.FuncUnlink(ctx, version)
+}
+
 func (ti *testInstaller) UnlinkSystem(ctx context.Context) error {
 	return ti.FuncUnlinkSystem(ctx)
 }
@@ -1172,8 +1449,9 @@ func (ti *testInstaller) List(ctx context.Context) (versions []string, err error
 }
 
 type testProcess struct {
-	FuncReload func(ctx context.Context) error
-	FuncSync   func(ctx context.Context) error
+	FuncReload    func(ctx context.Context) error
+	FuncSync      func(ctx context.Context) error
+	FuncIsEnabled func(ctx context.Context) (bool, error)
 }
 
 func (tp *testProcess) Reload(ctx context.Context) error {
@@ -1182,4 +1460,8 @@ func (tp *testProcess) Reload(ctx context.Context) error {
 
 func (tp *testProcess) Sync(ctx context.Context) error {
 	return tp.FuncSync(ctx)
+}
+
+func (tp *testProcess) IsEnabled(ctx context.Context) (bool, error) {
+	return tp.FuncIsEnabled(ctx)
 }
