@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -333,6 +334,9 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
 	var reader io.Reader
 	if rc.filename == "" {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			return trace.BadParameter("You need to either specifiy a filename or input data via stdin")
+		}
 		reader = os.Stdin
 	} else {
 		f, err := utils.OpenFileAllowingUnsafeLinks(rc.filename)
