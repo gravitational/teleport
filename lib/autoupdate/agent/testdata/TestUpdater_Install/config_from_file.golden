@@ -2,9 +2,10 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    group: new-group
-    url_template: https://example.com/new
+    group: group
+    url_template: https://example.com
     enabled: true
+    pinned: false
 status:
-    active_version: new-version
+    active_version: 16.3.0
     backup_version: old-version

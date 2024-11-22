@@ -4,7 +4,7 @@ spec:
     proxy: localhost
     url_template: https://example.com
     enabled: true
-    pinned: false
+    pinned: true
 status:
-    active_version: 16.3.0
-    backup_version: ""
+    active_version: old-version
+    backup_version: backup-version

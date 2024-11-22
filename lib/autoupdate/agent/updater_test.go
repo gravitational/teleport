@@ -124,6 +124,92 @@ func TestUpdater_Disable(t *testing.T) {
 	}
 }
 
+func TestUpdater_Unpin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      *UpdateConfig // nil -> file not present
+		errMatch string
+	}{
+		{
+			name: "pinned",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Pinned: true,
+				},
+			},
+		},
+		{
+			name: "not pinned",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Pinned: false,
+				},
+			},
+		},
+		{
+			name: "config does not exist",
+		},
+		{
+			name: "invalid metadata",
+			cfg: &UpdateConfig{
+				Spec: UpdateSpec{
+					Enabled: true,
+				},
+			},
+			errMatch: "invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				DataDir:            dir,
+			})
+			require.NoError(t, err)
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			err = updater.Unpin(context.Background())
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+
+			data, err := os.ReadFile(cfgPath)
+
+			// If no config is present, disable should not create it
+			if tt.cfg == nil {
+				require.ErrorIs(t, err, os.ErrNotExist)
+				return
+			}
+			require.NoError(t, err)
+
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
 func TestUpdater_Update(t *testing.T) {
 	t.Parallel()
 
@@ -398,6 +484,40 @@ func TestUpdater_Update(t *testing.T) {
 			setupCalls:        1,
 			errMatch:          "reload error",
 		},
+		{
+			name: "skip version",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+					SkipVersion:   "16.3.0",
+				},
+			},
+			inWindow: true,
+		},
+		{
+			name: "pinned version",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+					Pinned:      true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -645,7 +765,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	}
 }
 
-func TestUpdater_Enable(t *testing.T) {
+func TestUpdater_Install(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -673,6 +793,7 @@ func TestUpdater_Enable(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Enabled:     true,
 					Group:       "group",
 					URLTemplate: "https://example.com",
 				},
@@ -702,27 +823,45 @@ func TestUpdater_Enable(t *testing.T) {
 				},
 			},
 			userCfg: OverrideConfig{
-				Group:        "new-group",
-				URLTemplate:  "https://example.com/new",
+				UpdateSpec: UpdateSpec{
+					Enabled:     true,
+					Group:       "new-group",
+					URLTemplate: "https://example.com/new",
+				},
 				ForceVersion: "new-version",
 			},
 
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
 			linkedVersion:     "new-version",
+			requestGroup:      "new-group",
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
 		{
-			name: "already enabled",
+			name: "defaults",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					Enabled: true,
-				},
 				Status: UpdateStatus{
 					ActiveVersion: "old-version",
+				},
+			},
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			linkedVersion:     "16.3.0",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
+		{
+			name: "override skip",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					SkipVersion:   "16.3.0",
 				},
 			},
 
@@ -947,7 +1086,7 @@ func TestUpdater_Enable(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Enable(ctx, tt.userCfg)
+			err = updater.Install(ctx, tt.userCfg)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

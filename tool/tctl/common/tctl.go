@@ -457,6 +457,14 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.Wrap(err)
 	}
 	if profile.IsExpired(time.Now()) {
+		if profile.GetKeyRingError != nil {
+			if errors.As(profile.GetKeyRingError, new(*client.LegacyCertPathError)) {
+				// Intentionally avoid wrapping the error because the caller
+				// ignores NotFound errors.
+				return nil, trace.Errorf("it appears tsh v16 or older was used to log in, make sure to use tsh and tctl on the same major version\n\t%v", profile.GetKeyRingError)
+			}
+			return nil, trace.Wrap(profile.GetKeyRingError)
+		}
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 

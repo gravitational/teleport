@@ -1,10 +1,9 @@
-version: v1
-kind: update_config
+version: ""
+kind: ""
 spec:
     proxy: ""
-    group: ""
-    url_template: http://example.com
     enabled: false
+    pinned: false
 status:
     active_version: ""
     backup_version: ""
