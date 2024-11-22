@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -34,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/inventory/internal/jitteredticker"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -108,15 +108,6 @@ const (
 	handlerClose = "handler-close"
 
 	keepAliveTick = "keep-alive-tick"
-)
-
-// intervalKey is used to uniquely identify the subintervals registered with the interval.MultiInterval
-// instance that we use for managing periodics associated with upstream handles.
-type intervalKey int
-
-const (
-	instanceHeartbeatKey intervalKey = 1 + iota
-	serverKeepAliveKey
 )
 
 // instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
@@ -268,25 +259,17 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
-	// increment the concurrent connection counter that we use to calculate the variable
-	// instance heartbeat duration.
-	c.instanceHBVariableDuration.Inc()
-	// set up ticker with instance HB sub-interval. additional sub-intervals are added as needed.
-	// note that we are using fullJitter on the first duration to spread out initial instance heartbeats
-	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
-	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
-	// service.
-	ticker := interval.NewMulti(
-		clockwork.NewRealClock(),
-		interval.SubInterval[intervalKey]{
-			Key:              instanceHeartbeatKey,
-			VariableDuration: c.instanceHBVariableDuration,
-			FirstDuration:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
-			Jitter:           retryutils.SeventhJitter,
-		})
-	handle := newUpstreamHandle(stream, hello, ticker)
+	handle := newUpstreamHandle(stream, hello)
 	c.store.Insert(handle)
-	go c.handleControlStream(handle)
+
+	// Increment the concurrent connection counter that we use to calculate the
+	// variable instance heartbeat duration. It's done here synchronously rather
+	// than in handleControlStream for the sake of tests.
+	c.instanceHBVariableDuration.Inc()
+	go func() {
+		defer c.instanceHBVariableDuration.Dec()
+		c.handleControlStream(handle)
+	}()
 }
 
 // GetControlStream gets a control stream for the given server ID if one exists (if multiple control streams
@@ -331,6 +314,25 @@ func (c *Controller) testEvent(event testEvent) {
 func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	c.testEvent(handlerStart)
 
+	// Note that we are using fullJitter on the first duration to spread out
+	// initial instance heartbeats as much as possible. This is intended to
+	// mitigate load spikes on auth restart, and is reasonably safe to do since
+	// the instance resource is not directly relied upon for use of any
+	// particular Teleport service.
+	instanceHeartbeatTicker := jitteredticker.New(jitteredticker.Params{
+		FirstInterval:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
+		VariableInterval: c.instanceHBVariableDuration,
+		Jitter:           retryutils.SeventhJitter,
+	})
+	defer instanceHeartbeatTicker.Stop()
+
+	// serverKeepAliveTicker is lazily initialized upon receipt of the first
+	// heartbeat since not all servers send heartbeats
+	var serverKeepAliveTicker *jitteredticker.JitteredTicker
+	defer func() {
+		serverKeepAliveTicker.Stop()
+	}()
+
 	for _, service := range handle.hello.Services {
 		c.serviceCounter.increment(service)
 	}
@@ -362,13 +364,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 		}
 
-		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
 		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
-		handle.ticker.Stop()
 
 		if handle.sshServer != nil {
 			c.onDisconnectFunc(constants.KeepAliveNode, 1)
@@ -392,10 +392,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.testEvent(handlerClose)
 	}()
 
-	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
-	// upon receipt of the first heartbeat since not all servers send heartbeats.
-	var keepAliveInit bool
-
 	for {
 		select {
 		case msg := <-handle.Recv():
@@ -411,15 +407,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
-				if !keepAliveInit {
-					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
-					handle.ticker.Push(interval.SubInterval[intervalKey]{
-						Key:           serverKeepAliveKey,
-						Duration:      c.serverKeepAlive,
-						FirstDuration: retryutils.HalfJitter(c.serverKeepAlive),
+
+				if serverKeepAliveTicker == nil {
+					// this is the first heartbeat, so we need to initialize the ticker
+					serverKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
 					})
-					keepAliveInit = true
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
@@ -430,21 +425,22 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
 				return
 			}
-		case tick := <-handle.ticker.Next():
-			switch tick.Key {
-			case instanceHeartbeatKey:
-				if err := c.heartbeatInstanceState(handle, tick.Time); err != nil {
-					handle.CloseWithError(err)
-					return
-				}
-			case serverKeepAliveKey:
-				if err := c.keepAliveServer(handle, tick.Time); err != nil {
-					handle.CloseWithError(err)
-					return
-				}
-			default:
-				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
+		case now := <-instanceHeartbeatTicker.Next():
+			instanceHeartbeatTicker.Advance(now)
+
+			if err := c.heartbeatInstanceState(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
 			}
+
+		case now := <-serverKeepAliveTicker.Next():
+			serverKeepAliveTicker.Advance(now)
+
+			if err := c.keepAliveServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
