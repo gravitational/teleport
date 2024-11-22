@@ -401,11 +401,6 @@ type UpstreamHandle interface {
 	// for an explanation of how this system works.
 	VisitInstanceState(func(ref InstanceStateRef) InstanceStateUpdate)
 
-	// HeartbeatInstance triggers an early instance heartbeat. This function does not
-	// wait for the instance heartbeat to actually be completed, so calling this and then
-	// immediately locking the instanceStateTracker will likely result in observing the
-	// pre-heartbeat state.
-	HeartbeatInstance()
 	// UpdateLabels updates the labels on the instance.
 	UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error
 }
@@ -601,10 +596,6 @@ type heartBeatInfo[T any] struct {
 	// keepAliveErrs is a counter used to track the number of failed keepalives
 	// with the above lease. too many failures clears the lease.
 	keepAliveErrs int
-}
-
-func (h *upstreamHandle) HeartbeatInstance() {
-	h.ticker.FireNow(instanceHeartbeatKey)
 }
 
 func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello, ticker *interval.MultiInterval[intervalKey]) *upstreamHandle {
