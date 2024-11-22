@@ -82,6 +82,17 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	}
 }
 
+// if we ever need to run parkers on macOS or other platforms with no PDEATHSIG
+// we should rework the parker to block on a pipe so it can exit when its parent
+// is terminated
+func parkerCommandOSTweaks(cmd *exec.Cmd) {
+	reexecCommandOSTweaks(cmd)
+
+	// parker processes can leak if their PDEATHSIG is SIGQUIT, otherwise we
+	// could just use reexecCommandOSTweaks
+	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
+}
+
 func userCommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)

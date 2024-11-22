@@ -58,10 +58,10 @@ const (
 
 type awsKMSKeystore struct {
 	kms                kmsClient
-	clusterName        types.ClusterName
 	awsAccount         string
 	awsRegion          string
 	multiRegionEnabled bool
+	tags               map[string]string
 	clock              clockwork.Clock
 	logger             *slog.Logger
 }
@@ -95,14 +95,23 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of ambient credentials %q",
 			cfg.AWSAccount, aws.ToString(id.Account))
 	}
+
+	tags := cfg.Tags
+	if tags == nil {
+		tags = make(map[string]string, 1)
+	}
+	if _, ok := tags[clusterTagKey]; !ok {
+		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
+	}
+
 	clock := opts.clockworkOverride
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
 	return &awsKMSKeystore{
-		clusterName:        opts.ClusterName,
 		awsAccount:         cfg.AWSAccount,
 		awsRegion:          cfg.AWSRegion,
+		tags:               tags,
 		multiRegionEnabled: cfg.MultiRegion.Enabled,
 		kms:                kmsClient,
 		clock:              clock,
@@ -132,16 +141,19 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		slog.Any("algorithm", algorithm),
 		slog.Bool("multi_region", a.multiRegionEnabled))
 
+	tags := make([]kmstypes.Tag, 0, len(a.tags))
+	for k, v := range a.tags {
+		tags = append(tags, kmstypes.Tag{
+			TagKey:   aws.String(k),
+			TagValue: aws.String(v),
+		})
+	}
+
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
 		KeySpec:     alg,
 		KeyUsage:    kmstypes.KeyUsageTypeSignVerify,
-		Tags: []kmstypes.Tag{
-			{
-				TagKey:   aws.String(clusterTagKey),
-				TagValue: aws.String(a.clusterName.GetClusterName()),
-			},
-		},
+		Tags:        tags,
 		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
 	if err != nil {
@@ -208,7 +220,7 @@ func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]
 		First:  pendingKeyBaseRetryInterval,
 		Driver: retryutils.NewExponentialDriver(pendingKeyBaseRetryInterval),
 		Max:    pendingKeyMaxRetryInterval,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  a.clock,
 	})
 	if err != nil {
@@ -388,12 +400,13 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			return nil
 		}
 
-		clusterName := a.clusterName.GetClusterName()
-		if !slices.ContainsFunc(output.Tags, func(tag kmstypes.Tag) bool {
-			return aws.ToString(tag.TagKey) == clusterTagKey && aws.ToString(tag.TagValue) == clusterName
-		}) {
-			// This key was not created by this Teleport cluster, never delete it.
-			return nil
+		// All tags must match for this key to be considered for deletion.
+		for k, v := range a.tags {
+			if !slices.ContainsFunc(output.Tags, func(tag kmstypes.Tag) bool {
+				return aws.ToString(tag.TagKey) == k && aws.ToString(tag.TagValue) == v
+			}) {
+				return nil
+			}
 		}
 
 		// Check if this key is not enabled or was created in the past 5 minutes.

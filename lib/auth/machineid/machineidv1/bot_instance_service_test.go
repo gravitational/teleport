@@ -70,9 +70,13 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead, types.VerbList},
 		},
 		{
-			name:          "DeleteBotInstance",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbDelete},
+			name: "DeleteBotInstance",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
 			name: "SubmitHeartbeat",

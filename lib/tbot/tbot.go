@@ -546,7 +546,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	switch addrKind {
 	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy-server, --auth-server or configuration",
 		)
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
@@ -777,11 +777,11 @@ type proxyPingResponse struct {
 const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
 
 // shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
-// variable is set to "1". More generally, this indicates that the user wishes
+// variable is set to "yes". More generally, this indicates that the user wishes
 // for tbot to prefer using the proxy address that has been explicitly provided
 // by the user rather than the one fetched via a discovery process (e.g ping).
 func shouldUseProxyAddr() bool {
-	return os.Getenv(useProxyAddrEnv) == "1"
+	return os.Getenv(useProxyAddrEnv) == "yes"
 }
 
 // proxyWebAddr returns the address to use to connect to the proxy web port.

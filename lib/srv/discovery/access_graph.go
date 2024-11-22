@@ -48,6 +48,8 @@ const (
 	// batchSize is the maximum number of resources to send in a single
 	// request to the access graph service.
 	batchSize = 500
+	// defaultPollInterval is the default interval between polling for access graph resources
+	defaultPollInterval = 15 * time.Minute
 )
 
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
@@ -297,7 +299,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)
@@ -365,9 +367,23 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		}
 	}()
 
+	// Configure the poll interval
+	tickerInterval := defaultPollInterval
+	if s.Config.Matchers.AccessGraph != nil {
+		if s.Config.Matchers.AccessGraph.PollInterval > defaultPollInterval {
+			tickerInterval = s.Config.Matchers.AccessGraph.PollInterval
+		} else {
+			s.Log.WarnContext(ctx,
+				"Access graph service poll interval cannot be less than the default",
+				"default_poll_interval",
+				defaultPollInterval)
+		}
+	}
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
+
 	currentTAGResources := &aws_sync.Resources{}
-	ticker := time.NewTicker(15 * time.Minute)
-	defer ticker.Stop()
+	timer := time.NewTimer(tickerInterval)
+	defer timer.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
 		if errors.Is(err, errNoAccessGraphFetchers) {
@@ -380,10 +396,17 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 			}
 			return trace.Wrap(err)
 		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C: // drain
+			default:
+			}
+		}
+		timer.Reset(tickerInterval)
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-ticker.C:
+		case <-timer.C:
 		case <-reloadCh:
 		}
 	}
@@ -479,6 +502,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 			ctx,
 			aws_sync.Config{
 				CloudClients:        s.CloudClients,
+				GetEC2Client:        s.GetEC2Client,
 				AssumeRole:          assumeRole,
 				Regions:             awsFetcher.Regions,
 				Integration:         awsFetcher.Integration,
