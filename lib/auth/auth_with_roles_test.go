@@ -2262,7 +2262,29 @@ func TestStreamSessionEvents(t *testing.T) {
 func TestStreamSessionEvents_SessionType(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestTLSServer(t)
+	authServerConfig := TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+	}
+	require.NoError(t, authServerConfig.CheckAndSetDefaults())
+
+	uploader := eventstest.NewMemoryUploader()
+	localLog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       authServerConfig.Dir,
+		ServerID:      authServerConfig.ClusterName,
+		Clock:         authServerConfig.Clock,
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	authServerConfig.AuditLog = localLog
+
+	as, err := NewTestAuthServer(authServerConfig)
+	require.NoError(t, err)
+
+	srv, err := as.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -2273,22 +2295,34 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
-	sessionID := "44c6cea8-362f-11ea-83aa-125400432324"
+	sessionID := session.NewID()
 
-	// Emitting a session end event will cause the listing to correctly locate
-	// the recording (even if there might not be a recording file to stream).
-	require.NoError(t, srv.Auth().EmitAuditEvent(ctx, &apievents.DatabaseSessionEnd{
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+	stream, err := streamer.CreateAuditStream(ctx, sessionID)
+	require.NoError(t, err)
+	// The event is not required to pass through the auth server, we only need
+	// the upload to be present.
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(&apievents.DatabaseSessionStart{
 		Metadata: apievents.Metadata{
 			Type: events.DatabaseSessionEndEvent,
 			Code: events.DatabaseSessionEndCode,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID,
+			SessionID: sessionID.String(),
 		},
-	}))
+	})))
+	require.NoError(t, stream.Complete(ctx))
 
 	accessedFormat := teleport.PTY
-	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), session.ID(sessionID), 0)
+	_, errCh := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), sessionID, 0)
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	default:
+	}
 
 	// Perform the listing an eventually loop to ensure the event is emitted.
 	var searchEvents []apievents.AuditEvent

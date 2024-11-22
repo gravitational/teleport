@@ -39,6 +39,7 @@ const (
 	DatabaseSessionKind       SessionKind = "db"
 	AppSessionKind            SessionKind = "app"
 	WindowsDesktopSessionKind SessionKind = "desktop"
+	UnknownSessionKind        SessionKind = ""
 )
 
 // SessionParticipantMode is the mode that determines what you can do when you join a session.
