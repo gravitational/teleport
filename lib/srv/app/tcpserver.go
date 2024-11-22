@@ -45,22 +45,22 @@ type tcpServer struct {
 
 // handleConnection handles connection from a TCP application.
 func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	addr, err := utils.ParseAddr(app.GetURI())
+	uriAddr, err := utils.ParseAddr(app.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if addr.AddrNetwork != "tcp" {
-		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
+	if uriAddr.AddrNetwork != "tcp" {
+		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), uriAddr)
 	}
 
 	dialer := net.Dialer{
 		Timeout: apidefaults.DefaultIOTimeout,
 	}
-	dialTarget, err := pickDialTarget(app, addr, identity.RouteToApp.TargetPort)
+	dialTarget, err := pickDialTarget(app, uriAddr, identity.RouteToApp.TargetPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, dialTarget)
+	serverConn, err := dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
 	if err != nil {
 		return trace.Wrap(err)
 	}
