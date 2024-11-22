@@ -88,7 +88,7 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalAudi
 		First:  defaults.HighResPollingPeriod,
 		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
 		Max:    defaults.LowResPollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

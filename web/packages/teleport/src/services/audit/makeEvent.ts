@@ -1687,7 +1687,7 @@ export const formatters: Formatters = {
       affected_resource_name,
       affected_resource_source,
     }) =>
-      `${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed an access path`,
+      `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',

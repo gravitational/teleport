@@ -38,8 +38,10 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	insecurerand "math/rand"
+	mathrand "math/rand/v2"
+	"net"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -47,7 +49,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -87,6 +88,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -492,7 +494,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Authority:               cfg.Authority,
 		AuthServiceName:         cfg.AuthServiceName,
 		ServerID:                cfg.HostUUID,
-		githubClients:           make(map[string]*githubClient),
 		cancelFunc:              cancelFunc,
 		closeCtx:                closeCtx,
 		emitter:                 cfg.Emitter,
@@ -568,6 +569,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.ghaIDTokenJWKSValidator == nil {
+		as.ghaIDTokenJWKSValidator = githubactions.ValidateTokenWithJWKS
+	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
 			spacelift.IDTokenValidatorConfig{
@@ -617,6 +621,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
 			Clock: as.clock,
 		})
+	}
+
+	if as.bitbucketIDTokenValidator == nil {
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -881,10 +889,9 @@ type ReadOnlyCache = readonly.Cache
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
-	githubClients map[string]*githubClient
-	clock         clockwork.Clock
-	bk            backend.Backend
+	lock  sync.RWMutex
+	clock clockwork.Clock
+	bk    backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
@@ -985,6 +992,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	//the purpose of tests.
+	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
@@ -1021,6 +1032,8 @@ type Server struct {
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
+
+	bitbucketIDTokenValidator bitbucketIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1316,20 +1329,19 @@ const (
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+	firstReleaseCheck := retryutils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
 	// by an upcoming tctl command. currently exists for testing purposes only.
 	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
-		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+		firstReleaseCheck = retryutils.HalfJitter(time.Second * 10)
 	}
 
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
+	period := retryutils.HalfJitter(2 * defaults.HighResPollingPeriod)
 
 	ticker := interval.NewMulti(
 		a.GetClock(),
@@ -1341,25 +1353,25 @@ func (a *Server) runPeriodicOperations() {
 			Key:           metricsKey,
 			Duration:      defaults.PrometheusScrapeInterval,
 			FirstDuration: 5 * time.Second,
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           instancePeriodicsKey,
 			Duration:      9 * time.Minute,
-			FirstDuration: utils.HalfJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           notificationsCleanupKey,
 			Duration:      48 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Hour),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           roleCountKey,
 			Duration:      12 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
 		},
 	)
 
@@ -1372,13 +1384,13 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           dynamicLabelsCheckKey,
 			Duration:      dynamicLabelCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:      heartbeatCheckKey,
 			Duration: apidefaults.ServerKeepAliveTTL() * 2,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           releaseCheckKey,
@@ -1387,15 +1399,15 @@ func (a *Server) runPeriodicOperations() {
 			// note the use of FullJitter for the releases check interval. this lets us ensure
 			// that frequent restarts don't prevent checks from happening despite the infrequent
 			// effective check rate.
-			Jitter: retryutils.NewFullJitter(),
+			Jitter: retryutils.FullJitter,
 		})
 		// more frequent release check that just re-calculates alerts based on previously
 		// pulled versioning info.
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           localReleaseCheckKey,
 			Duration:      10 * time.Minute,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
 		})
 	}
 
@@ -1403,8 +1415,8 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
 		})
 	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
@@ -1415,7 +1427,7 @@ func (a *Server) runPeriodicOperations() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
 		remoteClustersRefresh := interval.New(interval.Config{
 			Duration: time.Second * 40,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		defer remoteClustersRefresh.Stop()
 
@@ -1424,7 +1436,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(a.closeCtx, r)
+				a.refreshRemoteClusters(a.closeCtx)
 			}
 		}
 	}()
@@ -1435,8 +1447,8 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           upgradeWindowCheckKey,
 			Duration:      3 * time.Minute,
-			FirstDuration: utils.FullJitter(30 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(30 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1470,6 +1482,28 @@ func (a *Server) runPeriodicOperations() {
 								if services.NodeHasMissedKeepAlives(srv) {
 									missedKeepAliveCount++
 								}
+
+								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+								if !validServerHostname(srv.GetHostname()) {
+									if srv.GetSubKind() != types.SubKindOpenSSHNode {
+										return false, nil
+									}
+
+									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+									// Any existing static hosts will not have their
+									// hostname sanitized since they don't heartbeat.
+									if err := sanitizeHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+										return false, nil
+									}
+
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								}
+
 								return false, nil
 							},
 							req,
@@ -1831,7 +1865,7 @@ var (
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
-func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
@@ -1845,7 +1879,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
 		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
 	})
 
@@ -4797,7 +4831,7 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	id := insecurerand.Uint64()
+	id := mathrand.Uint64()
 
 	if !req.ControlLog {
 		// this ping doesn't pass through the control log, so just execute it immediately.
@@ -5618,9 +5652,68 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	return nil
 }
 
+const (
+	serverHostnameMaxLen       = 256
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
+)
+
+var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
+
+// validServerHostname returns false if the hostname is longer than 256 characters or
+// does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
+// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+func validServerHostname(hostname string) bool {
+	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
+}
+
+func sanitizeHostname(server types.Server) error {
+	invalidHostname := server.GetHostname()
+
+	replacedHostname := server.GetName()
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		host, _, err := net.SplitHostPort(server.GetAddr())
+		if err != nil || !validServerHostname(host) {
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			host = id.String()
+		}
+
+		replacedHostname = host
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		s.Spec.Hostname = replacedHostname
+
+		if s.Metadata.Labels == nil {
+			s.Metadata.Labels = map[string]string{}
+		}
+
+		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if !validServerHostname(server.GetHostname()) {
+		a.logger.DebugContext(a.closeCtx, "sanitizing invalid server hostname",
+			"server", server.GetName(),
+			"hostname", server.GetHostname(),
+		)
+		if err := sanitizeHostname(server); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	lease, err := a.Services.UpsertNode(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7431,43 +7524,6 @@ func (k *authKeepAliver) Done() <-chan struct{} {
 func (k *authKeepAliver) Close() error {
 	k.cancel()
 	return nil
-}
-
-// githubClient is internal structure that stores Github OAuth 2client and its config
-type githubClient struct {
-	client *oauth2.Client
-	config oauth2.Config
-}
-
-// oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
-func oauth2ConfigsEqual(a, b oauth2.Config) bool {
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	if a.AuthURL != b.AuthURL {
-		return false
-	}
-	if a.TokenURL != b.TokenURL {
-		return false
-	}
-	if a.AuthMethod != b.AuthMethod {
-		return false
-	}
-	return true
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

@@ -15,7 +15,7 @@
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
     "@swc/core": "^1.7.26",
-    "@swc/plugin-styled-components": "^3.0.2",
+    "@swc/plugin-styled-components": "^5.0.0",
     "@types/jsdom": "^21.1.7",
     "@vitejs/plugin-react-swc": "^3.7.1",
     "babel-plugin-styled-components": "^2.1.4",
@@ -32,7 +32,7 @@
     "jest-fail-on-console": "^3.3.0",
     "jsdom": "^25.0.1",
     "rollup-plugin-visualizer": "^5.12.0",
-    "typescript-eslint": "^7.14.1",
+    "typescript-eslint": "^8.12.2",
     "vite-plugin-wasm": "^3.3.0",
     "vite-tsconfig-paths": "^5.0.1"
   }

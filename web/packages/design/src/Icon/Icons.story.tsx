@@ -52,6 +52,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowFatLinesUp} text="ArrowFatLinesUp" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
     <IconBox IconCmpt={Icon.ArrowLeft} text="ArrowLeft" />
+    <IconBox IconCmpt={Icon.ArrowLineLeft} text="ArrowLineLeft" />
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.ArrowSquareOut} text="ArrowSquareOut" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
