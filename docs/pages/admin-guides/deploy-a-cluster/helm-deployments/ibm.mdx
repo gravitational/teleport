@@ -15,25 +15,19 @@ We will use the following services to deploy Teleport on IBM cloud:
   session recordings.
 - [Network: IBM Cloud DNS Services](https://www.ibm.com/products/dns) to route Teleport
 
-<Admonition type="note">
-A previous version of this guide covered how to deploy Teleport using VMs and etcd.
-While this deployment method still works, we now recommend to use the Postgres backend.
-Postgres offers better scalability, is easier to operate, and supports both Teleport
-core backend and audit events.
-</Admonition>
 
 ## Prerequisites
 
 To follow this guide you will need:
 
 - An [IBM Cloud](https://www.ibm.com/cloud) account
-- An IBM Kubernetes cluster with a functional networking (nodes must be able to access the Internet and pull public images)
+- An IBM Kubernetes cluster with functional networking (nodes must be able to access the Internet and pull public images)
 - `kubectl` and `helm` installed and connected to your IBM Kubernetes cluster
-- the `ibmcloud` command line installed, logged in as your IBM Cloud user
-- A domain you will use for the teleport cluster, in this guide we'll use `teleport.example.com`
+- The `ibmcloud` CLI tool installed, logged in as your IBM Cloud user
+- A domain you will use for the Teleport cluster, in this guide we'll use `teleport.example.com`
 - A TLS certificate for the domain `teleport.example.com` (and `*.teleport.example.com` if you want to use App Access)
 
-## Step 1/7. Create the postgres Database
+## Step 1/7. Create the Postgres database
 
 In this step, we'll create the PostgreSQL database Teleport will use as a backend.
 
@@ -52,8 +46,8 @@ Fill the PostgreSQL creation form with the following settings:
 
 Wait until the provisioning is over and the database ready. This can take several minutes.
 
-On the postgres resource page:
-- download the database TLS certificate, this will be used by Teleport to connect to postgres.
+On the Postgres resource page:
+- download the database TLS certificate, this will be used by Teleport to connect to Postgres
 - copy the database hostname and port, we will need them to configure Teleport
 
 ![PostgreSQL endpoints screenshot](../../../../img/ibm/get-postgres-connstring.png)
@@ -82,7 +76,7 @@ Navigate the object storage instance and create a new service credential with HM
 Open the credentials and save the content of the `access_key_id` and `secret_access_key` fields.
 This will be needed later to authorize Teleport to read and write session recordings in the bucket.
 
-## Step 3/7. Configure the postgres Database
+## Step 3/7. Configure the Postgres database
 
 In this step we will configure two users on the postgres database:
 - a `teleport` user that will create and own the `teleport_backend` and `teleport_audit` databases
@@ -96,7 +90,7 @@ Open a terminal and:
   ```
 - recover the postgresql database deployment name
   ```code
-  $ ibmcloud cdn deployments
+  $ ibmcloud cdb deployments
 
   Name               Location   State
   teleport-backend   ca-tor     active
