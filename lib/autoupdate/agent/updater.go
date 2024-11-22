@@ -349,11 +349,13 @@ func (u *Updater) Remove(ctx context.Context) error {
 	}
 	activeVersion := cfg.Status.ActiveVersion
 	if activeVersion == "" {
+		// should we attempt TryLinkPackage here, just in case?
 		u.Log.InfoContext(ctx, "No installation of Teleport managed by the updater. Removing updater configuration.")
 		if err := u.Teardown(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+		return nil
 	}
 
 	revert, err := u.Installer.LinkSystem(ctx)
@@ -374,6 +376,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+		return nil
 	}
 	if err != nil {
 		return trace.Errorf("failed to link: %w", err)
