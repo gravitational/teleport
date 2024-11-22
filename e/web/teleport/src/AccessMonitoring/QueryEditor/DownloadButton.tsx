@@ -10,9 +10,19 @@ interface DownloadButtonProps {
   resultId: string;
 }
 
+const escapeCSVValue = (value: string): string => {
+  if (!value?.trim()) {
+    return '';
+  }
+  if (value.includes(',') || value.includes('"')) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+};
+
 const constructCSV = (header: string[], rows: string[][]) => {
-  const csv = [header.join(',')];
-  rows.forEach(row => csv.push(row.join(',')));
+  const csv = [header.map(escapeCSVValue).join(',')];
+  rows.forEach(row => csv.push(row.map(escapeCSVValue).join(',')));
   return csv.join('\n');
 };
 
