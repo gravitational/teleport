@@ -100,8 +100,8 @@ func Run(args []string) error {
 		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
-	app.Flag("cluster", "Cluster name for creating a prefixed installation outside of the default $PATH.").
-		StringVar(&ccfg.Namespace)
+	app.Flag("namespace", "Namespace for creating a prefixed installation outside of the default $PATH.").
+		Short('n').StringVar(&ccfg.Namespace)
 	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
 		Default(autoupdate.DefaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
