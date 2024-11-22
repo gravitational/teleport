@@ -306,7 +306,7 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
-		return false, trace.Errorf("unable to determine if systemd service is active")
+		return false, trace.Errorf("unable to determine if systemd service %q is active", s.ServiceName)
 	case code == 0:
 		return true, nil
 	}
