@@ -287,7 +287,7 @@ func (s SystemdService) Disable(ctx context.Context) error {
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
-	s.Log.InfoContext(ctx, "Service disabled.", unitKey, s.ServiceName)
+	s.Log.InfoContext(ctx, "Systemd service disabled.", unitKey, s.ServiceName)
 	return nil
 }
 
