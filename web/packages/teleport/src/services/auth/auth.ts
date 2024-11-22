@@ -259,10 +259,6 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
-  createPrivilegeTokenWithTotp(secondFactorToken: string) {
-    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
-  },
-
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
   // is provided and it is found that MFA is not required, returns null instead.
   async getMfaChallenge(
@@ -332,18 +328,27 @@ const auth = {
     );
   },
 
-  // TODO(Joerger): Combine with otp endpoint.
+  createPrivilegeToken(existingMfaResponse: MfaChallengeResponse) {
+    return api.post(cfg.api.createPrivilegeTokenPath, {
+      existingMfaResponse,
+      // TODO(Joerger): DELETE IN v19.0.0
+      // Also provide totp/webauthn response in backwards compatible format.
+      secondFactorToken: existingMfaResponse.totp_code,
+      webauthnAssertionResponse: existingMfaResponse.webauthn_response,
+    });
+  },
+
+  // TODO(Joerger): Delete once no longer used by /e
   createPrivilegeTokenWithWebauthn() {
-    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
       .then(auth.getMfaChallengeResponse)
-      .then(res =>
-        api.post(cfg.api.createPrivilegeTokenPath, {
-          // TODO(Joerger): Handle non-webauthn challenges.
-          webauthnAssertionResponse: res.webauthn_response,
-        })
-      );
+      .then(mfaResp => auth.createPrivilegeToken(mfaResp));
+  },
+
+  // TODO(Joerger): Delete once no longer used by /e
+  createPrivilegeTokenWithTotp(secondFactorToken: string) {
+    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
   createRestrictedPrivilegeToken() {
