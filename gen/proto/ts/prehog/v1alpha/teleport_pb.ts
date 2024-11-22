@@ -2636,6 +2636,16 @@ export interface SubmitEventRequest {
      */
     timestamp?: Timestamp;
     /**
+     * teleport_version is the version of the Teleport auth server that submitted
+     * the event, without the "v" prefix.
+     * For example: 16.4.7
+     *
+     * PostHog property: tp.teleport_version
+     *
+     * @generated from protobuf field: string teleport_version = 95;
+     */
+    teleportVersion: string;
+    /**
      * @generated from protobuf oneof: event
      */
     event: {
@@ -9871,6 +9881,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         super("prehog.v1alpha.SubmitEventRequest", [
             { no: 1, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "timestamp", kind: "message", T: () => Timestamp },
+            { no: 95, name: "teleport_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "user_login", kind: "message", oneof: "event", T: () => UserLoginEvent },
             { no: 4, name: "sso_create", kind: "message", oneof: "event", T: () => SSOCreateEvent },
             { no: 5, name: "resource_create", kind: "message", oneof: "event", T: () => ResourceCreateEvent },
@@ -9967,6 +9978,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusterName = "";
+        message.teleportVersion = "";
         message.event = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SubmitEventRequest>(this, message, value);
@@ -9982,6 +9994,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                     break;
                 case /* google.protobuf.Timestamp timestamp */ 2:
                     message.timestamp = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.timestamp);
+                    break;
+                case /* string teleport_version */ 95:
+                    message.teleportVersion = reader.string();
                     break;
                 case /* prehog.v1alpha.UserLoginEvent user_login */ 3:
                     message.event = {
@@ -10547,6 +10562,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* google.protobuf.Timestamp timestamp = 2; */
         if (message.timestamp)
             Timestamp.internalBinaryWrite(message.timestamp, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string teleport_version = 95; */
+        if (message.teleportVersion !== "")
+            writer.tag(95, WireType.LengthDelimited).string(message.teleportVersion);
         /* prehog.v1alpha.UserLoginEvent user_login = 3; */
         if (message.event.oneofKind === "userLogin")
             UserLoginEvent.internalBinaryWrite(message.event.userLogin, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
