@@ -5930,31 +5930,25 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
-		e := make(chan error, 1)
-		e <- trace.Wrap(err)
-		return nil, e
-	}
-
-	err := a.localServerAction()
-	isTeleportServer := err == nil
-
-	if !isTeleportServer {
-		if err := a.actionForKindSession(ctx, apidefaults.Namespace, sessionID); err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
-		}
-	}
-
-	rawEventsCh, rawErrCh := a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
-
 	// StreamSessionEvents can be called internally, and when that happens we
-	// don't want to emit an event.
-	if isTeleportServer {
-		return rawEventsCh, rawErrCh
+	// don't want to emit an event or check permissions.
+	if err := a.localServerAction(); err == nil {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 	}
 
+	if err := a.actionForKindSession(ctx, apidefaults.Namespace, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	eventsCh, errCh := a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	return a.streamSessionEventsWithAudit(ctx, sessionID, eventsCh, errCh)
+}
+
+// streamSessionEventWithAudit audit log the recording access and streams the
+// session recording events.
+func (a *ServerWithRoles) streamSessionEventsWithAudit(ctx context.Context, sessionID session.ID, rawEventsCh chan apievents.AuditEvent, rawErrCh chan error) (chan apievents.AuditEvent, chan error) {
 	// Peek session events to determine the session type for audit logging.
 	// Also peek the error channel to avoid blocking the function call if the
 	// stream has errors (e.g. when session is not found).
@@ -5979,7 +5973,9 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		SessionType:  string(sessionKind),
 		Format:       metadata.SessionRecordingFormatFromContext(ctx),
 	}); err != nil {
-		return createErrorChannel(err)
+		e := make(chan error, 1)
+		e <- trace.Wrap(err)
+		return nil, e
 	}
 
 	return eventsCh, errCh
@@ -5994,6 +5990,9 @@ func peekChannel[T any](ch chan T, n int) (chan T, chan T) {
 	peekCh := make(chan T, n)
 
 	go func(rem int) {
+		defer close(normalCh)
+		defer close(peekCh)
+
 		for msg := range ch {
 			if rem > 0 {
 				peekCh <- msg
