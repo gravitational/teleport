@@ -31,6 +31,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest/database"
@@ -136,8 +137,8 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 			types.ConnectionDiagnosticTrace_RBAC_DATABASE,
 			"Database not found. "+
 				"Ensure your role grants access by adding it to the 'db_labels' property. "+
-				"This can also happen when you don't have a Database Agent proxying the database - "+
-				"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the database agent.",
+				"This can also happen when you don't have a Teleport Database Service proxying the database - "+
+				"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the Database Service.",
 			trace.NotFound("%s not found", req.ResourceName),
 		)
 		if err != nil {
@@ -167,7 +168,7 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 	if _, err := s.appendDiagnosticTrace(ctx,
 		connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_DATABASE,
-		"A Database Agent is available to proxy the connection to the Database.",
+		"A Teleport Database Service is available to proxy the connection to the Database.",
 		nil,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -184,7 +185,9 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.Wrap(err)
 	}
 
-	if pingErr := databasePinger.Ping(ctx, ping); pingErr != nil {
+	pingCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	defer cancel()
+	if pingErr := databasePinger.Ping(pingCtx, ping); pingErr != nil {
 		connDiag, err := s.handlePingError(ctx, connectionDiagnosticID, pingErr, databasePinger)
 		return connDiag, trace.Wrap(err)
 	}
@@ -273,7 +276,7 @@ func newPing(alpnProxyAddr, databaseUser, databaseName string) (database.PingPar
 func (s DatabaseConnectionTester) handlePingSuccess(ctx context.Context, connectionDiagnosticID string) (types.ConnectionDiagnostic, error) {
 	if _, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_CONNECTIVITY,
-		"Database is accessible from the Database Agent.",
+		"Database is accessible from the Teleport Database Service.",
 		nil,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -341,12 +344,12 @@ func (s DatabaseConnectionTester) handlePingError(ctx context.Context, connectio
 		return connDiag, nil
 	}
 
-	if databasePinger.IsConnectionRefusedError(pingErr) {
+	if databasePinger.IsConnectionRefusedError(pingErr) || strings.Contains(pingErr.Error(), "context deadline exceeded") {
 		connDiag, err := s.appendDiagnosticTrace(ctx,
 			connectionDiagnosticID,
 			types.ConnectionDiagnosticTrace_CONNECTIVITY,
-			"There was a connection problem between the Database Agent and the Database. "+
-				"Ensure the Database is running and accessible from the Database Agent.",
+			"There was a connection problem between the Teleport Database Service and the database. "+
+				"Ensure the database is running and accessible from the Database Service over the network.",
 			pingErr,
 		)
 		if err != nil {
