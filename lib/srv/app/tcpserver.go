@@ -140,13 +140,13 @@ func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *utils.NetAddr, targetPort
 		return nil
 	}
 
-	addrPort := uriAddr.Port(0)
-	if addrPort == 0 {
+	uriPort := uriAddr.Port(0)
+	if uriPort == 0 {
 		return trace.Errorf("missing or invalid port number in URI %q", uriAddr.String())
 	}
 
-	if targetPort != addrPort {
-		return trace.BadParameter("target port is not equal to port number from URI (%d vs %d)", targetPort, addrPort)
+	if targetPort != uriPort {
+		return trace.BadParameter("attempt to connect to a TCP app with a multi-port cert where the target port from the cert does not match the port from the app URI target_port=%d uri_port=%d", targetPort, uriPort)
 	}
 
 	return nil
