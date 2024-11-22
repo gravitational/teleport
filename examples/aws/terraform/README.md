@@ -11,7 +11,7 @@ If you are planning on using our Terraform example in production, please referen
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
+- [Teleport Architecture](https://goteleport.com/docs/reference/architecture/)
 - [Admin Guide](https://goteleport.com/docs/management/admin/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
