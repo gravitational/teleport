@@ -114,7 +114,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
 		err := s.monitor(ctx, initPID)
 		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("timed out while waiting for process to start")
+			return trace.Errorf("timed out while waiting for process to start")
 		}
 		return trace.Wrap(err)
 	}
