@@ -354,7 +354,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	zr, err := gzip.NewReader(src)
 	if err != nil {
-		return trace.Errorf("requires gzip-compressed body: %v", err)
+		return trace.Errorf("requires gzip-compressed body: %w", err)
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
