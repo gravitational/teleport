@@ -52,44 +52,14 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	if addr.AddrNetwork != "tcp" {
 		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
 	}
+
 	dialer := net.Dialer{
 		Timeout: apidefaults.DefaultIOTimeout,
 	}
-	targetPort := int(identity.RouteToApp.TargetPort)
-
-	var dialTarget string
-	switch {
-	// Regular TCP app with port in URI in app spec.
-	case len(app.GetTCPPorts()) < 1:
-		if err := ensureZeroTargetPortOrEqualToPortFromURI(addr, targetPort); err != nil {
-			return trace.Wrap(err, "comparing target port against port from URI of app %q", app.GetName())
-		}
-
-		dialTarget = addr.String()
-	// Multi-port TCP app but target port was not provided.
-	case targetPort == 0:
-		// If the client didn't supply a target port, use the first port found in TCP ports. This is to
-		// provide backwards compatibility.
-		//
-		// In theory, this behavior could be removed in the future if we guarantee that all clients
-		// always send a target port when connecting to multi-port apps, but no such effort was
-		// undertaken so far.
-		firstPort := int(app.GetTCPPorts()[0].Port)
-		dialTarget = net.JoinHostPort(addr.Host(), strconv.Itoa(firstPort))
-	// Multi-port TCP app with target port specified in cert.
-	default:
-		isTargetPortInTCPPorts := slices.ContainsFunc(app.GetTCPPorts(), func(portRange *apitypes.PortRange) bool {
-			return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
-		})
-
-		if !isTargetPortInTCPPorts {
-			// This is not treated as an access denied error since there's no RBAC on TCP ports.
-			return trace.BadParameter("port %d is not in TCP ports of app %q", targetPort, app.GetName())
-		}
-
-		dialTarget = net.JoinHostPort(addr.Host(), strconv.Itoa(targetPort))
+	dialTarget, err := pickDialTarget(app, addr, identity.RouteToApp.TargetPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
 	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, dialTarget)
 	if err != nil {
 		return trace.Wrap(err)
@@ -120,20 +90,59 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	return nil
 }
 
+// pickDialTarget returns the address to dial based on the type of the app (single-port vs
+// multi-port) and targetPort included in the cert.
+//
+// For single-port apps it returns the address from the URI field. For multi-port apps, it checks if
+// targetPort is included in TCP port ranges from the app spec.
+func pickDialTarget(app apitypes.Application, uriAddr *utils.NetAddr, targetPort int) (string, error) {
+	switch {
+	// Regular TCP app with port in URI in app spec.
+	case len(app.GetTCPPorts()) < 1:
+		if err := ensureZeroTargetPortOrEqualToPortFromURI(uriAddr, targetPort); err != nil {
+			return "", trace.Wrap(err, "comparing target port against port from URI of app %q", app.GetName())
+		}
+
+		return uriAddr.String(), nil
+	// Multi-port TCP app but target port was not provided.
+	case targetPort == 0:
+		// If the client didn't supply a target port, use the first port found in TCP ports. This is to
+		// provide backwards compatibility.
+		//
+		// In theory, this behavior could be removed in the future if we guarantee that all clients
+		// always send a target port when connecting to multi-port apps, but no such effort was
+		// undertaken so far.
+		firstPort := int(app.GetTCPPorts()[0].Port)
+		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(firstPort)), nil
+	// Multi-port TCP app with target port specified in cert.
+	default:
+		isTargetPortInTCPPorts := slices.ContainsFunc(app.GetTCPPorts(), func(portRange *apitypes.PortRange) bool {
+			return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
+		})
+
+		if !isTargetPortInTCPPorts {
+			// This is not treated as an access denied error since there's no RBAC on TCP ports.
+			return "", trace.BadParameter("port %d is not in TCP ports of app %q", targetPort, app.GetName())
+		}
+
+		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(targetPort)), nil
+	}
+}
+
 // ensureZeroTargetPortOrEqualToPortFromURI handles an esoteric edge case where a connection to a
 // single-port TCP app was made with a cert that includes TargetPort meant for multi-port apps.
 //
 // This can happen when the cert was generated before the app spec was changed in a way that
 // transitioned the app from multi-port to single-port. It can also happen due to a programmer error
 // where TargetPort is provided despite the app being single-port.
-func ensureZeroTargetPortOrEqualToPortFromURI(addr *utils.NetAddr, targetPort int) error {
+func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *utils.NetAddr, targetPort int) error {
 	if targetPort == 0 {
 		return nil
 	}
 
-	addrPort := addr.Port(0)
+	addrPort := uriAddr.Port(0)
 	if addrPort == 0 {
-		return trace.Errorf("missing or invalid port number in URI %q", addr.String())
+		return trace.Errorf("missing or invalid port number in URI %q", uriAddr.String())
 	}
 
 	if targetPort != addrPort {
