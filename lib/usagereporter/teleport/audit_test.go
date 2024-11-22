@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
@@ -209,6 +211,30 @@ func TestConvertAuditEvent(t *testing.T) {
 			expectedAnonymized: &prehogv1a.SubmitEventRequest{
 				Event: &prehogv1a.SubmitEventRequest_AccessGraphCrownJewelCreate{
 					AccessGraphCrownJewelCreate: &prehogv1a.AccessGraphCrownJewelCreateEvent{},
+				},
+			},
+		},
+		{
+			desc: "SessionRecordingAccess",
+			event: &apievents.SessionRecordingAccess{
+				UserMetadata: apievents.UserMetadata{
+					User: "some-user",
+				},
+				SessionType: string(types.SSHSessionKind),
+				Format:      teleport.PTY,
+			},
+			expected: &SessionRecordingAccessEvent{
+				SessionType: string(types.SSHSessionKind),
+				UserName:    "some-user",
+				Format:      teleport.PTY,
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionRecordingAccess{
+					SessionRecordingAccess: &prehogv1a.SessionRecordingAccessEvent{
+						SessionType: string(types.SSHSessionKind),
+						UserName:    anonymizer.AnonymizeString("some-user"),
+						Format:      teleport.PTY,
+					},
 				},
 			},
 		},
