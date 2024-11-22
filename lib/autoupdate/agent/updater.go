@@ -150,6 +150,9 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		Revert: func(ctx context.Context) error {
 			return trace.Wrap(Setup(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
 		},
+		Teardown: func(ctx context.Context) error {
+			return trace.Wrap(Teardown(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
+		},
 	}, nil
 }
 
@@ -191,6 +194,8 @@ type Updater struct {
 	Setup func(ctx context.Context) error
 	// Revert installs the Teleport updater service using the running installation.
 	Revert func(ctx context.Context) error
+	// Teardown removes all traces of the updater and all managed installations.
+	Teardown func(ctx context.Context) error
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -214,8 +219,11 @@ type Installer interface {
 	// Unlike LinkSystem, TryLinkSystem will fail if existing links to other locations are present.
 	// TryLinkSystem must be idempotent.
 	TryLinkSystem(ctx context.Context) error
+	// Unlink unlinks the specified version of Teleport from the linking locations.
+	// Unlink must be idempotent.
+	Unlink(ctx context.Context, version string) error
 	// UnlinkSystem unlinks the system (package) installation of Teleport from the linking locations.
-	// TryLinkSystem must be idempotent.
+	// UnlinkSystem must be idempotent.
 	UnlinkSystem(ctx context.Context) error
 	// List the installed versions of Teleport.
 	List(ctx context.Context) (versions []string, err error)
@@ -254,6 +262,10 @@ type Process interface {
 	// If the type implementing Process does not support the system process manager,
 	// Sync must return ErrNotSupported.
 	Sync(ctx context.Context) error
+	// IsEnabled must return true if the Process is running or is configured to run.
+	// If the type implementing Process does not support the system process manager,
+	// Sync must return ErrNotSupported.
+	IsEnabled(ctx context.Context) (bool, error)
 }
 
 // TODO(sclevine): add support for need_restart and selinux config
@@ -321,6 +333,109 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
+	return nil
+}
+
+// Remove removes everything created by the updater.
+// Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
+// This function is idempotent.
+func (u *Updater) Remove(ctx context.Context) error {
+	cfg, err := readConfig(u.ConfigPath)
+	if err != nil {
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+	}
+	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+		return trace.Wrap(err)
+	}
+	activeVersion := cfg.Status.ActiveVersion
+	if activeVersion == "" {
+		u.Log.InfoContext(ctx, "No installation of Teleport managed by the updater. Removing updater configuration.")
+		if err := u.Teardown(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+	}
+
+	revert, err := u.Installer.LinkSystem(ctx)
+	if errors.Is(err, ErrNoBinaries) {
+		u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
+		ok, err := u.Process.IsEnabled(ctx)
+		if err != nil && !errors.Is(err, ErrNotSupported) {
+			return trace.Wrap(err)
+		}
+		if ok {
+			return trace.Errorf("refusing to remove active installation of Teleport, please disable Teleport first")
+		}
+		if err := u.Installer.Unlink(ctx, activeVersion); err != nil {
+			return trace.Wrap(err)
+		}
+		u.Log.InfoContext(ctx, "Teleport uninstalled.", "version", activeVersion)
+		if err := u.Teardown(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+	}
+	if err != nil {
+		return trace.Errorf("failed to link: %w", err)
+	}
+
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Restoring packaged version of Teleport before removing.")
+
+	revertConfig := func(ctx context.Context) bool {
+		if ok := revert(ctx); !ok {
+			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
+			return false
+		}
+		if err := u.Process.Sync(ctx); err != nil {
+			u.Log.ErrorContext(ctx, "Failed to revert systemd configuration after failed restart.", errorKey, err)
+			return false
+		}
+		return true
+	}
+
+	// Sync systemd.
+
+	err = u.Process.Sync(ctx)
+	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Not syncing systemd configuration because systemd is not running.")
+	} else if errors.Is(err, context.Canceled) {
+		return trace.Errorf("sync canceled")
+	} else if err != nil {
+		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
+		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
+		if ok := revertConfig(ctx); ok {
+			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+		}
+		return trace.Errorf("failed to validate configuration for system package version of Teleport: %w", err)
+	}
+
+	// Restart Teleport.
+
+	u.Log.InfoContext(ctx, "Teleport package successfully restored.")
+	err = u.Process.Reload(ctx)
+	if errors.Is(err, context.Canceled) {
+		return trace.Errorf("reload canceled")
+	}
+	if err != nil &&
+		!errors.Is(err, ErrNotNeeded) && // no output if restart not needed
+		!errors.Is(err, ErrNotSupported) { // already logged above for Sync
+
+		// If reloading Teleport at the new version fails, revert and reload.
+		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
+		if ok := revertConfig(ctx); ok {
+			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
+			} else {
+				u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+			}
+		}
+		return trace.Errorf("failed to start system package version of Teleport: %w", err)
+	}
+	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport packaged.", "version", activeVersion)
+	if err := u.Teardown(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
 	return nil
 }
 

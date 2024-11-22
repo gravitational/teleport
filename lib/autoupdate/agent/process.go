@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -111,7 +112,11 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	}
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
-		return trace.Wrap(s.monitor(ctx, initPID))
+		err := s.monitor(ctx, initPID)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("timed out while waiting for process to start")
+		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -271,6 +276,41 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	}
 	s.Log.InfoContext(ctx, "Service enabled.", unitKey, s.ServiceName)
 	return nil
+}
+
+// Disable the systemd service.
+func (s SystemdService) Disable(ctx context.Context) error {
+	if err := s.checkSystem(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelError, "disable", s.ServiceName)
+	if code != 0 {
+		return trace.Errorf("unable to disable systemd service")
+	}
+	s.Log.InfoContext(ctx, "Service disabled.", unitKey, s.ServiceName)
+	return nil
+}
+
+// IsEnabled returns true if the service is enabled, or if it's disabled but still active.
+func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
+	if err := s.checkSystem(ctx); err != nil {
+		return false, trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
+	switch {
+	case code < 0:
+		return false, trace.Errorf("unable to determine if systemd service is enabled")
+	case code == 0:
+		return true, nil
+	}
+	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
+	switch {
+	case code < 0:
+		return false, trace.Errorf("unable to determine if systemd service is active")
+	case code == 0:
+		return true, nil
+	}
+	return false, nil
 }
 
 // checkSystem returns an error if the system is not compatible with this process manager.
