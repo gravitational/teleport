@@ -624,14 +624,6 @@ export default class Client extends EventEmitterMfaSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
-    const msg = this.codec.encodeMfaJson({
-      mfaType: 'n',
-      jsonString: JSON.stringify(data),
-    });
-    this.send(msg);
-  }
-
   addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
     try {
       this.sdManager.add(sharedDirectory);

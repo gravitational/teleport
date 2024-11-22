@@ -84,8 +84,10 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
           errorText: '',
           webauthnPublicKey: null,
         }));
-        const credential = makeWebauthnAssertionResponse(res);
-        emitterSender.sendWebAuthn(credential);
+        const webauthnResponse = makeWebauthnAssertionResponse(res);
+        emitterSender.sendChallengeResponse({
+          webauthn_response: webauthnResponse,
+        });
       })
       .catch((err: Error) => {
         setErrorText(err.message);

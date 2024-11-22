@@ -41,6 +41,10 @@ describe('api.fetch', () => {
     },
   };
 
+  const mfaResp = {
+    webauthn_response: webauthnResp,
+  };
+
   const customOpts = {
     method: 'POST',
     // Override the default header from `defaultRequestOptions`.
@@ -88,7 +92,7 @@ describe('api.fetch', () => {
   });
 
   test('with webauthnResponse', async () => {
-    await api.fetch('/something', undefined, webauthnResp);
+    await api.fetch('/something', undefined, mfaResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];
@@ -107,7 +111,7 @@ describe('api.fetch', () => {
   });
 
   test('with customOptions and webauthnResponse', async () => {
-    await api.fetch('/something', customOpts, webauthnResp);
+    await api.fetch('/something', customOpts, mfaResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];

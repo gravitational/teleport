@@ -32,15 +32,6 @@ class EventEmitterMfaSender extends EventEmitter {
   sendChallengeResponse(data: MfaChallengeResponse) {
     throw new Error('Not implemented');
   }
-
-  // TODO (avatus) DELETE IN 18
-  /**
-   * @deprecated Use sendChallengeResponse instead.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sendWebAuthn(data: WebauthnAssertionResponse) {
-    throw new Error('Not implemented');
-  }
 }
 
 export { EventEmitterMfaSender };
