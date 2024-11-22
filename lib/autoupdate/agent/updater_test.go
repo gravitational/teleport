@@ -650,6 +650,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		name             string
 		cfg              *UpdateConfig // nil -> file not present
 		tryLinkSystemErr error
+		syncErr          error
 
 		syncCalls          int
 		tryLinkSystemCalls int
@@ -715,6 +716,25 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			tryLinkSystemCalls: 1,
 			syncCalls:          1,
 		},
+		{
+			name:               "systemd is not installed",
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+			syncErr:            ErrNotSupported,
+		},
+		{
+			name: "systemd is not installed, already linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+			syncErr:            ErrNotSupported,
+		},
 	}
 
 	for _, tt := range tests {
@@ -747,7 +767,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			updater.Process = &testProcess{
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
-					return nil
+					return tt.syncErr
 				},
 			}
 
