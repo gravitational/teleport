@@ -25,11 +25,13 @@ install -d -m 0700 -o teleport -g adm /var/lib/teleport
 install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
 # Setup teleport-system directory
 install -d -m 0755 -o teleport -g adm /usr/local/teleport-system/bin
+install -d -m 0755 -o teleport -g adm /usr/local/teleport-system/lib/systemd/system
 
 # Extract tarball to /tmp/teleport to get the binaries out
 mkdir /tmp/teleport
 tar -C /tmp/teleport -x -z -f /tmp/teleport.tar.gz --strip-components=1
 install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot,fdpass-teleport,teleport-update} /usr/local/teleport-system/bin
+install -m 755 /tmp/teleport/examples/systemd/teleport.service /usr/local/teleport-system/lib/systemd/system
 /usr/local/teleport-system/bin/teleport-update link-package
 rm -rf /tmp/teleport /tmp/teleport.tar.gz
 
