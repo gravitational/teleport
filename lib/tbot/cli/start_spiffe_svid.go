@@ -41,6 +41,9 @@ type SPIFFESVIDCommand struct {
 	SVIDHint string
 	DNSSANs  []string
 	IPSANs   []string
+
+	JWTAudience string
+	JWTFileName string
 }
 
 // NewSPIFFESVIDCommand initializes the command and flags for the
@@ -54,11 +57,16 @@ func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mo
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
+	wid := ""
+
 	cmd.Flag("include-federated-trust-bundles", "If set, include federated trust bundles in the output").BoolVar(&c.IncludeFederatedTrustBundles)
-	cmd.Flag("svid-path", "A SPIFFE ID to request, prefixed with '/'").Required().StringVar(&c.SVIDPath)
+	cmd.Flag("workload-identity", "Name of the Workload Identity resource to use").StringVar(&wid)
+	cmd.Flag("svid-path", "A SPIFFE ID to request, prefixed with '/'").StringVar(&c.SVIDPath)
 	cmd.Flag("svid-hint", "An optional hint for consumers of the SVID to aid in identification").StringVar(&c.SVIDHint)
 	cmd.Flag("dns-san", "A DNS name that should be included in the SVID. Repeatable.").StringsVar(&c.DNSSANs)
 	cmd.Flag("ip-san", "An IP address that should be included in the SVID. Repeatable.").StringsVar(&c.IPSANs)
+	cmd.Flag("jwt-audience", "Audience for the JWT").StringVar(&c.JWTAudience)
+	cmd.Flag("jwt-file-name", "File name to write the JWT to").StringVar(&c.JWTFileName)
 
 	return c
 }
@@ -76,11 +84,17 @@ func (c *SPIFFESVIDCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 	cfg.Services = append(cfg.Services, &config.SPIFFESVIDOutput{
 		Destination: dest,
 		SVID: config.SVIDRequest{
-			Path: c.SVIDPath,
+			Path: "/todo",
 			Hint: c.SVIDHint,
 			SANS: config.SVIDRequestSANs{
 				DNS: c.DNSSANs,
 				IP:  c.IPSANs,
+			},
+		},
+		JWTs: []config.JWTSVID{
+			{
+				FileName: c.JWTFileName,
+				Audience: c.JWTAudience,
 			},
 		},
 		IncludeFederatedTrustBundles: c.IncludeFederatedTrustBundles,

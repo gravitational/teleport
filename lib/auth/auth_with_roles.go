@@ -3307,6 +3307,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	// Propagate JoinAttributes to renewed or assumed certificates.
+	if a.context.Identity.GetIdentity().BotJoinAttributes != nil {
+		certReq.botJoinAttributes = a.context.Identity.GetIdentity().BotJoinAttributes
+	}
+
 	certs, err := a.authServer.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)

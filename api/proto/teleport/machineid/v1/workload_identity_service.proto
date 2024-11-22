@@ -28,6 +28,23 @@ service WorkloadIdentityService {
   rpc SignX509SVIDs(SignX509SVIDsRequest) returns (SignX509SVIDsResponse) {}
   // SignJWTSVIDs generates signed JWT SVIDs based on the requested SVIDs.
   rpc SignJWTSVIDs(SignJWTSVIDsRequest) returns (SignJWTSVIDsResponse) {}
+  // TODO
+  rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse) {}
+}
+
+// TODO
+message IssueWorkloadIdentityRequest {
+  // A PKIX, ASN.1 DER encoded public key that should be included in the x509
+  // SVID.
+  bytes public_key = 1;
+  bool jwt_mode = 2;
+  string audiences = 3;
+}
+
+// TODO
+message IssueWorkloadIdentityResponse {
+  bytes x509 = 1;
+  string jwt = 2;
 }
 
 // The request for an individual x509 SVID.

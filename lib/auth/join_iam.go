@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/utils"
@@ -382,7 +383,13 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req.RegisterUsingTokenRequest,
+			nil,
+			&machineidv1pb.JoinAttributes{},
+		)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}
 	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)

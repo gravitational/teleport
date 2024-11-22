@@ -36,8 +36,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -202,6 +204,9 @@ type Identity struct {
 
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType types.UserType
+
+	// TODO
+	BotJoinAttributes *machineidv1pb.JoinAttributes
 }
 
 // RouteToApp holds routing information for applications.
@@ -543,6 +548,9 @@ var (
 	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
 	// instance identifier into a certificate.
 	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// BotJoinAttributesASN1ExtensionOID
+	BotJoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
 )
 
 // Device Trust OIDs.
@@ -873,6 +881,19 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.BotJoinAttributes != nil {
+		data, err := protojson.Marshal(id.BotJoinAttributes)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotJoinAttributesASN1ExtensionOID,
+				Value: string(data),
+			},
+		)
+	}
+
 	// Device extensions.
 	if devID := id.DeviceExtensions.DeviceID; devID != "" {
 		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
@@ -1125,6 +1146,13 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(UserTypeASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.UserType = types.UserType(val)
+			}
+		case attr.Type.Equal(BotJoinAttributesASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.BotJoinAttributes = &machineidv1pb.JoinAttributes{}
+				if err := protojson.Unmarshal([]byte(val), id.BotJoinAttributes); err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 		}
 	}

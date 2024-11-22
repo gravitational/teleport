@@ -6697,6 +6697,13 @@ message SPIFFESVIDIssued {
   // Audiences is the list of audiences in the issued SVID.
   // Only present if the SVID is a JWT.
   repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
+
+  string WorkloadIdentityName = 12 [(gogoproto.jsontag) = "workload_identity_name"];
+  // Context is the context in which the WorkloadIdentity was processed.
+  google.protobuf.Struct AttributeContext = 13 [
+    (gogoproto.jsontag) = "attribute_context,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.

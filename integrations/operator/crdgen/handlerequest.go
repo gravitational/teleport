@@ -214,6 +214,9 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalColumns(serverColumns),
 			},
 		},
+		{
+			name: "WorkloadIdentity",
+		},
 	}
 
 	for _, resource := range resources {
