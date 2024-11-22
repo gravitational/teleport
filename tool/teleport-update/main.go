@@ -66,8 +66,8 @@ const (
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
 
 func main() {
-	if err := Run(os.Args[1:]); err != nil {
-		libutils.FatalError(err)
+	if code := Run(os.Args[1:]); code != 0 {
+		os.Exit(code)
 	}
 }
 
@@ -88,7 +88,7 @@ type cliConfig struct {
 	SelfSetup bool
 }
 
-func Run(args []string) error {
+func Run(args []string) int {
 	var ccfg cliConfig
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -155,12 +155,13 @@ func Run(args []string) error {
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
-		return trace.Wrap(err)
+		libutils.FatalError(err)
 	}
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
 	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
-		return trace.Errorf("failed to set up logger")
+		plog.ErrorContext(ctx, "Failed to set up logger.", "error", err)
+		return 1
 	}
 
 	switch command {
@@ -192,8 +193,14 @@ func Run(args []string) error {
 		// This should only happen when there's a missing switch case above.
 		err = trace.Errorf("command %q not configured", command)
 	}
-
-	return err
+	if errors.Is(err, autoupdate.ErrNotSupported) {
+		return autoupdate.CodeNotSupported
+	}
+	if err != nil {
+		plog.ErrorContext(ctx, "Command failed.", "error", err)
+		return 1
+	}
+	return 0
 }
 
 func setupLogger(debug bool, format string) error {
@@ -390,7 +397,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	err = cluster.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
 	if errors.Is(err, autoupdate.ErrNotSupported) {
 		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
-		os.Exit(autoupdate.CodeNotSupported)
+		return autoupdate.ErrNotSupported
 	}
 	if err != nil {
 		return trace.Errorf("failed to setup teleport-update service: %w", err)
