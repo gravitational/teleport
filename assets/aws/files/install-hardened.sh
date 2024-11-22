@@ -24,7 +24,7 @@ usermod -a -G adm teleport
 install -d -m 0700 -o teleport -g adm /var/lib/teleport
 install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
 # Setup teleport-system directory
-install -d -m 0755 -o teleport -g adm /usr/local/teleport-system
+install -d -m 0755 -o teleport -g adm /usr/local/teleport-system/bin
 
 # Extract tarball to /tmp/teleport to get the binaries out
 mkdir /tmp/teleport
