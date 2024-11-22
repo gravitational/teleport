@@ -39,17 +39,14 @@ export default function useGetScpUrl(addMfaToScpUrls: boolean) {
           scope: MfaChallengeScope.USER_SESSION,
         });
 
-        const response = await auth.getMfaChallengeResponse(
-          challenge,
-          'webauthn'
-        );
+        const mfaResponse = await auth.getMfaChallengeResponse(challenge);
 
         setAttempt({
           status: 'success',
           statusText: '',
         });
         return cfg.getScpUrl({
-          webauthn: response.webauthn_response,
+          mfaResponse,
           ...params,
         });
       } catch (error) {

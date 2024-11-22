@@ -113,6 +113,8 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
+	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // SSOResponse is a json compatible [proto.SSOResponse].
@@ -128,15 +130,25 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 		return nil, trace.BadParameter("only one MFA response field can be set")
 	}
 
-	if r.TOTPCode != "" {
+	switch {
+	case r.WebauthnResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	case r.SSOResponse != nil:
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: r.SSOResponse.RequestID,
+				Token:     r.SSOResponse.Token,
+			},
+		}}, nil
+	case r.TOTPCode != "":
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
 		}}, nil
-	}
-
-	if r.WebauthnResponse != nil {
+	case r.WebauthnAssertionResponse != nil:
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnAssertionResponse),
 		}}, nil
 	}
 
@@ -150,6 +162,16 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 	}
 
 	return nil, nil
+}
+
+func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateResponse, error) {
+	var resp MFAChallengeResponse
+	if err := json.Unmarshal(mfaResponseJSON, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
+	return protoResp, trace.Wrap(err)
 }
 
 // CreateSSHCertReq is passed by tsh to authenticate a local user without MFA
