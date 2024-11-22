@@ -428,7 +428,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
 			} else {
-				u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 			}
 		}
 		return trace.Errorf("failed to start system package version of Teleport: %w", err)
@@ -702,7 +702,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 				if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 					u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
 				} else {
-					u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+					u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 				}
 			}
 			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
