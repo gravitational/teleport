@@ -329,6 +329,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -483,6 +489,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 	}
 
 	as := Server{
@@ -693,6 +700,7 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.PluginStaticCredentials
 }
 
 // GetWebSession returns existing web session described by req.

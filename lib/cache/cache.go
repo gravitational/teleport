@@ -172,7 +172,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
-		{Kind: types.KindIntegration, LoadSecrets: true},
+		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},

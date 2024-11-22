@@ -65,11 +65,18 @@ type KeyStoreManager interface {
 	GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
 }
 
+// Backend defines the interface for all the backend services that the
+// integration service needs.
+type Backend interface {
+	services.Integrations
+	services.PluginStaticCredentials
+}
+
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
 	Authorizer      authz.Authorizer
-	Backend         services.Integrations
+	Backend         Backend
 	Cache           Cache
 	KeyStoreManager KeyStoreManager
 	Logger          *slog.Logger
@@ -118,7 +125,7 @@ type Service struct {
 	authorizer      authz.Authorizer
 	cache           Cache
 	keyStoreManager KeyStoreManager
-	backend         services.Integrations
+	backend         Backend
 	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
@@ -161,6 +168,7 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 
 	igs := make([]*types.IntegrationV1, len(results))
 	for i, r := range results {
+		r = r.WithoutCredentials()
 		v1, ok := r.(*types.IntegrationV1)
 		if !ok {
 			return nil, trace.BadParameter("unexpected Integration type %T", r)
@@ -184,37 +192,19 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	integration, err := s.cache.GetIntegration(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Credentials are not used outside of Auth service.
+	integration = integration.WithoutCredentials()
 	igV1, ok := integration.(*types.IntegrationV1)
 	if !ok {
 		return nil, trace.BadParameter("unexpected Integration type %T", integration)
 	}
 
 	return igV1, nil
-}
-
-func (s *Service) initIntegrationResource(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
-	ig := req.GetIntegration()
-	switch ig.GetSubKind() {
-	case types.IntegrationSubKindGitHub:
-		spec := ig.GetGitHubIntegrationSpec()
-		if spec.Proxy == nil {
-			spec.Proxy = &types.GitHubProxy{}
-		}
-		// Generate SSH CA for the integration.
-		// TODO(greedy52) support per auth CA like HSM.
-		ca, err := s.keyStoreManager.NewSSHKeyPair(ctx, cryptosuites.GitHubProxyCASSH)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		spec.Proxy.CertAuthorities = append(spec.Proxy.CertAuthorities, ca)
-	}
-	return ig, nil
 }
 
 // CreateIntegration creates a new Okta import rule resource.
@@ -228,11 +218,15 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	reqIg, err := s.initIntegrationResource(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch req.Integration.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		// TODO(greedy52) add entitlement check
+		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	ig, err := s.backend.CreateIntegration(ctx, reqIg)
+
+	ig, err := s.backend.CreateIntegration(ctx, req.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -258,6 +252,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		s.logger.WarnContext(ctx, "Failed to emit integration create event.", "error", err)
 	}
 
+	ig = ig.WithoutCredentials()
 	igV1, ok := ig.(*types.IntegrationV1)
 	if !ok {
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
@@ -266,7 +261,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 	return igV1, nil
 }
 
-// UpdateIntegration updates an existing Okta import rule resource.
+// UpdateIntegration updates an existing integration.
 func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.UpdateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -277,11 +272,16 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
+	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := s.backend.UpdateIntegration(ctx, req.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	ig = ig.WithoutCredentials()
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
@@ -324,6 +324,10 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 
 	ig, err := s.cache.GetIntegration(ctx, req.GetName())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.removeStaticCredentials(ctx, ig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -2291,9 +2291,7 @@ func TestIntegrations(t *testing.T) {
 			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
 			return results, err
 		},
-		cacheGet: func(ctx context.Context, name string) (types.Integration, error) {
-			return p.cache.GetIntegration(ctx, name)
-		},
+		cacheGet: p.cache.GetIntegration,
 		cacheList: func(ctx context.Context) ([]types.Integration, error) {
 			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
 			return results, err

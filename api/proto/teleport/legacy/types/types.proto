@@ -6994,6 +6994,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7013,6 +7014,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7365,6 +7374,9 @@ message IntegrationSpecV1 {
     // GitHub contains the specific fields to handle the GitHub integration subkind.
     GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7413,34 +7425,6 @@ message AzureOIDCIntegrationSpecV1 {
 message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
-
-  // Proxy specifies GitHub proxy related settings.
-  GitHubProxy proxy = 2 [(gogoproto.jsontag) = "proxy,omitempty"];
-}
-
-// GitHubProxy specifies GitHub proxy related settings.
-message GitHubProxy {
-  // CertAuthority contains the active SSH CAs used between Teleport and
-  // GitHub. GitHub does not allow the same CA to be used for a different
-  // organization so the CA is defined per integration. TODO(greedy52) support
-  // rotation, HSM encryption.
-  repeated SSHKeyPair cert_authorities = 1 [(gogoproto.jsontag) = "cert_authorities,omitempty"];
-
-  // Connector specifies the GitHub connector spec used to obtain user ID and
-  // username.
-  GitHubProxyConnector connector = 2 [(gogoproto.jsontag) = "connector,omitempty"];
-}
-
-// GitHubProxyConnector specifies the GitHub connector spec for a GitHub proxy.
-// This type is a subset of GithubConnectorSpecV3 but does not require fields
-// like TeamRolesMapping.
-message GitHubProxyConnector {
-  // ClientID is the Github OAuth app client ID.
-  string ClientID = 1 [(gogoproto.jsontag) = "client_id"];
-  // ClientSecret is the Github OAuth app client secret.
-  string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
-  // RedirectURL is the authorization callback URL.
-  string RedirectURL = 3 [(gogoproto.jsontag) = "redirect_url"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

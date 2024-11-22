@@ -22,6 +22,8 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -70,8 +72,12 @@ type Integration interface {
 	// SetGitHubIntegrationSpec returns the GitHub spec.
 	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
 
-	// WithoutSecrets returns an instance of resource without secrets.
-	WithoutSecrets() Integration
+	// SetCredentials updates credentials.
+	SetCredentials(creds PluginCredentials) error
+	// GetCredentials retrieves credentials.
+	GetCredentials() PluginCredentials
+	// WithoutCredentials returns a copy without credentials.
+	WithoutCredentials() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -272,40 +278,8 @@ func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 	if s == nil || s.GitHub == nil {
 		return trace.BadParameter("github is required for %q subkind", IntegrationSubKindGitHub)
 	}
-	if s.GitHub.Organization == "" {
-		return trace.BadParameter("organization must be set")
-	}
-	if s.GitHub.Proxy == nil {
-		s.GitHub.Proxy = &GitHubProxy{}
-	}
-	if err := s.GitHub.Proxy.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// CheckAndSetDefaults validates the configuration for GitHub proxy settings.
-func (p *GitHubProxy) CheckAndSetDefaults() error {
-	for _, ca := range p.CertAuthorities {
-		if err := ca.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if p.Connector != nil {
-		if err := p.Connector.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// CheckAndSetDefaults validates the configuration for GitHub Proxy connector.
-func (c *GitHubProxyConnector) CheckAndSetDefaults() error {
-	if c.ClientID == "" {
-		return trace.BadParameter("client_id must be set")
-	}
-	if c.RedirectURL == "" {
-		return trace.BadParameter("redirect must be set")
+	if err := ValidateGitHubOrganizationName(s.GitHub.Organization); err != nil {
+		return trace.Wrap(err, "invalid organization name")
 	}
 	return nil
 }
@@ -414,9 +388,10 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC   json.RawMessage `json:"aws_oidc"`
-			AzureOIDC json.RawMessage `json:"azure_oidc"`
-			GitHub    json.RawMessage `json:"github"`
+			AWSOIDC     json.RawMessage `json:"aws_oidc"`
+			AzureOIDC   json.RawMessage `json:"azure_oidc"`
+			GitHub      json.RawMessage `json:"github"`
+			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
 	}{}
 
@@ -426,6 +401,13 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	if len(d.Spec.Credentials) != 0 {
+		var credentials PluginCredentialsV1
+		if err := protojson.Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
+			return trace.Wrap(err)
+		}
+		integration.Spec.Credentials = &credentials
+	}
 
 	switch integration.SubKind {
 	case IntegrationSubKindAWSOIDC:
@@ -481,13 +463,21 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
-			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
-			GitHub    GitHubIntegrationSpecV1    `json:"github,omitempty"`
+			AWSOIDC     AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
+			AzureOIDC   AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
+			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
+			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	if ig.Spec.Credentials != nil {
+		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		d.Spec.Credentials = json.RawMessage(data)
+	}
 
 	switch ig.SubKind {
 	case IntegrationSubKindAWSOIDC:
@@ -515,30 +505,36 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	return out, trace.Wrap(err)
 }
 
-// Copy returns a deep copy of the integration.
-func (ig *IntegrationV1) Copy() *IntegrationV1 {
-	return utils.CloneProtoMsg(ig)
+// SetCredentials updates credentials.
+func (ig *IntegrationV1) SetCredentials(creds PluginCredentials) error {
+	if creds == nil {
+		ig.Spec.Credentials = nil
+		return nil
+	}
+	switch creds := creds.(type) {
+	case *PluginCredentialsV1:
+		ig.Spec.Credentials = creds
+	default:
+		return trace.BadParameter("unsupported plugin credential type %T", creds)
+	}
+	return nil
 }
 
-// WithoutSecrets returns an instance of resource without secrets.
-func (ig *IntegrationV1) WithoutSecrets() Integration {
-	switch ig.SubKind {
-	case IntegrationSubKindGitHub:
-		spec := ig.GetGitHubIntegrationSpec()
-		if spec == nil || spec.Proxy == nil {
-			return ig
-		}
-
-		clone := ig.Copy()
-		spec = clone.GetGitHubIntegrationSpec()
-		for i := range spec.Proxy.CertAuthorities {
-			spec.Proxy.CertAuthorities[i].PrivateKey = nil
-		}
-		if spec.Proxy.Connector != nil {
-			spec.Proxy.Connector.ClientSecret = ""
-		}
-		clone.SetGitHubIntegrationSpec(spec)
-		return clone
+// GetCredentials retrieves credentials.
+func (ig *IntegrationV1) GetCredentials() PluginCredentials {
+	if ig.Spec.Credentials == nil {
+		return nil
 	}
-	return ig
+	return ig.Spec.Credentials
+}
+
+// WithoutCredentials returns a copy without credentials.
+func (ig *IntegrationV1) WithoutCredentials() Integration {
+	if ig == nil || ig.GetCredentials() == nil {
+		return ig
+	}
+
+	clone := utils.CloneProtoMsg(ig)
+	clone.SetCredentials(nil)
+	return clone
 }
