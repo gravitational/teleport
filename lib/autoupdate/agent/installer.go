@@ -575,7 +575,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 		linked++
 	}
 	if linked == 0 {
-		return revert, trace.Errorf("no binaries available to link")
+		return revert, trace.Wrap(ErrNoBinaries)
 	}
 
 	// create systemd service file
@@ -784,7 +784,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 	}
 	// bail if no binaries can be linked
 	if linked == 0 {
-		return trace.Errorf("no binaries available to link")
+		return trace.Wrap(ErrNoBinaries)
 	}
 
 	// link binaries that are missing links
