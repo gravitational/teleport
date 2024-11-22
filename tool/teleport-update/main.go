@@ -147,6 +147,8 @@ func Run(args []string) error {
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
+	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
+
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -180,6 +182,8 @@ func Run(args []string) error {
 		err = cmdSetup(ctx, &ccfg)
 	case statusCmd.FullCommand():
 		err = cmdStatus(ctx, &ccfg)
+	case uninstallCmd.FullCommand():
+		err = cmdUninstall(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
@@ -417,4 +421,33 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 	}
 	enc := yaml.NewEncoder(os.Stdout)
 	return trace.Wrap(enc.Encode(status))
+}
+
+// cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
+func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		DataDir:   ccfg.DataDir,
+		LinkDir:   ccfg.LinkDir,
+		SystemDir: autoupdate.DefaultSystemDir,
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to initialize updater: %w", err)
+	}
+	// Ensure update can't run concurrently.
+	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	if err := updater.Remove(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
