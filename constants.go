@@ -446,6 +446,8 @@ const (
 	CertExtensionPermitPTY = "permit-pty"
 	// CertExtensionPermitPortForwarding allows user to request port forwarding
 	CertExtensionPermitPortForwarding = "permit-port-forwarding"
+	// CertExtensionSSHPortForwardMode allows user to request a specific port forwarding mode
+	CertExtensionSSHPortForwardMode = "ssh-port-forward-mode"
 	// CertExtensionTeleportRoles is used to propagate teleport roles
 	CertExtensionTeleportRoles = "teleport-roles"
 	// CertExtensionTeleportRouteToCluster is used to encode
