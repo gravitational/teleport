@@ -58,10 +58,13 @@ WantedBy={{.TeleportService}}
 `
 )
 
+// Namespace represents a namespace within various system paths for a isolated installation of Teleport.
 type Namespace string
 
 var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 
+// NewNamespace validates and returns a Namespace.
+// Namespaces must be alphanumeric + `-`.
 func NewNamespace(name string) (Namespace, error) {
 	if !alphanum.MatchString(name) {
 		return "", trace.Errorf("invalid namespace name %q, must be alphanumeric", name)
@@ -165,41 +168,50 @@ func writeTemplate(path, t string, values any) error {
 	return trace.Wrap(f.CloseAtomicallyReplace())
 }
 
+// TeleportName is the namespaced name for Teleport (e.g., teleport_mycluster).
 func (ns Namespace) TeleportName() string {
 	return "teleport" + ns.suffix()
 }
 
+// TeleportService is the namespaced name for the Teleport systemd service (e.g., teleport_mycluster.service).
 func (ns Namespace) TeleportService() string {
 	return ns.TeleportName() + ".service"
 }
 
+// TeleportConfigPath is the namespaced path for the Teleport config file (e.g., /etc/teleport_mycluster.yaml).
 func (ns Namespace) TeleportConfigPath() string {
 	return filepath.Join("/etc", ns.TeleportName()+".yaml")
 }
 
+// TeleportPIDPath is the namespaced path for the Teleport PID file (e.g., /run/teleport_mycluster.pid).
 func (ns Namespace) TeleportPIDPath() string {
 	return filepath.Join("/run", ns.TeleportName()+".pid")
 }
 
+// UpdaterName is the namespaced name for the updater binary.
 func (ns Namespace) UpdaterName() string {
 	return BinaryName + ns.suffix()
 }
 
+// UpdaterService is the namespaced name for the updater systemd service (e.g., updater_mycluster.service).
 func (ns Namespace) UpdaterService() string {
 	return ns.UpdaterName() + ".service"
 }
 
+// UpdaterTimer is the namespaced name for the updater systemd timer (e.g., updater_mycluster.timer).
 func (ns Namespace) UpdaterTimer() string {
 	return ns.UpdaterName() + ".timer"
 }
 
+// DataDir returns the namespaced data directory path.
 func (ns Namespace) DataDir(globalDataDir string) string {
 	if ns == "" {
 		return globalDataDir
 	}
-	return filepath.Join(globalDataDir, "cluster", string(ns))
+	return filepath.Join(globalDataDir, "ns", string(ns))
 }
 
+// LinkDir returns the namespaced link directory path.
 func (ns Namespace) LinkDir(globalLinkDir string) string {
 	if ns == "" {
 		return globalLinkDir
@@ -207,6 +219,7 @@ func (ns Namespace) LinkDir(globalLinkDir string) string {
 	return filepath.Join(globalLinkDir, "teleport", string(ns))
 }
 
+// LinkServicePath returns the namespaced path for the linked service.
 func (ns Namespace) LinkServicePath(globalLinkDir string) string {
 	if ns == "" {
 		globalLinkDir = "/"
@@ -217,6 +230,7 @@ func (ns Namespace) LinkServicePath(globalLinkDir string) string {
 	)
 }
 
+// UpdaterServicePath returns the namespaced path for the updater service.
 func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
 	return filepath.Join(
 		ns.LinkDir(globalLinkDir), serviceDir,
@@ -224,6 +238,7 @@ func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
 	)
 }
 
+// UpdaterBinaryPath returns the namespaced path for the updater binary.
 func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
 	return filepath.Join(
 		ns.LinkDir(globalLinkDir), "bin",
@@ -231,6 +246,7 @@ func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
 	)
 }
 
+// UpdaterTimerPath returns the namespaced path for the updater timer.
 func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
 	return filepath.Join(
 		ns.LinkDir(globalLinkDir), serviceDir,
@@ -245,6 +261,7 @@ func (ns Namespace) suffix() string {
 	return "_" + string(ns)
 }
 
+// ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
 func (ns Namespace) ReplaceTeleportService(orig []byte, linkDir string) []byte {
 	cfg := string(orig)
 	cfg = strings.ReplaceAll(cfg, "/usr/local/", ns.LinkDir(linkDir)+"/")
