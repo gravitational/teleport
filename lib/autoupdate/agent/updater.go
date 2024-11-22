@@ -353,7 +353,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		if err := u.Teardown(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+		u.Log.InfoContext(ctx, "Automatic update configuration for Teleport successfully uninstalled.")
 		return nil
 	}
 
@@ -374,7 +374,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		if err := u.Teardown(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
+		u.Log.InfoContext(ctx, "Automatic update configuration for Teleport successfully uninstalled.")
 		return nil
 	}
 	if err != nil {
@@ -741,14 +741,18 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	}
 	activeVersion := cfg.Status.ActiveVersion
 	if cfg.Spec.Enabled {
-		u.Log.InfoContext(ctx, "Automatic updates enabled. Skipping system package link.", activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Automatic updates is enabled. Skipping system package link.", activeVersionKey, activeVersion)
+		return nil
+	}
+	if cfg.Spec.Pinned {
+		u.Log.InfoContext(ctx, "Automatic update version is pinned. Skipping system package link.", activeVersionKey, activeVersion)
 		return nil
 	}
 	// If an active version is set, but auto-updates is disabled, try to link the system installation in case the config is stale.
 	// If any links are present, this will return ErrLinked and not create any system links.
 	// This state is important to log as a warning,
 	if err := u.Installer.TryLinkSystem(ctx); errors.Is(err, ErrLinked) {
-		u.Log.WarnContext(ctx, "Automatic updates disabled, but a non-package version of Teleport is linked.", activeVersionKey, activeVersion)
+		u.Log.WarnContext(ctx, "Automatic updates is disabled, but a non-package version of Teleport is linked.", activeVersionKey, activeVersion)
 		return nil
 	} else if err != nil {
 		return trace.Errorf("failed to link system package installation: %w", err)

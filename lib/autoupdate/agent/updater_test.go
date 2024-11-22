@@ -669,6 +669,19 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			syncCalls:          0,
 		},
 		{
+			name: "pinned",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Pinned: true,
+				},
+			},
+
+			tryLinkSystemCalls: 0,
+			syncCalls:          0,
+		},
+		{
 			name: "updates disabled",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
