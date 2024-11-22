@@ -249,6 +249,8 @@ The following operators will be supported:
   the given string.
 - `not_matches_string`: The target attribute must be a string and must not match
   the given regex pattern.
+- `present`: The target attribute must be set.
+- `not_present`: The target attribute must not be set. 
 
 Alternatively, a rule may consist of a single expression. This expression is
 configured by the user in the predicate language with access to the same
@@ -272,7 +274,7 @@ spec:
 
 See "Predicate Language" for further details.
 
-#### Attributes
+### Attributes
 
 The attributes available for templating and rule evaluation will come from
 three sources:
@@ -292,10 +294,16 @@ rules using `.`. For example, `join.gitlab.project_path`.
 Documentation will be generated with an exhaustive list of available attributes
 and example values.
 
+The audit log entry for the issuance of a WorkloadIdentity will include the 
+full attribute set that was used during rule and template evaluation. This will
+not only serve as a tool for compliance and auditing, but, will also provide
+the necessary information to debug issues with the configuration of templates
+and rules.
+
 ### `tbot` Configuration
 
-In addition to this resource effectively configuring the Teleport control
-plane's authorization rules as to who and what workload identity credentials
+In addition to this resource configuring the Teleport control plane's
+authorization rules as to who and what workload identity credentials
 can be issued, the WorkloadIdentity resource will also serve as a form of
 remote configuration for the `tbot` workload identity agent - removing the need
 for explicit configuration of workload identity credentials at the edge.
@@ -335,69 +343,71 @@ services:
 
 // TODO: CLI variants.
 
-### IaC Integration
+### Configuration Tooling 
 
-The Terraform Provider and Kubernetes Operator must be extended to support the
-new WorkloadIdentity resource.
+The WorkloadIdentity resource will support configuration via four methods:
 
-### Revisiting our use-case
+- The `tctl create`/`tctl update` commands with a YAML representation 
+- The Teleport Terraform Provider
+- The Teleport Kubernetes Operator as Kubernetes CRDs
+- The Teleport gRPC API
 
-To give the example of our GitLab use-case, all workflows can now share a single
-Bot, Role and Join Token - and they will automatically issue the correct 
-SPIFFE ID in-line with the centralized policy.
+### Diagnostics Tooling
 
-```yaml
-kind: workload_identity
-version: v1
-metadata:
-  name: gitlab
-  labels:
-    environment: production
-spec:
+The flexibility of the templating, rules and attributes system allows 
+potentially complex configurations to be created. As such, we must provide
+tooling to assist operators in testing and debugging WorkloadIdentity
+configurations.
+
+The `tctl` CLI will be extended with a new command
+`tctl workload-identity test` that will locally evaluate a WorkloadIdentity,
+or set of WorkloadIdentities, against a given set of attributes and return a
+description of the workload identity credentials that would have been issued.
+
+Operators will be able to specify a WorkloadIdentity from a local file which
+may not yet exist in the Teleport cluster, or specify an existing
+WorkloadIdentity by name.
+
+Operators will provide the attributes as a file in YAML or JSON format. This
+will be in the same structure as the attributes included in the Teleport
+audit log.
+
+For example:
+
+```shell
+$ tctl workload-identity test --workload-identity-file ./my-workload-identity.yaml --attributes-file ./attributes.yaml
+Evaluating 3 WorkloadIdentity resources against the following attributes:
+--snip--
+
+1 WorkloadIdentity resources matched the given attributes. The following
+credentials would have been issued:
+
+- workload_identity_name: gitlab-production
   spiffe:
-    # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
-    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
----
-kind: role
-metadata:
-  name: production-workload-id
-spec:
-  allow:
-    workload_identity_labels:
-      environment: production
----
-kind: bot
-metadata:
-  name: gitlab-workload-id
-spec:
-  roles:
-  - production-workload-id
----
-kind: token
-version: v2
-metadata:
-  name: gitlab-workload-id
-spec:
-  roles: [Bot]
-  join_method: gitlab
-  bot_name: gitlab-workload-id
-  gitlab:
-    domain: gitlab.example.com
-    # Allow rules are intentionally very permissive as we'd like to allow any
-    # CI run to request a WorkloadIdentity using the template.
-    allow:
-    - namespace_path: my-org
+    id: spiffe://example.teleport.sh/gitlab/my-org/my-project/production
+    jwt:
+      sub: spiffe://example.teleport.sh/gitlab/my-org/my-project/production
+      iss: https://example.teleport.sh
+      -- snipped for conciseness: all JWT claims would be included --
+    x509:
+      subject:
+        common_name: spiffe://example.teleport.sh/gitlab/my-org/my-project/production
+        organization: my-org
+        -- snipped for conciseness: all Subject DN fields would be included --
+      sans:
+      - dns: my-project.example.com
+      - ip: 10.0.0.1
+      - uri: spiffe://example.teleport.sh/gitlab/my-org/my-project/production 
+2 WorkloadIdentity resources did not match the given attributes:
+
+- workload_identity_name: gitlab-staging
+  reason: Rule evaluation failed. Allow rule condition `join.gitlab.environment == "production"` returned false.
+- workload_identity_name: github-production
+  reason: The `join.github.environment` attribute included in `spec.spiffe.id` template do not exist in the attribute set.
 ```
 
-With the following `tbot` configuration:
-
-```yaml
-services:
-- type: spiffe-workload-api
-  listen: unix:///opt/machine-id/workload.sock
-  workload_identity_labels:
-   '*': '*'
-```
+It stands to reason that this functionality could eventually be integrated into 
+the Teleport Web UI.
 
 ### Future: Customizing workload identity credentials
 
@@ -407,12 +417,12 @@ generated identity credential.
 
 This ability serves many purposes:
 
-- Allow the encoding of additional information that is not considered for 
+- Allow the encoding of additional information that is not considered for
   authorization but may be useful to be included in workload audit logs.
 - Allow the encoding of additional information that is only rarely used for
   authorization - or - does not fit well into the structure of a SPIFFE ID for
   other reasons.
-- Support compatablity with services which may require information to be 
+- Support compatablity with services which may require information to be
   encoded into non-standard fields.
 
 The fields for controlling customization of the credentials would also accept
@@ -462,7 +472,169 @@ shared between WorkloadIdentity resources. This would provide a unified way
 to control customizations which may be necessary for compliance or compatability
 purposes.
 
+### Revisiting our use-case
+
+Let's revisit the use-case we outlined at the beginning of this RFD.
+
+Now, the operator must only configure a single WorkloadIdentity, Bot, Join Token
+and Role:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+  labels:
+    environment: production
+spec:
+  spiffe:
+    # Results in spiffe://example.teleport.sh/gitlab/my-org/my-project/42
+    id: "/gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.pipeline_id }}"
+---
+kind: role
+metadata:
+  name: production-workload-id
+spec:
+  allow:
+    workload_identity_labels:
+      environment: production
+---
+kind: bot
+metadata:
+  name: gitlab-workload-id
+spec:
+  roles:
+  - production-workload-id
+---
+kind: token
+version: v2
+metadata:
+  name: gitlab-workload-id
+spec:
+  roles: [Bot]
+  join_method: gitlab
+  bot_name: gitlab-workload-id
+  gitlab:
+    domain: gitlab.example.com
+    # Allow rules are intentionally very permissive as we'd like to allow any
+    # CI run to request a WorkloadIdentity using the template.
+    allow:
+    - namespace_path: my-org
+```
+
+The `tbot` configuration is now identical across all workflows and
+consists of just a handful of flags:
+
+```yaml
+tbot start workload-api \
+  --proxy-server example.teleport.sh:443 \
+  --join-token gitlab-workload-id \
+  --join-method gitlab \
+  --workload-identity-labels "'*':'*'"  \
+  --listen-addr unix:///opt/workload.sock
+```
+
 ## Technical Design
+
+### Attributes
+
+For the purposes of templating, rule evaluation and auditing, a set of
+attributes is derived during the issuance of a WorkloadIdentity.
+
+Attributes are organized into a hierarchical structure, with three top-level
+keys:
+
+- `join`
+- `workload`
+- `traits`
+
+The attribute hierarchy will be defined using Protobuf. This will enable:
+
+- Generation of documentation.
+- Strong typing of rules, templates and expressions provided by users.
+- Serialization and deserialization of attributes for the purposes of
+  persistence, auditing or transport.
+
+```protobuf
+package teleport.workloadidentity.v1;
+
+message AttributeSet {
+  JoinAttributes join = 1;
+  WorkloadAttributes workload = 2;
+  TraitAttributes traits = 3;
+}
+```
+
+#### Trait Attributes
+
+The trait attributes are extracted during the RPC invocation from the X509
+identity of the caller.
+
+These values provide a simple way to attach specific values to a specific
+Bot, which may not be available through any attestation process. These may
+have organizational or administrative significance.
+
+```protobuf
+package teleport.workloadidentity.v1;
+
+message TraitAttributes {
+  // TODO: Work out how to encode this.
+}
+```
+
+#### Workload Attributes
+
+The workload attributes are provided by the `tbot` agent at the time of
+attestation as part of the RPC request.
+
+Depending on whether workload attestation has been performed, or which form of
+attestation has been performed, the attributes available will differ.
+
+```protobuf
+package teleport.workloadidentity.v1;
+
+message WorkloadAttributes {
+  // TODO: Work out how to encode this.
+}
+```
+
+#### Join Attributes
+
+The `join` attributes will be encoded into
+
+```protobuf
+package teleport.workloadidentity.v1;
+
+message JoinAttributes {
+  // TODO: Work out how to encode this.
+}
+```
+
+##### Propagating Join Attributes
+
+In order to access the join attributes during WorkloadIdentity evaluation,
+we will need to persist them in some form.
+
+This persistence must remain over:
+
+- Renewals of the certificate using the GenerateUserCert RPC.
+- The generation of role impersonated certificates using the GenerateUserCert
+  RPC.
+
+To achieve this persistence, the JoinAttributes protobuf message will be
+encoded using `protojson.Marshal` and stored within the X509 certificate using
+a new extension - `1.3.9999.2.21`. When unmarshalling, unknown fields should be
+ignored to ensure forwards compatability.
+
+The GenerateUserCert RPC will be modified to propagate the JoinAttributes,
+if present, to any certificates issued.
+
+The Join RPCs will be modified to pass the newly generated JoinAttributes to
+the certificate generation internals.
+
+Whilst out of scope for this RFD, the persistence of the JoinAttributes into
+the X509 certificate could be leveraged in future work to provide a richer
+metadata for audit logging of Bot actions.
 
 ### WorkloadIdentity Resource
 
@@ -564,106 +736,6 @@ The ability to execute these RPCs will be governed by the standard verbs with a
 noun of `workload_identity`.
 
 The proto specification of the RPCs is omitted for conciseness.
-
-### Attributes
-
-For the purposes of templating, rule evaluation and auditing, a set of
-attributes is derived during the issuance of a WorkloadIdentity.
-
-Attributes are organized into a hierarchical structure, with three top-level
-keys:
-
-- `join`
-- `workload`
-- `traits`
-
-The attribute hierarchy will be defined using Protobuf. This will enable:
-
-- Generation of documentation.
-- Strong typing of rules, templates and expressions provided by users.
-- Serialization and deserialization of attributes for the purposes of 
-  persistence, auditing or transport.
-
-```protobuf
-package teleport.workloadidentity.v1;
-
-message AttributeSet {
-  JoinAttributes join = 1;
-  WorkloadAttributes workload = 2;
-  TraitAttributes traits = 3;
-}
-```
-
-#### Trait Attributes
-
-The trait attributes are extracted during the RPC invocation from the X509
-identity of the caller.
-
-These values provide a simple way to attach specific values to a specific
-Bot, which may not be available through any attestation process. These may
-have organizational or administrative significance.
-
-```protobuf
-package teleport.workloadidentity.v1;
-
-message TraitAttributes {
-  // TODO: Work out how to encode this.
-}
-```
-
-#### Workload Attributes
-
-The workload attributes are provided by the `tbot` agent at the time of
-attestation as part of the RPC request.
-
-Depending on whether workload attestation has been performed, or which form of
-attestation has been performed, the attributes available will differ. 
-
-```protobuf
-package teleport.workloadidentity.v1;
-
-message WorkloadAttributes {
-  // TODO: Work out how to encode this.
-}
-```
-
-#### Join Attributes
-
-The `join` attributes will be encoded into
-
-```protobuf
-package teleport.workloadidentity.v1;
-
-message JoinAttributes {
-  // TODO: Work out how to encode this.
-}
-```
-
-##### Propagating Join Attributes
-
-In order to access the join attributes during WorkloadIdentity evaluation,
-we will need to persist them in some form.
-
-This persistence must remain over:
-
-- Renewals of the certificate using the GenerateUserCert RPC.
-- The generation of role impersonated certificates using the GenerateUserCert
-  RPC.
-
-To achieve this persistence, the JoinAttributes protobuf message will be 
-encoded using `protojson.Marshal` and stored within the X509 certificate using
-a new extension - `1.3.9999.2.21`. When unmarshalling, unknown fields should be 
-ignored to ensure forwards compatability.
-
-The GenerateUserCert RPC will be modified to propagate the JoinAttributes,
-if present, to any certificates issued.
-
-The Join RPCs will be modified to pass the newly generated JoinAttributes to
-the certificate generation internals.
-
-Whilst out of scope for this RFD, the persistence of the JoinAttributes into
-the X509 certificate could be leveraged in future work to provide a richer
-metadata for audit logging of Bot actions.
 
 ### IssueWorkloadIdentity RPC 
 
