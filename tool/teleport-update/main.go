@@ -41,8 +41,7 @@ import (
 
 const appHelp = `Teleport Updater
 
-The Teleport Updater updates the version a Teleport agent on a Linux server
-that is being used as agent to provide connectivity to Teleport resources.
+The Teleport Updater automatically updates a Teleport agent.
 
 The Teleport Updater supports upgrade schedules and automated rollbacks. 
 
@@ -74,7 +73,6 @@ func main() {
 
 type cliConfig struct {
 	autoupdate.OverrideConfig
-
 	// Debug logs enabled
 	Debug bool
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
@@ -83,7 +81,8 @@ type cliConfig struct {
 	// DataDir for Teleport (usually /var/lib/teleport)
 	DataDir string
 	// LinkDir for linking binaries and systemd services
-	LinkDir   string
+	LinkDir string
+	// Namespace is the cluster-specific namespace for the installation.
 	Namespace string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
