@@ -162,19 +162,17 @@ This view excludes access paths granted through Teleport and focuses on:
 Below are a few example queries demonstrating how the `ssh_keys` view can be useful for identifying potential backdoors.
 
 - List all SSH access paths for Teleport SSH nodes and users:
-   ```sql
-   SELECT * FROM ssh_keys;
-   ```
-
+  ```sql
+  SELECT * FROM ssh_keys;
+  ```
 - View insecure access paths and SSH authorized keys for a specific node:
-   ```sql
-   SELECT * FROM ssh_keys WHERE resource='<Var name="resource name" />';
-   ```
-
+  ```sql
+  SELECT * FROM ssh_keys WHERE resource='<Var name="resource name" />';
+  ```
 - View insecure access paths and SSH authorized keys for a subset of nodes using labels:
-   ```sql
-   SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
-   ```
+  ```sql
+  SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
+  ```
 
 
 ## Jamf Pro Integration
