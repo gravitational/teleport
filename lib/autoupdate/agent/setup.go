@@ -60,102 +60,13 @@ WantedBy={{.TeleportService}}
 
 type Namespace string
 
-var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]+$")
+var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 
 func NewNamespace(name string) (Namespace, error) {
 	if !alphanum.MatchString(name) {
 		return "", trace.Errorf("invalid namespace name %q, must be alphanumeric", name)
 	}
 	return Namespace(name), nil
-}
-
-func (ns Namespace) TeleportName() string {
-	return "teleport" + ns.suffix()
-}
-
-func (ns Namespace) TeleportService() string {
-	return ns.TeleportName() + ".service"
-}
-
-func (ns Namespace) TeleportConfigPath() string {
-	return filepath.Join("/etc", ns.TeleportName()+".yaml")
-}
-
-func (ns Namespace) TeleportPIDPath() string {
-	return filepath.Join("/run", ns.TeleportName()+".pid")
-}
-
-func (ns Namespace) UpdaterName() string {
-	return BinaryName + ns.suffix()
-}
-
-func (ns Namespace) UpdaterService() string {
-	return ns.UpdaterName() + ".service"
-}
-
-func (ns Namespace) UpdaterTimer() string {
-	return ns.UpdaterName() + ".timer"
-}
-
-func (ns Namespace) DataDir(globalDataDir string) string {
-	if ns == "" {
-		return globalDataDir
-	}
-	return filepath.Join(globalDataDir, "cluster", string(ns))
-}
-
-func (ns Namespace) LinkDir(globalLinkDir string) string {
-	if ns == "" {
-		return globalLinkDir
-	}
-	return filepath.Join(globalLinkDir, "teleport", string(ns))
-}
-
-func (ns Namespace) LinkServicePath(globalLinkDir string) string {
-	if ns == "" {
-		globalLinkDir = "/"
-	}
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
-		ns.TeleportService(),
-	)
-}
-
-func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
-		ns.UpdaterService(),
-	)
-}
-
-func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), "bin",
-		BinaryName,
-	)
-}
-
-func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
-		ns.UpdaterTimer(),
-	)
-}
-
-func (ns Namespace) suffix() string {
-	if ns == "" {
-		return ""
-	}
-	return "_" + string(ns)
-}
-
-func (ns Namespace) ReplaceTeleportService(orig []byte, linkDir string) []byte {
-	cfg := string(orig)
-	cfg = strings.ReplaceAll(cfg, "/usr/local/", ns.LinkDir(linkDir)+"/")
-	cfg = strings.ReplaceAll(cfg, "/etc/teleport.yaml", ns.TeleportConfigPath())
-	cfg = strings.ReplaceAll(cfg, "/run/teleport.pid", ns.TeleportPIDPath())
-	cfg = strings.ReplaceAll(cfg, "/etc/default/teleport", "/etc/default/"+ns.TeleportName())
-	return []byte(cfg)
 }
 
 // Setup installs service and timer files for the teleport-update binary.
@@ -252,4 +163,93 @@ func writeTemplate(path, t string, values any) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(f.CloseAtomicallyReplace())
+}
+
+func (ns Namespace) TeleportName() string {
+	return "teleport" + ns.suffix()
+}
+
+func (ns Namespace) TeleportService() string {
+	return ns.TeleportName() + ".service"
+}
+
+func (ns Namespace) TeleportConfigPath() string {
+	return filepath.Join("/etc", ns.TeleportName()+".yaml")
+}
+
+func (ns Namespace) TeleportPIDPath() string {
+	return filepath.Join("/run", ns.TeleportName()+".pid")
+}
+
+func (ns Namespace) UpdaterName() string {
+	return BinaryName + ns.suffix()
+}
+
+func (ns Namespace) UpdaterService() string {
+	return ns.UpdaterName() + ".service"
+}
+
+func (ns Namespace) UpdaterTimer() string {
+	return ns.UpdaterName() + ".timer"
+}
+
+func (ns Namespace) DataDir(globalDataDir string) string {
+	if ns == "" {
+		return globalDataDir
+	}
+	return filepath.Join(globalDataDir, "cluster", string(ns))
+}
+
+func (ns Namespace) LinkDir(globalLinkDir string) string {
+	if ns == "" {
+		return globalLinkDir
+	}
+	return filepath.Join(globalLinkDir, "teleport", string(ns))
+}
+
+func (ns Namespace) LinkServicePath(globalLinkDir string) string {
+	if ns == "" {
+		globalLinkDir = "/"
+	}
+	return filepath.Join(
+		ns.LinkDir(globalLinkDir), serviceDir,
+		ns.TeleportService(),
+	)
+}
+
+func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
+	return filepath.Join(
+		ns.LinkDir(globalLinkDir), serviceDir,
+		ns.UpdaterService(),
+	)
+}
+
+func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
+	return filepath.Join(
+		ns.LinkDir(globalLinkDir), "bin",
+		BinaryName,
+	)
+}
+
+func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
+	return filepath.Join(
+		ns.LinkDir(globalLinkDir), serviceDir,
+		ns.UpdaterTimer(),
+	)
+}
+
+func (ns Namespace) suffix() string {
+	if ns == "" {
+		return ""
+	}
+	return "_" + string(ns)
+}
+
+func (ns Namespace) ReplaceTeleportService(orig []byte, linkDir string) []byte {
+	cfg := string(orig)
+	cfg = strings.ReplaceAll(cfg, "/usr/local/", ns.LinkDir(linkDir)+"/")
+	cfg = strings.ReplaceAll(cfg, "/etc/teleport.yaml", ns.TeleportConfigPath())
+	cfg = strings.ReplaceAll(cfg, "/run/teleport.pid", ns.TeleportPIDPath())
+	cfg = strings.ReplaceAll(cfg, "/etc/default/teleport", "/etc/default/"+ns.TeleportName())
+	return []byte(cfg)
 }

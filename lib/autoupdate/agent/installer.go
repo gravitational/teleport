@@ -426,7 +426,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	}
 	revert, err = li.forceLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir),
+		filepath.Join(versionDir, serviceDir, serviceName),
 	)
 	if err != nil {
 		return revert, trace.Wrap(err)
@@ -452,7 +452,7 @@ func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
 	}
 	return trace.Wrap(li.tryLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir),
+		filepath.Join(versionDir, serviceDir, serviceName),
 	))
 }
 
@@ -472,7 +472,7 @@ func (li *LocalInstaller) Unlink(ctx context.Context, version string) error {
 	}
 	return trace.Wrap(li.removeLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir),
+		filepath.Join(versionDir, serviceDir, serviceName),
 	))
 }
 

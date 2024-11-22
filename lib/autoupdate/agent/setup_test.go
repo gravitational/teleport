@@ -26,27 +26,33 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestWriteConfigFiles(t *testing.T) {
 	t.Parallel()
 	linkDir := t.TempDir()
-	dataDir := t.TempDir()
-	err := writeConfigFiles(linkDir, dataDir)
+	ns, err := NewNamespace("")
+	require.NoError(t, err)
+	err = ns.writeConfigFiles(linkDir)
+	require.NoError(t, err)
+
+	nsTest, err := NewNamespace("test")
+	require.NoError(t, err)
+	err = nsTest.writeConfigFiles(linkDir)
 	require.NoError(t, err)
 
 	for _, p := range []string{
-		filepath.Join(linkDir, serviceDir, updateServiceName),
-		filepath.Join(linkDir, serviceDir, updateTimerName),
+		filepath.Join(linkDir, serviceDir, "teleport-update.service"),
+		filepath.Join(linkDir, serviceDir, "teleport-update.timer"),
+		filepath.Join(linkDir, "teleport", "test", serviceDir, "teleport-update_test.service"),
+		filepath.Join(linkDir, "teleport", "test", serviceDir, "teleport-update_test.timer"),
 	} {
 		t.Run(filepath.Base(p), func(t *testing.T) {
 			data, err := os.ReadFile(p)
 			require.NoError(t, err)
 			data = replaceValues(data, map[string]string{
-				DefaultLinkDir:      linkDir,
-				libdefaults.DataDir: dataDir,
+				DefaultLinkDir: linkDir,
 			})
 			if golden.ShouldSet() {
 				golden.Set(t, data)

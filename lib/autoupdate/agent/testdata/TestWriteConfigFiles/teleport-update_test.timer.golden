@@ -9,4 +9,4 @@ OnUnitActiveSec=5m
 RandomizedDelaySec=1m
 
 [Install]
-WantedBy=teleport.service
+WantedBy=teleport_test.service
