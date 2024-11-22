@@ -2828,14 +2828,82 @@ func (set RoleSet) CanForwardAgents() bool {
 	return false
 }
 
-// CanPortForward returns true if a role in the RoleSet allows port forwarding.
-func (set RoleSet) CanPortForward() bool {
+type SSHPortForwardMode int
+
+const (
+	// SSHPortForwardModeOn is the default mode, both remote and local port forwarding is allowed
+	SSHPortForwardModeOn SSHPortForwardMode = iota
+	// SSHPortForwardModeOff disallows any port forwarding.
+	SSHPortForwardModeOff
+	// SSHPortForwardModeRemote allows remote port forwarding.
+	SSHPortForwardModeRemote
+	// SSHPortForwardModeLocal allows local port forwarding.
+	SSHPortForwardModeLocal
+)
+
+// String implements the Stringer interface for SSHPortForwardMode
+func (m SSHPortForwardMode) String() string {
+	switch m {
+	case SSHPortForwardModeOff:
+		return "off"
+	case SSHPortForwardModeLocal:
+		return "local"
+	case SSHPortForwardModeRemote:
+		return "remote"
+	default:
+		return "on"
+	}
+}
+
+// TODO (eriktate): remove Legacy method in v20
+// Legacy returns a bool that can be used as the legacy PortForwarding value when dealing with
+// an agent that doesn't know about SSHPortForwardMode.
+func (m SSHPortForwardMode) Legacy() bool {
+	return m != SSHPortForwardModeOff
+}
+
+// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet.
+func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
+	// port forwarding is allowed by default, we want to
+	// track explicit denies
+	denyRemote := false
+	denyLocal := false
+
 	for _, role := range set {
-		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
-			return true
+		config := role.GetOptions().SSHPortForwarding
+		// TODO (eriktate): remove legacy check in v20
+		legacy := types.BoolDefaultTrue(role.GetOptions().PortForwarding)
+		// only consider legacy denies when config isn't provided on the same role
+		if !legacy && config == nil {
+			return SSHPortForwardModeOff
+		}
+
+		if config != nil {
+			if config.Remote != nil && !config.Remote.Value {
+				denyRemote = true
+			}
+
+			if config.Local != nil && !config.Local.Value {
+				denyLocal = true
+			}
 		}
 	}
-	return false
+
+	switch {
+	case denyLocal && denyRemote:
+		return SSHPortForwardModeOff
+	case denyRemote:
+		return SSHPortForwardModeLocal
+	case denyLocal:
+		return SSHPortForwardModeRemote
+	default:
+		return SSHPortForwardModeOn
+	}
+}
+
+// CanPortForward returns true if a role in the RoleSet allows port forwarding.
+func (set RoleSet) CanPortForward() bool {
+	return set.SSHPortForwardMode().Legacy()
 }
 
 // RecordDesktopSession returns true if the role set has enabled desktop

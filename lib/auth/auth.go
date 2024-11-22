@@ -3197,6 +3197,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			Roles:                   req.checker.RoleNames(),
 			CertificateFormat:       certificateFormat,
 			PermitPortForwarding:    req.checker.CanPortForward(),
+			SSHPortForwardMode:      req.checker.SSHPortForwardMode(),
 			PermitAgentForwarding:   req.checker.CanForwardAgents(),
 			PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
 			RouteToCluster:          req.routeToCluster,

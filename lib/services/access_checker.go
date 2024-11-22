@@ -108,8 +108,12 @@ type AccessChecker interface {
 	// agents.
 	CanForwardAgents() bool
 
-	// CanPortForward returns true if this RoleSet can forward ports.
+	// CanPortForward returns true if this role set offers capability to forward
+	// agents.
 	CanPortForward() bool
+
+	// SSHPortForwardMode returns the SSHPortForwardMode that the RoleSet allows.
+	SSHPortForwardMode() SSHPortForwardMode
 
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
