@@ -274,7 +274,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.CoackroachDb,
+      engine: DatabaseEngine.CockroachDb,
     },
     name: 'CockroachDB',
     keywords: [...selfhostedKeywords, 'cockroachdb'],
@@ -430,7 +430,7 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
       return 'mongodb';
     case DatabaseEngine.Redis:
       return 'redis';
-    case DatabaseEngine.CoackroachDb:
+    case DatabaseEngine.CockroachDb:
       return 'cockroachdb';
     case DatabaseEngine.SqlServer:
       return 'sqlserver';
