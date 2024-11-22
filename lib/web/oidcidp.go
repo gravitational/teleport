@@ -34,6 +34,8 @@ import (
 const (
 	// OIDCJWKWURI is the relative path where the OIDC IdP JWKS is located
 	OIDCJWKWURI = "/.well-known/jwks-oidc"
+	// OktaJWKSURI is the relative path where the Okta JWKS is located
+	OktaJWKSURI = "/.well-known/jwks-okta"
 )
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration
@@ -49,6 +51,10 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	return h.jwks(r.Context(), types.OIDCIdPCA, true)
+}
+
+func (h *Handler) jwksOKTA(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+	return h.jwks(r.Context(), types.OktaCA, false)
 }
 
 func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType, includeBlankKeyID bool) (*JWKSResponse, error) {
