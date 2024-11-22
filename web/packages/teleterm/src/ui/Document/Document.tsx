@@ -34,7 +34,6 @@ const Document: React.FC<{
       tabIndex={visible ? 0 : -1}
       flex="1"
       ref={ref}
-      bg="levels.sunken"
       style={{
         overflow: 'auto',
         display: visible ? 'flex' : 'none',
