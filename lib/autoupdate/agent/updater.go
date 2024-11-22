@@ -240,6 +240,8 @@ var (
 	ErrNotNeeded = errors.New("not needed")
 	// ErrNotSupported is returned when the operation is not supported on the platform.
 	ErrNotSupported = errors.New("not supported on this platform")
+	// ErrNoBinaries is returned when no binaries are available to be linked.
+	ErrNoBinaries = errors.New("no binaries available to link")
 )
 
 const (

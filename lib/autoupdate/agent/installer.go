@@ -67,10 +67,6 @@ const (
 	updateTimerName = "teleport-update.timer"
 )
 
-var (
-	ErrNoBinaries = errors.New("no binaries available to link")
-)
-
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
 type LocalInstaller struct {
