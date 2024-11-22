@@ -83,7 +83,8 @@ type cliConfig struct {
 	// DataDir for Teleport (usually /var/lib/teleport)
 	DataDir string
 	// LinkDir for linking binaries and systemd services
-	LinkDir string
+	LinkDir   string
+	Namespace string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
 }
@@ -100,6 +101,8 @@ func Run(args []string) error {
 		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
+	app.Flag("cluster", "Cluster name for creating a prefixed installation outside of the default $PATH.").
+		StringVar(&ccfg.Namespace)
 	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
 		Default(autoupdate.DefaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
@@ -175,9 +178,9 @@ func Run(args []string) error {
 	case updateCmd.FullCommand():
 		err = cmdUpdate(ctx, &ccfg)
 	case linkCmd.FullCommand():
-		err = cmdLink(ctx, &ccfg)
+		err = cmdLinkPackage(ctx, &ccfg)
 	case unlinkCmd.FullCommand():
-		err = cmdUnlink(ctx, &ccfg)
+		err = cmdUnlinkPackage(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
 	case statusCmd.FullCommand():
@@ -211,15 +214,21 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
-// cmdDisable disables updates.
-func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
+func newUpdater(ccfg *cliConfig) (*autoupdate.Updater, error) {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
 		SystemDir: autoupdate.DefaultSystemDir,
+		Namespace: ccfg.Namespace,
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
+	return updater, trace.Wrap(err)
+}
+
+// cmdDisable disables updates.
+func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -240,13 +249,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnpin unpins the current version.
 func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
@@ -267,13 +270,20 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+	if ccfg.Namespace != "" {
+		ns, err := autoupdate.NewNamespace(ccfg.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		plog.WarnContext(ctx, "Custom namespace is specified. Teleport's data_dir must be configured accordingly.",
+			"data_dir", ns.DataDir(ccfg.DataDir),
+			"path", filepath.Join(ns.LinkDir(ccfg.LinkDir), "bin"),
+			"config", ns.TeleportConfigPath(),
+			"service", ns.TeleportService(),
+			"pid", ns.TeleportPIDPath(),
+		)
+	}
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -296,13 +306,7 @@ func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -323,15 +327,9 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdLink creates system package links if no version is linked and auto-updates is disabled.
-func cmdLink(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+// cmdLinkPackage creates system package links if no version is linked and auto-updates is disabled.
+func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -357,15 +355,9 @@ func cmdLink(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdUnlink remove system package links.
-func cmdUnlink(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+// cmdUnlinkPackage remove system package links.
+func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
@@ -392,7 +384,11 @@ func cmdUnlink(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	err := autoupdate.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
+	cluster, err := autoupdate.NewNamespace(ccfg.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = cluster.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
 	if errors.Is(err, autoupdate.ErrNotSupported) {
 		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
 		os.Exit(autoupdate.CodeNotSupported)
@@ -405,13 +401,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdStatus displays auto-update status.
 func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -425,13 +415,7 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
 func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-	})
+	updater, err := newUpdater(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}

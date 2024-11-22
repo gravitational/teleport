@@ -392,10 +392,10 @@ func TestLocalInstaller_Link(t *testing.T) {
 			}
 
 			installer := &LocalInstaller{
-				InstallDir:     versionsDir,
-				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, serviceDir),
-				Log:            slog.Default(),
+				InstallDir:      versionsDir,
+				LinkBinDir:      filepath.Join(linkDir, "bin"),
+				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:             slog.Default(),
 			}
 			ctx := context.Background()
 			revert, err := installer.Link(ctx, version)
@@ -634,10 +634,10 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			}
 
 			installer := &LocalInstaller{
-				InstallDir:     versionsDir,
-				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, serviceDir),
-				Log:            slog.Default(),
+				InstallDir:      versionsDir,
+				LinkBinDir:      filepath.Join(linkDir, "bin"),
+				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:             slog.Default(),
 			}
 			ctx := context.Background()
 			err = installer.TryLink(ctx, version)
@@ -773,10 +773,10 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			linkDir := t.TempDir()
 
 			installer := &LocalInstaller{
-				InstallDir:     versionsDir,
-				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, serviceDir),
-				Log:            slog.Default(),
+				InstallDir:      versionsDir,
+				LinkBinDir:      filepath.Join(linkDir, "bin"),
+				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:             slog.Default(),
 			}
 			ctx := context.Background()
 
@@ -944,10 +944,10 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			}
 
 			installer := &LocalInstaller{
-				InstallDir:     versionsDir,
-				LinkBinDir:     filepath.Join(linkDir, "bin"),
-				LinkServiceDir: filepath.Join(linkDir, serviceDir),
-				Log:            slog.Default(),
+				InstallDir:      versionsDir,
+				LinkBinDir:      filepath.Join(linkDir, "bin"),
+				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:             slog.Default(),
 			}
 			ctx := context.Background()
 			err = installer.Unlink(ctx, version)

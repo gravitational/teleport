@@ -102,7 +102,11 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if cfg.DataDir == "" {
 		cfg.DataDir = libdefaults.DataDir
 	}
-	installDir := filepath.Join(cfg.DataDir, VersionsDirName)
+	ns, err := NewNamespace(cfg.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	installDir := filepath.Join(ns.DataDir(cfg.DataDir), VersionsDirName)
 	if err := os.MkdirAll(installDir, systemDirMode); err != nil {
 		return nil, trace.Errorf("failed to create install directory: %w", err)
 	}
@@ -113,30 +117,34 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		ConfigPath:         filepath.Join(installDir, updateConfigName),
 		Installer: &LocalInstaller{
 			InstallDir: installDir,
-			LinkBinDir: filepath.Join(cfg.LinkDir, "bin"),
+			LinkBinDir: filepath.Join(ns.LinkDir(cfg.LinkDir), "bin"),
 			// For backwards-compatibility with symlinks created by package-based installs, we always
 			// link into /lib/systemd/system, even though, e.g., /usr/local/lib/systemd/system would work.
-			LinkServiceDir:          filepath.Join("/", serviceDir),
+			LinkServicePath:         ns.LinkServicePath(cfg.LinkDir),
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
-			SystemServiceDir:        filepath.Join(cfg.SystemDir, serviceDir),
+			SystemServicePath:       filepath.Join(cfg.SystemDir, serviceDir, serviceName),
 			HTTP:                    client,
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
+			TransformService: func(b []byte) []byte {
+				return ns.ReplaceTeleportService(b, cfg.LinkDir)
+			},
 		},
 		Process: &SystemdService{
-			ServiceName: "teleport.service",
-			PIDPath:     "/run/teleport.pid",
+			ServiceName: ns.TeleportService(),
+			PIDPath:     ns.TeleportPIDPath(),
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
-			name := filepath.Join(cfg.LinkDir, "bin", BinaryName)
+			name := filepath.Join(ns.LinkDir(cfg.LinkDir), "bin", BinaryName)
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
 			}
 			cmd := exec.CommandContext(ctx, name,
 				"--data-dir", cfg.DataDir,
 				"--link-dir", cfg.LinkDir,
+				"--namespace", cfg.Namespace,
 				"setup")
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout
@@ -149,10 +157,10 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			return trace.Wrap(err)
 		},
 		Revert: func(ctx context.Context) error {
-			return trace.Wrap(Setup(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
+			return trace.Wrap(ns.Setup(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
 		},
 		Teardown: func(ctx context.Context) error {
-			return trace.Wrap(Teardown(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
+			return trace.Wrap(ns.Teardown(ctx, cfg.Log, cfg.LinkDir, cfg.DataDir))
 		},
 	}, nil
 }
@@ -173,6 +181,8 @@ type LocalUpdaterConfig struct {
 	LinkDir string
 	// SystemDir for package-installed Teleport installations (usually /usr/local/teleport-system).
 	SystemDir string
+	// Namespace is the cluster-specific namespace for the installation.
+	Namespace string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
 }
