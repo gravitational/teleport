@@ -20,6 +20,8 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -68,6 +70,32 @@ func Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error
 	}
 	if err := svc.Enable(ctx, true); err != nil {
 		return trace.Errorf("failed to enable teleport-update systemd timer: %w", err)
+	}
+	return nil
+}
+
+// Teardown removes all traces of the auto-updater, including its configuration.
+func Teardown(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error {
+	svc := &SystemdService{
+		ServiceName: "teleport-update.timer",
+		Log:         log,
+	}
+	if err := svc.Disable(ctx); err != nil {
+		return trace.Errorf("failed to disable teleport-update systemd timer: %w", err)
+	}
+	servicePath := filepath.Join(linkDir, serviceDir, updateServiceName)
+	if err := os.Remove(servicePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return trace.Errorf("failed to remove teleport-update systemd service: %w", err)
+	}
+	timerPath := filepath.Join(linkDir, serviceDir, updateTimerName)
+	if err := os.Remove(timerPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return trace.Errorf("failed to remove teleport-update systemd timer: %w", err)
+	}
+	if err := svc.Sync(ctx); err != nil {
+		return trace.Errorf("failed to sync systemd config: %w", err)
+	}
+	if err := os.RemoveAll(filepath.Join(dataDir, VersionsDirName)); err != nil {
+		return trace.Errorf("failed to remove versions directory: %w", err)
 	}
 	return nil
 }
