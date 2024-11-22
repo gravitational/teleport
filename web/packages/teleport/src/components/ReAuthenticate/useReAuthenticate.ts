@@ -48,7 +48,7 @@ export default function useReAuthenticate(props: Props) {
 
     setAttempt({ status: 'processing' });
     auth
-      .createPrivilegeTokenWithTotp(secondFactorToken)
+      .createPrivilegeToken({ totp_code: secondFactorToken })
       .then(props.onAuthenticated)
       .catch(handleError);
   }
@@ -65,8 +65,11 @@ export default function useReAuthenticate(props: Props) {
       return;
     }
 
+    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     auth
-      .createPrivilegeTokenWithWebauthn()
+      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(auth.getMfaChallengeResponse)
+      .then(auth.createPrivilegeToken)
       .then(props.onAuthenticated)
       .catch((err: Error) => {
         // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
