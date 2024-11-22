@@ -312,6 +312,10 @@ export const NestedListLink = styled('button')`
   align-items: center;
   justify-content: flex-start;
   column-gap: ${p => p.theme.space[2]}px;
+  padding: 0;
+  font-family: ${p => p.theme.fonts.sansSerif};
+
+  ${p => p.theme.typography.body2};
 
   &:hover,
   &:focus-visible {
