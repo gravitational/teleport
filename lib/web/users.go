@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -251,10 +252,15 @@ func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user
 }
 
 type privilegeTokenRequest struct {
+	// TODO(Joerger): DELETE IN v19.0.0 in favor of ExistingMFAResponse
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
+	// TODO(Joerger): DELETE IN v19.0.0 in favor of ExistingMFAResponse
 	// WebauthnResponse is the response from authenticators.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
@@ -275,6 +281,12 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnResponse),
 		}}
+	case req.ExistingMFAResponse != nil:
+		var err error
+		protoReq.ExistingMFAResponse, err = req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		// Can be empty, which means user did not have a second factor registered.
 	}
