@@ -219,25 +219,6 @@ func (ns Namespace) LinkDir(globalLinkDir string) string {
 	return filepath.Join(globalLinkDir, "teleport", string(ns))
 }
 
-// LinkServicePath returns the namespaced path for the linked service.
-func (ns Namespace) LinkServicePath(globalLinkDir string) string {
-	if ns == "" {
-		globalLinkDir = "/"
-	}
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
-		ns.TeleportService(),
-	)
-}
-
-// UpdaterServicePath returns the namespaced path for the updater service.
-func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
-		ns.UpdaterService(),
-	)
-}
-
 // UpdaterBinaryPath returns the namespaced path for the updater binary.
 func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
 	return filepath.Join(
@@ -246,10 +227,35 @@ func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
 	)
 }
 
+// LinkServicePath returns the namespaced path for the linked service.
+// Note: /usr/local/lib/systemd/system/teleport_mycluster.service or
+// /lib/systemd/system/teleport.service when not namespaced.
+func (ns Namespace) LinkServicePath(globalLinkDir string) string {
+	if ns == "" {
+		globalLinkDir = "/"
+	}
+	return filepath.Join(
+		globalLinkDir, serviceDir,
+		ns.TeleportService(),
+	)
+}
+
+// UpdaterServicePath returns the namespaced path for the updater service.
+// Note: /usr/local/lib/systemd/system/teleport-update_mycluster.service or
+// /lib/systemd/system/teleport-update.service when not namespaced.
+func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
+	return filepath.Join(
+		globalLinkDir, serviceDir,
+		ns.UpdaterService(),
+	)
+}
+
 // UpdaterTimerPath returns the namespaced path for the updater timer.
+// Note: /usr/local/lib/systemd/system/teleport-update_mycluster.timer or
+// /lib/systemd/system/teleport-update.timer when not namespaced.
 func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
 	return filepath.Join(
-		ns.LinkDir(globalLinkDir), serviceDir,
+		globalLinkDir, serviceDir,
 		ns.UpdaterTimer(),
 	)
 }

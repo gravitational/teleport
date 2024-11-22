@@ -397,7 +397,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	err = cluster.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
 	if errors.Is(err, autoupdate.ErrNotSupported) {
 		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
-		return autoupdate.ErrNotSupported
+		return trace.Wrap(err)
 	}
 	if err != nil {
 		return trace.Errorf("failed to setup teleport-update service: %w", err)
