@@ -390,27 +390,6 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	// Fetch info that will be needed for all SPIFFE SVIDs requested
-	clusterName, err := wis.cache.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err, "getting cluster name")
-	}
-	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName.GetClusterName(),
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting SPIFFE CA")
-	}
-	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting CA cert and key")
-	}
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	workloadIdentity := &pb.WorkloadIdentity{
 		Metadata: &headerv1.Metadata{
 			Name: "gitlab-pipeline",
@@ -444,6 +423,12 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 			},
 			Spiffe: &pb.WorkloadIdentitySPIFFE{
 				Id: "/gitlab/{{join.gitlab.project_path}}/{{join.gitlab.environment}}",
+				Jwt: &pb.SPIFFEJWT{
+					ExtraClaims: map[string]string{
+						"my_custom_claim_1": "started by {{join.gitlab.user_login}}",
+						"my_custom_claim_2": "{{join.gitlab.pipeline_id}}",
+					},
+				},
 			},
 		},
 	}
@@ -464,6 +449,39 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	}
 	if !ruleMatch(workloadIdentity.GetSpec().GetRules().GetAllow(), attrs) {
 		return nil, trace.AccessDenied("denied by lack of workload identity allow rules")
+	}
+
+	if req.JwtMode {
+		return wis.issueJWTWorkloadIdentity(ctx, req, workloadIdentity, attrs)
+	}
+	return wis.issueX509WorkloadIdentity(ctx, req, workloadIdentity, attrs)
+}
+
+func (wis *WorkloadIdentityService) issueX509WorkloadIdentity(
+	ctx context.Context,
+	req *pb.IssueWorkloadIdentityRequest,
+	workloadIdentity *pb.WorkloadIdentity,
+	attrs *pb.Attributes,
+) (*pb.IssueWorkloadIdentityResponse, error) {
+	// Fetch info that will be needed for all SPIFFE SVIDs requested
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
+	}
+	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting CA cert and key")
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	templateIDPath, err := template(
@@ -540,6 +558,127 @@ func (wis *WorkloadIdentityService) IssueWorkloadIdentity(
 	}, nil
 }
 
+func (wis *WorkloadIdentityService) issueJWTWorkloadIdentity(
+	ctx context.Context,
+	req *pb.IssueWorkloadIdentityRequest,
+	workloadIdentity *pb.WorkloadIdentity,
+	attributes *pb.Attributes,
+) (*pb.IssueWorkloadIdentityResponse, error) {
+	// Fetch info that will be needed to create the SVIDs
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
+	}
+	jwtSigner, err := wis.keyStorer.GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT signer")
+	}
+	jwtKey, err := services.GetJWTSigner(
+		jwtSigner, clusterName.GetClusterName(), wis.clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT key")
+	}
+
+	// Determine the public address of the proxy for inclusion in the JWT as
+	// the issuer for purposes of OIDC compatibility.
+	issuer, err := oidc.IssuerForCluster(ctx, wis.cache, "/workload-identity")
+	if err != nil {
+		return nil, trace.Wrap(err, "determining issuer")
+	}
+
+	templateIDPath, err := template(
+		workloadIdentity.GetSpec().GetSpiffe().GetId(), attributes,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "templating spiffe id")
+	}
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName.GetClusterName(),
+		Path:   templateIDPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
+	}
+
+	// Create a JTI to uniquely identify this JWT for audit logging purposes
+	jti, err := utils.CryptoRandomHex(jtiLength)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating JTI")
+	}
+
+	extraClaims := map[string]string{}
+	for extraKey, extraTemplate := range workloadIdentity.GetSpec().GetSpiffe().GetJwt().GetExtraClaims() {
+		extraValue, err := template(extraTemplate, attributes)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating extra claim %q", extraKey)
+		}
+		extraClaims[extraKey] = extraValue
+	}
+
+	ttl := defaultJWTSVIDTTL
+	signed, err := jwtKey.SignJWTSVID(jwt.SignParamsJWTSVID{
+		Audiences:   []string{req.Audiences},
+		SPIFFEID:    spiffeID,
+		TTL:         ttl,
+		JTI:         jti,
+		Issuer:      issuer,
+		ExtraClaims: extraClaims,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "signing jwt")
+	}
+
+	// Convert Attrs proto to Structpb for audit log event...
+	jsonAttrs, err := (protojson.MarshalOptions{
+		UseProtoNames: true,
+	}).Marshal(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshalling attributes")
+	}
+	attrStruct := &gogotypes.Struct{}
+	if err := jsonpb.Unmarshal(bytes.NewReader(jsonAttrs), attrStruct); err != nil {
+		return nil, trace.Wrap(err, "failed to unmarshal attributes into struct...")
+	}
+
+	evt := &apievents.SPIFFESVIDIssued{
+		Metadata: apievents.Metadata{
+			Type: events.SPIFFESVIDIssuedEvent,
+			Code: events.SPIFFESVIDIssuedSuccessCode,
+		},
+		UserMetadata:         authz.ClientUserMetadata(ctx),
+		ConnectionMetadata:   authz.ConnectionMetadata(ctx),
+		SVIDType:             "jwt",
+		WorkloadIdentityName: workloadIdentity.GetMetadata().GetName(),
+		AttributeContext: &apievents.Struct{
+			Struct: *attrStruct,
+		},
+		JTI:       jti,
+		Audiences: []string{req.Audiences},
+	}
+
+	if !spiffeID.IsZero() {
+		evt.SPIFFEID = spiffeID.String()
+	}
+	if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+		wis.logger.WarnContext(
+			ctx, "Failed to emit SPIFFE SVID issued event", "error", err,
+		)
+	}
+
+	return &pb.IssueWorkloadIdentityResponse{
+		Jwt: signed,
+	}, nil
+}
+
 func ruleMatch(rules []*pb.WorkloadIdentityRule, attr *pb.Attributes) bool {
 	attrMap := attrsToMap(attr)
 ruleLoop:
@@ -575,6 +714,7 @@ func attrsToMap(attrs *pb.Attributes) map[string]string {
 			out["join.gitlab.project_path"] = join.Gitlab.ProjectPath
 			out["join.gitlab.environment"] = join.Gitlab.Environment
 			out["join.gitlab.namespace_path"] = join.Gitlab.NamespacePath
+			out["join.gitlab.pipeline_id"] = join.Gitlab.PipelineId
 		}
 	}
 	return out

@@ -156,6 +156,18 @@ func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	return token, nil
 }
 
+func (k *Key) signTwo(claims any, secondClaims any, opts *jose.SignerOptions) (string, error) {
+	sig, err := k.getSigner(opts)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := jwt.Signed(sig).Claims(claims).Claims(secondClaims).CompactSerialize()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
 func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	if k.config.PrivateKey == nil {
 		return nil, trace.BadParameter("can not sign token with non-signing key")
@@ -278,7 +290,8 @@ type SignParamsJWTSVID struct {
 	TTL time.Duration
 	// Issuer is the value that should be included in the `iss` claim of the
 	// created token.
-	Issuer string
+	Issuer      string
+	ExtraClaims map[string]string
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -324,6 +337,10 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	opts := (&jose.SignerOptions{}).
 		WithHeader("kid", kid)
 
+	extraClaims := map[string]interface{}{}
+	for k, v := range p.ExtraClaims {
+		extraClaims[k] = v
+	}
 	// > 2.3. Type
 	// > The typ header is optional. If set, its value MUST be either JWT or
 	// > JOSE.
@@ -331,7 +348,7 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// We will omit the inclusion of the type header until we can validate the
 	// ramifications of including it.
 
-	return k.sign(claims, opts)
+	return k.signTwo(claims, extraClaims, opts)
 }
 
 // SignEntraOIDC signs a JWT for the Entra ID Integration.

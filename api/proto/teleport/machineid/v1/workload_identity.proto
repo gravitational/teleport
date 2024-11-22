@@ -81,6 +81,8 @@ message WorkloadIdentitySPIFFE {
   // - `/no/templating/used` -> `spiffe://example.teleport.sh/no/templating/used`
   // - `/gitlab/{{ join.gitlab.project_path }}` -> `spiffe://example.teleport.sh/gitlab/org/project`
   string id = 1;
+
+  SPIFFEJWT jwt = 2;
 }
 
 // WorkloadIdentitySpec holds the configuration element of the WorkloadIdentity
@@ -94,4 +96,9 @@ message WorkloadIdentitySpec {
   // workload identity credentials for this WorkloadIdentity. See
   // [WorkloadIdentitySPIFFE] for further documentation.
   WorkloadIdentitySPIFFE spiffe = 2;
+}
+
+// SPIFFEJWT
+message SPIFFEJWT {
+  map<string, string> extra_claims = 3;
 }

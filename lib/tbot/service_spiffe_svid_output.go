@@ -218,6 +218,20 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
+	jwtOut := make(map[string]string)
+	for _, jwtReq := range s.cfg.JWTs {
+		res, err := impersonatedClient.WorkloadIdentityServiceClient().IssueWorkloadIdentity(ctx,
+			&machineidv1pb.IssueWorkloadIdentityRequest{
+				JwtMode:   true,
+				Audiences: jwtReq.Audience,
+			},
+		)
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
+		}
+		jwtOut[jwtReq.FileName] = res.Jwt
+	}
+
 	/**
 	jwtSvids, err := generateJWTSVIDs(
 		ctx,
@@ -229,7 +243,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}*/
 
-	return []byte(res.X509), privateKey, map[string]string{}, nil
+	return []byte(res.X509), privateKey, jwtOut, nil
 }
 
 func (s *SPIFFESVIDOutputService) render(
