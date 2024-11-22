@@ -45,8 +45,8 @@ func TestWriteConfigFiles(t *testing.T) {
 	for _, p := range []string{
 		filepath.Join(linkDir, serviceDir, "teleport-update.service"),
 		filepath.Join(linkDir, serviceDir, "teleport-update.timer"),
-		filepath.Join(linkDir, "teleport", "test", serviceDir, "teleport-update_test.service"),
-		filepath.Join(linkDir, "teleport", "test", serviceDir, "teleport-update_test.timer"),
+		filepath.Join(linkDir, serviceDir, "teleport-update_test.service"),
+		filepath.Join(linkDir, serviceDir, "teleport-update_test.timer"),
 	} {
 		t.Run(filepath.Base(p), func(t *testing.T) {
 			data, err := os.ReadFile(p)

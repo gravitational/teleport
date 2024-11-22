@@ -242,7 +242,7 @@ func (ns Namespace) LinkServicePath(globalLinkDir string) string {
 
 // UpdaterServicePath returns the namespaced path for the updater service.
 // Note: /usr/local/lib/systemd/system/teleport-update_mycluster.service or
-// /lib/systemd/system/teleport-update.service when not namespaced.
+// /usr/local/lib/systemd/system/teleport-update.service when not namespaced.
 func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
 	return filepath.Join(
 		globalLinkDir, serviceDir,
@@ -252,7 +252,7 @@ func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
 
 // UpdaterTimerPath returns the namespaced path for the updater timer.
 // Note: /usr/local/lib/systemd/system/teleport-update_mycluster.timer or
-// /lib/systemd/system/teleport-update.timer when not namespaced.
+// /usr/local/lib/systemd/system/teleport-update.timer when not namespaced.
 func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
 	return filepath.Join(
 		globalLinkDir, serviceDir,
