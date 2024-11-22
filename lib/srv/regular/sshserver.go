@@ -1420,14 +1420,14 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 // canPortForward determines if port forwarding is allowed for the current
 // user/role/node combo. Returns nil if port forwarding is allowed, non-nil
 // if denied.
-func (s *Server) canPortForward(scx *srv.ServerContext) error {
+func (s *Server) canPortForward(scx *srv.ServerContext, mode services.SSHPortForwardMode) error {
 	// Is the node configured to allow port forwarding?
 	if !s.allowTCPForwarding {
 		return trace.AccessDenied("node does not allow port forwarding")
 	}
 
 	// Check if the role allows port forwarding for this user.
-	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx)
+	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, mode)
 	if err != nil {
 		return err
 	}
@@ -1472,7 +1472,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
-	if err = s.canPortForward(scx); err != nil {
+	if err = s.canPortForward(scx, services.SSHPortForwardModeLocal); err != nil {
 		writeStderr(channel, err.Error())
 		return
 	}
@@ -2178,7 +2178,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 
-	if err := s.canPortForward(scx); err != nil {
+	if err := s.canPortForward(scx, services.SSHPortForwardModeRemote); err != nil {
 		scx.Close()
 		return nil, nil, trace.Wrap(err)
 	}

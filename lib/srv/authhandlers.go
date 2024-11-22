@@ -262,8 +262,13 @@ func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
-func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
-	if ok := ctx.Identity.AccessChecker.CanPortForward(); !ok {
+func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, mode services.SSHPortForwardMode) error {
+	checkedMode := ctx.Identity.AccessChecker.SSHPortForwardMode()
+	if checkedMode == services.SSHPortForwardModeOn {
+		return nil
+	}
+
+	if checkedMode == services.SSHPortForwardModeOff || checkedMode != mode {
 		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 
