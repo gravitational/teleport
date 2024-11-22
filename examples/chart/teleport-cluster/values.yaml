@@ -179,7 +179,7 @@ authentication:
 proxyListenerMode: "separate"
 
 # Optional setting for configuring session recording.
-# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+# See `session_recording` under https://goteleport.com/docs/reference/config/#auth-service
 sessionRecording: ""
 
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
