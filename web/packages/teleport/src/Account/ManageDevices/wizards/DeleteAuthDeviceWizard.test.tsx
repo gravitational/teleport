@@ -29,7 +29,7 @@ import auth from 'teleport/services/auth';
 
 import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
 
-import { dummyPasskey, dummyHardwareDevice, deviceCases } from './deviceCases';
+import { dummyPasskey, dummyHardwareDevice } from './deviceCases';
 
 import { DeleteAuthDeviceWizard } from '.';
 

@@ -57,15 +57,17 @@ const service = {
       },
     });
 
-    const resp = await auth.getMfaChallengeResponse(challenge);
+    const mfaResponse = await auth.getMfaChallengeResponse(challenge);
 
     const createAppSession = {
       ...resolveApp,
       arn: params.arn,
-      // TODO(Joerger): Handle non-webauthn response.
-      mfa_response: resp
+      mfaResponse,
+      // TODO(Joerger): DELETE IN v19.0.0.
+      // We include a string version of the MFA response for backwards compatibility.
+      mfa_response: mfaResponse
         ? JSON.stringify({
-            webauthnAssertionResponse: resp.webauthn_response,
+            webauthnAssertionResponse: mfaResponse.webauthn_response,
           })
         : null,
     };
