@@ -425,9 +425,11 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
       return 'elasticsearch';
     case DatabaseEngine.DynamoDb:
       return 'dynamodb';
+    case DatabaseEngine.Doc:
+      return '' as any;
+    default:
+      engine satisfies never;
   }
-
-  return '' as any;
 }
 
 export function getDefaultDatabasePort(engine: DatabaseEngine): string {

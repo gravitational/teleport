@@ -183,7 +183,6 @@ export function TestConnection() {
                 isDisabled={
                   attempt.status === 'processing' || nameOpts.length === 0
                 }
-                // Database name is required for Postgres.
                 isClearable={!isDbNameRequired(dbEngine)}
               />
               <CustomInputFieldForAsterisks
@@ -244,7 +243,11 @@ function getInputValue(input: string, inputKind: 'name' | 'user') {
 function isDbNameRequired(engine: DatabaseEngine) {
   const protocol = getDatabaseProtocol(engine);
   switch (protocol) {
+    case 'mongodb':
+    case 'oracle':
     case 'postgres':
+    case 'spanner':
+    case 'sqlserver':
       return true;
     default:
       return false;
