@@ -85,12 +85,12 @@ func readConfig(path string) (*UpdateConfig, error) {
 		}, nil
 	}
 	if err != nil {
-		return nil, trace.Errorf("failed to open: %w", err)
+		return nil, trace.Wrap(err, "failed to open")
 	}
 	defer f.Close()
 	var cfg UpdateConfig
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, trace.Errorf("failed to parse: %w", err)
+		return nil, trace.Wrap(err, "failed to parse")
 	}
 	if k := cfg.Kind; k != updateConfigKind {
 		return nil, trace.Errorf("invalid kind %q", k)

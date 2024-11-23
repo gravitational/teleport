@@ -180,17 +180,17 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 func (ns *Namespace) Setup(ctx context.Context) error {
 	err := ns.writeConfigFiles()
 	if err != nil {
-		return trace.Errorf("failed to write teleport-update systemd config files: %w", err)
+		return trace.Wrap(err, "failed to write teleport-update systemd config files")
 	}
 	svc := &SystemdService{
 		ServiceName: filepath.Base(ns.updaterTimerFile),
 		Log:         ns.log,
 	}
 	if err := svc.Sync(ctx); err != nil {
-		return trace.Errorf("failed to sync systemd config: %w", err)
+		return trace.Wrap(err, "failed to sync systemd config")
 	}
 	if err := svc.Enable(ctx, true); err != nil {
-		return trace.Errorf("failed to enable teleport-update systemd timer: %w", err)
+		return trace.Wrap(err, "failed to enable teleport-update systemd timer")
 	}
 	return nil
 }
@@ -202,19 +202,19 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		Log:         ns.log,
 	}
 	if err := svc.Disable(ctx); err != nil {
-		return trace.Errorf("failed to disable teleport-update systemd timer: %w", err)
+		return trace.Wrap(err, "failed to disable teleport-update systemd timer")
 	}
 	if err := os.Remove(ns.updaterServiceFile); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return trace.Errorf("failed to remove teleport-update systemd service: %w", err)
+		return trace.Wrap(err, "failed to remove teleport-update systemd service")
 	}
 	if err := os.Remove(ns.updaterTimerFile); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return trace.Errorf("failed to remove teleport-update systemd timer: %w", err)
+		return trace.Wrap(err, "failed to remove teleport-update systemd timer")
 	}
 	if err := svc.Sync(ctx); err != nil {
-		return trace.Errorf("failed to sync systemd config: %w", err)
+		return trace.Wrap(err, "failed to sync systemd config")
 	}
 	if err := os.RemoveAll(ns.versionsDir); err != nil {
-		return trace.Errorf("failed to remove versions directory: %w", err)
+		return trace.Wrap(err, "failed to remove versions directory")
 	}
 	return nil
 }
