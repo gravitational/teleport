@@ -1,0 +1,7 @@
+# teleport-update
+[Unit]
+Description=Teleport auto-update service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/teleport-update update

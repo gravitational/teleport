@@ -462,7 +462,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 				}
 				s.mu.Unlock()
 
-				// If we have initizlied the LDAP client, then try to use it to make sure we're still connected
+				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
 				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})

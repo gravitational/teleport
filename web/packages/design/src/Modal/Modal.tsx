@@ -25,6 +25,11 @@ export type ModalProps = {
    * If `true`, the modal is open.
    */
   open: boolean;
+  /**
+   * Prevent unmounting the component and its children from the DOM when closed.
+   * Instead, hides it with CSS.
+   */
+  keepInDOMAfterClose?: boolean;
 
   className?: string;
 
@@ -200,15 +205,23 @@ export default class Modal extends React.Component<ModalProps> {
   }
 
   render() {
-    const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
-      this.props;
+    const {
+      BackdropProps,
+      children,
+      modalCss,
+      hideBackdrop,
+      open,
+      className,
+      keepInDOMAfterClose,
+    } = this.props;
 
-    if (!open) {
+    if (!open && !keepInDOMAfterClose) {
       return null;
     }
 
     return createPortal(
       <StyledModal
+        hiddenInDom={!open}
         modalCss={modalCss}
         data-testid="Modal"
         ref={this.modalRef}
@@ -261,6 +274,7 @@ const StyledBackdrop = styled.div<BackdropProps>`
 const StyledModal = styled.div<{
   modalCss?: StyleFunction<any>;
   ref: React.RefObject<HTMLElement>;
+  hiddenInDom?: boolean;
 }>`
   position: fixed;
   z-index: 1200;
@@ -268,5 +282,6 @@ const StyledModal = styled.div<{
   bottom: 0;
   top: 0;
   left: 0;
+  ${props => props.hiddenInDom && `display: none;`};
   ${props => props.modalCss?.(props)}
 `;
