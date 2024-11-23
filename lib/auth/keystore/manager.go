@@ -251,18 +251,20 @@ func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
 // returns an [ssh.Signer].
 func (m *Manager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
-	signer, err := m.getSSHSigner(ctx, ca.GetActiveKeys())
+	signer, err := m.GetSSHSignerFromKeySet(ctx, ca.GetActiveKeys())
 	return signer, trace.Wrap(err)
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA
 // AdditionalTrustedKeys and returns an [ssh.Signer].
 func (m *Manager) GetAdditionalTrustedSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
-	signer, err := m.getSSHSigner(ctx, ca.GetAdditionalTrustedKeys())
+	signer, err := m.GetSSHSignerFromKeySet(ctx, ca.GetAdditionalTrustedKeys())
 	return signer, trace.Wrap(err)
 }
 
-func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
+// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key
+// set.
+func (m *Manager) GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range keySet.SSH {
 			canSign, err := backend.canSignWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
