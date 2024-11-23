@@ -389,6 +389,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -701,6 +707,7 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.GitServers
 }
 
 // GetWebSession returns existing web session described by req.
