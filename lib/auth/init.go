@@ -340,6 +340,9 @@ type InitConfig struct {
 	// IdentityCenter is the Identity Center state storage service to use in
 	// this node.
 	IdentityCenter services.IdentityCenter
+
+	// PluginStaticCredentials handles credentials for integrations and plugins.
+	PluginStaticCredentials services.PluginStaticCredentials
 }
 
 // Init instantiates and configures an instance of AuthServer

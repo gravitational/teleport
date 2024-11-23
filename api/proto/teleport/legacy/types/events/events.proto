@@ -4381,6 +4381,8 @@ message IntegrationMetadata {
   AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   // AzureOIDC contains metadata for Azure OIDC integrations.
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+  // GitHub contains metadata for GitHub integrations.
+  GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4400,6 +4402,12 @@ message AzureOIDCIntegrationMetadata {
 
   // ClientID specifies the ID of Azure enterprise application (client).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationMetadata contains metadata for GitHub integrations.
+message GitHubIntegrationMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.

@@ -7153,6 +7153,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7172,6 +7173,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7521,7 +7530,12 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7564,6 +7578,12 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
