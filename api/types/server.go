@@ -17,9 +17,7 @@ limitations under the License.
 package types
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"sort"
 	"strings"
@@ -618,24 +616,17 @@ func (s *ServerV2) gitServerCheckAndSetDefaults() error {
 }
 
 func (s *ServerV2) githubCheckAndSetDefaults() error {
-	if s.Spec.GitHub == nil || s.Spec.GitHub.Integration == "" {
-		return trace.BadParameter("missing github integration")
+	if s.Spec.GitHub == nil {
+		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
 	}
-	// TODO(greedy52) do proper validate once other PR is merged.
-	if s.Spec.GitHub.Organization == "" {
-		return trace.BadParameter("missing github organization")
+	if s.Spec.GitHub.Integration == "" {
+		return trace.BadParameter("integration must be set for Subkind %q", s.SubKind)
 	}
-
-	hostname := MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
-	switch s.Spec.Hostname {
-	case hostname:
-	case "":
-		s.Spec.Hostname = hostname
-	default:
-		slog.WarnContext(context.Background(), "invalid hostname for GitHub server. Hostname will be replaced.", "hostname", hostname)
-		s.Spec.Hostname = hostname
+	if err := ValidateGitHubOrganizationName(s.Spec.GitHub.Organization); err != nil {
+		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
+	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
 	if s.Metadata.Labels == nil {
 		s.Metadata.Labels = make(map[string]string)
 	}

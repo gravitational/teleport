@@ -650,7 +650,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing github integration`)
+				require.EqualError(t, err, `integration must be set for Subkind "github"`)
 			},
 		},
 	}

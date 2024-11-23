@@ -51,7 +51,7 @@ func NewGitServerService(b backend.Backend) (*GitServerService, error) {
 		Backend:       b,
 		ResourceKind:  types.KindGitServer,
 		PageLimit:     defaults.MaxIterationLimit,
-		BackendPrefix: backend.NewKey(dynamicWindowsDesktopsPrefix),
+		BackendPrefix: backend.NewKey(gitServerPrefix),
 		MarshalFunc:   services.MarshalGitServer,
 		UnmarshalFunc: services.UnmarshalGitServer,
 		ValidateFunc:  validateKind,

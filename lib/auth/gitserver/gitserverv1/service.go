@@ -118,7 +118,9 @@ func (s *Service) ListGitServers(ctx context.Context, req *pb.ListGitServersRequ
 	}
 	for _, server := range servers {
 		err := s.checkAccess(authCtx, server)
-		if err != nil && !trace.IsAccessDenied(err) {
+		if trace.IsAccessDenied(err) {
+			continue
+		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
 

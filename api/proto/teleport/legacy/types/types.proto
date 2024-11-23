@@ -2935,6 +2935,38 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding.
+  SSHLocalPortForwarding Local = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "local,omitempty"
+  ];
+  // Allow remote port forwarding.
+  SSHRemotePortForwarding Remote = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "remote,omitempty"
+  ];
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2949,11 +2981,9 @@ message RoleOptions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // PortForwarding defines if the certificate will have
-  // "permit-port-forwarding"
-  // in the certificate. PortForwarding is "yes" if not set,
-  // that's why this is a pointer
+  // Deprecated: Use SSHPortForwarding instead
   BoolValue PortForwarding = 3 [
+    deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
     (gogoproto.customtype) = "BoolOption"
@@ -3120,6 +3150,12 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  SSHPortForwarding SSHPortForwarding = 32 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
+  ];
 }
 
 message RecordSession {
@@ -7106,6 +7142,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7125,6 +7162,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7474,7 +7519,12 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7517,6 +7567,12 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

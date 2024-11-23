@@ -103,7 +103,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 		return trace.Wrap(err)
 	}
 
-	linked, err := li.isLinked(versionDir)
+	linked, err := li.isLinked(filepath.Join(versionDir, "bin"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Errorf("failed to determine if linked: %w", err)
 	}
@@ -575,7 +575,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string)
 		linked++
 	}
 	if linked == 0 {
-		return revert, trace.Errorf("no binaries available to link")
+		return revert, trace.Wrap(ErrNoBinaries)
 	}
 
 	// create systemd service file
@@ -784,7 +784,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 	}
 	// bail if no binaries can be linked
 	if linked == 0 {
-		return trace.Errorf("no binaries available to link")
+		return trace.Wrap(ErrNoBinaries)
 	}
 
 	// link binaries that are missing links
@@ -849,10 +849,9 @@ func (li *LocalInstaller) versionDir(version string) (string, error) {
 	return versionDir, nil
 }
 
-// isLinked returns true if any binaries or services in versionDir are linked.
-// Returns os.ErrNotExist error if the versionDir does not exist.
-func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
-	binDir := filepath.Join(versionDir, "bin")
+// isLinked returns true if any binaries in binDir are linked.
+// Returns os.ErrNotExist error if the binDir does not exist.
+func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return false, trace.Wrap(err)
