@@ -276,7 +276,7 @@ func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
 // CheckAndSetDefaults validates the configuration for GitHub integration subkind.
 func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 	if s == nil || s.GitHub == nil {
-		return trace.BadParameter("github spec must be set for GitHub integrations", IntegrationSubKindGitHub)
+		return trace.BadParameter("github spec must be set for GitHub integrations")
 	}
 	if err := ValidateGitHubOrganizationName(s.GitHub.Organization); err != nil {
 		return trace.Wrap(err, "invalid GitHub organization name")
@@ -522,6 +522,10 @@ func (ig *IntegrationV1) SetCredentials(creds PluginCredentials) error {
 
 // GetCredentials retrieves credentials.
 func (ig *IntegrationV1) GetCredentials() PluginCredentials {
+	// This function returns an interface so return nil explicitly.
+	if ig.Spec.Credentials == nil {
+		return nil
+	}
 	return ig.Spec.Credentials
 }
 

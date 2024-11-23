@@ -23,9 +23,10 @@ import (
 	"maps"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -223,5 +224,5 @@ func (s *Service) removeStaticCredentials(ctx context.Context, ig types.Integrat
 			errors = append(errors, err)
 		}
 	}
-	return trace.NewAggregate(err)
+	return trace.NewAggregate(errors...)
 }
