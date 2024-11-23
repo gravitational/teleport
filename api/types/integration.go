@@ -276,10 +276,10 @@ func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
 // CheckAndSetDefaults validates the configuration for GitHub integration subkind.
 func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 	if s == nil || s.GitHub == nil {
-		return trace.BadParameter("github is required for %q subkind", IntegrationSubKindGitHub)
+		return trace.BadParameter("github spec must be set for GitHub integrations", IntegrationSubKindGitHub)
 	}
 	if err := ValidateGitHubOrganizationName(s.GitHub.Organization); err != nil {
-		return trace.Wrap(err, "invalid organization name")
+		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 	return nil
 }
@@ -482,19 +482,19 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	switch ig.SubKind {
 	case IntegrationSubKindAWSOIDC:
 		if ig.GetAWSOIDCIntegrationSpec() == nil {
-			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 
 		d.Spec.AWSOIDC = *ig.GetAWSOIDCIntegrationSpec()
 	case IntegrationSubKindAzureOIDC:
 		if ig.GetAzureOIDCIntegrationSpec() == nil {
-			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 
 		d.Spec.AzureOIDC = *ig.GetAzureOIDCIntegrationSpec()
 	case IntegrationSubKindGitHub:
 		if ig.GetGitHubIntegrationSpec() == nil {
-			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
 	default:
@@ -522,9 +522,6 @@ func (ig *IntegrationV1) SetCredentials(creds PluginCredentials) error {
 
 // GetCredentials retrieves credentials.
 func (ig *IntegrationV1) GetCredentials() PluginCredentials {
-	if ig.Spec.Credentials == nil {
-		return nil
-	}
 	return ig.Spec.Credentials
 }
 

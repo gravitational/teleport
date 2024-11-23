@@ -134,7 +134,7 @@ func (s *Service) createStaticCredentials(ctx context.Context, ig types.Integrat
 	ref := newStaticCredentialsRef(uuid.NewString())
 
 	for _, cred := range creds {
-		s.logger.DebugContext(ctx, "Creating static credentials.", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
+		s.logger.DebugContext(ctx, "Creating static credentials", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
 		copyRefLabels(cred, ref)
 		if err := s.backend.CreatePluginStaticCredentials(ctx, cred); err != nil {
 			return trace.Wrap(err)
@@ -181,7 +181,7 @@ func (s *Service) updateStaticCredentials(ctx context.Context, ig types.Integrat
 
 	ref := ig.GetCredentials().GetStaticCredentialsRef()
 	for _, cred := range creds {
-		s.logger.DebugContext(ctx, "Updating static credentials.", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
+		s.logger.DebugContext(ctx, "Updating static credentials", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
 
 		// Use same labels to find existing credentials.
 		copyRefLabels(cred, ref)
@@ -218,7 +218,7 @@ func (s *Service) removeStaticCredentials(ctx context.Context, ig types.Integrat
 	}
 	var errors []error
 	for _, cred := range staticCreds {
-		s.logger.DebugContext(ctx, "Removing static credentials.", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
+		s.logger.DebugContext(ctx, "Removing static credentials", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
 		if err := s.backend.DeletePluginStaticCredentials(ctx, cred.GetName()); err != nil {
 			errors = append(errors, err)
 		}
