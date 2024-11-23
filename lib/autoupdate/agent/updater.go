@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -619,17 +620,18 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 
 func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion string, flags InstallFlags) error {
 	activeVersion := cfg.Status.ActiveVersion
-	switch v := cfg.Status.BackupVersion; v {
+	backupVersion := cfg.Status.BackupVersion
+	switch backupVersion {
 	case "", targetVersion, activeVersion:
 	default:
 		if targetVersion == activeVersion {
 			// Keep backup version if we are only verifying active version
 			break
 		}
-		err := u.Installer.Remove(ctx, v)
+		err := u.Installer.Remove(ctx, backupVersion)
 		if err != nil {
 			// this could happen if it was already removed due to a failed installation
-			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", errorKey, err, backupVersionKey, v)
+			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", errorKey, err, backupVersionKey, backupVersion)
 		}
 	}
 
@@ -644,10 +646,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		return trace.Errorf("failed to install: %w", err)
 	}
 
-	// TODO(sclevine): if the target version has fewer binaries, this will
-	//  leave old binaries linked. This may prevent the installation from
-	//  being removed. To fix this, we should look for orphaned binaries
-	//  and remove them, or alternatively, attempt to remove extra versions.
+	// If the target version has fewer binaries, this will leave old binaries linked.
+	// This may prevent the installation from being removed.
+	// Cleanup logic at the end of this function will ensure that they are removed
+	// eventually.
 
 	revert, err := u.Installer.Link(ctx, targetVersion)
 	if err != nil {
@@ -718,13 +720,38 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		u.Log.InfoContext(ctx, "Backup version set.", backupVersionKey, v)
 	}
 
-	// Check if manual cleanup might be needed.
+	return trace.Wrap(u.cleanup(ctx, []string{
+		targetVersion,
+		activeVersion,
+		backupVersion,
+	}))
+}
 
+// cleanup orphan installations
+func (u *Updater) cleanup(ctx context.Context, keep []string) error {
 	versions, err := u.Installer.List(ctx)
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
-	} else if n := len(versions); n > 2 {
-		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
+		return nil
+	}
+	if len(versions) < 3 {
+		return nil
+	}
+	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(versions))
+	for _, v := range versions {
+		if v == "" || slices.Contains(keep, v) {
+			continue
+		}
+		err := u.Installer.Remove(ctx, v)
+		if errors.Is(err, ErrLinked) {
+			u.Log.WarnContext(ctx, "Refusing to remove version with orphan links.", "version", v)
+			continue
+		}
+		if err != nil {
+			u.Log.WarnContext(ctx, "Failed to remove unused version of Teleport.", errorKey, err, "version", v)
+			continue
+		}
+		u.Log.WarnContext(ctx, "Deleted unused version of Teleport.", "version", v)
 	}
 	return nil
 }
