@@ -110,10 +110,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
 		Installer: &LocalInstaller{
-			InstallDir: cfg.VersionsDir,
-			LinkBinDir: ns.linkBinDir,
-			// For backwards-compatibility with symlinks created by package-based installs, we always
-			// link into /lib/systemd/system, even though, e.g., /usr/local/lib/systemd/system would work.
+			InstallDir:              cfg.VersionsDir,
+			LinkBinDir:              ns.linkBinDir,
 			CopyServiceFile:         ns.serviceFile,
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
 			SystemServiceFile:       filepath.Join(cfg.SystemDir, serviceDir, serviceName),
