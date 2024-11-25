@@ -239,18 +239,20 @@ When conditions have been provided within a rule, then all conditions within the
 rule must return true for the rule to return true. A condition consists of a
 single target attribute, a single operator and a single expected value.
 
-The following operators will be supported:
+Initially, the following operators will be supported:
 
 - `equals_string`: The target attribute must be a string and equal the given
   string.
-- `matches_string`: The target attribute must be a string and match the given
-  regex pattern.
 - `not_equals_string`: The target attribute must be a string and must not equal
   the given string.
-- `not_matches_string`: The target attribute must be a string and must not match
-  the given regex pattern.
-- `present`: The target attribute must be set.
-- `not_present`: The target attribute must not be set. 
+- `present`: The target attribute must be set. This is effectively equivalent to
+  `not_equals_string: ""` except functions correctly with non-string attributes.
+- `not_present`: The target attribute must not be set. This is effectively 
+  equivalent to `equals_string: ""` except behaves correctly with non-string
+  attributes. 
+
+Future iterations may introduce additional operators as we better understand the
+types of conditions that will be useful to users.
 
 Alternatively, a rule may consist of a single expression. This expression is
 configured by the user in the predicate language with access to the same
@@ -315,8 +317,7 @@ WorkloadIdentity:
 services:
 - type: spiffe-workload-api
   listen: unix:///opt/machine-id/workload.sock
-  workload_identities:
-  - my-workload-identity
+  workload_identity: my-workload-identity
 ```
 
 Label matchers can be specified within the `tbot` configuration to issue
@@ -340,6 +341,11 @@ services:
   workload_identity_labels:
     '*': '*'
 ```
+
+The `workload_identity` and `workload_identity_labels` fields are mutually
+exclusive, that is, a service may be configured with either a specific
+WorkloadIdentity or with a set of labels to match against WorkloadIdentity
+resources.
 
 These configuration values may also be provided using the "zero-config" CLI
 flags for `tbot`:
@@ -881,10 +887,7 @@ package teleport.workloadidentity.v1;
 // WorkloadIdentityService provides the signing of workload identity documents.
 service WorkloadIdentityService {
   rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse) {}
-}
-
-message WorkloadIdentityNameSelector {
-  string name = 1;
+  rpc IssueWorkloadIdentityWithLabels(IssueWorkloadIdentityWithLabelsRequest) returns (IssueWorkloadIdentityResponse) {}
 }
 
 message WorkloadIdentityLabelSelector {
@@ -896,11 +899,7 @@ message WorkloadIdentityLabelSelectors {
   repeated WorkloadIdentityLabelSelector = 1;
 }
 
-message WorkloadAttestationAttributes {
-  map<string, string> attributes = 2;
-}
-
-message IssueWorkloadIdentityJWTSVIDRequest {
+message JWTSVIDRequest {
   // The value that should be included in the JWT SVID as the `aud` claim.
   // Required.
   repeated string audiences = 1;
@@ -910,7 +909,7 @@ message IssueWorkloadIdentityJWTSVIDRequest {
   google.protobuf.Duration ttl = 2; 
 }
 
-message IssueWorkloadIdentityX509SVIDRequest {
+message X509SVIDRequest {
     // A PKIX, ASN.1 DER encoded public key that should be included in the x509
   // SVID.
   // Required.
@@ -921,21 +920,7 @@ message IssueWorkloadIdentityX509SVIDRequest {
   google.protobuf.Duration ttl = 2; 
 }
 
-message IssueWorkloadIdentityRequest {
-  oneof selector {
-    // Request a specific WorkloadIdentity by name.
-    WorkloadIdentityNameSelector name = 1;
-    // Request WorkloadIdentity's by label matcher. All specified labels must
-    // exist on the WorkloadIdentity for it to be selected.
-    WorkloadIdentityLabelSelector labels = 2;
-  }
-  oneof type {
-    IssueWorkloadIdentityJWTSVIDRequest jwt_svid = 3;
-    IssueWorkloadIdentityX509SVIDRequest x509_svid = 4;
-  }
 
-  WorkloadAttestationAttributes workload_attributes = 3;
-}
 
 message WorkloadIdentityCredential {
   oneof credential {
@@ -951,14 +936,31 @@ message WorkloadIdentityCredential {
   // The hint configured for this Workload Identity - if any. This is provided
   // to workloads using the SPIFFE Workload API to fetch credentials.
   string hint = 5;
+  // The name of the Workload Identity resource used to issue this credential.
+  string workload_identity_name = 6;
+  // The revision of the Workload Identity resource used to issue this
+  // credential.
+  string workload_identity_revision = 7;
+}
 
-  // TODO: Is it worth returning the full associated WorkloadIdentity resource?
-  string workload_identity_name = 2;
+message IssueWorkloadIdentityRequest {
+  // The name of the Workload Identity resource to attempt issuance using.
+  string name = 1;
+
+  oneof type {
+    JWTSVIDRequest jwt_svid = 2;
+    X509SVIDRequest x509_svid = 3;
+  }
+
+  // The results of any workload attestation performed by `tbot`.
+  WorkloadAttributes workload_attributes = 4;
 }
 
 message IssueWorkloadIdentityResponse {
-  repeated WorkloadIdentityCredential credentials = 1;
+  WorkloadIdentityCredential credential = 1;
 }
+
+message
 ```
 
 When a specific WorkloadIdentity is specified by-name by the client:
@@ -1147,6 +1149,8 @@ contain the following information:
     - Claims (e.g iat, exp, jti, sub, aud and any custom claims)
 - The full attribute set that was used during rule and template evaluation.
 - Which WorkloadIdentity was used for the issuance.
+  - The name and the revision to allow the specific version to be identified
+    if this has been modified since.
 
 ### Trustworthiness of Workload Attestation Attributes
 
