@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -44,6 +45,34 @@ const (
 	// credentials contains the GitHub OAuth ID and secret.
 	purposeGitHubOAuth = "github-oauth"
 )
+
+// ExportIntegrationCertAuthorities exports cert authorities for an integration.
+func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *integrationpb.ExportIntegrationCertAuthoritiesRequest) (*integrationpb.ExportIntegrationCertAuthoritiesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ig, err := s.cache.GetIntegration(ctx, in.Integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Currently only public keys are exported.
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		caKeySet, err := s.getGitHubCertAuthorities(ctx, ig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caKeySetWithoutSecerts := caKeySet.WithoutSecrets()
+		return &integrationpb.ExportIntegrationCertAuthoritiesResponse{CertAuthorities: &caKeySetWithoutSecerts}, nil
+	default:
+		return nil, trace.BadParameter("unsupported for integration subkind %v", ig.GetSubKind())
+	}
+}
 
 func newStaticCredentialsRef(uuid string) *types.PluginStaticCredentialsRef {
 	return &types.PluginStaticCredentialsRef{
@@ -225,4 +254,47 @@ func (s *Service) removeStaticCredentials(ctx context.Context, ig types.Integrat
 		}
 	}
 	return trace.NewAggregate(errors...)
+}
+
+func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.Integration, purpose string) (types.PluginStaticCredentials, error) {
+	if ig.GetCredentials() == nil || ig.GetCredentials().GetStaticCredentialsRef() == nil {
+		return nil, trace.BadParameter("missing credentials ref")
+	}
+	labels := ig.GetCredentials().GetStaticCredentialsRef().Labels
+	if len(labels) == 0 {
+		return nil, trace.BadParameter("missing labels from credentials ref")
+	}
+	labels[labelStaticCredentialsPurpose] = purpose
+
+	// TODO(greedy52) use cache
+	creds, err := s.backend.GetPluginStaticCredentialsByLabels(ctx, labels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch len(creds) {
+	case 0:
+		return nil, trace.NotFound("%v credentials not found", purpose)
+	case 1:
+		return creds[0], nil
+	default:
+		return nil, trace.CompareFailed("expecting one plugin static credentials but got %v", len(creds))
+	}
+}
+
+func (s *Service) getGitHubCertAuthorities(ctx context.Context, ig types.Integration) (*types.CAKeySet, error) {
+	if ig.GetSubKind() != types.IntegrationSubKindGitHub {
+		return nil, trace.BadParameter("integration is not a GitHub integration")
+	}
+	creds, err := s.getStaticCredentialsWithPurpose(ctx, ig, purposeGitHubSSHCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cas := creds.GetSSHCertAuthorities()
+	if len(cas) == 0 {
+		return nil, trace.BadParameter("missing SSH cert authorities from plugin static credentials")
+	}
+	return &types.CAKeySet{
+		SSH: cas,
+	}, nil
 }

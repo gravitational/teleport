@@ -44,6 +44,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -1890,4 +1891,7 @@ type ClientI interface {
 
 	// ProvisioningServiceClient returns provisioning service client.
 	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
+
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationpb.IntegrationServiceClient
 }

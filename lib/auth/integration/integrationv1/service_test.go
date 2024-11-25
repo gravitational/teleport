@@ -63,32 +63,6 @@ func TestIntegrationCRUD(t *testing.T) {
 		return ig
 	}
 
-	newGitHubIntegration := func(name, id, secret string) (*types.IntegrationV1, error) {
-		ig, err := types.NewIntegrationGitHub(
-			types.Metadata{
-				Name: name,
-			},
-			&types.GitHubIntegrationSpecV1{
-				Organization: "my-org",
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if secret != "" {
-			ig.SetCredentials(&types.PluginCredentialsV1{
-				Credentials: &types.PluginCredentialsV1_IdSecret{
-					IdSecret: &types.PluginIdSecretCredential{
-						Id:     id,
-						Secret: secret,
-					},
-				},
-			})
-		}
-		return ig, nil
-	}
-
 	tt := []struct {
 		Name         string
 		Role         types.RoleSpecV6
@@ -767,6 +741,32 @@ func newPlugin(t *testing.T, integrationName string) *types.PluginV1 {
 			},
 		},
 	}
+}
+
+func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error) {
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{
+			Name: name,
+		},
+		&types.GitHubIntegrationSpecV1{
+			Organization: "my-org",
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if secret != "" {
+		ig.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     id,
+					Secret: secret,
+				},
+			},
+		})
+	}
+	return ig, nil
 }
 
 func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {
