@@ -18,11 +18,10 @@
 
 import React from 'react';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import Logger from '../../libs/logger';
-
-import Validator, { Validation, useValidation } from './Validation';
+import Validator, { useValidation, Validation } from './Validation';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {

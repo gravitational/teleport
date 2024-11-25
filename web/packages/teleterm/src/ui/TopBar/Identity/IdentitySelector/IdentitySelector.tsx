@@ -17,14 +17,14 @@
  */
 
 import React, { forwardRef } from 'react';
+
 import { Box } from 'design';
 
+import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
-import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
-
-import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
+import { UserIcon } from './UserIcon';
 
 interface IdentitySelectorProps {
   isOpened: boolean;

@@ -18,8 +18,8 @@
 
 import { platformToGOOS } from 'design/platform';
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { makeConnectionDiagnostic } from './make';
 

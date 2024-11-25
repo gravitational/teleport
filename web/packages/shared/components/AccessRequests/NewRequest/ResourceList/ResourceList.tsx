@@ -18,25 +18,25 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, ButtonPrimary, Box } from 'design';
+
+import { Box, ButtonBorder, ButtonPrimary } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Desktop } from 'teleport/services/desktops';
-import { Database } from 'teleport/services/databases';
-import { App } from 'teleport/services/apps';
-import { Kube } from 'teleport/services/kube';
-import { Node } from 'teleport/services/nodes';
-import { UserGroup } from 'teleport/services/userGroups';
 import { CustomSort } from 'design/DataTable/types';
 
 import { ResourceLabel, UnifiedResource } from 'teleport/services/agents';
+import { App } from 'teleport/services/apps';
+import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
-import { ResourceMap, RequestableResourceKind } from '../resource';
-
+import { RequestableResourceKind, ResourceMap } from '../resource';
 import { Apps } from './Apps';
 import { Databases } from './Databases';
-import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
 import { Kubes } from './Kubes';
+import { Nodes } from './Nodes';
 import { Roles } from './Roles';
 import { UserGroups } from './UserGroups';
 

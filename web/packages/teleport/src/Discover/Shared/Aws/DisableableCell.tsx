@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+
 import { Cell } from 'design/DataTable';
 
 export const DisableableCell: React.FC<

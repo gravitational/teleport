@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useRef } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
 import Input from 'design/Input';
-import { useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
 
 export type FieldMultiInputProps = {
   label?: string;

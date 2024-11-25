@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-
 import styled from 'styled-components';
 
 import { typography } from 'design/system';

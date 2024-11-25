@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Flex, ButtonIcon } from 'design';
+
+import { ButtonIcon, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { useFileTransferContext } from './FileTransferContextProvider';

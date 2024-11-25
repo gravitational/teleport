@@ -16,23 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback } from 'react';
 import {
+  Duration,
+  formatDuration,
   intervalToDuration,
   isBefore,
   secondsToMilliseconds,
-  formatDuration,
-  Duration,
 } from 'date-fns';
-
-import { useAsync } from 'shared/hooks/useAsync';
+import { useCallback, useState } from 'react';
 
 import { useInterval } from 'shared/hooks';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();

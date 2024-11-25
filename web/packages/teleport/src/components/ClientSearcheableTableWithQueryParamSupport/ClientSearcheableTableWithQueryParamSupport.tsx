@@ -18,8 +18,8 @@
 
 import { useHistory, useLocation } from 'react-router';
 
-import { TableProps } from 'design/DataTable/types';
 import Table from 'design/DataTable';
+import { TableProps } from 'design/DataTable/types';
 
 import {
   decodeUrlQueryParam,

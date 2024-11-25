@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Text } from 'design';
 
 import { AwsRegionSelector } from './AwsRegionSelector';

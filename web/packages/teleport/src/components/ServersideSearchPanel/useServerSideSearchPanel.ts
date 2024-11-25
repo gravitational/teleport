@@ -18,12 +18,11 @@
 
 import { useEffect, useState } from 'react';
 
-import { ResourceFilter } from 'teleport/services/agents';
-
 import {
   decodeUrlQueryParam,
   encodeUrlQueryParams,
 } from 'teleport/components/hooks/useUrlFiltering';
+import { ResourceFilter } from 'teleport/services/agents';
 
 export default function useServersideSearchPanel({
   pathname,

@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card, H1, H2 } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Card, H1, H2, Text } from 'design';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 

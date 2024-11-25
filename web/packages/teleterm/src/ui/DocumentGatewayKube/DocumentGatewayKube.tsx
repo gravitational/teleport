@@ -20,13 +20,13 @@ import React, { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
-import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import * as types from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { OfflineGateway } from '../components/OfflineGateway';
 

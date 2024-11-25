@@ -17,14 +17,15 @@
  */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
-
 import styled, { useTheme } from 'styled-components';
+
+import { ButtonPrimary, Flex, Text } from 'design';
 import { P } from 'design/Text/Text';
+
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { ToolTipInfo } from './ToolTip';
 import { HoverTooltip } from './HoverTooltip';
+import { ToolTipInfo } from './ToolTip';
 
 export default {
   title: 'Shared/ToolTip',

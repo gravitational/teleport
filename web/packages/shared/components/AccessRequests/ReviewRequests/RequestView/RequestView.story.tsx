@@ -19,22 +19,21 @@
 import React from 'react';
 
 import {
-  makeSuccessAttempt,
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
 import {
   requestRoleApproved,
-  requestRoleDenied,
-  requestRolePending,
-  requestSearchPending,
-  requestRoleEmpty,
-  requestRolePromoted,
   requestRoleApprovedWithStartTime,
+  requestRoleDenied,
+  requestRoleEmpty,
+  requestRolePending,
+  requestRolePromoted,
+  requestSearchPending,
 } from '../../fixtures';
-
 import { RequestView, RequestViewProps } from './RequestView';
 import { RequestFlags, SuggestedAccessList } from './types';
 

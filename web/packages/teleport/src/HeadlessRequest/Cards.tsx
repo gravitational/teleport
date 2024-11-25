@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Card, CardSuccess, H1 } from 'design';
 import { CircleStop } from 'design/Icon';
-import React from 'react';
 
 export function CardDenied({ title, children }) {
   return (

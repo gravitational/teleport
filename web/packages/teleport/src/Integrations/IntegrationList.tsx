@@ -17,31 +17,30 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { ResourceIcon } from 'design/ResourceIcon';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useAsync } from 'shared/hooks/useAsync';
-import { ResourceIcon } from 'design/ResourceIcon';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-
 import {
+  ExternalAuditStorageIntegration,
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
-  IntegrationStatusCode,
   IntegrationKind,
+  IntegrationStatusCode,
   Plugin,
-  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 

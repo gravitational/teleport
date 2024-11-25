@@ -17,10 +17,11 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Flex, Button, Card, ButtonIcon, H3 } from 'design';
 import styled, { useTheme } from 'styled-components';
+
+import { Button, ButtonIcon, Card, Flex, H3 } from 'design';
+import { Cross, Warning } from 'design/Icon';
 import { Notification } from 'shared/components/Notification';
-import { Warning, Cross } from 'design/Icon';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 import type { NotificationItem } from 'shared/components/Notification';

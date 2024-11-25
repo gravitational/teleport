@@ -16,6 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+const path = require('path');
+const tsConfigBase = require(
+  path.join(path.resolve(__dirname, '../../..'), 'tsconfig.base.json')
+);
+
+const appPackages = ['teleport', 'e-teleport', 'teleterm'];
+const libraryPackages = Object.keys(tsConfigBase.compilerOptions.paths)
+  .map(p => p.split('/')[0])
+  .filter(p => !appPackages.includes(p) && !p.startsWith('gen-proto-'));
+
+const excludedPackagesPattern = [
+  ...appPackages,
+  ...libraryPackages,
+  'gen-proto-js',
+  'gen-proto-ts',
+].join('|');
+
+// importSortGroups are passed to `simple-import-sort` plugin to sort imports. Each group is an array of regexes.
+// Imports are sorted by the first group that matches them, with newlines inserted between groups.
+const importSortGroups = [
+  // Side-effect imports (e.g. CSS)
+  ['^\u0000(?!.*\u0000$)'],
+  // Node.js builtins prefixed w/ 'node:'
+  ['^node:(?!.*\u0000$)'],
+  // Any 3rd-party imports (e.g. 'react', 'styled-components')
+  [`^(?![./])(?!(?:${excludedPackagesPattern})(?:/|$))(?!.*\u0000$).+`],
+  // Our library packages (e.g. 'shared', 'design')
+  [`^(?:${libraryPackages.join('|')})(?:/)?(?!.*\u0000$)`],
+  // Our app packages (e.g. '(e-)?teleport', 'teleterm')
+  [`^(?:${appPackages.join('|')})(?:/)?(?!.*\u0000$)`],
+  // Imports from 'gen-proto-ts/js'
+  ['^gen-proto-(?:j|t)s(?:/)?(?!.*\u0000$)'],
+  // Absolute and relative imports
+  ['^[^.](?!.*\u0000$)', '^\\.(?!.*\u0000$)'],
+  // Type imports
+  ['\u0000$'],
+];
+
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -42,7 +80,7 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: ['react', 'babel', 'import', 'simple-import-sort', 'react-hooks'],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
@@ -62,55 +100,65 @@ module.exports = {
         'jest/prefer-strict-equal': 0,
         'jest/prefer-inline-snapshots': 0,
         'jest/require-top-level-describe': 0,
-        'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
+        'jest/no-large-snapshots': [1, { maxSize: 200 }],
       },
     },
-    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot of
+    // Allow `require` imports in .js files, as migrating our project to ESM modules requires a lot of
     // changes.
     {
       files: ['**/*.js'],
       rules: {
-        '@typescript-eslint/no-require-imports': 'warn',
+        '@typescript-eslint/no-require-imports': 1,
+      },
+    },
+    // Allow `require` imports & no import sorting in this file
+    {
+      files: ['**/.eslintrc.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 0,
+        'simple-import-sort/imports': 0,
+        'import/newline-after-import': 0,
       },
     },
   ],
+  // Severity should be one of the following:
+  // "off" or 0 - turn the rule off
+  // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
+  // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
   rules: {
-    'import/order': [
-      'error',
-      {
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-          'parent',
-          'sibling',
-          'index',
-          'object',
-          'type',
-        ],
-        'newlines-between': 'always-and-inside-groups',
-      },
-    ],
+    // Sort imports/exports
+    'import/order': 0,
+    'simple-import-sort/imports': [2, { groups: importSortGroups }],
+    'simple-import-sort/exports': 1,
+    // Make sure imports are first
+    'import/first': 2,
+    // Add newline after all imports
+    'import/newline-after-import': 2,
+    // Merge duplicate imports (duplicate type-only imports are allowed)
+    'import/no-duplicates': 2,
+
     // typescript-eslint recommends to turn import/no-unresolved off.
     // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
     'import/no-unresolved': 0,
-    'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
-    '@typescript-eslint/no-unused-vars': ['error'],
-    'no-unused-expressions': 'off',
+    'no-unused-vars': 0, // disabled to allow the typescript one to take over and avoid errors in reporting
+    '@typescript-eslint/no-unused-vars': [
+      2,
+      // Allow unused vars/args that start with an underscore
+      {
+        varsIgnorePattern: '^_',
+        argsIgnorePattern: '^_',
+      },
+    ],
+    'no-unused-expressions': 0,
     '@typescript-eslint/no-unused-expressions': [
-      'error',
+      2,
       { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
     ],
     '@typescript-eslint/no-empty-object-type': [
-      'error',
+      2,
       // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
       { allowInterfaces: 'with-single-extends' },
     ],
-
-    // Severity should be one of the following:
-    // "off" or 0 - turn the rule off
-    // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
-    // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
 
     // <TODO> Enable these rules after fixing all existing issues
     '@typescript-eslint/no-use-before-define': 0,
@@ -125,6 +173,7 @@ module.exports = {
     '@typescript-eslint/prefer-interface': 0,
     '@typescript-eslint/no-empty-function': 0,
     '@typescript-eslint/no-this-alias': 0,
+    '@typescript-eslint/no-unnecessary-type-assertion': 0,
 
     // </TODO>
     'comma-dangle': 0,

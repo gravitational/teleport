@@ -18,11 +18,9 @@
 import { ResourceIcon } from 'design/ResourceIcon';
 
 import { GuidedFlow, View } from '../Shared/GuidedFlow';
-
-import { ConnectGitHub } from './ConnectGitHub';
-
-import { ConfigureBot } from './ConfigureBot';
 import { AddBotToWorkflow } from './AddBotToWorkflow';
+import { ConfigureBot } from './ConfigureBot';
+import { ConnectGitHub } from './ConnectGitHub';
 import { Finish } from './Finish';
 import { GitHubFlowProvider } from './useGitHubFlow';
 

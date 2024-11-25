@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Flex, ButtonText, Box } from 'design';
+
+import { Box, ButtonText, Flex } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -25,16 +26,15 @@ import { Attempt } from 'shared/hooks/useAsync';
 import * as types from 'teleterm/ui/services/clusters/types';
 
 import { outermostPadding } from '../../spacing';
-
-import { PromptPasswordless } from './PromptPasswordless';
-import PromptSsoStatus from './PromptSsoStatus';
+import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
-import { FormLocal } from './FormLocal';
+import { PromptPasswordless } from './PromptPasswordless';
+import PromptSsoStatus from './PromptSsoStatus';
 
 import type { PasswordlessLoginState } from '../useClusterLogin';
-import type { PrimaryAuthType } from 'shared/services';
 import type { StepComponentProps } from 'design/StepSlider';
+import type { PrimaryAuthType } from 'shared/services';
 
 export default function LoginForm(props: Props) {
   const {

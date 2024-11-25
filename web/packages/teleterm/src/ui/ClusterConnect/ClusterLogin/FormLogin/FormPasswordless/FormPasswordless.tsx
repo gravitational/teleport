@@ -18,8 +18,9 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Flex, ButtonText, Box } from 'design';
-import { Key, ArrowForward } from 'design/Icon';
+
+import { Box, ButtonText, Flex, Text } from 'design';
+import { ArrowForward, Key } from 'design/Icon';
 
 import type { Props } from '../FormLogin';
 

@@ -17,14 +17,14 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-
-import { getPlatformType } from 'design/platform';
 import { useTheme } from 'styled-components';
 
+import { getPlatformType } from 'design/platform';
+
+import StyledXterm from 'teleport/Console/StyledXterm';
+import { TermEvent } from 'teleport/lib/term/enums';
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
-import { TermEvent } from 'teleport/lib/term/enums';
-import StyledXterm from 'teleport/Console/StyledXterm';
 
 export default function Xterm({ tty }: { tty: Tty }) {
   const refContainer = useRef<HTMLDivElement>();

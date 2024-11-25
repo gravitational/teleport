@@ -17,6 +17,7 @@
  */
 
 import React, { useState } from 'react';
+
 import { Flex } from 'design';
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';

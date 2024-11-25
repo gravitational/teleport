@@ -23,7 +23,6 @@ import {
   SelectedLines,
   TerminalContent,
 } from 'shared/components/AnimatedTerminal/TerminalContent';
-
 import { Window } from 'shared/components/Window';
 
 import { BufferEntry, createTerminalContent, TerminalLine } from './content';

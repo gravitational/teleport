@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs';
 import crypto from 'crypto';
+import fs from 'fs';
 
 import { loadInstallationId } from './loadInstallationId';
 

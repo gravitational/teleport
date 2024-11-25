@@ -17,8 +17,8 @@
  */
 
 import Logger, { NullService } from 'teleterm/logger';
-import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 
 import { createConfigService } from './configService';
 

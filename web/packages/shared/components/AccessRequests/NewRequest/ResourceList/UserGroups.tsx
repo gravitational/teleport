@@ -17,10 +17,12 @@
  */
 
 import React from 'react';
+
 import { ClickableLabelCell } from 'design/DataTable';
+
 import { UserGroup } from 'teleport/services/userGroups';
 
-import { ListProps, StyledTable, renderActionCell } from './ResourceList';
+import { ListProps, renderActionCell, StyledTable } from './ResourceList';
 
 export function UserGroups(props: ListProps & { userGroups: UserGroup[] }) {
   const {

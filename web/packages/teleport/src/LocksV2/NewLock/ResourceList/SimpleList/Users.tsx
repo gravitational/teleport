@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import Table, { Cell, LabelCell } from 'design/DataTable';
 
 import { User } from 'teleport/services/user';

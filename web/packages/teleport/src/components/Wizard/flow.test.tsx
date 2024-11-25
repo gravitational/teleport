@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
+
 import { render, screen } from 'design/utils/testing';
 
-import { Navigation } from './Navigation';
 import { addIndexToViews, computeViewChildrenSize } from './flow';
+import { Navigation } from './Navigation';
 
 test('computeViewChildrenSize', async () => {
   const nestedViews = [

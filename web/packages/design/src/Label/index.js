@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Label, { Primary, Secondary, Warning, Danger } from './Label';
+import Label, { Danger, Primary, Secondary, Warning } from './Label';
+
 export default Label;
 export { Primary, Secondary, Warning, Danger };

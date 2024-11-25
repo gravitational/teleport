@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, fireEvent } from 'design/utils/testing';
-
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
+import { dryRunResponse } from '../fixtures';
 import { useSpecifiableFields } from '../NewRequest/useSpecifiableFields';
-
 import { AssumeStartTime } from './AssumeStartTime';
 
 test('assume start time, creating mode', () => {

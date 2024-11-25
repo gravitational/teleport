@@ -18,8 +18,7 @@
 
 import React from 'react';
 
-import { Text, Box } from '..';
-
+import { Box, Text } from '..';
 import typography from './typography';
 
 export default {

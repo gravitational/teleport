@@ -41,9 +41,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { md, pki } from 'node-forge';
 import { promisify } from 'util';
-
-import { pki, md } from 'node-forge';
 
 const generateKeyPair = promisify(pki.rsa.generateKeyPair.bind(pki.rsa));
 

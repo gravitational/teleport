@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 

@@ -17,11 +17,11 @@
  */
 
 import {
+  AppUri,
   DatabaseUri,
   GatewayUri,
   KubeUri,
   ServerUri,
-  AppUri,
 } from 'teleterm/ui/uri';
 
 type TrackedConnectionBase = {

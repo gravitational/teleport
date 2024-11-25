@@ -21,15 +21,14 @@ import React, {
   HTMLInputAutoCompleteAttribute,
   useId,
 } from 'react';
-import { Box, Input, LabelInput, Text } from 'design';
-
-import { BoxProps } from 'design/Box';
 import styled, { useTheme } from 'styled-components';
+
+import { Box, Input, LabelInput, Text } from 'design';
+import { BoxProps } from 'design/Box';
 import { IconProps } from 'design/Icon/Icon';
 import { InputMode, InputSize, InputType } from 'design/Input';
-
-import { useRule } from 'shared/components/Validation';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { useRule } from 'shared/components/Validation';
 
 const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (

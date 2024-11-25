@@ -21,14 +21,10 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 
-import { FETCH_MORE_SIZE } from '../UnifiedResources';
-
-import { ResourceViewProps } from '../types';
-
 import { LoadingSkeleton } from '../shared/LoadingSkeleton';
-
+import { ResourceViewProps } from '../types';
+import { FETCH_MORE_SIZE } from '../UnifiedResources';
 import { LoadingCard } from './LoadingCard';
-
 import { ResourceCard } from './ResourceCard';
 
 export function CardsView({

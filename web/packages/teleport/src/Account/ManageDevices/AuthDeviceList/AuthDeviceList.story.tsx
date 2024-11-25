@@ -21,7 +21,6 @@ import React from 'react';
 import * as Icon from 'design/Icon';
 
 import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
-
 import { MfaDevice } from 'teleport/services/mfa';
 
 import { AuthDeviceList } from './AuthDeviceList';

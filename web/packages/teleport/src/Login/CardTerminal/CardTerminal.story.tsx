@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
 import cfg from 'teleport/config';

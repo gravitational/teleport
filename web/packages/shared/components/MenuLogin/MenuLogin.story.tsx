@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Flex } from 'design';
 
 import { MenuLogin } from './MenuLogin';

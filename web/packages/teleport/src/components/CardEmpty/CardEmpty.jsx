@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Box, H2 } from 'design';
 
 export default function CardEmpty(props) {

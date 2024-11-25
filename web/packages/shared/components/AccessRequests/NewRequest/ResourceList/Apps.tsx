@@ -16,22 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useState } from 'react';
 import { components } from 'react-select';
-import { Flex, Text, ButtonBorder, ButtonPrimary } from 'design';
-import { ClickableLabelCell, Cell } from 'design/DataTable';
+import styled from 'styled-components';
 
-import { App } from 'teleport/services/apps';
-
+import { ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
+import { Cell, ClickableLabelCell } from 'design/DataTable';
 import Select, {
-  Option as BaseOption,
   CustomSelectComponentProps,
+  Option as BaseOption,
 } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { ResourceMap, RequestableResourceKind } from '../resource';
+import { App } from 'teleport/services/apps';
 
+import { RequestableResourceKind, ResourceMap } from '../resource';
 import { ListProps, StyledTable } from './ResourceList';
 
 type Option = BaseOption & {

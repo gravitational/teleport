@@ -17,19 +17,18 @@
  */
 
 import React from 'react';
-import { ButtonWarning, ButtonSecondary, Flex, Alert } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
+import { Alert, ButtonSecondary, ButtonWarning, Flex } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
 import { P } from 'design/Text/Text';
-
 import { Attempt } from 'shared/hooks/useAsync';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import RolesRequested from '../RolesRequested';
 

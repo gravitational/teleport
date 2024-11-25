@@ -18,19 +18,15 @@
 
 import React from 'react';
 
+import { H2, Text } from 'design';
 import Box from 'design/Box';
-import { Text } from 'design';
-import TextEditor from 'shared/components/TextEditor';
 import Flex from 'design/Flex';
-
-import { H2 } from 'design';
+import TextEditor from 'shared/components/TextEditor';
 
 import useTeleport from 'teleport/useTeleport';
 
 import { FlowButtons } from '../Shared/FlowButtons';
-
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import { useGitHubFlow } from './useGitHubFlow';
 
 export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {

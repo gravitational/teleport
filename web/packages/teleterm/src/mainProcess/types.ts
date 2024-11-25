@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Document } from 'teleterm/ui/services/workspacesService';
-import { FileStorage } from 'teleterm/services/fileStorage';
-
 import { ConfigService } from '../services/config';
-
 import { Shell } from './shell';
 
 export type RuntimeSettings = {

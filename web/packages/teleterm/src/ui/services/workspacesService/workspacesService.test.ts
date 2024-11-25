@@ -16,25 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  DefaultTab,
-  ViewMode,
-  LabelsViewMode,
-  AvailableResourceMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
-import { ClustersService } from '../clusters';
-import { StatePersistenceService } from '../statePersistence';
-import { NotificationsService } from '../notifications';
-import { ModalsService } from '../modals';
+import {
+  AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
+import { ClustersService } from '../clusters';
+import { ModalsService } from '../modals';
+import { NotificationsService } from '../notifications';
+import { StatePersistenceService } from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
-import { Workspace, WorkspacesService } from './workspacesService';
 import { DocumentCluster, DocumentsService } from './documentsService';
+import { Workspace, WorkspacesService } from './workspacesService';
 
 import type * as tshd from 'teleterm/services/tshd/types';
 

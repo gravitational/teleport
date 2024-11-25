@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { EventEmitter } from 'node:events';
 
-import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import Logger, { NullService } from 'teleterm/logger';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
-import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import Logger, { NullService } from 'teleterm/logger';
+import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import {
   AgentCompatibilityError,
@@ -39,8 +39,8 @@ import {
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
-import type { IAppContext } from 'teleterm/ui/types';
 import type { Cluster } from 'teleterm/services/tshd/types';
+import type { IAppContext } from 'teleterm/ui/types';
 
 beforeAll(() => {
   Logger.init(new NullService());

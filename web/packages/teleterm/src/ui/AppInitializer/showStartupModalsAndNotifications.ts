@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ConfigService } from 'teleterm/services/config';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   askAboutUserJobRoleIfNeeded,
   setUpUsageReporting,
 } from 'teleterm/ui/services/usage';
 import { IAppContext } from 'teleterm/ui/types';
-import { ConfigService } from 'teleterm/services/config';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 /**
  * Runs after the UI becomes visible.

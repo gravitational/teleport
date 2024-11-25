@@ -18,17 +18,17 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Box, H3 } from 'design';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
+import { Box, Flex, H3, Link } from 'design';
+import { P } from 'design/Text/Text';
 import TextEditor from 'shared/components/TextEditor';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import { P } from 'design/Text/Text';
-
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 type AwsResourceKind = 'rds' | 'ec2' | 'eks';

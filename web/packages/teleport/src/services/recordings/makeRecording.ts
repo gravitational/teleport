@@ -18,9 +18,8 @@
 
 import { differenceInMilliseconds, formatDistanceStrict } from 'date-fns';
 
-import { eventCodes } from 'teleport/services/audit';
-
 import cfg from 'teleport/config';
+import { eventCodes } from 'teleport/services/audit';
 
 import { Recording } from './types';
 

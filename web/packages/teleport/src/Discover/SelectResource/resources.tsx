@@ -17,7 +17,6 @@
  */
 
 import { Platform } from 'design/platform';
-
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import {
@@ -26,7 +25,6 @@ import {
 } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
-
 import {
   DATABASES,
   DATABASES_UNGUIDED,

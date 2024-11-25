@@ -16,20 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box, Alert, Flex } from 'design';
 
+import { Alert, Box, Flex, Indicator } from 'design';
+
+import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg from 'teleport/config';
-import { StatusEnum, formatDisplayTime } from 'teleport/lib/player';
+import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient, TdpClient } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 import ProgressBar from './ProgressBar';
 
-import type { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import type { BitmapFrame } from 'teleport/lib/tdp/client';
+import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 
 const reload = () => window.location.reload();
 const handleContextMenu = () => true;

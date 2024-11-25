@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 import {
+  makeKube,
   makeRootCluster,
   makeServer,
-  makeKube,
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { mapRequestToKubeNamespaceUri } from '../services/workspacesService/accessRequestsService';
-
 import useAccessRequestCheckout, {
   PendingListKubeClusterWithOriginalItem,
 } from './useAccessRequestCheckout';

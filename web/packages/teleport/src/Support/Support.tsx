@@ -18,22 +18,22 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import styled from 'styled-components';
+
 import { Box, Flex, H2, H3, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 
-import styled from 'styled-components';
-
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { CtaEvent } from 'teleport/services/userEvent';
 import { useNoMinWidth } from 'teleport/Main';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();

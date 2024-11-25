@@ -19,7 +19,6 @@
 import React from 'react';
 
 import { Apple } from '../Icon';
-
 import CardIcon from './index';
 
 export default {

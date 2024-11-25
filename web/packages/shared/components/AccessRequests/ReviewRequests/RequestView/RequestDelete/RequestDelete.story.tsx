@@ -20,8 +20,8 @@ import React from 'react';
 
 import {
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttempt,
+  makeProcessingAttempt,
 } from 'shared/hooks/useAsync';
 
 import { RequestDelete } from './RequestDelete';

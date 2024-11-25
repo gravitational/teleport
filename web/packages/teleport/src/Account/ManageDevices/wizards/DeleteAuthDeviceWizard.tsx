@@ -16,22 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useState } from 'react';
+
 import { OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useState } from 'react';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 
-import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
-
-import useTeleport from 'teleport/useTeleport';
-
 import { MfaDevice } from 'teleport/services/mfa';
+import useTeleport from 'teleport/useTeleport';
 
 import {
   ReauthenticateStep,

@@ -17,15 +17,15 @@
  */
 
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
 
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { Box, Flex, Label, Text } from 'design';
+
 import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 import { IdentityRootCluster } from '../useIdentity';
-
-import { IdentityListItem } from './IdentityListItem';
 import { AddNewClusterItem } from './AddNewClusterItem';
+import { IdentityListItem } from './IdentityListItem';
 
 export function IdentityList(props: {
   loggedInUser: LoggedInUser;

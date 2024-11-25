@@ -17,16 +17,17 @@
  */
 
 import { PropsWithChildren, useEffect, useRef } from 'react';
-import { StepComponentProps } from 'design/StepSlider';
+
 import { Box, ButtonSecondary, Flex, Text } from 'design';
-import { mergeRefs } from 'shared/libs/mergeRefs';
+import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
+import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
-import { useVnetContext } from './vnetContext';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
+import { useVnetContext } from './vnetContext';
 
 /**
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after

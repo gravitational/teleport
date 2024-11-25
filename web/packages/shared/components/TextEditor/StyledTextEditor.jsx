@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { color } from 'design/system';
 
 const StyledTextEditor = styled.div`

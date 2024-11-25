@@ -17,9 +17,10 @@
  */
 
 import React, { forwardRef } from 'react';
-import { ChevronUp, ChevronDown } from 'design/Icon';
 import styled from 'styled-components';
+
 import { Text } from 'design';
+import { ChevronDown, ChevronUp } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 

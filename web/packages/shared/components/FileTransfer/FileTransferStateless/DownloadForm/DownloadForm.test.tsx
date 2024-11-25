@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { DownloadForm } from './DownloadForm';

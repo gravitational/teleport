@@ -19,24 +19,23 @@
 import React from 'react';
 import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
+
 import { Box } from 'design';
 
-import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { FeatureBox } from 'teleport/components/Layout';
-import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
-import cfg from 'teleport/config';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
-
+import { Navigation } from 'teleport/components/Wizard/Navigation';
+import cfg from 'teleport/config';
+import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
+import { DiscoverIcon } from './SelectResource/icons';
 import { EViewConfigs } from './types';
-
 import {
   DiscoverProvider,
-  useDiscover,
   DiscoverUpdateProps,
+  useDiscover,
 } from './useDiscover';
-import { DiscoverIcon } from './SelectResource/icons';
 
 import type { View } from 'teleport/Discover/flow';
 

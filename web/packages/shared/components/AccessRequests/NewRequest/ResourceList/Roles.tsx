@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { ListProps, StyledTable, renderActionCell } from './ResourceList';
+import { ListProps, renderActionCell, StyledTable } from './ResourceList';
 
 export function Roles(props: ListProps & { roles: string[] }) {
   const {

@@ -16,11 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Role } from 'teleport/services/resources';
-
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
-
-import { Labels } from 'teleport/services/resources';
+import { Labels, Role } from 'teleport/services/resources';
 
 import {
   labelsModelToLabels,

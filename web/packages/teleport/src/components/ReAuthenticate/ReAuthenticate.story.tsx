@@ -18,8 +18,8 @@
 
 import React from 'react';
 
-import { State } from './useReAuthenticate';
 import { ReAuthenticate } from './ReAuthenticate';
+import { State } from './useReAuthenticate';
 
 export default {
   title: 'Teleport/ReAuthenticate',

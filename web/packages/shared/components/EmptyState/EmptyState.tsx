@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Text, Box } from 'design';
+
+import { Box, Flex, Text } from 'design';
 
 export const FeatureContainer = styled(Flex)`
   @media (min-width: 1662px) {

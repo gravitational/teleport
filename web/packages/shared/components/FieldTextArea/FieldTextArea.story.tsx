@@ -21,9 +21,7 @@ import React from 'react';
 import { ButtonPrimary, Text } from 'design';
 
 import Validation from '../../components/Validation';
-
 import { requiredField } from '../Validation/rules';
-
 import { FieldTextArea } from './FieldTextArea';
 
 export default {

@@ -18,12 +18,13 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
-import api from 'teleport/services/api';
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
 
 import { Bots } from './Bots';
 

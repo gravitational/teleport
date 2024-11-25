@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
-import { Flex, ButtonText, H2 } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { Trash } from 'design/Icon';
 
-import useTeleport from 'teleport/useTeleport';
+import { ButtonText, Flex, H2 } from 'design';
+import { Trash } from 'design/Icon';
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import { Role } from 'teleport/services/resources';
+import useTeleport from 'teleport/useTeleport';
 
 /** Renders a header button with role name and delete button. */
 export const EditorHeader = ({

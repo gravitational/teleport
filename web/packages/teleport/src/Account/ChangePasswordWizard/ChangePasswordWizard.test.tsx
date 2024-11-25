@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
+import { within } from '@testing-library/react';
+import { UserEvent, userEvent } from '@testing-library/user-event';
 import React from 'react';
 
-import { within } from '@testing-library/react';
-import { userEvent, UserEvent } from '@testing-library/user-event';
+import { render, screen } from 'design/utils/testing';
 
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
+import { ChangePasswordWizard } from '.';
 import {
   ChangePasswordWizardProps,
   createReauthOptions,
 } from './ChangePasswordWizard';
-
-import { ChangePasswordWizard } from '.';
 
 const dummyCredential: Credential = {
   id: 'cred-id',

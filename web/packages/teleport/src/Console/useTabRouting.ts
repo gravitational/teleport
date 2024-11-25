@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { useRouteMatch, useParams, useLocation } from 'react-router';
+import { useLocation, useParams, useRouteMatch } from 'react-router';
 
 import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';

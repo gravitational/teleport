@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert } from 'design/Alert';
 import { ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { Alert } from 'design/Alert';
 import Dialog, { DialogContent } from 'design/Dialog';
 import Flex from 'design/Flex';
 import { useAsync } from 'shared/hooks/useAsync';

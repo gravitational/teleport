@@ -17,22 +17,22 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box, Flex, Link, Mark } from 'design';
+
+import { Box, Flex, Link, Mark, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Info } from 'design/Icon';
-import TextEditor from 'shared/components/TextEditor';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
+import TextEditor from 'shared/components/TextEditor';
 import Validation from 'shared/components/Validation';
 
-import useTeleport from 'teleport/useTeleport';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useTeleport from 'teleport/useTeleport';
 
-import { HeaderSubtitle, ActionButtons, Header, StyledBox } from '../../Shared';
-import { dbCU } from '../../yamlTemplates';
 import { DatabaseEngine } from '../../SelectResource';
-
-import { useMutualTls, State } from './useMutualTls';
+import { ActionButtons, Header, HeaderSubtitle, StyledBox } from '../../Shared';
+import { dbCU } from '../../yamlTemplates';
+import { State, useMutualTls } from './useMutualTls';
 
 import type { AgentStepProps } from '../../types';
 

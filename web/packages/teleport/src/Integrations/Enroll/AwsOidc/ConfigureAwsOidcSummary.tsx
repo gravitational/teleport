@@ -18,7 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex, Box, H3, Text } from 'design';
+
+import { Box, Flex, H3, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 

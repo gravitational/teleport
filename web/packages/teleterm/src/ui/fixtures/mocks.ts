@@ -17,13 +17,13 @@
  */
 
 import { MockMainProcessClient } from 'teleterm/mainProcess/fixtures/mocks';
+import { MockPtyServiceClient } from 'teleterm/services/pty/fixtures/mocks';
 import {
   MockTshClient,
   MockVnetClient,
 } from 'teleterm/services/tshd/fixtures/mocks';
-import { MockPtyServiceClient } from 'teleterm/services/pty/fixtures/mocks';
-import AppContext from 'teleterm/ui/appContext';
 import { RuntimeSettings } from 'teleterm/types';
+import AppContext from 'teleterm/ui/appContext';
 
 export class MockAppContext extends AppContext {
   constructor(runtimeSettings?: Partial<RuntimeSettings>) {

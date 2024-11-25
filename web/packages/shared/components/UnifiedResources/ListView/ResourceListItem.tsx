@@ -23,18 +23,17 @@ import { Box, ButtonIcon, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
-
-import { ResourceItemProps } from '../types';
-import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
 } from '../shared/getBackgroundColor';
+import { PinButton } from '../shared/PinButton';
+import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
   name,

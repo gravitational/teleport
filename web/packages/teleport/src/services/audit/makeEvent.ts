@@ -17,9 +17,10 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { pluralize } from 'shared/utils/text';
 
-import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
+import { Event, eventCodes, Formatters, RawEvent, RawEvents } from './types';
 
 const formatElasticsearchEvent: (
   json:

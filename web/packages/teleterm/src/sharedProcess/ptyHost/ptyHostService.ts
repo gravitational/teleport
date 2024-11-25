@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Logger from 'teleterm/logger';
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 import { unique } from 'teleterm/ui/utils';
 
-import Logger from 'teleterm/logger';
-
-import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
-
-import { PtyProcess } from './ptyProcess';
-import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyCwd, PtyId } from './../api/protogen/ptyHostService_pb';
+import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
+import { PtyProcess } from './ptyProcess';
 
 export function createPtyHostService(): IPtyHost & {
   dispose(): Promise<void>;

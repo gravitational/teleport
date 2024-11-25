@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { subSeconds, subMinutes, subHours, subMonths } from 'date-fns';
+import { subHours, subMinutes, subMonths, subSeconds } from 'date-fns';
 
-import { NotificationSubKind } from 'teleport/services/notifications';
-import { Notification } from 'teleport/services/notifications';
+import {
+  Notification,
+  NotificationSubKind,
+} from 'teleport/services/notifications';
 
 export const notifications: Notification[] = [
   {

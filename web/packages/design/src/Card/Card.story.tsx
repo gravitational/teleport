@@ -19,7 +19,6 @@
 import React from 'react';
 
 import { Flex, Text } from '..';
-
 import Card from '.';
 
 export default {

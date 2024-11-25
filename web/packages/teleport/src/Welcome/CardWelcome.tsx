@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { ButtonPrimary, H2, Subtitle2 } from 'design';
 
 import { OnboardCard } from 'teleport/components/Onboard';

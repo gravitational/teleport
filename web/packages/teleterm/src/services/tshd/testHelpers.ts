@@ -18,8 +18,8 @@
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import * as tsh from './types';
 import { TshdRpcError } from './cloneableClient';
+import * as tsh from './types';
 
 export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;

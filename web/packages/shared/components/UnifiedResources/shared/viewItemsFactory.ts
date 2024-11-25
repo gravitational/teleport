@@ -19,27 +19,25 @@
 import {
   Application as ApplicationIcon,
   Database as DatabaseIcon,
+  Desktop as DesktopIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
-  Desktop as DesktopIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-
-import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
+import { DbProtocol } from 'shared/services/databases';
 
 import {
-  UnifiedResourceViewItem,
-  UnifiedResourceUi,
-  UnifiedResourceNode,
+  SharedUnifiedResource,
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
   UnifiedResourceKube,
+  UnifiedResourceNode,
+  UnifiedResourceUi,
   UnifiedResourceUserGroup,
-  SharedUnifiedResource,
+  UnifiedResourceViewItem,
 } from '../types';
-
 import { guessAppIcon } from './guessAppIcon';
 
 export function makeUnifiedResourceViewItemNode(

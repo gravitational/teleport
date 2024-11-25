@@ -20,8 +20,8 @@ import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 
 import { KubeMeta } from '../../useDiscover';
 
-import type { KubeImpersonation } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
+import type { KubeImpersonation } from 'teleport/services/agents';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 /**

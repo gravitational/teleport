@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { FormEvent, useState } from 'react';
+
 import { OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import React, { useState, FormEvent } from 'react';
+import { StepComponentProps, StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import { StepComponentProps, StepHeader } from 'design/StepSlider';
-
-import Box from 'design/Box';
-
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { MfaDevice } from 'teleport/services/mfa';

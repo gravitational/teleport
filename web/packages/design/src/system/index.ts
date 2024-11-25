@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Property } from 'csstype';
 import {
   alignItems,
   type AlignItemsProps,
   alignSelf,
   type AlignSelfProps,
   border,
-  type BorderProps,
   borderColor,
   type BorderColorProps,
+  type BorderProps,
   borderRadius,
   type BorderRadiusProps,
   borders,
@@ -32,11 +33,11 @@ import {
   color,
   type ColorProps,
   flex,
-  type FlexProps,
   flexBasis,
   type FlexBasisProps,
   flexDirection,
   type FlexDirectionProps,
+  type FlexProps,
   flexWrap,
   type FlexWrapProps,
   fontSize,
@@ -61,20 +62,18 @@ import {
   type MinWidthProps,
   overflow,
   type OverflowProps,
+  ResponsiveValue,
   size,
   type SizeProps,
   space,
   type SpaceProps,
+  style,
   textAlign,
   type TextAlignProps,
+  TLengthStyledSystem,
   width,
   type WidthProps,
-  style,
-  ResponsiveValue,
-  TLengthStyledSystem,
 } from 'styled-system';
-
-import { Property } from 'csstype';
 
 import typography, { type TypographyProps } from './typography';
 

@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg, {
   UrlKubeResourcesParams,
   UrlResourcesParams,
 } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
+import api from 'teleport/services/api';
 
-import { Kube, KubeResourceResponse } from './types';
 import { makeKube, makeKubeResource } from './makeKube';
+import { Kube, KubeResourceResponse } from './types';
 
 class KubeService {
   fetchKubernetes(

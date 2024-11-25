@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Link } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Link } from 'design';
 import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
 

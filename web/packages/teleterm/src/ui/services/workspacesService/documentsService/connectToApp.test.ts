@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   connectToApp,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
 
 describe('connectToApp', () => {

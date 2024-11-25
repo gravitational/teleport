@@ -18,14 +18,15 @@
 
 import React, {
   ReactElement,
+  useCallback,
   useEffect,
   useRef,
   useState,
-  useCallback,
 } from 'react';
+import styled, { css } from 'styled-components';
+
 import { Flex } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';

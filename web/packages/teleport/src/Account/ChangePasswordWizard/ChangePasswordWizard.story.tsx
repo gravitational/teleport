@@ -20,15 +20,14 @@ import React from 'react';
 
 import Dialog from 'design/Dialog';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { MfaDevice } from 'teleport/services/mfa';
 
 import {
   ChangePasswordStep,
-  ReauthenticateStep,
   createReauthOptions,
+  ReauthenticateStep,
 } from './ChangePasswordWizard';
 
 export default {

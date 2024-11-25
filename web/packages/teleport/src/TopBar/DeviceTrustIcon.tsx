@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Flex } from 'design';
 import { ShieldCheck, ShieldWarning } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';

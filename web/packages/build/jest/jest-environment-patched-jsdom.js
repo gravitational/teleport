@@ -1,6 +1,5 @@
-import { TextEncoder, TextDecoder } from 'node:util';
-
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
+import { TextDecoder, TextEncoder } from 'node:util';
 
 // When using jest-environment-jsdom, TextEncoder and TextDecoder are not defined. This poses a
 // problem when writing tests for code which uses TextEncoder and TextDecoder directly or that

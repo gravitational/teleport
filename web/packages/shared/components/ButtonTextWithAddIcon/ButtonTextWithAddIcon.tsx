@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { ButtonText } from 'design';
 import { Add as AddIcon } from 'design/Icon';
 

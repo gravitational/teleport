@@ -17,14 +17,14 @@
  */
 
 import {
-  requiredToken,
-  requiredPassword,
   requiredConfirmedPassword,
-  requiredField,
-  requiredRoleArn,
   requiredEmailLike,
+  requiredField,
   requiredIamRoleName,
+  requiredPassword,
   requiredPort,
+  requiredRoleArn,
+  requiredToken,
 } from './rules';
 
 describe('requiredField', () => {

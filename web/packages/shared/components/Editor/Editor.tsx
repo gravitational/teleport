@@ -20,18 +20,17 @@ import React, { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 
 import {
+  KeywordHighlight,
+  TerminalColor,
+} from 'shared/components/AnimatedTerminal/TerminalContent';
+import { Language } from 'shared/components/Editor/Language';
+import { Tabs } from 'shared/components/Editor/Tabs';
+import {
   WindowCode,
   WindowContainer,
   WindowContentContainer,
   WindowTitleBar,
 } from 'shared/components/Window';
-import { Tabs } from 'shared/components/Editor/Tabs';
-import { Language } from 'shared/components/Editor/Language';
-
-import {
-  KeywordHighlight,
-  TerminalColor,
-} from 'shared/components/AnimatedTerminal/TerminalContent';
 
 import { File, FileProps } from './File';
 

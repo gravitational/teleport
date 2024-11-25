@@ -17,4 +17,5 @@
  */
 
 import PromptSsoStatus from './PromptSsoStatus';
+
 export default PromptSsoStatus;

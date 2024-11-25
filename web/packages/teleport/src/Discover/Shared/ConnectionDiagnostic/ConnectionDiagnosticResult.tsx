@@ -18,15 +18,16 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  ButtonSecondary,
-  Text,
   Box,
-  Flex,
+  ButtonSecondary,
   ButtonText,
-  Mark,
+  Flex,
   H3,
+  Mark,
   Subtitle3,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
 

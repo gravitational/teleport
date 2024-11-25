@@ -20,10 +20,10 @@ import { Meta } from '@storybook/react';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-import { Touch as TouchComponent } from './Touch';
-import { OverwriteSlot as OverwriteSlotComponent } from './OverwriteSlot';
-import { ChangePin as ChangePinComponent } from './ChangePin';
 import { AskPin as AskPinComponent } from './AskPin';
+import { ChangePin as ChangePinComponent } from './ChangePin';
+import { OverwriteSlot as OverwriteSlotComponent } from './OverwriteSlot';
+import { Touch as TouchComponent } from './Touch';
 
 const rootCluster = makeRootCluster();
 

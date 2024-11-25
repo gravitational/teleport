@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ModalsService } from 'teleterm/ui/services/modals';
 import {
+  AppUri,
+  ClusterUri,
+  DatabaseUri,
+  KubeResourceNamespaceUri,
+  KubeUri,
   ResourceUri,
   routing,
-  ClusterUri,
   ServerUri,
-  DatabaseUri,
-  KubeUri,
-  AppUri,
-  KubeResourceNamespaceUri,
 } from 'teleterm/ui/uri';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(

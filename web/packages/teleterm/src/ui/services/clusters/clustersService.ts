@@ -19,30 +19,30 @@
 import { useStore } from 'shared/libs/stores';
 import { pipe } from 'shared/utils/pipe';
 
+import { MainProcessClient } from 'teleterm/mainProcess/types';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
+
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
-  PasswordlessPrompt,
   CreateGatewayRequest,
+  PasswordlessPrompt,
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { UsageService } from 'teleterm/ui/services/usage';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
+import type { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
 
 const { routing } = uri;
 

@@ -17,13 +17,21 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
-import generateResourcePath from './generateResourcePath';
+import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
 
+import type { WebauthnAssertionResponse } from './services/auth';
+import type {
+  AwsOidcPolicyPreset,
+  PluginKind,
+  Regions,
+} from './services/integrations';
+import type { KubeResourceKind } from './services/kube/types';
+import type { YamlSupportedResourceKind } from './services/yaml/types';
 import type {
   Auth2faType,
   AuthProvider,
@@ -31,18 +39,9 @@ import type {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type {
-  PluginKind,
-  Regions,
-  AwsOidcPolicyPreset,
-} from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */

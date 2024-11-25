@@ -18,15 +18,13 @@
 
 import React from 'react';
 
-import { Switch, Route } from 'teleport/components/Router';
+import { FeatureBox } from 'teleport/components/Layout';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
-import { FeatureBox } from 'teleport/components/Layout';
-
 import { BotFlowType } from '../types';
-
-import GitHubActionsFlow from './GitHubActions';
 import { AddBotsPicker } from './AddBotsPicker';
+import GitHubActionsFlow from './GitHubActions';
 
 export function AddBots() {
   return (

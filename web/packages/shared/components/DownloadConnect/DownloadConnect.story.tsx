@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Box, Text } from 'design';
 import { Platform } from 'design/platform';
 

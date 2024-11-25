@@ -18,9 +18,9 @@
 
 import { useCallback } from 'react';
 
+import { LoggedInUser } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { LoggedInUser } from 'teleterm/services/tshd/types';
 
 import { useStoreSelector } from './useStoreSelector';
 

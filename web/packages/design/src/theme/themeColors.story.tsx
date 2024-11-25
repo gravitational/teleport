@@ -19,11 +19,11 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
 
-import Text, { H1, H2 } from '../Text';
-import Flex, { FlexProps } from '../Flex';
 import Box, { BoxProps } from '../Box';
+import Flex, { FlexProps } from '../Flex';
 import Link from '../Link';
-import { ThemeColors, Theme } from '../theme';
+import Text, { H1, H2 } from '../Text';
+import { Theme, ThemeColors } from '../theme';
 
 export default {
   title: 'Design/Theme/Colors',

@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAppContext } from 'teleterm/ui/types';
-import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import {
+  connectToApp,
   connectToDatabase,
   connectToKube,
   connectToServer,
-  connectToApp,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
-import { routing } from 'teleterm/ui/uri';
 import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 
 export interface SimpleAction {
   type: 'simple-action';

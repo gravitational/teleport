@@ -18,9 +18,9 @@
 
 import React, { PropsWithChildren } from 'react';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { RootClusterUri } from 'teleterm/ui/uri';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export const MockWorkspaceContextProvider: React.FC<
   PropsWithChildren<{

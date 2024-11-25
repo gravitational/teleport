@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   DocumentOrigin,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
+import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
   getGatewayDocumentByConnection,
+  getGatewayKubeDocumentByConnection,
   getKubeDocumentByConnection,
   getServerDocumentByConnection,
-  getGatewayKubeDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,

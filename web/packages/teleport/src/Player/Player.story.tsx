@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import React from 'react';
 
 import { Flex } from 'design';
 
-import { createMemoryHistory } from 'history';
-
-import { Router, Route } from 'teleport/components/Router';
+import { Route, Router } from 'teleport/components/Router';
 
 import { Player } from './Player';
 

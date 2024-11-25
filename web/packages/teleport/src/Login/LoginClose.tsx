@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect } from 'react';
+
 import { Card } from 'design';
 
 export function LoginClose() {

@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 
 interface EmptyIdentityListProps {

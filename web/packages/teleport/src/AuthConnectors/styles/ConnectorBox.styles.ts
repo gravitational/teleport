@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex } from 'design';
 import styled from 'styled-components';
+
+import { Box, Flex } from 'design';
 
 export const ConnectorBox = styled(Box)`
   display: flex;

@@ -17,6 +17,8 @@
  */
 
 import React, { useState } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonIcon,
@@ -27,47 +29,42 @@ import {
   Mark,
   Text,
 } from 'design';
-import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
 import * as Icon from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
-import styled, { useTheme } from 'styled-components';
-
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
+import FieldInput from 'shared/components/FieldInput';
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
-
-import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
+import { Role, RoleWithYaml } from 'teleport/services/resources';
 
 import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
-
+import { RequiresResetToStandard } from './RequiresResetToStandard';
+import { EditorSaveCancelButton } from './Shared';
 import {
-  roleEditorModelToRole,
-  hasModifiedFields,
-  MetadataModel,
-  RoleEditorModel,
-  StandardEditorModel,
-  AccessSpecKind,
   AccessSpec,
-  ServerAccessSpec,
-  newAccessSpec,
-  KubernetesAccessSpec,
-  newKubernetesResourceModel,
-  kubernetesResourceKindOptions,
-  kubernetesVerbOptions,
-  KubernetesResourceModel,
+  AccessSpecKind,
   AppAccessSpec,
   DatabaseAccessSpec,
+  hasModifiedFields,
+  KubernetesAccessSpec,
+  kubernetesResourceKindOptions,
+  KubernetesResourceModel,
+  kubernetesVerbOptions,
+  MetadataModel,
+  newAccessSpec,
+  newKubernetesResourceModel,
+  RoleEditorModel,
+  roleEditorModelToRole,
+  ServerAccessSpec,
+  StandardEditorModel,
   WindowsDesktopAccessSpec,
 } from './standardmodel';
-import { EditorSaveCancelButton } from './Shared';
-import { RequiresResetToStandard } from './RequiresResetToStandard';
 
 export type StandardEditorProps = {
   originalRole: RoleWithYaml;

@@ -17,6 +17,7 @@
  */
 
 import FieldSelect from './FieldSelect';
+
 export default FieldSelect;
 export { FieldSelect, FieldSelectAsync } from './FieldSelect';
 export { resolveUndefinedOptions } from './shared';

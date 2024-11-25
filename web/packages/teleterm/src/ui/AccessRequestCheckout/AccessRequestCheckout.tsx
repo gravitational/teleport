@@ -21,21 +21,20 @@ import { Transition } from 'react-transition-group';
 
 import {
   Box,
-  Flex,
+  ButtonIcon,
   ButtonPrimary,
   ButtonText,
-  Text,
-  ButtonIcon,
+  Flex,
   Label,
+  Text,
 } from 'design';
 import * as Icon from 'design/Icon';
-import { pluralize } from 'shared/utils/text';
-
 import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
 import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
+import { pluralize } from 'shared/utils/text';
 
-import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
+import useAccessRequestCheckout from './useAccessRequestCheckout';
 
 const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
 

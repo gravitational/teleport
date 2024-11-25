@@ -17,16 +17,15 @@
  */
 
 import { useState } from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
 import { ActionMeta } from 'react-select';
+import styled from 'styled-components';
 
-import { Option } from 'shared/components/Select';
+import { Box } from 'design';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import { Option } from 'shared/components/Select';
 
 import { CheckableOptionComponent } from '../CheckableOption';
-
-import { PendingListItem, PendingKubeResourceItem } from './RequestCheckout';
+import { PendingKubeResourceItem, PendingListItem } from './RequestCheckout';
 
 export function KubeNamespaceSelector({
   kubeClusterItem,
