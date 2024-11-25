@@ -104,44 +104,44 @@ func Run(args []string) int {
 		Default(libdefaults.DataDir).IsSetByUser(&userDataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
-	app.Flag("namespace", "Namespace for creating a prefixed installation outside of the default $PATH.").
+	app.Flag("namespace", "Namespace name for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
 		Short('n').StringVar(&ccfg.Namespace)
-	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
+	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", fmt.Sprintf("Print the version of your %s binary.", autoupdate.BinaryName))
 
-	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial installation or update.")
+	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial installation or update. This creates a systemd timer that periodically runs the update subcommand.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group for this agent installation.").
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
-	enableCmd.Flag("template", "Go template used to override Teleport download URL.").
+	enableCmd.Flag("template", "Go template used to override the Teleport download URL.").
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
-	enableCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
+	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
-	pinCmd := app.Command("pin", "Install Teleport and lock the updater on the installed version.")
+	pinCmd := app.Command("pin", "Install Teleport and lock the updater to the installed version.")
 	pinCmd.Flag("proxy", "Address of the Teleport Proxy.").
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	pinCmd.Flag("group", "Update group for this agent installation.").
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("template", "Go template used to override Teleport download URL.").
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
-	pinCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
+	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
-	disableCmd := app.Command("disable", "Disable agent auto-updates.")
+	disableCmd := app.Command("disable", "Disable agent auto-updates. Does not affect the active installation of Teleport.")
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
-	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
+	updateCmd := app.Command("update", "Update the agent to the latest version, if a new version is available.")
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
