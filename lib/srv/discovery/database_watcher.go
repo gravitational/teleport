@@ -73,10 +73,10 @@ func (s *Server) startDatabaseWatchers() error {
 			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
+			PreFetchHookFn: func() {
+				s.awsRDSResourcesStatus.reset()
+			},
 		},
-		common.WithPreFetchHookFn(func() {
-			s.awsRDSResourcesStatus.reset()
-		}),
 	)
 	if err != nil {
 		return trace.Wrap(err)
