@@ -36,6 +36,8 @@ type ClientConfig struct {
 	StatusSink common.StatusSink
 	// Oauth is an optional OAuth configuration for the Okta client.
 	AuthProvider AuthProvider
+	// Scopes is a list of scopes to use for the Okta client.
+	Scopes []string
 }
 
 // AuthProvider is an interface for providing Okta client configuration options.
@@ -68,6 +70,9 @@ func (cfg *ClientConfig) Check() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
+	}
+	if cfg.Scopes == nil {
+		cfg.Scopes = oktaAPIScopes
 	}
 	return nil
 }
@@ -279,7 +284,7 @@ func fetchAndSetClientScopes(client *okta.Client) error {
 		OrgURL:           client.GetConfig().Okta.Client.OrgUrl,
 		MaxRetries:       client.GetConfig().Okta.Client.RateLimit.MaxRetries,
 		MaxBackoff:       client.GetConfig().Okta.Client.RateLimit.MaxBackoff,
-		Scopes:           oktaAPIScopes,
+		Scopes:           client.GetConfig().Okta.Client.Scopes,
 	})
 	if err := auth.Authorize(); err != nil {
 		return trace.Wrap(err, "failed to authorize")

@@ -50,6 +50,7 @@ func NewClient(ctx context.Context, cfg ClientConfig) (Client, error) {
 		// of up to 30 seconds.
 		okta.WithRequestTimeout(RequestTimeoutSeconds),
 		okta.WithRateLimitMaxRetries(math.MaxInt32),
+		okta.WithScopes(cfg.Scopes),
 	}
 
 	settings = append(settings, cfg.AuthProvider.GetAuthOptions()...)

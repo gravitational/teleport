@@ -69,7 +69,6 @@ func (s OAuthProvider) GetAuthOptions() []okta.ConfigSetter {
 		okta.WithAuthorizationMode("PrivateKey"),
 		okta.WithClientId(s.oauthClientID),
 		okta.WithPrivateKeySigner(&s),
-		okta.WithScopes(oktaAPIScopes),
 	}
 }
 

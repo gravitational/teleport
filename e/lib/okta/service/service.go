@@ -173,7 +173,7 @@ type Service struct {
 	roundTripper        http.RoundTripper
 	pluginBackend       services.Plugins
 	credsBackend        services.PluginStaticCredentials
-	apiClientProviderFn func(ctx context.Context, cfg api.ClientConfig) (api.Client, error)
+	apiClientProviderFn api.OktaClientFn
 	clock               clockwork.Clock
 }
 

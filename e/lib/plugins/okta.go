@@ -25,7 +25,12 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
-	oktaAPITokenCred, err := okta.SelectAPIToken(deps.staticCredentials)
+	oktaCredsProvider, creds, err := okta.SelectAuthProviderStaticCredentials(ctx, okta.ParamSelectAuthProviderStaticCredentials{
+		StaticCredentials: deps.staticCredentials,
+		Auth:              deps.parentProcess.GetAuthServer().Cache,
+		CAKeyStore:        deps.parentProcess.GetAuthServer().GetKeyStore(),
+		Clock:             deps.parentProcess.Clock,
+	})
 	if err != nil {
 		if trace.IsNotFound(err) {
 			if oktaSpec.SyncSettings.SyncUsers || oktaSpec.SyncSettings.SyncAccessLists {
@@ -47,11 +52,6 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
 
-	oktaAPIToken := oktaAPITokenCred.GetAPIToken()
-	if oktaAPIToken == "" {
-		return nil, trace.BadParameter("api token is empty")
-	}
-
 	scimEnabled, err := isOktaSCIMEnabled(deps)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
@@ -67,9 +67,9 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				Process:              deps.parentProcess,
 				PluginStatusSink:     deps.statusSink,
 				Settings:             *oktaSpec,
-				Token:                oktaAPIToken,
+				AuthProvider:         oktaCredsProvider,
 				PluginName:           plugin.GetName(),
-				AppGroupSyncDisabled: shouldDisabledAppGroupSync(oktaAPITokenCred),
+				AppGroupSyncDisabled: shouldDisableAppGroupSync(creds) || oktaSpec.SyncSettings.DisableSyncAppGroups,
 				SCIMEnabled:          scimEnabled,
 			},
 		)
@@ -105,7 +105,7 @@ func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
 	return enabled, nil
 }
 
-// shouldDisabledAppGroupSync check if app user sync should be disabled.
+// shouldDisableAppGroupSync check if app user sync should be disabled.
 // This is done by checking the label of the token credentials. If the label
 // is set to CredPurposeOktaAPITokenWithSCIMOnlyIntegration, then the app group
 // sync should be disabled.
@@ -114,7 +114,7 @@ func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
 // Currently, adding fields to the plugin spec is not backward compatible:
 // the jsonPB unmarshaler with missing ignore unknown fields will fail to unmarshal the plugin spec.
 // when a new field was added.
-func shouldDisabledAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
+func shouldDisableAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
 	v, ok := tokenCreds.GetLabel(common.CredPurposeLabel)
 	return ok && v == common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration
 }

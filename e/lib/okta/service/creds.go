@@ -24,7 +24,7 @@ func getOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.Pl
 		out = append(out, buildOAuthCredentials(req.GetApiCredentials().GetOauthId()))
 	}
 	if token := req.GetApiCredentials().GetSswsBearerToken(); token != "" {
-		out = append(out, buildAPITokenCredential(token))
+		out = append(out, buildAPITokenCredentials(token))
 	}
 	if modules.GetModules().Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
 		if req.GetScimToken() != "" {
@@ -36,6 +36,25 @@ func getOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.Pl
 		}
 	}
 	return out, nil
+}
+
+func buildCredentialsInfo(creds []*types.PluginStaticCredentialsV1) *types.PluginOktaCredentialsInfo {
+	var out types.PluginOktaCredentialsInfo
+	for _, cred := range creds {
+		purpose, ok := cred.GetAllLabels()[common.CredPurposeLabel]
+		if !ok {
+			continue
+		}
+		switch purpose {
+		case common.CredPurposeOktaOauth:
+			out.HasOauthCredentials = true
+		case common.CredPurposeSCIMToken:
+			out.HasScimToken = true
+		case common.CredPurposeOktaAuth, "":
+			out.HasSsmToken = true
+		}
+	}
+	return &out
 }
 
 type createOktaClientParams struct {
@@ -156,7 +175,7 @@ func (s *Service) createOktaClientFromRequestPayload(ctx context.Context, params
 	return oktaClient, nil
 }
 
-func buildAPITokenCredential(SSWSToken string) *types.PluginStaticCredentialsV1 {
+func buildAPITokenCredentials(SSWSToken string) *types.PluginStaticCredentialsV1 {
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{

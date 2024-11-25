@@ -23,8 +23,8 @@ import (
 )
 
 var apiCredentials = &oktav1.OktaAPICredentials{
-	Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
-		SswsBearerToken: "12345",
+	Auth: &oktav1.OktaAPICredentials_OauthId{
+		OauthId: "12345",
 	},
 }
 

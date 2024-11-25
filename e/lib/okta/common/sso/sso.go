@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -66,9 +67,6 @@ type ConnectorArgs struct {
 }
 
 func (a *ConnectorArgs) Check() error {
-	if a.OktaClient == nil {
-		return trace.BadParameter("missing SSO connector parameter OktaClient")
-	}
 	if a.SAMLConnectorService == nil {
 		return trace.BadParameter("missing SSO connector parameter SAMLConnectorService")
 	}
@@ -110,6 +108,12 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	if err := args.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !slices.Contains(args.OktaClient.GetScopes(), api.ScopeAppsManage) {
+		return nil, trace.BadParameter(
+			"Unable to automatically create an Okta SAML Application due to missing permissions. " +
+				"Your Okta API credentials lack the required 'okta.apps.manage' scope needed for this operation. " +
+				"Please review your Okta API Service permissions to ensure you have the necessary scopes, and try again.")
+	}
 
 	// Remove the MFA resp from the context before getting the connector.
 	// Otherwise, it will be consumed before the Create which actually
@@ -127,6 +131,12 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	// SAML.
 	app, err := createOktaSAMLApp(ctx, args.OktaClient, args.ClusterName, args.PublicURL, args.ConnectorName, args.Logger)
 	if err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.AccessDenied(
+				"The provided Okta API credentials do not have the necessary permissions to create SSO SAML applications in you Okta organization.\n"+
+					"Please check your permissions and try again.\n"+
+					"Okta API Error: %v", err)
+		}
 		return nil, trace.Wrap(err, "creating Okta SAML app")
 	}
 

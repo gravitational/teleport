@@ -324,7 +324,7 @@ func (s *Service) upsertSSWSToken(ctx context.Context, sswsToken string, creds [
 		}
 		s.logger.DebugContext(ctx, "Updated okta plugin SSWS credentials.")
 	case trace.IsNotFound(err):
-		sswsCreds := buildAPITokenCredential(sswsToken)
+		sswsCreds := buildAPITokenCredentials(sswsToken)
 		appendLabelsToResource(sswsCreds, labels)
 		if err := s.credsBackend.CreatePluginStaticCredentials(ctx, sswsCreds); err != nil {
 			return trace.Wrap(err, "failed to create plugin static credentials")

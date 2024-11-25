@@ -132,7 +132,7 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 				groupFilters:          settings.SyncSettings.GroupFilters,
 				oktaAppID:             settings.SyncSettings.AppId,
 				scimEnabled:           params.SCIMEnabled,
-				oktaAuthProvider:      api.NewSSWSAuthProvider(params.Token),
+				oktaAuthProvider:      params.AuthProvider,
 			},
 			pluginLogComponent(params.PluginName), components...)
 	})

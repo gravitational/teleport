@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/url"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -151,7 +152,10 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err, "failed to get Okta plugin credentials")
 	}
 
-	oktaPlugin := createOktaPlugin(req, info)
+	oktaPlugin, err := createOktaPlugin(req, info, creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                oktaPlugin,
@@ -176,9 +180,11 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 	}, nil
 }
 
-func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo) *types.PluginV1 {
+func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo, creds []*types.PluginStaticCredentialsV1) (*types.PluginV1, error) {
+	credsInfo := buildCredentialsInfo(creds)
 	oktaSettings := &types.PluginOktaSettings{
-		OrgUrl: info.OktaOrg,
+		CredentialsInfo: credsInfo,
+		OrgUrl:          info.OktaOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SyncUsers:            req.GetEnableUserSync(),
 			SyncAccessLists:      req.GetEnableAccessListSync(),
@@ -206,7 +212,21 @@ func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnec
 			},
 		},
 	}
-	return plugin
+
+	if len(creds) == 0 {
+		// In case if there is not SSWS Oauth and SCIM token credentials (Plugin with SSO flow only)
+		// we will generate the label ref credentials to fulfill the validation.
+		if err := plugin.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{eteleport.PluginLabel: uuid.NewString()},
+				},
+			},
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return plugin, nil
 }
 
 func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateIntegrationRequest) (*oktapb.UpdateIntegrationResponse, error) {
