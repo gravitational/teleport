@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Flex } from 'design';
 
 import {
@@ -24,13 +25,13 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import cfg from 'teleport/config';
 import { Route, Switch } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 
-import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
-import { IntegrationTiles } from './IntegrationTiles';
 import { NoCodeIntegrationDescription } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
+import { IntegrationTiles } from './IntegrationTiles';
+import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
 
 export function IntegrationEnroll() {
   return (

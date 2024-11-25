@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { darken, lighten } from '../utils/colorManipulator';
 import {
   blue,
   green,
@@ -28,7 +27,7 @@ import {
   red,
   yellow,
 } from '../palette';
-
+import { darken, lighten } from '../utils/colorManipulator';
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 

@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { Flex, Image, P2 } from 'design';
-
-import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+
+import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import { CommonHeader } from './CommonHeader';
 

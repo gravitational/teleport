@@ -16,22 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
+import { within } from '@testing-library/react';
+import { UserEvent, userEvent } from '@testing-library/user-event';
 import React from 'react';
 
-import { within } from '@testing-library/react';
-import { userEvent, UserEvent } from '@testing-library/user-event';
+import { render, screen } from 'design/utils/testing';
 
-import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
-
-import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
-
-import { deviceCases } from './deviceCases';
+import MfaService from 'teleport/services/mfa';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AddAuthDeviceWizard } from '.';
+import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
+import { deviceCases } from './deviceCases';
 
 const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
 let ctx: TeleportContext;

@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { CardSuccessLogin } from 'design';
 
 import { LogoHero } from 'teleport/components/LogoHero';

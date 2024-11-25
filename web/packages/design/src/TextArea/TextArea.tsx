@@ -23,14 +23,14 @@ import React, {
 } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import {
-  space,
-  width,
   color,
-  height,
   ColorProps,
-  SpaceProps,
-  WidthProps,
+  height,
   HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'styled-system';
 
 import { Theme } from 'design/theme/themes/types';

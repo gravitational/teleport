@@ -17,9 +17,10 @@
  */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary, Box } from 'design';
-import * as Icons from 'design/Icon';
+
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
 
 export function DiscoveryConfigCreatedDialog({
   toNextStep,

@@ -21,26 +21,25 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import useTeleport from 'teleport/useTeleport';
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import cfg from 'teleport/config';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
-import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import { IamPolicyStatus } from 'teleport/services/databases';
-import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
 import { matchLabels } from '../common';
-
 import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 
+import type { DbMeta } from 'teleport/Discover/useDiscover';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type {
   CreateDatabaseRequest,
   Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
-import type { ResourceLabel } from 'teleport/services/agents';
-import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
 

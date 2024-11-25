@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Table from './Table';
 import {
   Cell,
-  TextCell,
+  ClickableLabelCell,
   DateCell,
   LabelCell,
-  ClickableLabelCell,
+  TextCell,
 } from './Cells';
 import { StyledPanel } from './StyledTable';
+import Table from './Table';
 
 export { Cell, TextCell, DateCell, LabelCell, ClickableLabelCell, StyledPanel };
 export default Table;

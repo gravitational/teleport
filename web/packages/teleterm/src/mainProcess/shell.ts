@@ -18,7 +18,6 @@
 
 import os from 'node:os';
 import path from 'node:path';
-
 import which from 'which';
 
 import Logger from 'teleterm/logger';

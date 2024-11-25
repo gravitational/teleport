@@ -18,20 +18,21 @@
 
 import 'jest-canvas-mock';
 import { createRef } from 'react';
-import { fireEvent, render, screen, act } from 'design/utils/testing';
 
-import { TabHost } from 'teleterm/ui/TabHost/TabHost';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { Document } from 'teleterm/ui/services/workspacesService';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
+
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   makeRootCluster,
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
-import { routing } from 'teleterm/ui/uri';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { Document } from 'teleterm/ui/services/workspacesService';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { TabHost } from 'teleterm/ui/TabHost/TabHost';
+import { routing } from 'teleterm/ui/uri';
 
 function getMockDocuments(): Document[] {
   return [

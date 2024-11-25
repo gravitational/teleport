@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
 import Logger from 'teleterm/logger';
 import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import { IAppContext } from 'teleterm/ui/types';
+import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const logger = new Logger('retryWithRelogin');
 

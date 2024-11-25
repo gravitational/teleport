@@ -17,11 +17,12 @@
  */
 
 import React, { Dispatch, SetStateAction } from 'react';
-import { ButtonBorder, Box, Flex, Text, ButtonIcon } from 'design';
+
+import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
 import { Add, Trash } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import { requiredField, requiredAll } from 'shared/components/Validation/rules';
+import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 /**

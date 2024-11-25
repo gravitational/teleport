@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useRef, useState, useEffect } from 'react';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
@@ -35,34 +36,32 @@ import {
   Subtitle2,
   Text,
 } from 'design';
-import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
-import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
-
+import Table, { Cell } from 'design/DataTable';
+import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { Option } from 'shared/components/Select';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import { HoverTooltip } from 'shared/components/ToolTip';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { pluralize } from 'shared/utils/text';
-import { Option } from 'shared/components/Select';
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { pluralize } from 'shared/utils/text';
 
-import { CreateRequest } from '../../Shared/types';
-import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
+import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
+import { CreateRequest } from '../../Shared/types';
 import {
   checkSupportForKubeResources,
   isKubeClusterWithNamespaces,
 } from '../kube';
-
-import { ReviewerOption } from './types';
-import shieldCheck from './shield-check.png';
-import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
-import { KubeNamespaceSelector } from './KubeNamespaceSelector';
 import { CrossIcon } from './CrossIcon';
+import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { SelectReviewers } from './SelectReviewers';
+import shieldCheck from './shield-check.png';
+import { ReviewerOption } from './types';
 
 import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';

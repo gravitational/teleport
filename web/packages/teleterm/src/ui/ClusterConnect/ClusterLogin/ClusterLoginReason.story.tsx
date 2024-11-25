@@ -21,8 +21,8 @@ import {
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
-import { TestContainer, makeProps } from './storyHelpers';
 import { ClusterLoginPresentation } from './ClusterLogin';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',

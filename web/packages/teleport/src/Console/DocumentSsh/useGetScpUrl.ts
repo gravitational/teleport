@@ -17,6 +17,7 @@
  */
 
 import { useCallback } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg, { UrlScpParams } from 'teleport/config';

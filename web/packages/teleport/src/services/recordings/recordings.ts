@@ -19,8 +19,8 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { RecordingsQuery, RecordingsResponse } from './types';
 import { makeRecording } from './makeRecording';
+import { RecordingsQuery, RecordingsResponse } from './types';
 
 export default class RecordingsService {
   maxFetchLimit = 5000;

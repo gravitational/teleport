@@ -21,12 +21,12 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { nodes } from 'teleport/Nodes/fixtures';
 
 import { TestConnection } from './TestConnection';
 

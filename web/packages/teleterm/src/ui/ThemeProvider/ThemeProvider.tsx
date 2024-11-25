@@ -18,12 +18,11 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
+  ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
 
 import { Theme } from 'design/theme/themes/types';
-
 import { shouldForwardProp } from 'design/ThemeProvider';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';

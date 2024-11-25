@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ButtonFileUpload } from './ButtonFileUpload';
 

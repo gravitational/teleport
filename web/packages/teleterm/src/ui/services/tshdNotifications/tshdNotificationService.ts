@@ -18,15 +18,15 @@
 
 import { NotificationItemContent } from 'shared/components/Notification';
 
+import {
+  notificationRequestOneOfIsCannotProxyGatewayConnection,
+  notificationRequestOneOfIsCannotProxyVnetConnection,
+} from 'teleterm/helpers';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
-import {
-  notificationRequestOneOfIsCannotProxyGatewayConnection,
-  notificationRequestOneOfIsCannotProxyVnetConnection,
-} from 'teleterm/helpers';
 
 export class TshdNotificationsService {
   constructor(

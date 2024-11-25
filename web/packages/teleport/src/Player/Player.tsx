@@ -19,22 +19,19 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Flex, Box } from 'design';
-
+import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 
-import { useParams, useLocation } from 'teleport/components/Router';
-
-import session from 'teleport/services/websession';
+import { useLocation, useParams } from 'teleport/components/Router';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
-
 import { RecordingType } from 'teleport/services/recordings';
+import session from 'teleport/services/websession';
 
 import ActionBar from './ActionBar';
 import { DesktopPlayer } from './DesktopPlayer';
-import SshPlayer from './SshPlayer';
 import Tabs, { TabItem } from './PlayerTabs';
+import SshPlayer from './SshPlayer';
 
 const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 

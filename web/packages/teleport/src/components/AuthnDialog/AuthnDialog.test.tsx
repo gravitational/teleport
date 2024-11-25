@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
 import { SSOChallenge } from 'teleport/services/auth';

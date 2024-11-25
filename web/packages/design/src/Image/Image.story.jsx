@@ -19,7 +19,6 @@
 import React from 'react';
 
 import teleportSvg from './../assets/images/enterprise-dark.svg';
-
 import Image from '.';
 
 export default {

@@ -25,7 +25,7 @@ import Logger, { NullService } from 'teleterm/logger';
 
 import { FileDownloader } from './fileDownloader';
 
-import type { DownloadItem, BrowserWindow } from 'electron';
+import type { BrowserWindow, DownloadItem } from 'electron';
 
 const DOWNLOAD_DIR = '/temp';
 const FILE_NAME = 'teleport-v13.1.0-darwin-arm64-bin.tar.gz';

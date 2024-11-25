@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { BadgeTitle, ToolTipNoPermBadge } from './ToolTipNoPermBadge';

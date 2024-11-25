@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { fireEvent, render, screen, theme } from 'design/utils/testing';
 
 import { userEventService } from 'teleport/services/userEvent';

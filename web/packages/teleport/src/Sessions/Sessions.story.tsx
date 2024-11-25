@@ -20,12 +20,11 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import useSessions from 'teleport/Sessions/useSessions';
 
-import { Sessions } from './Sessions';
 import { sessions } from './fixtures';
+import { Sessions } from './Sessions';
 
 export default {
   title: 'Teleport/ActiveSessions',

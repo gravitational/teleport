@@ -17,10 +17,10 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
-import { Info } from 'design/Icon';
-import { displayDateWithPrefixedTime } from 'design/datetime';
 
+import { Box, ButtonIcon, ButtonPrimary, Menu, Text } from 'design';
+import { displayDateWithPrefixedTime } from 'design/datetime';
+import { Info } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { AccessRequest } from 'shared/services/accessRequests';
 

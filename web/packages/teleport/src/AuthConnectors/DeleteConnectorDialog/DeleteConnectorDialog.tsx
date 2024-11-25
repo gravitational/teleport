@@ -17,14 +17,15 @@
  */
 
 import React from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { ButtonWarning, ButtonSecondary, Text, Alert, P1 } from 'design';
+
+import { Alert, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 

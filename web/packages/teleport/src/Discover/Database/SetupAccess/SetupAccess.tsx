@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link, Mark, H3 } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, Flex, H3, Link, Mark, Text } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
+import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { StyledBox } from 'teleport/Discover/Shared';
 import {
-  SelectCreatable,
   Option,
+  SelectCreatable,
 } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  useUserTraits,
   SetupAccessWrapper,
+  useUserTraits,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { StyledBox } from 'teleport/Discover/Shared';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
-import { Tabs } from 'teleport/components/Tabs';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 

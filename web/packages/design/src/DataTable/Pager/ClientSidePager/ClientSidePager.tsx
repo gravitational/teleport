@@ -19,11 +19,10 @@
 import React from 'react';
 
 import { Flex } from 'design';
-import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
+import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
 import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
-
 import { Props, useClientSidePager } from './useClientSidePager';
 
 export function ClientSidePager(props: Props) {

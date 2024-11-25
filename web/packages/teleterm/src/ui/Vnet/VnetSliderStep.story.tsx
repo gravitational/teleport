@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useEffect } from 'react';
-import { Box } from 'design';
 
+import { Box } from 'design';
 import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { useVnetContext, VnetContextProvider } from './vnetContext';
 import { VnetSliderStep } from './VnetSliderStep';

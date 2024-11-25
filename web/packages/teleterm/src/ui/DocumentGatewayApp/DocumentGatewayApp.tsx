@@ -17,13 +17,11 @@
  */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
-
-import { useDocumentGateway } from '../DocumentGateway/useDocumentGateway';
+import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 
 import { OfflineGateway } from '../components/OfflineGateway';
-
+import { useDocumentGateway } from '../DocumentGateway/useDocumentGateway';
 import { AppGateway } from './AppGateway';
 
 export function DocumentGatewayApp(props: {

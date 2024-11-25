@@ -16,35 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { SortType } from 'design/DataTable/types';
-import { Flex } from 'design';
-import { StyledPanel } from 'design/DataTable/StyledTable';
-import { SearchPanel } from 'shared/components/Search';
-import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
-import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+import React, { useEffect, useMemo, useState } from 'react';
 
+import { Flex } from 'design';
+import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
+import { StyledPanel } from 'design/DataTable/StyledTable';
+import { SortType } from 'design/DataTable/types';
+import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+import { SearchPanel } from 'shared/components/Search';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
-import { useServerSidePagination } from 'teleport/components/hooks';
-import useTeleport from 'teleport/useTeleport';
-import cfg, { UrlResourcesParams } from 'teleport/config';
-import Ctx from 'teleport/teleportContext';
-
 import { RoleResource } from 'teleport/services/resources';
+import Ctx from 'teleport/teleportContext';
+import useTeleport from 'teleport/useTeleport';
 
-import { TableWrapper, ServerSideListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
-
-import { Nodes } from './Nodes';
+import { ServerSideListProps, TableWrapper } from '../common';
 import { Desktops } from './Desktops';
+import { Nodes } from './Nodes';
 import { Roles } from './Roles';
 
 import type {
-  ResourceLabel,
   ResourceFilter,
+  ResourceLabel,
   ResourcesResponse,
 } from 'teleport/services/agents';
 

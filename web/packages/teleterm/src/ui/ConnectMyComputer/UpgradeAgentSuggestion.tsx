@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
+
 import { Alert, Text } from 'design';
 import Link from 'design/Link';
-
 import { compareSemVers } from 'shared/utils/semVer';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { routing, GatewayTargetUri } from 'teleterm/ui/uri';
+import { GatewayTargetUri, routing } from 'teleterm/ui/uri';
 
 import { GatewayCLICommand } from './types';
 

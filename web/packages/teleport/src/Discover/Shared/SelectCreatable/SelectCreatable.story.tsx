@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 
-import { SelectCreatable as Component, Option } from './SelectCreatable';
+import { Option, SelectCreatable as Component } from './SelectCreatable';
 
 export default {
   title: 'Teleport/Discover/Shared/SelectCreatable',

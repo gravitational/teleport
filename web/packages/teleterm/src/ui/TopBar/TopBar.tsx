@@ -18,14 +18,14 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Flex } from 'design';
 
 import { SearchBar } from '../Search';
-
-import { Connections } from './Connections';
-import { Clusters } from './Clusters';
-import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
+import { Clusters } from './Clusters';
+import { Connections } from './Connections';
+import { Identity } from './Identity';
 
 export function TopBar(props: {
   topBarContainerRef: React.MutableRefObject<HTMLDivElement>;

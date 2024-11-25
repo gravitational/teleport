@@ -18,9 +18,9 @@
 
 import React from 'react';
 
-import { H2 } from 'design/Text/Text';
-import Flex from 'design/Flex';
 import Box from 'design/Box';
+import Flex from 'design/Flex';
+import { H2 } from 'design/Text/Text';
 
 import { TextArea } from './TextArea';
 

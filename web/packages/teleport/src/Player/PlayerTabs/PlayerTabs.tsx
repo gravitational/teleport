@@ -18,8 +18,9 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
+import { Box, Flex } from 'design';
 import { typography } from 'design/system';
-import { Flex, Box } from 'design';
 
 const Tabs = props => {
   return (

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path from 'node:path';
-
 import { BrowserWindow, DownloadItem } from 'electron';
+import path from 'node:path';
 
 import Logger from 'teleterm/logger';
 

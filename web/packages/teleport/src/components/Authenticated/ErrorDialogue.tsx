@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
-import { Text, Alert, ButtonSecondary } from 'design';
+
+import { Alert, ButtonSecondary, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 
 import history from 'teleport/services/history';

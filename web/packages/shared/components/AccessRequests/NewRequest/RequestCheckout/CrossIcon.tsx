@@ -17,7 +17,6 @@
  */
 
 import { Cross } from 'design/Icon';
-
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export function CrossIcon<T>({

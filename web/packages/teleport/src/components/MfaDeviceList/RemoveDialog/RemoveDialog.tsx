@@ -17,11 +17,11 @@
  */
 
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, P1, Text } from 'design';
+
+import { ButtonSecondary, ButtonWarning, H2, P1, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { H2 } from 'design';
 
 export default function RemoveDialog(props: Props) {
   const { name, onClose, onRemove } = props;

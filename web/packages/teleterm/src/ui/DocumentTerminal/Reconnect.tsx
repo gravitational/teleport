@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Flex, Text, ButtonPrimary } from 'design';
+
+import { ButtonPrimary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Attempt } from 'shared/hooks/useAsync';
 

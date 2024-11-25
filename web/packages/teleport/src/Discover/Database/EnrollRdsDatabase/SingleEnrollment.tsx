@@ -16,27 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
 import { Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import { getRdsEngineIdentifier } from 'teleport/Discover/SelectResource/types';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { Database } from 'teleport/services/databases';
 import {
   AwsRdsDatabase,
+  integrationService,
   Regions,
   Vpc,
-  integrationService,
 } from 'teleport/services/integrations';
-import { Database } from 'teleport/services/databases';
-import { getRdsEngineIdentifier } from 'teleport/Discover/SelectResource/types';
 
 import { ActionButtons } from '../../Shared';
-
-import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
-
+import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {

@@ -17,22 +17,20 @@
  */
 
 import stream from 'node:stream';
-
+import split2 from 'split2';
 import winston, {
   createLogger as createWinston,
   format,
   transports,
 } from 'winston';
+
 import { isObject } from 'shared/utils/highbar';
 
-import split2 from 'split2';
-
-import { Logger, LoggerService, NodeLoggerService } from './types';
 import { KeepLastChunks } from './keepLastChunks';
-
-import type { Logform } from 'winston';
+import { Logger, LoggerService, NodeLoggerService } from './types';
 
 import type { ChildProcess } from 'node:child_process';
+import type { Logform } from 'winston';
 
 /**
  * stdout logger should be used in child processes.

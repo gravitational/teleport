@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Alert, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import Dialog, {
   DialogContent,

@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import path from 'node:path';
-
-import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
-
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
+import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+import path from 'node:path';
 
 import { getConnectCsp } from './csp';
 

@@ -17,7 +17,6 @@
  */
 
 import { EventEmitter } from 'events';
-
 import {
   createContext,
   FC,

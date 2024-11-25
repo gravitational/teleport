@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Text } from 'design';
 import React from 'react';
+
+import { Flex, Text } from 'design';
 
 interface LogsProps {
   logs: string;

@@ -18,6 +18,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+
 import { Button } from 'design';
 
 import cfg from 'teleport/config';

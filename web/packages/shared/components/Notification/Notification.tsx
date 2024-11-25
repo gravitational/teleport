@@ -18,15 +18,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Box, ButtonIcon, Flex, Text } from 'design';
-import { Cross } from 'design/Icon';
 
-import * as Icon from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { Theme } from 'design/theme/themes/types';
-import { borderColor } from 'design/system';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { BoxProps } from 'design/Box';
+import { Cross } from 'design/Icon';
+import * as Icon from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+import { borderColor } from 'design/system';
+import { Theme } from 'design/theme/themes/types';
 
 import type {
   NotificationItem,

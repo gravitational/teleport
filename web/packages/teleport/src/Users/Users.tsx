@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Indicator, Box, Alert, Button, Link } from 'design';
+
+import { Alert, Box, Button, Indicator, Link } from 'design';
 
 import {
   FeatureBox,
@@ -25,9 +26,9 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 
-import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
+import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 

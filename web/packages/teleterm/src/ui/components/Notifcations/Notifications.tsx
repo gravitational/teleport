@@ -18,6 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Notification } from 'shared/components/Notification';
 
 import type { NotificationItem } from 'shared/components/Notification';

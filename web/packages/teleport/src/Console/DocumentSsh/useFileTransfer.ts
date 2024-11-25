@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
 import { useFileTransferContext } from 'shared/components/FileTransfer';
 
-import Tty from 'teleport/lib/term/tty';
-import { EventType } from 'teleport/lib/term/enums';
-import { Session } from 'teleport/services/session';
 import { DocumentSsh } from 'teleport/Console/stores';
+import { EventType } from 'teleport/lib/term/enums';
+import Tty from 'teleport/lib/term/tty';
+import { Session } from 'teleport/services/session';
 
 import { useConsoleContext } from '../consoleContextProvider';
-
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 import useGetScpUrl from './useGetScpUrl';
 

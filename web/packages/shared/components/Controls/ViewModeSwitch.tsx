@@ -18,11 +18,11 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Rows, SquaresFour } from 'design/Icon';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 export const ViewModeSwitch = ({
   currentViewMode,

@@ -23,16 +23,15 @@ import {
   DatabaseLocation,
   ResourceSpec,
 } from 'teleport/Discover/SelectResource';
+import { DbMeta } from 'teleport/Discover/useDiscover';
+import { IamPolicyStatus } from 'teleport/services/databases';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
-import { IamPolicyStatus } from 'teleport/services/databases';
 
 import { DATABASES } from '../SelectResource/databases';
 import { ResourceKind } from '../Shared';
-
 import { TeleportProvider } from './fixtures';
 
 export function getDbResourceSpec(

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Validator, { Validation, useValidation } from './Validation';
 import useRule from './useRule';
+import Validator, { useValidation, Validation } from './Validation';
 
 export default Validation;
 

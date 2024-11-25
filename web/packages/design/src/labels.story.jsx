@@ -18,9 +18,9 @@
 
 import React from 'react';
 
+import Flex from './Flex';
 import Label from './Label';
 import LabelState from './LabelState';
-import Flex from './Flex';
 
 export default {
   title: 'Design/Label',

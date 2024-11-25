@@ -18,13 +18,12 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-
-import { defineConfig } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
 
-import { htmlPlugin, transformPlugin } from './html';
 import { generateAppHashFile } from './apphash';
+import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 

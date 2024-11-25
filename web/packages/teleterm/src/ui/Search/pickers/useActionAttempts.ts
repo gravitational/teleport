@@ -17,24 +17,25 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useCallback,
 } from 'react';
+
 import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { mapToAction } from 'teleterm/ui/Search/actions';
+import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {
   rankResults,
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToAction } from 'teleterm/ui/Search/actions';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
-import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';

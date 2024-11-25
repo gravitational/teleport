@@ -16,27 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Indicator, Box, Flex, ButtonSecondary, ButtonPrimary } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
+import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
-import TopBar from './TopBar';
 
 import type { State, WebsocketAttempt } from './useDesktopSession';
 import type { MfaState } from 'teleport/lib/useMfa';

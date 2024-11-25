@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react';
 
 import {
-  makeRootCluster,
   makeDatabaseGateway,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
@@ -29,7 +29,6 @@ import { DatabaseUri } from 'teleterm/ui/uri';
 
 import { WorkspaceContextProvider } from '../Documents';
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
-
 import { useDocumentGateway } from './useDocumentGateway';
 
 beforeEach(() => {

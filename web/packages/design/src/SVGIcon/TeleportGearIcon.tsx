@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-
 import { useTheme } from 'styled-components';
 
 import { SVGIcon } from './SVGIcon';

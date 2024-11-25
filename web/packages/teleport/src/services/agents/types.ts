@@ -20,9 +20,9 @@ import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
 
 import { UserGroup } from '../userGroups';
 

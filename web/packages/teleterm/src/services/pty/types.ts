@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { Shell } from 'teleterm/mainProcess/shell';
+import { IPtyProcess, PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 

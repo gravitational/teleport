@@ -17,8 +17,8 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonPrimary, Flex, H2, Text } from 'design';
 
+import { ButtonPrimary, Flex, H2, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';

@@ -23,9 +23,9 @@ THE SOFTWARE.
 
 */
 
-import React from 'react';
-import PropTypes from 'prop-types';
 import createReactClass from 'create-react-class';
+import PropTypes from 'prop-types';
+import React from 'react';
 
 /**
  * To prevent text selection while dragging.

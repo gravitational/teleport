@@ -18,18 +18,16 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
-
 import * as botService from 'teleport/services/bot/bot';
-
 import TeleportContext from 'teleport/teleportContext';
 
-import { GitHubFlowProvider } from './useGitHubFlow';
 import { GitHubActions } from './GitHubActions';
+import { GitHubFlowProvider } from './useGitHubFlow';
 
 const tokenName = 'generated-test-token';
 const authVersion = 'v15.0.0';

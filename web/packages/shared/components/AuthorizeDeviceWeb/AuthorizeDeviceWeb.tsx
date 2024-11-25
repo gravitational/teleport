@@ -17,23 +17,23 @@
  */
 
 import { useEffect } from 'react';
-import styled from 'styled-components';
-import { Box, Flex, ButtonPrimary, Text, ButtonLink } from 'design';
+import { useLocation, useParams } from 'react-router';
 import { Link } from 'react-router-dom';
-import { useParams, useLocation } from 'react-router';
+import styled from 'styled-components';
 
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
+import { Box, ButtonLink, ButtonPrimary, Flex, Text } from 'design';
 import { getPlatform } from 'design/platform';
-import history from 'teleport/services/history/history';
-
 import {
   DownloadConnect,
   DownloadLink,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
-import { processRedirectUri } from 'shared/redirects';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { processRedirectUri } from 'shared/redirects';
+
+import cfg from 'teleport/config';
+import history from 'teleport/services/history/history';
+import useTeleport from 'teleport/useTeleport';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();

@@ -18,8 +18,9 @@
 
 import React, { useRef } from 'react';
 import styled from 'styled-components';
-import * as Icons from 'design/Icon';
+
 import { ButtonIcon, Text } from 'design';
+import * as Icons from 'design/Icon';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 

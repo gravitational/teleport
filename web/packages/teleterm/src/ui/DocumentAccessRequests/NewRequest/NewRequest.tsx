@@ -17,18 +17,18 @@
  */
 
 import styled from 'styled-components';
-import { Alert, Box, Link } from 'design';
 
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Alert, Box, Link } from 'design';
 import {
   ResourceList,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 /**
  * Only allows requesting roles (resources can be requested through the unified

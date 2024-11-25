@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render, theme } from 'design/utils/testing';
 
-import Label, { Primary, Secondary, Warning, Danger } from './Label';
+import Label, { Danger, Primary, Secondary, Warning } from './Label';
 
 describe('design/Label', () => {
   const colors = [

@@ -18,11 +18,10 @@
 
 import React from 'react';
 
-import * as types from 'teleterm/ui/services/workspacesService';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { DocumentGatewayKube } from './DocumentGatewayKube';
 

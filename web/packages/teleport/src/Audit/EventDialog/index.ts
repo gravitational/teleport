@@ -17,4 +17,5 @@
  */
 
 import EventDialog from './EventDialog';
+
 export default EventDialog;

@@ -20,13 +20,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 import {
-  Text,
   Box,
-  Flex,
-  ButtonPrimary,
   ButtonBorder,
+  ButtonPrimary,
+  Flex,
   H1,
   ResourceIcon,
+  Text,
 } from 'design';
 
 import cfg from 'teleport/config';

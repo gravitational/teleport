@@ -17,13 +17,14 @@
  */
 
 import { ReactElement, useEffect, useState } from 'react';
+
 import { useAttempt } from 'shared/hooks';
 
+import cfg from 'teleport/config';
+import auth from 'teleport/services/auth/auth';
+import { storageService } from 'teleport/services/storageService';
 import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
-import { storageService } from 'teleport/services/storageService';
-import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
   InviteCollaborators,

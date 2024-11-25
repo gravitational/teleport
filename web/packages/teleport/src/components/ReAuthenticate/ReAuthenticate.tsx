@@ -17,21 +17,22 @@
  */
 
 import React, { useState } from 'react';
-import { Flex, Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
+import { Danger } from 'design/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import { Danger } from 'design/Alert';
-import Validation from 'shared/components/Validation';
-import { requiredToken } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
+import Validation from 'shared/components/Validation';
+import { requiredToken } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import useReAuthenticate, { State, Props } from './useReAuthenticate';
+import useReAuthenticate, { Props, State } from './useReAuthenticate';
 
 export default function Container(props: Props) {
   const state = useReAuthenticate(props);

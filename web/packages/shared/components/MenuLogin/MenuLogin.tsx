@@ -22,21 +22,20 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
-import Menu, { MenuItem } from 'design/Menu';
-import { space, SpaceProps } from 'design/system';
+import styled from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';
-
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
-  MenuLoginProps,
   LoginItem,
-  MenuLoginHandle,
   MenuInputType,
+  MenuLoginHandle,
+  MenuLoginProps,
 } from './types';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(

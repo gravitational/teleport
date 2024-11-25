@@ -17,6 +17,7 @@
  */
 
 import { createGlobalStyle, css } from 'styled-components';
+
 import { getPlatformType } from 'design/platform';
 
 const GlobalStyle = createGlobalStyle`

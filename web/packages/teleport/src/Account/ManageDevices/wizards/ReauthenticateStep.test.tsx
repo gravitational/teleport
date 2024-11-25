@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createReauthOptions } from './ReauthenticateStep';
 import { deviceCases } from './deviceCases';
+import { createReauthOptions } from './ReauthenticateStep';
 
 test.each`
   auth2faType   | deviceCase      | methods

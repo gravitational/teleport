@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
 import { SearchResource } from 'teleport/Discover/SelectResource/types';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 export const resourceMapping: { [key in Resource]: SearchResource } = {
   [Resource.UNSPECIFIED]: SearchResource.UNSPECIFIED,

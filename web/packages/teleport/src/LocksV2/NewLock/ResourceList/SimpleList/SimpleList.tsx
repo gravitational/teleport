@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
-import useTeleport from 'teleport/useTeleport';
-import { User } from 'teleport/services/user';
 import { MfaDevice } from 'teleport/services/mfa';
+import { User } from 'teleport/services/user';
+import useTeleport from 'teleport/useTeleport';
 
-import { TableWrapper, SimpleListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
-
-import Users from './Users';
+import { SimpleListProps, TableWrapper } from '../common';
 import { MfaDevices } from './MfaDevices';
+import Users from './Users';
 
 export type SimpleListOpts = {
   getFetchFn(

@@ -18,9 +18,8 @@
 
 import React, { useEffect } from 'react';
 
-import { PasswordState } from 'teleport/services/user';
-
 import cfg from 'teleport/config';
+import { PasswordState } from 'teleport/services/user';
 
 import { Account, AccountProps } from './Account';
 

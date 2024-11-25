@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LabelInput } from './LabelInput';
 import InputComp from './../Input';
+import { LabelInput } from './LabelInput';
 
 export default {
   title: 'Design/LabelInput',

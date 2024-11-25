@@ -18,13 +18,13 @@
 
 import React from 'react';
 
+import { FileTransferContainer } from './FileTransferContainer';
 import { useFileTransferContext } from './FileTransferContextProvider';
 import {
   FileTransferDialogDirection,
   FileTransferListeners,
   FileTransferStateless,
 } from './FileTransferStateless';
-import { FileTransferContainer } from './FileTransferContainer';
 
 interface FileTransferProps {
   transferHandlers: TransferHandlers;

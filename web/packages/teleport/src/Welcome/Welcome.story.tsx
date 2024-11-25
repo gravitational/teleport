@@ -20,11 +20,10 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { WelcomeWrapper } from 'teleport/components/Onboard';
-
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import { Welcome } from './Welcome';
 import { CardWelcome } from './CardWelcome';
+import { Welcome } from './Welcome';
 
 export default { title: 'Teleport/Welcome' };
 

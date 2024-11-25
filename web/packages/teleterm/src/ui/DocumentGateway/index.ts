@@ -17,4 +17,5 @@
  */
 
 import DocumentGateway from './DocumentGateway';
+
 export default DocumentGateway;

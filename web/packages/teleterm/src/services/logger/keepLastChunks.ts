@@ -17,7 +17,6 @@
  */
 
 import stream from 'node:stream';
-
 import { RingBuffer } from 'ring-buffer-ts';
 
 /**

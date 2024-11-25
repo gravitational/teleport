@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import {
   PtyProcessCreationStatus,
   PtyServiceClient,
 } from 'teleterm/services/pty';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 
 export class MockPtyProcess implements IPtyProcess {
   start() {}

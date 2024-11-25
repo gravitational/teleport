@@ -16,27 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act } from '@testing-library/react';
+import { createMemoryHistory, MemoryHistory } from 'history';
 import React from 'react';
-
-import { render, screen } from 'design/utils/testing';
-
-import { Server } from 'design/Icon';
-
 import { generatePath, Router } from 'react-router';
 
-import { createMemoryHistory, MemoryHistory } from 'history';
+import { Server } from 'design/Icon';
+import { render, screen } from 'design/utils/testing';
 
-import { act } from '@testing-library/react';
-
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import TeleportContext from 'teleport/teleportContext';
-
-import { TeleportFeature, NavTitle } from 'teleport/types';
 import { NavigationCategory } from 'teleport/Navigation/categories';
-import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
-import { makeUserContext } from 'teleport/services/user';
+import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { LocalNotificationKind } from 'teleport/services/notifications';
+import { makeUserContext } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { NavTitle, TeleportFeature } from 'teleport/types';
 
 class MockUserFeature implements TeleportFeature {
   category = NavigationCategory.Resources;

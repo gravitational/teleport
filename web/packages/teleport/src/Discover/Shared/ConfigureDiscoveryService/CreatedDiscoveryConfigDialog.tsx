@@ -17,16 +17,17 @@
  */
 
 import React from 'react';
+
 import {
-  Text,
-  Flex,
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
+  Flex,
   Mark,
+  Text,
 } from 'design';
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 

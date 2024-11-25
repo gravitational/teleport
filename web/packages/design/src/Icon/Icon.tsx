@@ -19,7 +19,7 @@
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
-import { space, color, borderRadius, SpaceProps } from 'design/system';
+import { borderRadius, color, space, SpaceProps } from 'design/system';
 
 export function Icon({
   size = 'medium',

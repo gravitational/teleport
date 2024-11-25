@@ -17,28 +17,28 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonSecondary, Box, LabelInput, H3, Subtitle3 } from 'design';
+
+import { Box, ButtonSecondary, H3, LabelInput, Subtitle3 } from 'design';
 import Select from 'shared/components/Select';
 
-import cfg from 'teleport/config';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { openNewTab } from 'teleport/lib/util';
+import cfg from 'teleport/config';
 import {
-  useConnectionDiagnostic,
-  Header,
   ActionButtons,
-  HeaderSubtitle,
   ConnectionDiagnosticResult,
+  Header,
+  HeaderSubtitle,
   StyledBox,
+  useConnectionDiagnostic,
 } from 'teleport/Discover/Shared';
-import { sortNodeLogins } from 'teleport/services/nodes';
-
+import { openNewTab } from 'teleport/lib/util';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { sortNodeLogins } from 'teleport/services/nodes';
 
 import { NodeMeta } from '../../useDiscover';
 
-import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
+import type { Option } from 'shared/components/Select';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function TestConnection(props: AgentStepProps) {

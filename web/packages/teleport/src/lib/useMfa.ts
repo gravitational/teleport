@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';

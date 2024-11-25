@@ -22,9 +22,8 @@ import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
 import { OfflineGateway } from '../components/OfflineGateway';
-
-import { useDocumentGateway } from './useDocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
+import { useDocumentGateway } from './useDocumentGateway';
 
 type Props = {
   visible: boolean;

@@ -21,18 +21,17 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import { TestConnection } from './TestConnection';
 
 export default {

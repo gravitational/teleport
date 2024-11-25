@@ -18,10 +18,11 @@
 
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { Text } from 'design';
 import { NoteAdded } from 'design/Icon';
 
-import { PathInput, Form } from '../CommonElements';
+import { Form, PathInput } from '../CommonElements';
 
 interface UploadFormProps {
   onAddUpload(destinationPath: string, file: File): void;

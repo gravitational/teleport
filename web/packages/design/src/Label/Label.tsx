@@ -19,8 +19,8 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Theme } from '../theme';
 import { space, SpaceProps } from '../system';
+import { Theme } from '../theme';
 
 const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   if (kind === 'secondary') {

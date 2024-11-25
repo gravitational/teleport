@@ -29,7 +29,6 @@ import {
 } from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
-
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 

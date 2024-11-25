@@ -17,9 +17,9 @@
  */
 
 import {
-  latencyColors,
   ERROR_THRESHOLD,
   LatencyColor,
+  latencyColors,
   WARN_THRESHOLD,
 } from 'shared/components/LatencyDiagnostic/LatencyDiagnostic';
 

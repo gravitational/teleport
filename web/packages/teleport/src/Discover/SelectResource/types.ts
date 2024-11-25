@@ -19,15 +19,14 @@
 import { Platform } from 'design/platform';
 import { ResourceIconName } from 'design/ResourceIcon';
 
-import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
-import { AuthType } from 'teleport/services/user';
 import { RdsEngineIdentifier } from 'teleport/services/integrations';
+import { AuthType } from 'teleport/services/user';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
 import type {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,

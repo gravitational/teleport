@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
-import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
-import { FieldTextArea } from 'shared/components/FieldTextArea';
+
 import { Text, Toggle } from 'design';
+import FieldInput from 'shared/components/FieldInput';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { ShareFeedbackFormValues } from './types';
 

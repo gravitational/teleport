@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  makeApp,
   makeDatabase,
   makeKube,
   makeServer,
-  makeApp,
 } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import {
   AmbiguousHostnameError,

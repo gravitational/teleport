@@ -17,7 +17,6 @@
  */
 
 import styled from 'styled-components';
-
 import { flex, space } from 'styled-system';
 
 import { Flex } from 'design';

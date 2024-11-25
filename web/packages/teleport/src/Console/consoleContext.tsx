@@ -16,33 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger from 'shared/libs/logger';
-
 import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
-import webSession from 'teleport/services/websession';
-import history from 'teleport/services/history';
+import Logger from 'shared/libs/logger';
+
 import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
-import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
+import { getHostName } from 'teleport/services/api';
+import ClustersService from 'teleport/services/clusters';
+import history from 'teleport/services/history';
+import ServiceNodes from 'teleport/services/nodes';
 import serviceSession, {
-  Session,
   ParticipantList,
   ParticipantMode,
+  Session,
 } from 'teleport/services/session';
-import ServiceNodes from 'teleport/services/nodes';
-import ClustersService from 'teleport/services/clusters';
-import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
+import webSession from 'teleport/services/websession';
+import { StoreUserContext } from 'teleport/stores';
 
 import {
-  StoreParties,
-  StoreDocs,
-  DocumentSsh,
-  DocumentKubeExec,
   Document,
+  DocumentKubeExec,
+  DocumentSsh,
+  StoreDocs,
+  StoreParties,
 } from './stores';
 
 const logger = Logger.create('teleport/console');

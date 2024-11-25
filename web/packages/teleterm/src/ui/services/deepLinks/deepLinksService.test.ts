@@ -17,9 +17,9 @@
  */
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { RuntimeSettings } from 'teleterm/types';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { DeepLinksService } from './deepLinksService';
 

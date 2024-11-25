@@ -17,24 +17,21 @@
  */
 
 import { z } from 'zod';
+
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import {
-  DefaultTab,
-  LabelsViewMode,
-  UnifiedResourcePreferences,
-  ViewMode,
-  AvailableResourceMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { ModalsService } from 'teleterm/ui/services/modals';
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { ModalsService } from 'teleterm/ui/services/modals';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   StatePersistenceService,
   WorkspacesPersistedState,
 } from 'teleterm/ui/services/statePersistence';
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   ClusterOrResourceUri,
   ClusterUri,
@@ -44,24 +41,26 @@ import {
 } from 'teleterm/ui/uri';
 
 import {
-  identitySelector,
-  useStoreSelector,
-} from 'teleterm/ui/hooks/useStoreSelector';
+  AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
-
 import {
   Document,
-  DocumentsService,
-  getDefaultDocumentClusterQueryParams,
   DocumentCluster,
   DocumentGateway,
+  DocumentsService,
   DocumentTshKube,
   DocumentTshNode,
+  getDefaultDocumentClusterQueryParams,
 } from './documentsService';
 
 export interface WorkspacesState {

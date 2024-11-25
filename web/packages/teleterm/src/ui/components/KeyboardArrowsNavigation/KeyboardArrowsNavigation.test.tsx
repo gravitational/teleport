@@ -22,6 +22,7 @@ import React, {
   useCallback,
   useImperativeHandle,
 } from 'react';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import { KeyboardArrowsNavigation } from './KeyboardArrowsNavigation';

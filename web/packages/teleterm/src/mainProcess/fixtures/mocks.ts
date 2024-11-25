@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
-import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { AgentProcessState } from 'teleterm/mainProcess/types';
 // createConfigService has to be imported directly from configService.ts.
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
+import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { MainProcessClient, RuntimeSettings } from 'teleterm/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;

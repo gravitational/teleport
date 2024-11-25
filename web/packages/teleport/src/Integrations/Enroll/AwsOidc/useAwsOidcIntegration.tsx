@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
+
 import { Validator } from 'shared/components/Validation';
 import {
   makeErrorAttempt,
@@ -25,23 +26,23 @@ import {
   useAsync,
 } from 'shared/hooks/useAsync';
 
+import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { ApiError } from 'teleport/services/api/parseError';
+import {
+  AwsOidcPolicyPreset,
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollEventData,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationKind,
-  integrationService,
-  AwsOidcPolicyPreset,
-} from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { ApiError } from 'teleport/services/api/parseError';
 
 type integrationConfig = {
   name: string;

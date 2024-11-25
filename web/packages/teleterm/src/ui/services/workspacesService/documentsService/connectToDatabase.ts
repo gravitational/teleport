@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { GatewayProtocol } from 'teleterm/services/tshd/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
 
 import { DocumentOrigin } from './types';
 

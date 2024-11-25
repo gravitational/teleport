@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import PropTypes from 'prop-types';
-import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
+import { useState } from 'react';
+
 import {
   Box,
   ButtonBorder,
@@ -29,8 +29,9 @@ import {
   LabelInput,
   Text,
 } from 'design';
-import TextEditor from 'shared/components/TextEditor';
 import * as Alerts from 'design/Alert';
+import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
+import TextEditor from 'shared/components/TextEditor';
 import { useAttempt } from 'shared/hooks';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';

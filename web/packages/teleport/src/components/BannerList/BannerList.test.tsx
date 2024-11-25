@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
+
 import {
   fireEvent,
-  screen,
   render as testingRender,
+  screen,
 } from 'design/utils/testing';
 
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';

@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { StoryObj } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
+import React from 'react';
+
 import { Info } from 'design/Alert';
 import Flex from 'design/Flex';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import cfg from 'teleport/config';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
-import { withDefaults } from './withDefaults';
 import { RoleEditor } from './RoleEditor';
+import { withDefaults } from './withDefaults';
 
 export default {
   title: 'Teleport/Roles/Role Editor',

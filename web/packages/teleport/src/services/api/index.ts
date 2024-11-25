@@ -17,12 +17,13 @@
  */
 
 import api, {
-  getAuthHeaders,
-  getNoCacheHeaders,
   getAccessToken,
+  getAuthHeaders,
   getHostName,
+  getNoCacheHeaders,
   getXCSRFToken,
 } from './api';
+
 export default api;
 export {
   getAuthHeaders,

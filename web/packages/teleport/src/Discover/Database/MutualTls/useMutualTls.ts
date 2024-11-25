@@ -21,12 +21,12 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
-  resourceKindToJoinRole,
   ResourceKind,
+  resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import TeleportContext from 'teleport/teleportContext';
 
 import { DbMeta, useDiscover } from '../../useDiscover';
 

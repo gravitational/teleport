@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text, Alert, P1 } from 'design';
+
+import { Alert, ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 

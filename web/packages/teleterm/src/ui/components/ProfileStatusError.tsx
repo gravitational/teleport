@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Flex, P3 } from 'design';
 import { Warning } from 'design/Icon';
-import { P3, Flex } from 'design';
 
 export function ProfileStatusError(props: {
   error: string;

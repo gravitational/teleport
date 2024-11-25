@@ -17,14 +17,13 @@
  */
 
 import React from 'react';
-import { fireEvent, render, screen } from 'design/utils/testing';
 
+import { fireEvent, render, screen } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { TraitsEditor, emptyTrait } from './TraitsEditor';
-
+import { emptyTrait, TraitsEditor } from './TraitsEditor';
 import { traitsToTraitsOption } from './useDialog';
 
 import type { TraitsOption } from './TraitsEditor';

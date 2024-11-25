@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
+
 import { Flex } from 'design';
 import { Cog } from 'design/Icon';
 
-import { MenuIcon, MenuButton, MenuItem } from '.';
+import { MenuButton, MenuIcon, MenuItem } from '.';
 
 export default {
   title: 'Shared/MenuAction',

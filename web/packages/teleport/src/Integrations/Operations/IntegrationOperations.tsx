@@ -20,12 +20,11 @@ import React from 'react';
 
 import { Integration } from 'teleport/services/integrations';
 
-import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
-
+import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
-  OperationType,
   EditableIntegrationFields,
+  OperationType,
 } from './useIntegrationOperation';
 
 type Props = {

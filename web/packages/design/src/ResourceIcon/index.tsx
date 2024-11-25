@@ -22,9 +22,9 @@ import { useTheme } from 'styled-components';
 import { Image } from 'design';
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from './resourceIconSpecs';
 
 interface ResourceIconProps extends ComponentProps<typeof Image> {

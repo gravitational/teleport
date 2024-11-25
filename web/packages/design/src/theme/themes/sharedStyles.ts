@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getContrastRatio } from '../utils/colorManipulator';
-import { lightBlue, blueGrey, yellow } from '../palette';
-import typography, { fontSizes, fontWeights } from '../typography';
 import { fonts } from '../fonts';
-
+import { blueGrey, lightBlue, yellow } from '../palette';
+import typography, { fontSizes, fontWeights } from '../typography';
+import { getContrastRatio } from '../utils/colorManipulator';
 import { SharedColors, SharedStyles } from './types';
 
 // TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work

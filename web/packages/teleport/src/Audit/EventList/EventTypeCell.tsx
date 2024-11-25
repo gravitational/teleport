@@ -18,10 +18,11 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
-import { eventCodes, Event, EventCode } from 'teleport/services/audit';
+import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,

@@ -17,12 +17,13 @@
  */
 
 import React from 'react';
+
+import { ButtonIcon, ButtonSecondary, H2, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonSecondary, H2, Text } from 'design';
 import { Cross } from 'design/Icon';
 
 import { ResourceSearchError } from 'teleterm/ui/services/resources';

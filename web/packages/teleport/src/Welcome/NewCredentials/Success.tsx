@@ -17,12 +17,12 @@
  */
 
 import React from 'react';
+
 import { ButtonPrimary, Flex, H2, Image, Text } from 'design';
 
-import { OnboardCard } from 'teleport/components/Onboard';
-
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import shieldCheck from 'teleport/assets/shield-check.png';
+import { OnboardCard } from 'teleport/components/Onboard';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { RegisterSuccessProps } from './types';
 

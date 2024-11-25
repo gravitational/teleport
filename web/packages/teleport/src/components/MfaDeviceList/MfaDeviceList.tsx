@@ -18,10 +18,11 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { ButtonBorder, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { dateMatcher } from 'design/utils/match';
 import { displayDate } from 'design/datetime';
+import { dateMatcher } from 'design/utils/match';
 
 import { MfaDevice } from 'teleport/services/mfa/types';
 

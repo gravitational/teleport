@@ -16,16 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
-import React, { useState } from 'react';
-
 import { within } from '@testing-library/react';
-import Validation from 'shared/components/Validation';
+import React, { useState } from 'react';
 import selectEvent from 'react-select-event';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { render, screen, userEvent } from 'design/utils/testing';
+import Validation from 'shared/components/Validation';
 
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+
+import {
+  AppAccessSpecSection,
+  DatabaseAccessSpecSection,
+  KubernetesAccessSpecSection,
+  SectionProps,
+  ServerAccessSpecSection,
+  StandardEditor,
+  StandardEditorProps,
+  WindowsDesktopAccessSpecSection,
+} from './StandardEditor';
 import {
   AccessSpec,
   AppAccessSpec,
@@ -38,16 +48,6 @@ import {
   StandardEditorModel,
   WindowsDesktopAccessSpec,
 } from './standardmodel';
-import {
-  AppAccessSpecSection,
-  DatabaseAccessSpecSection,
-  KubernetesAccessSpecSection,
-  SectionProps,
-  ServerAccessSpecSection,
-  StandardEditor,
-  StandardEditorProps,
-  WindowsDesktopAccessSpecSection,
-} from './StandardEditor';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();

@@ -22,9 +22,9 @@ import {
 } from 'teleport/services/integrations';
 
 import type {
-  Plugin,
-  Integration,
   ExternalAuditStorage,
+  Integration,
+  Plugin,
 } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [

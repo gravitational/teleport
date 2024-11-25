@@ -17,13 +17,13 @@
  */
 
 import React from 'react';
-import { Flex } from 'design';
 
+import { Flex } from 'design';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import useServersideSearchPanel, {
-  SearchPanelState,
   HookProps,
+  SearchPanelState,
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
 
 import { SearchInput } from './SearchInput';

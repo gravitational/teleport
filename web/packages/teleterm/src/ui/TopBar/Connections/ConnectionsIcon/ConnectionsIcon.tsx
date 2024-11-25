@@ -17,9 +17,10 @@
  */
 
 import React, { forwardRef } from 'react';
-import { Cluster } from 'design/Icon';
 import styled from 'styled-components';
+
 import { ButtonSecondary } from 'design';
+import { Cluster } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 

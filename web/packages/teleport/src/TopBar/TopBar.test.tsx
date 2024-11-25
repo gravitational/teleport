@@ -16,29 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { act } from '@testing-library/react';
-import { subSeconds, subMinutes } from 'date-fns';
-import { render, screen, userEvent } from 'design/utils/testing';
-import { Router } from 'react-router';
+import { subMinutes, subSeconds } from 'date-fns';
 import { createMemoryHistory } from 'history';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import React from 'react';
+import { Router } from 'react-router';
 
-import session from 'teleport/services/websession';
-import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { render, screen, userEvent } from 'design/utils/testing';
+
+import { clusters } from 'teleport/Clusters/fixtures';
 import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { NotificationSubKind } from 'teleport/services/notifications';
+import { makeUserContext } from 'teleport/services/user';
+import session from 'teleport/services/websession';
 import TeleportContext, {
   disabledFeatureFlags,
 } from 'teleport/teleportContext';
-import { makeUserContext } from 'teleport/services/user';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-
-import { clusters } from 'teleport/Clusters/fixtures';
-
-import { NotificationSubKind } from 'teleport/services/notifications';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { TopBar } from './TopBar';
 

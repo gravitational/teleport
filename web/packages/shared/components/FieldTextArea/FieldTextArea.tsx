@@ -21,16 +21,14 @@ import React, {
   HTMLInputAutoCompleteAttribute,
   useId,
 } from 'react';
+
 import { Box, LabelInput, TextArea } from 'design';
-
-import { TextAreaSize } from 'design/TextArea';
-
 import { BoxProps } from 'design/Box';
-
+import { TextAreaSize } from 'design/TextArea';
 import { useRule } from 'shared/components/Validation';
 
-import { ToolTipInfo } from '../ToolTip';
 import { HelperTextLine } from '../FieldInput/FieldInput';
+import { ToolTipInfo } from '../ToolTip';
 
 export type FieldTextAreaProps = BoxProps & {
   id?: string;

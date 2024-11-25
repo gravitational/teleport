@@ -22,7 +22,6 @@ import {
   FileStorageEventChannel,
   FileStorageEventType,
 } from '../../mainProcess/types';
-
 import { FileStorage } from './fileStorage';
 
 // TODO(ravicious): The main process should not expose the whole interface of FileStorage to the

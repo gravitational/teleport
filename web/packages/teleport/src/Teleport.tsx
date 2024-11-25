@@ -18,36 +18,31 @@
 
 import React, { Suspense, useEffect } from 'react';
 
-import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
-import { Route, Router, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
-
+import { CatchError } from 'teleport/components/CatchError';
+import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
-
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import TeleportContextProvider from './TeleportContextProvider';
-import TeleportContext from './teleportContext';
-import cfg from './config';
 import { AppLauncher } from './AppLauncher';
+import cfg from './config';
+import { ConsoleWithContext as Console } from './Console';
+import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+import { HeadlessRequest } from './HeadlessRequest';
+import { Login } from './Login';
+import { LoginClose } from './Login/LoginClose';
 import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
-import { LoginClose } from './Login/LoginClose';
-import { Login } from './Login';
-import { Welcome } from './Welcome';
-import { SingleLogoutFailed } from './SingleLogoutFailed';
-
-import { ConsoleWithContext as Console } from './Console';
-import { Player } from './Player';
-import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
-
-import { HeadlessRequest } from './HeadlessRequest';
-
 import { Main } from './Main';
+import { Player } from './Player';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
+import TeleportContext from './teleportContext';
+import TeleportContextProvider from './TeleportContextProvider';
+import { Welcome } from './Welcome';
 
 import type { History } from 'history';
 

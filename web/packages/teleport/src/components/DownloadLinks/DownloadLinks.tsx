@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Box, Link } from 'design';
 
 import getDownloadLink from 'teleport/services/links';
