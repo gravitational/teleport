@@ -34,6 +34,8 @@ func TestNewNamespace(t *testing.T) {
 	for _, p := range []struct {
 		name      string
 		namespace string
+		linkDir   string
+		dataDir   string
 		ns        *Namespace
 	}{
 		{
@@ -46,6 +48,22 @@ func TestNewNamespace(t *testing.T) {
 				configFile:         "/etc/teleport.yaml",
 				pidFile:            "/run/teleport.pid",
 				updaterBinFile:     "/usr/local/bin/teleport-update",
+				updaterServiceFile: "/etc/systemd/system/teleport-update.service",
+				updaterTimerFile:   "/etc/systemd/system/teleport-update.timer",
+			},
+		},
+		{
+			name:    "no namespace with dirs",
+			linkDir: "/link",
+			dataDir: "/data",
+			ns: &Namespace{
+				dataDir:            "/data",
+				linkBinDir:         "/link",
+				versionsDir:        "/opt/teleport/local/versions",
+				serviceFile:        "/lib/systemd/system/teleport.service",
+				configFile:         "/etc/teleport.yaml",
+				pidFile:            "/run/teleport.pid",
+				updaterBinFile:     "/link/teleport-update",
 				updaterServiceFile: "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:   "/etc/systemd/system/teleport-update.timer",
 			},
@@ -64,11 +82,30 @@ func TestNewNamespace(t *testing.T) {
 				updaterBinFile:     "/opt/teleport/test/bin/teleport-update",
 				updaterServiceFile: "/etc/systemd/system/teleport-update_test.service",
 				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
-			}},
+			},
+		},
+		{
+			name:      "test namespace with dirs",
+			namespace: "test",
+			linkDir:   "/link",
+			dataDir:   "/data",
+			ns: &Namespace{
+				name:               "test",
+				dataDir:            "/data",
+				linkBinDir:         "/link",
+				versionsDir:        "/opt/teleport/test/versions",
+				serviceFile:        "/etc/systemd/system/teleport_test.service",
+				configFile:         "/opt/teleport/test/etc/teleport.yaml",
+				pidFile:            "/run/teleport_test.pid",
+				updaterBinFile:     "/link/teleport-update",
+				updaterServiceFile: "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
+			},
+		},
 	} {
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
-			ns, err := NewNamespace(log, p.namespace, "", "")
+			ns, err := NewNamespace(log, p.namespace, p.dataDir, p.linkDir)
 			require.NoError(t, err)
 			ns.log = nil
 			require.Equal(t, p.ns, ns)
