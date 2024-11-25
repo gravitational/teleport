@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { OutlineDanger } from 'design/Alert/Alert';
+import { Alert, OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
@@ -31,7 +31,6 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import Box from 'design/Box';
 
@@ -42,7 +41,14 @@ import { P } from 'design/Text/Text';
 import auth from 'teleport/services/auth/auth';
 import useTeleport from 'teleport/useTeleport';
 
-import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
+import {
+  DeviceType,
+  DeviceUsage,
+  getMfaRegisterOptions,
+  MfaOption,
+} from 'teleport/services/mfa';
+
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
@@ -57,11 +63,6 @@ interface AddAuthDeviceWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
   /**
-   * A list of user's devices, used for computing the list of available identity
-   * verification options.
-   */
-  devices: MfaDevice[];
-  /**
    * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
@@ -75,21 +76,51 @@ export function AddAuthDeviceWizard({
   privilegeToken: privilegeTokenProp = '',
   usage,
   auth2faType,
-  devices,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
-  const reauthRequired = !privilegeTokenProp;
   const [privilegeToken, setPrivilegeToken] = useState(privilegeTokenProp);
   const [credential, setCredential] = useState<Credential>(null);
 
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
+  const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
+    useReAuthenticate({
+      onAuthenticated: setPrivilegeToken,
+    });
+
+  // Choose a new device type from the options available for the given 2fa type.
+  // irrelevant if usage === 'passkey'.
+  const registerMfaOptions = getMfaRegisterOptions(auth2faType);
+  const [newMfaDeviceType, setNewMfaDeviceType] = useState(
+    registerMfaOptions[0].value
+  );
+
+  // Attempt to get an MFA challenge for an existing device. If the challenge is
+  // empty, the user has no existing device (e.g. SSO user) and can register their
+  // first device without re-authentication.
+  const [reauthMfaOptions, getMfaOptions] = useAsync(async () => {
+    return getMfaChallengeOptions();
   });
 
-  /** A new MFA device type, irrelevant if usage === 'passkey'. */
-  const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
+  useEffect(() => {
+    getMfaOptions();
+  }, []);
+
+  // Handle potential error states first.
+  switch (reauthMfaOptions.status) {
+    case 'processing':
+      return (
+        <Box textAlign="center" m={10}>
+          <div>hi there</div>
+          <Indicator />
+        </Box>
+      );
+    case 'error':
+      return <Alert children={reauthMfaOptions.statusText} />;
+    case 'success':
+      break;
+    default:
+      return null;
+  }
 
   return (
     <Dialog
@@ -101,17 +132,21 @@ export function AddAuthDeviceWizard({
       <StepSlider
         flows={wizardFlows}
         currFlow={
-          reauthRequired ? 'withReauthentication' : 'withoutReauthentication'
+          reauthMfaOptions.data.length > 0
+            ? 'withReauthentication'
+            : 'withoutReauthentication'
         }
         // Step properties
+        mfaRegisterOptions={registerMfaOptions}
+        mfaChallengeOptions={reauthMfaOptions.data}
+        reauthAttempt={attempt}
+        clearReauthAttempt={clearAttempt}
+        submitWithMfa={submitWithMfa}
         usage={usage}
-        auth2faType={auth2faType}
         privilegeToken={privilegeToken}
         credential={credential}
         newMfaDeviceType={newMfaDeviceType}
-        devices={devices}
         onClose={onClose}
-        onAuthenticated={setPrivilegeToken}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
         onDeviceCreated={setCredential}
         onSuccess={onSuccess}
@@ -131,10 +166,10 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   SaveKeyStepProps;
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
-  auth2faType: Auth2faType;
+  mfaRegisterOptions: MfaOption[];
   privilegeToken: string;
-  newMfaDeviceType: Auth2faType;
-  onNewMfaDeviceTypeChange(o: Auth2faType): void;
+  newMfaDeviceType: DeviceType;
+  onNewMfaDeviceTypeChange(o: DeviceType): void;
   onClose(): void;
   onDeviceCreated(c: Credential): void;
 }
@@ -146,9 +181,9 @@ export function CreateDeviceStep({
   stepIndex,
   flowLength,
   usage,
-  auth2faType,
   privilegeToken,
   newMfaDeviceType,
+  mfaRegisterOptions,
   onNewMfaDeviceTypeChange,
   onClose,
   onDeviceCreated,
@@ -158,6 +193,7 @@ export function CreateDeviceStep({
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
+          // TODO(Joerger): Skip privilege token step, just pass in mfa response.
           tokenId: privilegeToken,
           deviceUsage: usage,
         });
@@ -193,7 +229,7 @@ export function CreateDeviceStep({
       )}
       {usage === 'mfa' && (
         <CreateMfaBox
-          auth2faType={auth2faType}
+          mfaRegisterOptions={mfaRegisterOptions}
           newMfaDeviceType={newMfaDeviceType}
           privilegeToken={privilegeToken}
           onNewMfaDeviceTypeChange={onNewMfaDeviceTypeChange}
@@ -220,21 +256,18 @@ export function CreateDeviceStep({
 }
 
 function CreateMfaBox({
-  auth2faType,
+  mfaRegisterOptions,
   newMfaDeviceType,
   privilegeToken,
   onNewMfaDeviceTypeChange,
 }: {
-  auth2faType: Auth2faType;
-  newMfaDeviceType: Auth2faType;
+  mfaRegisterOptions: MfaOption[];
+  newMfaDeviceType: DeviceType;
   privilegeToken: string;
-  onNewMfaDeviceTypeChange(o: Auth2faType): void;
+  onNewMfaDeviceTypeChange(o: DeviceType): void;
 }) {
-  const mfaOptions = createMfaOptions({
-    auth2faType,
-    required: true,
-  }).map((o: MfaOption) =>
-    // Be more specific about the WebAuthn device type (it's not a passkey).
+  // Be more specific about the WebAuthn device type (it's not a passkey).
+  mfaRegisterOptions = mfaRegisterOptions.map((o: MfaOption) =>
     o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
   );
 
@@ -243,17 +276,17 @@ function CreateMfaBox({
       <Box mb={2}>Multi-factor type</Box>
       <RadioGroup
         name="mfaOption"
-        options={mfaOptions}
+        options={mfaRegisterOptions}
         value={newMfaDeviceType}
         autoFocus
         flexDirection="row"
         gap={3}
         mb={4}
         onChange={o => {
-          onNewMfaDeviceTypeChange(o as Auth2faType);
+          onNewMfaDeviceTypeChange(o as DeviceType);
         }}
       />
-      {newMfaDeviceType === 'otp' && (
+      {newMfaDeviceType === 'totp' && (
         <QrCodeBox privilegeToken={privilegeToken} />
       )}
     </>
@@ -308,7 +341,7 @@ interface SaveKeyStepProps {
   privilegeToken: string;
   credential: Credential;
   usage: DeviceUsage;
-  newMfaDeviceType: Auth2faType;
+  newMfaDeviceType: DeviceType;
   onSuccess(): void;
 }
 
@@ -396,7 +429,7 @@ export function SaveDeviceStep({
               readonly={saveAttempt.attempt.status === 'processing'}
             />
 
-            {usage === 'mfa' && newMfaDeviceType === 'otp' && (
+            {usage === 'mfa' && newMfaDeviceType === 'totp' && (
               <FieldInput
                 label="Authenticator Code"
                 helperText="Enter the code generated by your authenticator app"

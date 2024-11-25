@@ -19,7 +19,7 @@
 import { render, screen } from 'design/utils/testing';
 import React from 'react';
 
-import { within } from '@testing-library/react';
+import { waitFor, within } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
@@ -42,14 +42,14 @@ beforeEach(() => {
   user = userEvent.setup();
   onSuccess = jest.fn();
 
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({
+    totpChallenge: true,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
-  jest
-    .spyOn(auth, 'createPrivilegeTokenWithTotp')
-    .mockImplementationOnce(token =>
-      Promise.resolve(`totp-privilege-token-${token}`)
-    );
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   jest
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
@@ -61,9 +61,7 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
   return (
     <ContextProvider ctx={ctx}>
       <DeleteAuthDeviceWizard
-        devices={deviceCases.all}
         deviceToDelete={dummyPasskey}
-        auth2faType="on"
         onClose={() => {}}
         onSuccess={onSuccess}
         {...props}
@@ -75,14 +73,17 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
 test('deletes a device with WebAuthn reauthentication', async () => {
   render(<TestWizard />);
 
-  const reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+  let reauthenticateStep;
+  await waitFor(() => {
+    reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+  });
   await user.click(reauthenticateStep.getByText('Verify my identity'));
 
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'webauthn-privilege-token',
+    'privilege-token',
     'TouchID'
   );
   expect(onSuccess).toHaveBeenCalled();
@@ -91,7 +92,10 @@ test('deletes a device with WebAuthn reauthentication', async () => {
 test('deletes a device with OTP reauthentication', async () => {
   render(<TestWizard />);
 
-  const reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+  let reauthenticateStep;
+  await waitFor(() => {
+    reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+  });
   await user.click(reauthenticateStep.getByText('Authenticator App'));
   await user.type(
     reauthenticateStep.getByLabelText('Authenticator Code'),
@@ -103,7 +107,7 @@ test('deletes a device with OTP reauthentication', async () => {
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'totp-privilege-token-654987',
+    'privilege-token',
     'TouchID'
   );
 });
@@ -126,9 +130,9 @@ test.each([
   async ({ device, title, message }) => {
     render(<TestWizard deviceToDelete={device} />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
+    const reauthenticateStep = await waitFor(() => {
+      return within(screen.getByTestId('reauthenticate-step'));
+    });
     await user.click(reauthenticateStep.getByText('Verify my identity'));
 
     const deleteStep = within(screen.getByTestId('delete-step'));

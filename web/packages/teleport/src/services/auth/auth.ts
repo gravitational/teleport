@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Auth2faType } from 'shared/services';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import {
