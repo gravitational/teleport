@@ -1656,6 +1656,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		httpResponseWriter: w,
 		context:            ctx,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
@@ -1800,6 +1801,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		onPortForward:      onPortForward,
 		targetDialer:       dialer,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 	}
 	f.log.Debugf("Starting %v.", request)
 	err = runPortForwarding(request)
