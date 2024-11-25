@@ -322,6 +322,7 @@
     "azuread",
     "azuredatabases",
     "azurerm",
+    "backdoors",
     "backoff",
     "backported",
     "backporting",
