@@ -78,8 +78,8 @@ const (
 	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
-	// oracleBin is the Oracle CLI program name.
-	oracleBin = "sql"
+	// sqlclBin is the SQLcl program name (Oracle client).
+	sqlclBin = "sql"
 	// spannerBin is a Google Spanner interactive CLI program name.
 	spannerBin = "spanner-cli"
 )
@@ -780,38 +780,13 @@ func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-type jdbcOracleThinConnection struct {
-	host     string
-	port     int
-	db       string
-	tnsAdmin string
-}
-
-func (j *jdbcOracleThinConnection) ConnString() string {
-	return fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, j.host, j.port, j.db, j.tnsAdmin)
-}
-
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
-	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
-	if runtime.GOOS == constants.WindowsOS {
-		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
-	}
-	cs := jdbcOracleThinConnection{
-		host:     c.host,
-		port:     c.port,
-		db:       c.db.Database,
-		tnsAdmin: tnsAdminPath,
-	}
-	// Quote the address for printing as the address contains "?".
-	connString := cs.ConnString()
-	if c.options.printFormat {
-		connString = fmt.Sprintf(`'%s'`, connString)
-	}
 	args := []string{
-		"-L", // dont retry
-		connString,
+		"-L",
+		fmt.Sprintf("/@%v:%v/%v", c.host, c.port, c.db.Database),
 	}
-	return exec.Command(oracleBin, args...), nil
+
+	return exec.Command(sqlclBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {

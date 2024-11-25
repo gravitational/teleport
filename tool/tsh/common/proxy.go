@@ -724,12 +724,7 @@ var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunction
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
-or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
-{{- range $val := .args}}
-  {{- if contains $val "jdbc:oracle:"}}
-  {{$val}}
-  {{- end}}
-{{- end}}
+For GUI tools, use a direct connection to {{.address}} without a username and password.
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.

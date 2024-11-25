@@ -21,7 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -677,20 +676,6 @@ type localProxyConfig struct {
 }
 
 func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile *client.ProfileStatus) (net.Listener, error) {
-	if route.Protocol == defaults.ProtocolOracle {
-		localCert, err := tls.LoadX509KeyPair(
-			profile.DatabaseLocalCAPath(),
-			profile.TLSKeyPath(),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		l, err := tls.Listen("tcp", addr, &tls.Config{
-			Certificates: []tls.Certificate{localCert},
-			ServerName:   "localhost",
-		})
-		return l, trace.Wrap(err)
-	}
 	l, err := net.Listen("tcp", addr)
 	return l, trace.Wrap(err)
 }
