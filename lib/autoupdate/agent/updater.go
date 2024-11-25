@@ -104,7 +104,6 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if err := os.MkdirAll(cfg.VersionsDir, systemDirMode); err != nil {
 		return nil, trace.Errorf("failed to create install directory: %w", err)
 	}
-	// TODO: mkdir /var/opt?
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
@@ -122,7 +121,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
-			TransformService:        ns.ReplaceTeleportService,
+			TransformService:        ns.replaceTeleportService,
 		},
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),

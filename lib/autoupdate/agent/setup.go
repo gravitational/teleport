@@ -258,8 +258,8 @@ func writeTemplate(path, t string, values any) error {
 	return trace.Wrap(f.CloseAtomicallyReplace())
 }
 
-// ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
-func (ns *Namespace) ReplaceTeleportService(cfg []byte) []byte {
+// replaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
+func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
 	for _, rep := range []struct {
 		old, new string
 	}{
