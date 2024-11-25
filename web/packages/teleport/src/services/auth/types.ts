@@ -20,6 +20,8 @@ import { AuthProviderType } from 'shared/services';
 
 import { EventMeta } from 'teleport/services/userEvent';
 
+import { MfaAuthenticateChallenge } from '../mfa';
+
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 
 export type Base64urlString = string;

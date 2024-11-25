@@ -44,7 +44,10 @@ import {
   requiredToken,
   requiredField,
 } from 'shared/components/Validation/rules';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import createMfaOptions, {
+  createMfaOptionsFromAuth2faType,
+  MfaOption,
+} from 'shared/utils/createMfaOptions';
 import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
@@ -199,7 +202,7 @@ const LocalForm = ({
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo(
-    () => createMfaOptions({ auth2faType: auth2faType }),
+    () => createMfaOptionsFromAuth2faType(auth2faType),
     []
   );
 

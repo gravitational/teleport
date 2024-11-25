@@ -45,6 +45,7 @@ import {
   DeviceUsage,
   CreateAuthenticateChallengeRequest,
 } from './types';
+import { Auth2faType } from 'shared/services';
 
 const auth = {
   checkWebauthnSupport() {
@@ -283,17 +284,38 @@ const auth = {
 
   // getChallengeResponse gets an MFA challenge response for the provided parameters.
   // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
-  async getMfaChallengeResponse(challenge: MfaAuthenticateChallenge) {
+  // If mfaOptions is provided, the challenge will be carried out with associated mfa method.
+  async getMfaChallengeResponse(
+    challenge: MfaAuthenticateChallenge,
+    mfaOption?: Auth2faType,
+    totp_code?: string
+  ) {
     // TODO(Joerger): Ideally we'd have some global context which we can use to display
     // a component to select WebAuthn or SSO, like we do in useMFA. For now, we just prefer
     // WebAuthn over SSO and continue automatically.
 
-    if (challenge.webauthnPublicKey) {
+    const preferWebAuthn =
+      mfaOption === 'webauthn' || (!mfaOption && challenge.webauthnPublicKey);
+
+    const preferSso =
+      mfaOption === 'sso' || (!mfaOption && challenge.ssoChallenge);
+
+    const preferTotp =
+      mfaOption === 'otp' ||
+      (!mfaOption && challenge.totpChallenge && totp_code);
+
+    if (preferWebAuthn) {
       return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
     }
 
-    if (challenge.ssoChallenge) {
+    if (preferSso) {
       return auth.getSsoChallengeResponse(challenge.ssoChallenge);
+    }
+
+    if (preferTotp) {
+      return {
+        totp_code,
+      };
     }
 
     // No viable challenge, return empty response.

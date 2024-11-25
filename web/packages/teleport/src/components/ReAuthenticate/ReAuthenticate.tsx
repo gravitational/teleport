@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Flex, Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
   DialogHeader,
@@ -29,7 +29,9 @@ import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+
+import { MfaOption } from 'shared/utils/createMfaOptions';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import useReAuthenticate, { State, Props } from './useReAuthenticate';
 
@@ -41,30 +43,25 @@ export default function Container(props: Props) {
 export function ReAuthenticate({
   attempt,
   clearAttempt,
-  submitWithTotp,
-  submitWithWebauthn,
+  getReauthMfaOptions: getMfaOptionsProp,
+  submitWithMfa,
   onClose,
-  auth2faType,
-  preferredMfaType,
   actionText,
 }: State) {
-  const [otpToken, setOtpToken] = useState('');
-  const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType,
-    preferredType: preferredMfaType,
-    required: true,
+  const [mfaOptions, getMfaOptions] = useAsync(async () => {
+    return getMfaOptionsProp();
   });
+
+  useEffect(() => {
+    getMfaOptions();
+  }, []);
+
+  const [otpCode, setOtpToken] = useState('');
   const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
 
   function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-
-    if (mfaOption?.value === 'webauthn') {
-      submitWithWebauthn();
-    }
-    if (mfaOption?.value === 'otp') {
-      submitWithTotp(otpToken);
-    }
+    submitWithMfa(mfaOption?.value, otpCode);
   }
 
   return (
@@ -97,7 +94,7 @@ export function ReAuthenticate({
                   width="60%"
                   label="Two-factor Type"
                   value={mfaOption}
-                  options={mfaOptions}
+                  options={mfaOptions.data}
                   onChange={(o: MfaOption) => {
                     setMfaOption(o);
                     clearAttempt();
@@ -115,7 +112,7 @@ export function ReAuthenticate({
                       rule={requiredToken}
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      value={otpToken}
+                      value={otpCode}
                       onChange={e => setOtpToken(e.target.value)}
                       placeholder="123 456"
                       readonly={attempt.status === 'processing'}

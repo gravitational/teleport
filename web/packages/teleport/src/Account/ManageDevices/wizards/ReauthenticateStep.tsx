@@ -20,25 +20,23 @@ import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import React, { useState, FormEvent } from 'react';
+import React, { useState, FormEvent, useEffect } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepComponentProps, StepHeader } from 'design/StepSlider';
 
 import Box from 'design/Box';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import { MfaDevice } from 'teleport/services/mfa';
-
 export type ReauthenticateStepProps = StepComponentProps & {
-  auth2faType: Auth2faType;
-  devices: MfaDevice[];
-  onAuthenticated(privilegeToken: string): void;
+  attempt: Attempt;
+  clearAttempt(): void;
+  reauthMfaOptions: MfaOption[];
+  submitWithMfa(mfaType?: Auth2faType, otpCode?: string): Promise<void>;
   onClose(): void;
 };
 export function ReauthenticateStep({
@@ -46,28 +44,19 @@ export function ReauthenticateStep({
   refCallback,
   stepIndex,
   flowLength,
-  auth2faType,
-  devices,
+  attempt,
+  reauthMfaOptions,
+  clearAttempt,
+  submitWithMfa,
   onClose,
-  onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
-  const onAuthenticated = (privilegeToken: string) => {
-    onAuthenticatedProp(privilegeToken);
-    next();
-  };
-  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
-    useReAuthenticate({
-      onAuthenticated,
-    });
-  const mfaOptions = createReauthOptions(auth2faType, devices);
-
-  const [mfaOption, setMfaOption] = useState<Auth2faType | undefined>(
-    mfaOptions[0]?.value
+  const [otpCode, setOtpCode] = useState('');
+  const [mfaOption, setMfaOption] = useState<Auth2faType>(
+    reauthMfaOptions[0].value
   );
-  const [authCode, setAuthCode] = useState('');
 
-  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
+  const onOtpCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtpCode(e.target.value);
   };
 
   const onReauthenticate = (
@@ -76,19 +65,10 @@ export function ReauthenticateStep({
   ) => {
     e.preventDefault();
     if (!validator.validate()) return;
-    if (mfaOption === 'webauthn') {
-      submitWithWebauthn();
-    }
-    if (mfaOption === 'otp') {
-      submitWithTotp(authCode);
-    }
+    submitWithMfa(mfaOption, otpCode).then(next);
   };
 
-  const errorMessage = getReauthenticationErrorMessage(
-    auth2faType,
-    mfaOptions.length,
-    attempt
-  );
+  const errorMessage = getReauthenticationErrorMessage(attempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -106,7 +86,7 @@ export function ReauthenticateStep({
           <form onSubmit={e => onReauthenticate(e, validator)}>
             <RadioGroup
               name="mfaOption"
-              options={mfaOptions}
+              options={reauthMfaOptions}
               value={mfaOption}
               autoFocus
               flexDirection="row"
@@ -123,9 +103,9 @@ export function ReauthenticateStep({
                 rule={requiredField('Authenticator code is required')}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                value={authCode}
+                value={otpCode}
                 placeholder="123 456"
-                onChange={onAuthCodeChanged}
+                onChange={onOtpCodeChanged}
                 readonly={attempt.status === 'processing'}
               />
             )}
@@ -150,45 +130,8 @@ export function ReauthenticateStep({
     </div>
   );
 }
-function getReauthenticationErrorMessage(
-  auth2faType: Auth2faType,
-  numMfaOptions: number,
-  attempt: Attempt
-): string {
-  if (numMfaOptions === 0) {
-    switch (auth2faType) {
-      case 'on':
-        return (
-          "Identity verification is required, but you don't have any" +
-          'passkeys or MFA methods registered. This may mean that the' +
-          'server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'otp':
-        return (
-          'Identity verification using authenticator app is required, but ' +
-          "you don't have any authenticator apps registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'webauthn':
-        return (
-          'Identity verification using a passkey or security key is required, but ' +
-          "you don't have any such devices registered. This may mean " +
-          'that the server configuration has changed. Please contact your ' +
-          'administrator.'
-        );
-      case 'optional':
-      case 'off':
-        // This error message is not useful, but this condition should never
-        // happen, and if it does, it means something is broken, and we don't
-        // have a clue anyway.
-        return 'Unable to verify identity';
-      default:
-        auth2faType satisfies never;
-    }
-  }
 
+function getReauthenticationErrorMessage(attempt: Attempt): string {
   if (attempt.status === 'failed') {
     // This message relies on the status message produced by the auth server in
     // lib/auth/Server.checkOTP function. Please keep these in sync.
@@ -198,16 +141,4 @@ function getReauthenticationErrorMessage(
       return attempt.statusText;
     }
   }
-}
-
-export function createReauthOptions(
-  auth2faType: Auth2faType,
-  devices: MfaDevice[]
-): MfaOption[] {
-  return createMfaOptions({ auth2faType, required: true }).filter(
-    ({ value }) => {
-      const deviceType = value === 'otp' ? 'totp' : value;
-      return devices.some(({ type }) => type === deviceType);
-    }
-  );
 }

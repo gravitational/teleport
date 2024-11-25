@@ -27,7 +27,13 @@ export type SSOType =
 
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
-export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
+export type Auth2faType =
+  | 'otp'
+  | 'off'
+  | 'optional'
+  | 'on'
+  | 'webauthn'
+  | 'sso';
 
 export type AuthType = 'local' | 'github' | 'oidc' | 'saml';
 

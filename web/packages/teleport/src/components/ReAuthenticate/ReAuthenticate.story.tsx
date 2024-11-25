@@ -18,6 +18,10 @@
 
 import React from 'react';
 
+import createMfaOptions, {
+  createMfaOptionsFromAuth2faType,
+} from 'shared/utils/createMfaOptions';
+
 import { State } from './useReAuthenticate';
 import { ReAuthenticate } from './ReAuthenticate';
 
@@ -41,10 +45,10 @@ export const Failed = () => (
 const props: State = {
   attempt: { status: '' },
   clearAttempt: () => null,
+  getMfaChallenge: () => null,
+  getReauthMfaOptions: async () => createMfaOptionsFromAuth2faType('on'),
   submitWithTotp: () => null,
-  submitWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
+  submitWithMfa: () => null,
   onClose: () => null,
-  auth2faType: 'on',
   actionText: 'performing this action',
 };

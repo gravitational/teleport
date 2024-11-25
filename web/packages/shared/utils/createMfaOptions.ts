@@ -16,41 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Auth2faType, PreferredMfaType } from 'shared/services/types';
+import { MfaAuthenticateChallenge } from 'teleport/services/mfa';
 
-export default function createMfaOptions(opts: Options) {
-  const { auth2faType, required = false } = opts;
+import { Auth2faType } from 'shared/services/types';
+
+export function createMfaOptionsFromAuth2faType(auth2faType: Auth2faType) {
   const mfaOptions: MfaOption[] = [];
 
-  if (auth2faType === 'off' || !auth2faType) {
-    return mfaOptions;
-  }
-
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-
-  if (auth2faType === 'webauthn' || mfaEnabled) {
+  if (auth2faType === 'webauthn' || auth2faType === 'on') {
     mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
   }
 
-  if (auth2faType === 'otp' || mfaEnabled) {
+  if (auth2faType === 'otp' || auth2faType === 'on') {
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
-  }
-
-  if (!required && auth2faType === 'optional') {
-    mfaOptions.push({ value: 'optional', label: 'None' });
   }
 
   return mfaOptions;
 }
 
+export function createMfaOptions(mfaChallenge: MfaAuthenticateChallenge) {
+  const mfaOptions: MfaOption[] = [];
+
+  if (mfaChallenge?.webauthnPublicKey) {
+    mfaOptions.push({ value: 'webauthn', label: 'Passkey or Security Key' });
+  }
+
+  if (mfaChallenge?.totpChallenge) {
+    mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
+  }
+
+  if (mfaChallenge?.ssoChallenge) {
+    mfaOptions.push({
+      value: 'sso',
+      label:
+        mfaChallenge.ssoChallenge.device.displayName ||
+        mfaChallenge.ssoChallenge.device.connectorId,
+    });
+  }
+
+  return mfaOptions;
+}
+
+export default createMfaOptions;
+
 export type MfaOption = {
   value: Auth2faType;
   label: string;
-};
-
-type Options = {
-  auth2faType: Auth2faType;
-  // TODO(lisa) remove preferredType, does nothing atm
-  preferredType?: PreferredMfaType;
-  required?: boolean;
 };
