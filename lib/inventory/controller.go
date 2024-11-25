@@ -107,7 +107,10 @@ const (
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
 
-	keepAliveTick = "keep-alive-tick"
+	keepAliveSSHTick      = "keep-alive-ssh-tick"
+	keepAliveAppTick      = "keep-alive-app-tick"
+	keepAliveDatabaseTick = "keep-alive-db-tick"
+	keepAliveKubeTick     = "keep-alive-kube-tick"
 )
 
 // instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
@@ -326,11 +329,19 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	})
 	defer instanceHeartbeatTicker.Stop()
 
-	// serverKeepAliveTicker is lazily initialized upon receipt of the first
-	// heartbeat since not all servers send heartbeats
-	var serverKeepAliveTicker *jitteredticker.JitteredTicker
+	// these tickers are lazily initialized upon receipt of the first heartbeat
+	// since not all servers send all heartbeats
+	var sshKeepAliveTicker *jitteredticker.JitteredTicker
+	var appKeepAliveTicker *jitteredticker.JitteredTicker
+	var dbKeepAliveTicker *jitteredticker.JitteredTicker
+	var kubeKeepAliveTicker *jitteredticker.JitteredTicker
 	defer func() {
-		serverKeepAliveTicker.Stop()
+		// this is a function expression because the variables are initialized
+		// later and we want to call Stop on the initialized value (if any)
+		sshKeepAliveTicker.Stop()
+		appKeepAliveTicker.Stop()
+		dbKeepAliveTicker.Stop()
+		kubeKeepAliveTicker.Stop()
 	}()
 
 	for _, service := range handle.hello.Services {
@@ -408,9 +419,30 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					return
 				}
 
-				if serverKeepAliveTicker == nil {
-					// this is the first heartbeat, so we need to initialize the ticker
-					serverKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+				// we initialize tickers lazily here, depending on the protocol
+				if sshKeepAliveTicker == nil && m.SSHServer != nil {
+					sshKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
+				}
+				if appKeepAliveTicker == nil && m.AppServer != nil {
+					appKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
+				}
+				if dbKeepAliveTicker == nil && m.DatabaseServer != nil {
+					dbKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
+				}
+				if kubeKeepAliveTicker == nil && m.KubernetesServer != nil {
+					kubeKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
 						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
 						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
@@ -433,13 +465,41 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				return
 			}
 
-		case now := <-serverKeepAliveTicker.Next():
-			serverKeepAliveTicker.Advance(now)
+		case now := <-sshKeepAliveTicker.Next():
+			sshKeepAliveTicker.Advance(now)
 
-			if err := c.keepAliveServer(handle, now); err != nil {
+			if err := c.keepAliveSSHServer(handle, now); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
+			c.testEvent(keepAliveSSHTick)
+
+		case now := <-appKeepAliveTicker.Next():
+			appKeepAliveTicker.Advance(now)
+
+			if err := c.keepAliveAppServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveAppTick)
+
+		case now := <-dbKeepAliveTicker.Next():
+			dbKeepAliveTicker.Advance(now)
+
+			if err := c.keepAliveDatabaseServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveDatabaseTick)
+
+		case now := <-kubeKeepAliveTicker.Next():
+			kubeKeepAliveTicker.Advance(now)
+
+			if err := c.keepAliveKubernetesServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveKubeTick)
 
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
@@ -791,35 +851,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 	})
 }
 
-func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {
-	// always fire off 'tick' event after keepalive processing to ensure
-	// that waiting for N ticks maps intuitively to waiting for N keepalive
-	// processing steps.
-	defer c.testEvent(keepAliveTick)
-	if err := c.keepAliveSSHServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveAppServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveDatabaseServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveKubernetesServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) error {
-	if handle.appServers == nil {
-		return nil
-	}
-
 	for name, srv := range handle.appServers {
 		if srv.lease != nil {
 			lease := *srv.lease

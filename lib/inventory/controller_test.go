@@ -465,7 +465,7 @@ func TestAppServerBasics(t *testing.T) {
 	// ensure that local app keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveAppTick, keepAliveAppTick),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -490,7 +490,7 @@ func TestAppServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// apps (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveAppTick, keepAliveAppTick, keepAliveAppTick),
 		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
 	)
 
@@ -684,7 +684,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// ensure that local db keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveDatabaseTick, keepAliveDatabaseTick),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -709,7 +709,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// dbs (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveDatabaseTick, keepAliveDatabaseTick, keepAliveDatabaseTick),
 		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
 	)
 
@@ -1284,7 +1284,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// ensure that local app keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveKubeTick, keepAliveKubeTick),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
 
@@ -1309,7 +1309,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// apps (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveKubeTick, keepAliveKubeTick, keepAliveKubeTick),
 		deny(kubeKeepAliveOk, kubeKeepAliveErr, handlerClose),
 	)
 
