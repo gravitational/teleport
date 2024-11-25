@@ -565,6 +565,150 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 	require.Equal(t, expectedShell, hui.Shell)
 }
 
+func TestSSHPortForwarding(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	localCluster := "cluster"
+
+	allow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	legacyDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(false),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-deny")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(false),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	implicitAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("implicit-allow")
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	testCases := []struct {
+		name         string
+		roleSet      RoleSet
+		expectedMode SSHPortForwardMode
+	}{
+		{
+			name:         "allow",
+			roleSet:      NewRoleSet(allow),
+			expectedMode: SSHPortForwardModeOn,
+		},
+		{
+			name:         "legacy deny",
+			roleSet:      NewRoleSet(legacyDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+		{
+			name:         "all allowed",
+			roleSet:      NewRoleSet(allAllow),
+			expectedMode: SSHPortForwardModeOn,
+		},
+		{
+			name:         "remote deny",
+			roleSet:      NewRoleSet(remoteDeny),
+			expectedMode: SSHPortForwardModeLocal,
+		},
+		{
+			name:         "local deny",
+			roleSet:      NewRoleSet(localDeny),
+			expectedMode: SSHPortForwardModeRemote,
+		},
+		{
+			name:         "all deny",
+			roleSet:      NewRoleSet(allDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+		{
+			name:         "implicit allow",
+			roleSet:      NewRoleSet(implicitAllow),
+			expectedMode: SSHPortForwardModeOn,
+		},
+		{
+			name:         "conflicting roles with remote deny",
+			roleSet:      NewRoleSet(allow, remoteDeny),
+			expectedMode: SSHPortForwardModeLocal,
+		},
+		{
+			name:         "conflicting roles with local deny",
+			roleSet:      NewRoleSet(allow, localDeny),
+			expectedMode: SSHPortForwardModeRemote,
+		},
+		{
+			name:         "conflicting roles with legacy deny",
+			roleSet:      NewRoleSet(allDeny, legacyDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+		{
+			name:         "conflicting roles with explicit deny",
+			roleSet:      NewRoleSet(allow, allDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, c.roleSet)
+			require.Equal(t, c.expectedMode, accessChecker.SSHPortForwardMode())
+		})
+	}
+}
+
 type serverStub struct {
 	types.Server
 }

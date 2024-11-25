@@ -134,6 +134,13 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
+				// We have to explicitly default SSHPortForwarding to true in order to coexist
+				// with setting PortForwarding to false below. Otherwise default behavior
+				// will be a deny.
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+					Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+				},
 				// Explicitly disable options that default to true, otherwise the option
 				// will always be enabled, as this implicit role is part of every role set.
 				PortForwarding: types.NewBoolOption(false),
