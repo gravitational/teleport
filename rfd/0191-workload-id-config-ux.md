@@ -768,7 +768,6 @@ k8s:
   service_account: my-service-account
 ```
 
-
 #### Join Attributes
 
 The `join` attributes are sourced from the attestation process that occurs when
@@ -1001,6 +1000,38 @@ message WorkloadIdentitySpec {
   // [WorkloadIdentitySPIFFE] for further documentation.
   WorkloadIdentitySPIFFE spiffe = 2;
 }
+```
+
+Exhaustive representation in YAML:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+  labels:
+    environment: production
+spec:
+  rules:
+    allow:
+    - conditions:
+      - attribute: join.gitlab.namespace_path
+        equals_string: my-org
+      - attribute: join.gitlab.user_login
+        not_equals_string: noah 
+      - attribute: join.gitlab.environment
+        not_matches_string: "^abc-.*$"
+    - expression: join.gitlab.pipeline_id > 100
+    deny:
+    - conditions:
+      - attribute: join.gitlab.environment
+        matches_string: "^xyz-.*$"
+    - expression: join.gitlab.project_path == "my-org/my-project"
+  spiffe:
+    id: /gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.environment }}
+    x509:
+      dns_sans:
+      - {{ join.gitlab.environment }}.gitlab.example.com 
 ```
 
 As per RFD 153, CRUD RPCs will be included for the WorkloadIdentity resource.
