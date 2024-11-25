@@ -49,7 +49,7 @@ test('disabled assume button with assume start date', async () => {
     </MemoryRouter>
   );
 
-  const assumeBtn = screen.getByText(/assume roles/i);
+  const assumeBtn = screen.getByText('Assume Roles');
   expect(assumeBtn).toBeDisabled();
 
   // Mouse over the disabled button, and expect a popup message.
@@ -74,7 +74,7 @@ test('enabled assume button with assume start date', () => {
     </MemoryRouter>
   );
 
-  const assumeBtn = screen.getByText(/assume roles/i);
+  const assumeBtn = screen.getByText('Assume Roles');
   expect(assumeBtn).toBeEnabled();
 });
 
@@ -92,7 +92,7 @@ test('enabled assume button with no assume start date', () => {
     </MemoryRouter>
   );
 
-  const assumeBtn = screen.getByText(/assume roles/i);
+  const assumeBtn = screen.getByText('Assume Roles');
   expect(assumeBtn).toBeEnabled();
 });
 

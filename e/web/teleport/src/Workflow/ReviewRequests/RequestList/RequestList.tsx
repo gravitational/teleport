@@ -199,7 +199,7 @@ const renderActionCell = (
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {request.isAssumed ? 'assumed' : 'assume roles'}
+          {request.isAssumed ? 'Assumed' : 'Assume Roles'}
         </ButtonPrimary>
       );
     } else {
