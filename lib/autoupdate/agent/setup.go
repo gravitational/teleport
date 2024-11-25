@@ -202,7 +202,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 	if err := svc.Sync(ctx); err != nil {
 		return trace.Errorf("failed to sync systemd config: %w", err)
 	}
-	if err := os.RemoveAll(filepath.Join(ns.dataDir, versionsDirName)); err != nil {
+	if err := os.RemoveAll(ns.versionsDir); err != nil {
 		return trace.Errorf("failed to remove versions directory: %w", err)
 	}
 	return nil
