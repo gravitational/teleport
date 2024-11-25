@@ -293,6 +293,10 @@ EOF
     systemctl_wrap enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
     systemctl_wrap start teleport-ssm-publish-tokens.timer
 
+    # enable/start IAM-based token generation service for proxy joining (runs after auth starts via systemd dependency)
+    systemctl_wrap enable teleport-generate-iam-token.service
+    systemctl_wrap start teleport-generate-iam-token.service
+
     # enable/start cert services and timers
     systemctl_wrap enable teleport-get-cert.service teleport-get-cert.timer
     systemctl_wrap enable teleport-renew-cert.service teleport-renew-cert.timer
@@ -316,7 +320,9 @@ elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
     cat >${USE_CONFIG_PATH} <<EOF
 version: v3
 teleport:
-  auth_token: /var/lib/teleport/token
+  join_params:
+    method: iam
+    token_name: teleport-iam-token-proxy
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
