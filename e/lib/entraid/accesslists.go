@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -190,6 +191,15 @@ func convertEntraAccessListMembers(ctx context.Context, entraUsersByID map[entra
 	groupMembersMap map[string][]msgraph.GroupMember,
 ) (map[string]*accesslist.AccessListMember, error) {
 	result := map[string]*accesslist.AccessListMember{}
+	accesslistsById := map[entraUniqueID]*accesslist.AccessList{}
+
+	for _, al := range als {
+		id, ok := al.GetLabel(types.EntraUniqueIDLabel)
+		if !ok {
+			continue
+		}
+		accesslistsById[entraUniqueID(id)] = al
+	}
 	// TODO(justinas): look into batching this if possible.
 	for _, al := range als {
 		id, ok := al.GetLabel(types.EntraUniqueIDLabel)
@@ -197,7 +207,7 @@ func convertEntraAccessListMembers(ctx context.Context, entraUsersByID map[entra
 			return nil, trace.BadParameter("access list %v missing Entra ID unique ID label", al.GetName())
 		}
 		for _, member := range groupMembersMap[id] {
-			alm, err := convertGroupMember(ctx, member, al, entraUsersByID)
+			alm, err := convertGroupMember(ctx, member, al, entraUsersByID, accesslistsById)
 			if err != nil {
 				var id string
 				if member.GetID() != nil {
@@ -255,7 +265,12 @@ func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist
 // convertGroupMember converts an Entra group member to an AccessListMember.
 // Error is returned on unexpected conditions, indicating programmer error (e.g. validation of AccessListMember fails).
 // On non fatal errors, e.g. an unsupported member type, a warning is logged and (nil, nil) is returned.
-func convertGroupMember(ctx context.Context, in msgraph.GroupMember, al *accesslist.AccessList, entraUsersByID map[entraUniqueID]types.User) (*accesslist.AccessListMember, error) {
+func convertGroupMember(ctx context.Context,
+	in msgraph.GroupMember,
+	al *accesslist.AccessList,
+	entraUsersByID map[entraUniqueID]types.User,
+	accesslistByEntraId map[entraUniqueID]*accesslist.AccessList,
+) (*accesslist.AccessListMember, error) {
 	if in.GetID() == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a non-empty unique ID")
 	}
@@ -273,10 +288,11 @@ func convertGroupMember(ctx context.Context, in msgraph.GroupMember, al *accessl
 				Name: teleportUser.GetName(),
 			},
 			accesslist.AccessListMemberSpec{
-				AccessList: al.GetName(),
-				Name:       teleportUser.GetName(),
-				Joined:     time.Now().UTC(),
-				AddedBy:    teleport.UserSystem,
+				AccessList:     al.GetName(),
+				Name:           teleportUser.GetName(),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
 			},
 		)
 		if err != nil {
@@ -286,8 +302,28 @@ func convertGroupMember(ctx context.Context, in msgraph.GroupMember, al *accessl
 		return alm, nil
 
 	case *msgraph.Group:
-		slog.WarnContext(ctx, "entra groups as members of groups are not supported yet", "member", id)
-		return nil, nil
+		accessList, ok := accesslistByEntraId[entraUniqueID(id)]
+		if !ok {
+			slog.WarnContext(ctx, "No access list found for Entra unique ID", "id", id)
+			return nil, nil
+		}
+		alm, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: accessList.GetName(),
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     al.GetName(),
+				Name:           accessList.GetName(),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		alm.SetOrigin(types.OriginEntraID)
+		return alm, nil
 
 	default:
 		slog.WarnContext(ctx, "entra group member is not of a supported type: ", "directory_object", in, "type", reflect.TypeOf(in))

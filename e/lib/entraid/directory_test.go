@@ -12,6 +12,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -244,7 +245,7 @@ func TestEntraIDService(t *testing.T) {
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 
-	carolTeamCTeleportMember, err := convertGroupMember(ctx, carolEntra, teamCTeleport, userMap(carolTeleport))
+	carolTeamCTeleportMember, err := convertGroupMember(ctx, carolEntra, teamCTeleport, userMap(carolTeleport), nil)
 	require.NoError(t, err)
 	_, _, err = alSvc.UpsertAccessListWithMembers(ctx, teamCTeleport, []*accesslist.AccessListMember{carolTeamCTeleportMember})
 	require.NoError(t, err)
@@ -347,11 +348,25 @@ func TestEntraIDService(t *testing.T) {
 		require.Equal(t, defaultOwners, teamATeleport.GetOwners())
 		require.Equal(t, []string{teamAID}, teamATeleport.GetGrants().Traits[eteleport.EntraMemberOfGroupTrait])
 
-		teamAMembers, pageToken, err := alSvc.ListAccessListMembers(ctx, teamATeleport.GetName(), 1, "")
+		teamAMembers, pageToken, err := alSvc.ListAccessListMembers(ctx, teamATeleport.GetName(), 2, "")
 		require.NoError(t, err)
-		require.Empty(t, pageToken, "Team A access list should only have one member")
-		require.Len(t, teamAMembers, 1)
-		require.Equal(t, aliceUPN, teamAMembers[0].GetName())
+		require.Empty(t, pageToken, "Team A access list should only have two member")
+		require.Len(t, teamAMembers, 2)
+
+		// assume the first entry is the user. This is generally true because AL names are
+		// static.
+		subGroupMember := teamAMembers[0]
+		aliceMember := teamAMembers[1]
+		// if it's not true, swap the values
+		if aliceMember.Spec.MembershipKind == accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String() {
+			subGroupMember, aliceMember = aliceMember, subGroupMember
+		}
+
+		require.Equal(t, aliceUPN, aliceMember.GetName())
+		require.Equal(t, accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(), aliceMember.Spec.MembershipKind)
+
+		require.Equal(t, accessListName(*subgroup.DisplayName, *subgroup.ID), subGroupMember.GetName())
+		require.Equal(t, accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), subGroupMember.Spec.MembershipKind)
 	})
 
 	t.Run("bob unchanged", func(t *testing.T) {
