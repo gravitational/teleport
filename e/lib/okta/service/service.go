@@ -174,6 +174,7 @@ type Service struct {
 	pluginBackend       services.Plugins
 	credsBackend        services.PluginStaticCredentials
 	apiClientProviderFn func(ctx context.Context, cfg api.ClientConfig) (api.Client, error)
+	clock               clockwork.Clock
 }
 
 // NewService creates a new Okta gRPC service.
@@ -207,6 +208,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		pluginBackend:       cfg.PluginBackend,
 		credsBackend:        cfg.CredsBackend,
 		apiClientProviderFn: api.NewClient,
+		clock:               cfg.Clock,
 	}, nil
 }
 

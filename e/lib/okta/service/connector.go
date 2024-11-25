@@ -15,6 +15,25 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
+func validateOrganization(req *oktapb.CreateIntegrationRequest, connector *sso.SAMLConnectorInfo) error {
+	reqOrgURL := req.GetOktaOrganizationUrl()
+	if reqOrgURL == "" && req.GetSsoMetadataUrl() != "" {
+		// If the organization is not provided, we can't validate it.
+		// This is fine, as the organization is not required for the flow with metadata URL where the organization
+		// extracted from the connector metadata.
+		return nil
+	}
+	if reqOrgURL == "" {
+		return trace.BadParameter("Okta organization URL is required")
+	}
+	if reqOrgURL != connector.OktaOrg {
+		return trace.BadParameter(
+			"The provided Okta organization URL %q does not match the expected Okta organization URL from the connector: %q.\n"+
+				"Please ensure you're using the correct Okta organization URL that matches the Okta organization in the Okta connector %s.", reqOrgURL, connector.OktaOrg, connector.Connector.GetName())
+	}
+	return nil
+}
+
 func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest, connectorName, clusterName string, publicURL *url.URL) (*sso.SAMLConnectorInfo, error) {
 	if req.GetSsoMetadataUrl() != "" {
 		// Create a new SAML connector from the metadata URL.
@@ -34,7 +53,7 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 		}
 		return connInfo, nil
 	}
-	oktaClient, err := s.createOktaClient(ctx, req)
+	oktaClient, err := s.createOktaClientForPluginInstall(ctx, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +76,17 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 }
 
 func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest, samlConnector types.SAMLConnector) (*sso.SAMLConnectorInfo, error) {
-	oktaClient, err := s.createOktaClient(ctx, req)
+	if req.GetApiCredentials() == nil {
+		connInfo, err := s.buildBasicConnectorInfo(samlConnector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := validateOrganization(req, connInfo); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return connInfo, nil
+	}
+	oktaClient, err := s.createOktaClientForPluginInstall(ctx, req, samlConnector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

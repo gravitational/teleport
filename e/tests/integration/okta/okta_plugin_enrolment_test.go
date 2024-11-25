@@ -6,14 +6,20 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	common "github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 var apiCredentials = &oktav1.OktaAPICredentials{
@@ -173,6 +179,172 @@ func TestPluginEnrolmentSSOMetadataURLOnly(t *testing.T) {
 	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://trial-7284229.okta.com", resp.GetMetadata().Labels[types.OktaOrgURLLabel])
+}
+
+func TestPluginEnrolmentPartialSteps(t *testing.T) {
+	ctx := context.Background()
+	scimToken := uuid.NewString()
+
+	oktaInfra := createOktaSetupTreeAppGroupUserAndBasicUserGroupAssigment(t, ctx)
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
+
+	t.Run("enroll okta integration with SCM only", func(t *testing.T) {
+		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
+			ScimToken:            scimToken,
+			EnableAccessListSync: false,
+			EnableAppGroupSync:   false,
+			EnableUserSync:       false,
+			ReuseConnector:       "okta",
+		})
+		require.NoError(t, err)
+		pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+				Name: types.PluginTypeOkta,
+			})
+			assert.NoError(collect, err)
+			assert.Equal(collect, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
+		}, time.Second*2, time.Millisecond*100)
+
+		pushSCIMUserCreate(t, sut, oktaInfra.Users[0], scimToken)
+		userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
+	})
+
+	t.Run("extend okta integration and enable user sync", func(t *testing.T) {
+		from := time.Now()
+		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+			ApiCredentials: apiCredentials,
+			EnableUserSync: true,
+		})
+		require.NoError(t, err)
+		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimeout(time.Second*3), withTimePoint(from))
+		userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+			assert.NoError(t, err)
+			assert.Empty(t, accessLists)
+
+			usersGroups, _, err := sut.Teleport.Process.GetAuthServer().ListUserGroups(ctx, 0, "")
+			assert.NoError(t, err)
+			assert.Empty(t, usersGroups)
+
+			apps, err := sut.Teleport.Process.GetAuthServer().GetApps(ctx)
+			assert.NoError(t, err)
+			assert.Empty(t, apps)
+		}, time.Second*2, time.Millisecond*50)
+	})
+
+	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
+		from := time.Now()
+		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+			ApiCredentials:     apiCredentials,
+			EnableUserSync:     true,
+			EnableAppGroupSync: true,
+		})
+		require.NoError(t, err)
+
+		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*3), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimeout(time.Second*10), withTimePoint(from))
+
+		require.EventuallyWithT(t, func(collection *assert.CollectT) {
+			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+			assert.NoError(collection, err)
+			assert.Empty(collection, accessLists)
+			usersGroups, _, err := sut.Teleport.Process.GetAuthServer().ListUserGroups(ctx, 0, "")
+			assert.NoError(collection, err)
+			assert.Len(collection, usersGroups, len(oktaInfra.Groups))
+		}, time.Second*2, time.Millisecond*100)
+	})
+
+	t.Run("enabled full integration by turing on access list sync", func(t *testing.T) {
+		from := time.Now()
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+				EnableUserSync:       true,
+				EnableAppGroupSync:   true,
+				EnableAccessListSync: true,
+				AccessListSettings: &oktav1.AccessListSettings{
+					DefaultOwner: []string{"alice-admin"},
+				},
+			})
+			require.NoError(t, err)
+		}, time.Second, 200*time.Millisecond)
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*3), withTimePoint(from))
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+			assert.NoError(t, err)
+			assert.Len(t, accessLists, len(oktaInfra.Groups))
+		}, time.Second*2, time.Millisecond*100)
+	})
+
+	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
+		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+			EnableUserSync:       true,
+			EnableAppGroupSync:   true,
+			EnableAccessListSync: true,
+			AccessListSettings: &oktav1.AccessListSettings{
+				DefaultOwner: []string{"alice-admin"},
+				GroupFilters: []string{oktaInfra.Groups[0].Profile.Name},
+			},
+		})
+		require.NoError(t, err)
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*3), withTimePoint(time.Now()))
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+			assert.NoError(t, err)
+			assert.Len(t, accessLists, 1)
+		}, time.Second*2, time.Millisecond*100)
+	})
+}
+
+func TestPluginEnrollmentErrors(t *testing.T) {
+	var scimToken = uuid.NewString()
+	ctx := context.Background()
+	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(3, 3, 3))
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
+
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
+
+	t.Run("try to configure scim integration without any okta connector", func(t *testing.T) {
+		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
+			ScimToken:            scimToken,
+			EnableAccessListSync: false,
+			EnableAppGroupSync:   false,
+			EnableUserSync:       false,
+		})
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("okta client is missing permission to create okta SAML application", func(t *testing.T) {
+		oktaInfra.client.scopes = []string{"okta.apps.read", "okta.groups.read", "okta.users.read"}
+		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+			ApiCredentials:       &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "12345"}},
+			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
+			ScimToken:            scimToken,
+			EnableAccessListSync: false,
+			EnableAppGroupSync:   false,
+			EnableUserSync:       false,
+		})
+		require.Error(t, err)
+	})
 }
 
 func mustFilterGroups(t *testing.T, oktaClient oktav1.OktaServiceClient, filters []string) *oktav1.GetGroupsResponse {

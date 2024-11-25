@@ -192,8 +192,8 @@ spec:
       </KeyDescriptor>
       <SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="teleport.example.com/logout"></SingleLogoutService>
       <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="teleport.example.com/sso"></SingleSignOnService>
-      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="teleport.example.com/sso"></SingleSignOnService>
+      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://trial-1234567.okta.com/sso"></SingleSignOnService>
+      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://trial-1234567.okta.com/sso"></SingleSignOnService>
      </IDPSSODescriptor>
     </EntityDescriptor>
   entity_descriptor_url: ""

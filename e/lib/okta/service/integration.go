@@ -3,7 +3,6 @@ package oktaservice
 import (
 	"context"
 	"log/slog"
-	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -33,7 +32,12 @@ func (s *Service) ValidateClientCredentials(ctx context.Context, req *oktapb.Val
 	if err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oktaClient, err := s.createOktaClient(ctx, req)
+	params := &createOktaClientParams{
+		credsFromReq:     req.GetApiCredentials(),
+		oktaOrganization: req.GetOktaOrganizationUrl(),
+		scopes:           []string{api.ScopeUserRead},
+	}
+	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
 		return nil, trace.BadParameter("okta credential verification failed: %v", err)
 	}
@@ -209,29 +213,78 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	if err := s.authorize(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.NotImplemented("not implemented")
+	resp, err := s.updateIntegration(ctx, req)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to update Okta integration.", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	log := s.logger.With("sync_settings", resp.GetPlugin().Spec.GetOkta().SyncSettings)
+	log.InfoContext(ctx, "Okta integration successfully updated.")
+	return resp, nil
 }
 
-type oktaAuthConfigGetter interface {
-	// GetOktaOrganizationUrl returns the Okta organization URL.
-	GetOktaOrganizationUrl() string
-	// GetApiCredentials returns the Okta API credentials.
-	GetApiCredentials() *oktapb.OktaAPICredentials
-}
-
-func (s *Service) createOktaClient(ctx context.Context, params oktaAuthConfigGetter) (api.Client, error) {
-	if err := validateCredential(params); err != nil {
+func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateIntegrationRequest) (*oktapb.UpdateIntegrationResponse, error) {
+	plugin, err := s.pluginBackend.GetPlugin(ctx, types.PluginTypeOkta, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pluginV1, err := validatePlugin(plugin)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaClient, err := s.apiClientProviderFn(ctx, api.ClientConfig{
-		HTTPClient:   &http.Client{Transport: s.roundTripper},
-		Endpoint:     params.GetOktaOrganizationUrl(),
-		AuthProvider: api.NewSSWSAuthProvider(params.GetApiCredentials().GetSswsBearerToken()),
-		Log:          slog.With("okta_url", params.GetOktaOrganizationUrl()),
+	if err := s.updateOktaSpec(ctx, req, pluginV1); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.maybeUpdatePluginCredentials(ctx, req, plugin.GetCredentials().GetStaticCredentialsRef(), pluginV1); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updatePlugin, err := s.pluginBackend.UpdatePlugin(ctx, pluginV1)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to updated backend plugin item")
+		return nil, trace.Wrap(err)
+	}
+	updatedPluginV1, ok := updatePlugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("plugin is not of type PluginV1")
+	}
+	return &oktapb.UpdateIntegrationResponse{
+		Plugin: updatedPluginV1,
+	}, nil
+}
+
+func (s *Service) createOktaClientForPluginInstall(ctx context.Context, req *oktapb.CreateIntegrationRequest, connector types.SAMLConnector) (api.Client, error) {
+	if req.GetApiCredentials() == nil {
+		return nil, trace.BadParameter("missing Okta API credentials")
+	}
+	if req.GetOktaOrganizationUrl() == "" && connector != nil {
+		oktaOrg, err := sso.ExtractOktaOrganizationFromURL(connector.GetSSO())
+		if err != nil {
+			return nil, trace.BadParameter("missing Okta organization URL")
+		}
+		if oktaOrg == "" {
+			return nil, trace.BadParameter("missing Okta organization URL")
+		}
+		req.OktaOrganizationUrl = oktaOrg
+	}
+	scopes := []string{
+		api.ScopeAppsRead,
+		api.ScopeOrgsRead,
+		api.ScopeGroupsRead,
+	}
+	if connector == nil {
+		// If the reuses connector is not set, the flow needs to create SAML Okta app in Okta organization.
+		// For that the okta.apps.manage scope is required.
+		scopes = append(scopes, api.ScopeAppsManage)
+	}
+
+	oktaClient, err := s.createOktaClient(ctx, &createOktaClientParams{
+		credsFromReq:     req.GetApiCredentials(),
+		oktaOrganization: req.GetOktaOrganizationUrl(),
+		scopes:           scopes,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to create Okta client")
 	}
 	return oktaClient, nil
 }

@@ -1,8 +1,13 @@
 package okta
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -60,6 +65,15 @@ func withAppsGroupsUsersCount(apps, groups, users int) oktaSetupOptionFun {
 		o.groupsCount = groups
 		o.usersCount = users
 	}
+}
+
+func createOktaSetupTreeAppGroupUserAndBasicUserGroupAssigment(t *testing.T, ctx context.Context) *oktaInfraSetup {
+	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
+	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), oktaAppGroupsUsersCount)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
+	return oktaInfra
 }
 
 func createOktaSetup(t *testing.T, ctx context.Context, oktaClient *mockOktaAPIClient, opts ...oktaSetupOptionFun) *oktaInfraSetup {
@@ -203,4 +217,61 @@ func mustGetAppIDbyAppLabel(t *testing.T, sut *common.SUT, oktaInfra *oktaInfraS
 	}
 	require.NotEmpty(t, appID)
 	return appID
+}
+
+func oktaUserToSCIMUser(oktaUser *oktaUserType) *oktaSCIMUser {
+	return &oktaSCIMUser{
+		ExternalID: oktaUser.Id,
+		ID:         oktaUser.login(),
+		UserName:   oktaUser.login(),
+		Groups:     []string{},
+	}
+}
+
+type oktaSCIMUser struct {
+	ExternalID string `json:"externalId"`
+	ID         string `json:"id"`
+	Meta       struct {
+		Created  time.Time `json:"created"`
+		Location string    `json:"location"`
+		Version  string    `json:"version"`
+	} `json:"meta"`
+	Schemas  []string `json:"schemas"`
+	UserName string   `json:"userName"`
+	Name     struct {
+		GivenName  string `json:"givenName"`
+		FamilyName string `json:"familyName"`
+	} `json:"name"`
+	Emails []struct {
+		Primary bool   `json:"primary"`
+		Value   string `json:"value"`
+		Type    string `json:"type"`
+	} `json:"emails"`
+	DisplayName string   `json:"displayName"`
+	Locale      string   `json:"locale"`
+	Groups      []string `json:"groups"`
+}
+
+func pushSCIMUserCreate(t *testing.T, sut *common.SUT, user *oktaUserType, scimToken string) int {
+	httpClient := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	u := url.URL{
+		Scheme: "https",
+		Path:   "/v1/webapi/scim/okta/Users",
+		Host:   sut.ProxyAddr,
+	}
+	buff, err := json.Marshal(oktaUserToSCIMUser(user))
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(buff))
+	require.NoError(t, err)
+	req.Header.Add("Authorization", "Bearer "+scimToken)
+
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	return resp.StatusCode
 }

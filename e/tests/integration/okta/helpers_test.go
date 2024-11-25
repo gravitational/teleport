@@ -78,8 +78,9 @@ func mustWaitForEvent(t *testing.T, sut *common.SUT, eventType string, opts ...w
 
 func mustWaitForEventFrom(t *testing.T, sut *common.SUT, eventType string, from time.Time, opts ...waitOption) {
 	options := &waitOptions{
-		timeout: time.Second * 10,
-		step:    time.Millisecond * 100,
+		timeout:   time.Second * 10,
+		step:      time.Millisecond * 100,
+		timePoint: time.Now(),
 	}
 	for _, o := range opts {
 		o(options)
@@ -87,7 +88,7 @@ func mustWaitForEventFrom(t *testing.T, sut *common.SUT, eventType string, from 
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		gotEvents, _, err := sut.Teleport.Process.GetAuthServer().SearchEvents(context.Background(), events.SearchEventsRequest{
-			From: from,
+			From: options.timePoint,
 			To:   time.Now(),
 			EventTypes: []string{
 				eventType,
@@ -261,8 +262,15 @@ func waitForOktaFirstOktaAssignment(t *testing.T, sut *common.SUT) {
 }
 
 type waitOptions struct {
-	timeout time.Duration
-	step    time.Duration
+	timeout   time.Duration
+	step      time.Duration
+	timePoint time.Time
+}
+
+func withTimePoint(t time.Time) waitOption {
+	return func(o *waitOptions) {
+		o.timePoint = t
+	}
 }
 
 type waitOption func(*waitOptions)
