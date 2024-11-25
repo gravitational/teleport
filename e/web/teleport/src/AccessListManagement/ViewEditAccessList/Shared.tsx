@@ -42,27 +42,35 @@ export type AccessListRequiresWithTraitConvenience = AccessListRequires &
 export type AccessListGrantWithTraitConvenience = AccessListGrant &
   TraitConvenience;
 
-export type AccessListWithNestedOwnersMembersTitles = AccessList & {
-  owners: (AccessList['owners'][number] &
-    (
-      | {
-          membershipKind: AccessListMemberKind.List;
-          title: string;
-          accessListExists: boolean;
-        }
-      | { membershipKind: AccessListMemberKind.User; title: string }
-      | { membershipKind: AccessListMemberKind.Unspecified; title: string }
-    ))[];
-  members: (AccessList['members'][number] &
-    (
-      | {
-          membershipKind: AccessListMemberKind.List;
-          title: string;
-          accessListExists: boolean;
-        }
-      | { membershipKind: AccessListMemberKind.User; title: string }
-      | { membershipKind: AccessListMemberKind.Unspecified; title: string }
-    ))[];
+type Title = {
+  // title` represents the display name of an AccessListMember or Owner,
+  // as opposed to `name`, which in the case of a nested Access List, is its UUID.
+  title: string;
+};
+type Membership =
+  | {
+      membershipKind: Exclude<AccessListMemberKind, AccessListMemberKind.List>;
+    }
+  | {
+      membershipKind: AccessListMemberKind.List;
+      // `accessListExists` is present for nested Access List members and owners,
+      // and is true if the list is found within all loaded AccessLists.
+      accessListExists: boolean;
+    };
+export type AccessListWithNestedOwnersMembersTitles = Omit<
+  AccessList,
+  'owners' | 'members'
+> & {
+  // owners in AccessListWithNestedOwnersMembersTitles are AccessList Owners with additional properties:
+  // - `title` is the display name of the Owner, as opposed to `name`, which for a nested Access List is its UUID.
+  // - `accessListExists` is present for nested Access Lists, and is true if the list is found within all loaded AccessLists.
+  // For example, if the list does not exist, or the active user lacks permission to load it, `accessListExists` will be false.
+  owners: (AccessListOwner & Title & Membership)[];
+  // `members` in AccessListWithNestedOwnersMembersTitles are AccessListMembers with additional properties:
+  // - `title` is the display name of the Member, as opposed to `name`, which for a nested Access List is its UUID.
+  // - `accessListExists` is present for nested Access Lists, and is true if the list is found within all loaded AccessLists.
+  // For example, if the list does not exist, or the active user lacks permission to load it, `accessListExists` will be false.
+  members: (AccessListMember & Title & Membership)[] | undefined;
 };
 
 export type AccessListModified = AccessListWithNestedOwnersMembersTitles & {
@@ -152,42 +160,24 @@ export const modifyAccessList = (
 export const getTitlesForNestedListOwnersMembers = (
   acl: Pick<AccessList, 'members' | 'owners'>,
   acls: Pick<AccessList | AccessListWithModifiedGrants, 'id' | 'title'>[]
-): Pick<AccessListWithNestedOwnersMembersTitles, 'members' | 'owners'> => {
-  const updatedMembers = acl.members.map(m => {
-    switch (m.membershipKind) {
-      case AccessListMemberKind.List:
-        const acl = acls.find(l => l.id === m.name);
-        return {
-          ...m,
-          title: acl?.title || m.name,
-          accessListExists: !!acl,
-        };
-      default:
-        return {
-          ...m,
-          title: m.name,
-        };
+): Pick<AccessListWithNestedOwnersMembersTitles, 'members' | 'owners'> => ({
+  members: acl.members?.map(m => {
+    const { membershipKind } = m;
+    if (membershipKind !== AccessListMemberKind.List) {
+      return { ...m, title: m.name, membershipKind };
     }
-  }) as AccessListWithNestedOwnersMembersTitles['members'];
-  const updatedOwners = acl.owners.map(o => {
-    switch (o.membershipKind) {
-      case AccessListMemberKind.List:
-        const acl = acls.find(l => l.id === o.name);
-        return {
-          ...o,
-          title: acl?.title || o.name,
-          accessListExists: !!acl,
-        };
-      default:
-        return {
-          ...o,
-          title: o.name,
-        };
+    const acl = acls.find(l => l.id === m.name);
+    return { ...m, title: acl?.title || m.name, accessListExists: !!acl };
+  }),
+  owners: acl.owners.map(o => {
+    const { membershipKind } = o;
+    if (membershipKind !== AccessListMemberKind.List) {
+      return { ...o, title: o.name, membershipKind };
     }
-  }) as AccessListWithNestedOwnersMembersTitles['owners'];
-
-  return { members: updatedMembers, owners: updatedOwners };
-};
+    const acl = acls.find(l => l.id === o.name);
+    return { ...o, title: acl?.title || o.name, accessListExists: !!acl };
+  }),
+});
 
 export const isAccessListOwnerRecursive = (
   acl:
