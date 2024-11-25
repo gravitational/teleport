@@ -70,42 +70,44 @@ export const FiveTabs = () => {
 };
 
 export const Round = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex1, setActiveIndex1] = useState(0);
+  const [activeIndex2, setActiveIndex2] = useState(0);
   return (
     <Flex flexDirection="column" gap={3}>
       <SlideTabs
         appearance="round"
         tabs={fiveSimpleTabs}
-        onChange={setActiveIndex}
-        activeIndex={activeIndex}
+        onChange={setActiveIndex1}
+        activeIndex={activeIndex1}
       />
       <SlideTabs
         tabs={titlesWithIcons}
         appearance="round"
-        onChange={setActiveIndex}
-        activeIndex={activeIndex}
+        onChange={setActiveIndex2}
+        activeIndex={activeIndex2}
       />
     </Flex>
   );
 };
 
 export const Medium = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex1, setActiveIndex1] = useState(0);
+  const [activeIndex2, setActiveIndex2] = useState(0);
   return (
     <Flex flexDirection="column" gap={3}>
       <SlideTabs
         tabs={fiveSimpleTabs}
         size="medium"
         appearance="round"
-        onChange={setActiveIndex}
-        activeIndex={activeIndex}
+        onChange={setActiveIndex1}
+        activeIndex={activeIndex1}
       />
       <SlideTabs
         tabs={titlesWithIcons}
         size="medium"
         appearance="round"
-        onChange={setActiveIndex}
-        activeIndex={activeIndex}
+        onChange={setActiveIndex2}
+        activeIndex={activeIndex2}
       />
     </Flex>
   );
