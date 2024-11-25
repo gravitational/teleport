@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -76,38 +77,90 @@ func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*okt
 	}, nil
 }
 
+func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest) error {
+	// Plugin can be setup only based on the SSO metadata URL or Okta organization URL.
+	if req.GetSsoMetadataUrl() == "" {
+		// If SSO metadata URL is not provided, Okta organization URL is required because
+		// it can be extracted from the SSO metadata URL.
+		if req.GetOktaOrganizationUrl() == "" {
+			return trace.BadParameter("missing Okta organization URL")
+		}
+		u, err := url.Parse(req.GetOktaOrganizationUrl())
+		if err != nil {
+			return trace.BadParameter("invalid Okta organization URL: %v", err)
+		}
+		if u.Scheme == "" {
+			u.Scheme = "https"
+			req.OktaOrganizationUrl = u.String()
+		}
+	}
+
+	if req.GetApiCredentials() == nil {
+		// Credentials are required for access list sync, user sync, and group sync.
+		// Otherwise, the plugin will not be able to fetch and sync required data.
+		if req.GetEnableUserSync() {
+			return trace.BadParameter("Okta API credentials are required for access list sync")
+		}
+		if req.GetEnableUserSync() {
+			return trace.BadParameter("Okta API credentials are required for user sync")
+		}
+		if req.GetEnableAppGroupSync() {
+			return trace.BadParameter("Okta API credentials are required for group sync")
+		}
+	}
+	return nil
+}
+
 // CreateIntegration creates a new Okta integration.
 // Depending on the request, it may create a new SAML connector or reuse an existing one.
 func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
 	if err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var oktaClient api.Client
-	var err error
-	if req.GetApiCredentials() != nil {
-		oktaClient, err = s.createOktaClient(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := validateCreateIntegrationRequest(req); err != nil {
+		return nil, trace.Wrap(err, "create integration failed due to invalid request")
 	}
 
-	info, err := s.getOrCreateSAMLConnector(ctx, oktaClient, req.GetReuseConnector())
+	resp, err := s.createIntegration(ctx, req)
 	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to create Okta integration.", "error", err)
 		return nil, trace.Wrap(err)
 	}
+	log := slog.With(
+		"sync_settings", resp.GetPlugin().Spec.GetOkta().SyncSettings,
+		"connector", resp.GetConnectorInfo().GetTeleportConnectorName(),
+		"okta_app_id", resp.GetConnectorInfo().GetOktaAppId(),
+		"okta_app_name", resp.GetConnectorInfo().GetOktaAppId(),
+	)
+	log.InfoContext(ctx, "Okta integration successfully created.")
+	return resp, nil
+}
 
-	oktaPlugin := newOktaPlugin(req, info)
+func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
+	info, err := s.getOrCreateSAMLConnector(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get or create SAML connector")
+	}
+
+	creds, err := getOktaPluginCredentials(req)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get Okta plugin credentials")
+	}
+
+	oktaPlugin := createOktaPlugin(req, info)
+
 	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                oktaPlugin,
-		StaticCredentialsList: getOktaPluginCredentials(req),
+		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
 			eteleport.OktaOrgURLLabel: req.GetOktaOrganizationUrl(),
 		},
 	}
+
 	if _, err = s.pluginService.CreatePlugin(ctx, createPluginRequest); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to create Okta plugin")
 	}
+
 	return &oktapb.CreateIntegrationResponse{
 		Plugin: oktaPlugin,
 		ConnectorInfo: &oktapb.ConnectorInfo{
@@ -119,16 +172,9 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 	}, nil
 }
 
-func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateIntegrationRequest) (*oktapb.UpdateIntegrationResponse, error) {
-	if err := s.authorize(ctx, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func newOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo) *types.PluginV1 {
+func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo) *types.PluginV1 {
 	oktaSettings := &types.PluginOktaSettings{
-		OrgUrl: req.GetOktaOrganizationUrl(),
+		OrgUrl: info.OktaOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SyncUsers:            req.GetEnableUserSync(),
 			SyncAccessLists:      req.GetEnableAccessListSync(),
@@ -141,7 +187,8 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnector
 			DefaultOwners: req.GetAccessListSettings().GetDefaultOwner(),
 		},
 	}
-	return &types.PluginV1{
+
+	plugin := &types.PluginV1{
 		SubKind: types.PluginSubkindAccess,
 		Metadata: types.Metadata{
 			Labels: map[string]string{
@@ -155,6 +202,14 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnector
 			},
 		},
 	}
+	return plugin
+}
+
+func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateIntegrationRequest) (*oktapb.UpdateIntegrationResponse, error) {
+	if err := s.authorize(ctx, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.NotImplemented("not implemented")
 }
 
 type oktaAuthConfigGetter interface {

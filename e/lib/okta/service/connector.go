@@ -3,61 +3,66 @@ package oktaservice
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
-func (s *Service) getOrCreateSAMLConnector(ctx context.Context, oktaClient api.Client, connectorName string) (*sso.SAMLConnectorInfo, error) {
-	// Remove the MFA resp from the context before pinging.
-	// Otherwise, it will be consumed before the Create which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	pingCtx := mfa.ContextWithMFAResponse(ctx, nil)
-	pingInfo, err := s.authService.Ping(pingCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	publicURL, err := lib.AddrToURL(pingInfo.ProxyPublicAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if connectorName == "" {
-		connectorName = common.OktaSSOConnectorName
-	}
-
-	// Remove the MFA resp from the context before getting the connector.
-	// Otherwise, it will be consumed before the Create which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	getConnectorCtx := mfa.ContextWithMFAResponse(ctx, nil)
-	samlConnector, err := s.authService.GetSAMLConnector(getConnectorCtx, connectorName, false)
-	if trace.IsNotFound(err) {
-		connInfo, err := sso.CreateSAMLConnector(ctx, sso.ConnectorArgs{
+func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest, connectorName, clusterName string, publicURL *url.URL) (*sso.SAMLConnectorInfo, error) {
+	if req.GetSsoMetadataUrl() != "" {
+		// Create a new SAML connector from the metadata URL.
+		// This is the flow where the SAML application is pre-created in the Okta organization.
+		// And Teleport just needs to create a SAML connector from the metadata.
+		connInfo, err := sso.CreateSAMLConnectorFromMetadatURL(ctx, sso.ConnectorArgs{
 			ConnectorName:        connectorName,
-			OktaClient:           oktaClient,
 			SAMLConnectorService: s.authService,
-			ClusterName:          pingInfo.ClusterName,
+			ClusterName:          clusterName,
 			PublicURL:            publicURL,
 			Logger:               s.logger,
+			MetadataURL:          req.GetSsoMetadataUrl(),
+			HTTPClient:           s.roundTripper,
 		})
-		if trace.IsAccessDenied(err) {
-			return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating new SAML connector")
 		}
-		return connInfo, trace.Wrap(err, "creating new SAML connector")
-	} else if err != nil {
-		return nil, trace.Wrap(err, "fetching SAML connector %s", connectorName)
+		return connInfo, nil
+	}
+	oktaClient, err := s.createOktaClient(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Create a Teleport SAML application in the Okta organization.
+	// and corresponding SAML connector in Teleport.
+	// For that the okta.apps.manage is required to create the SAML app in Okta organization.
+	// Also, the flow tries to Assign okta Groups Everyone and created Okta SAML app.
+	connInfo, err := sso.CreateSAMLConnector(ctx, sso.ConnectorArgs{
+		ConnectorName:        connectorName,
+		OktaClient:           oktaClient,
+		SAMLConnectorService: s.authService,
+		ClusterName:          clusterName,
+		PublicURL:            publicURL,
+		Logger:               s.logger,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connInfo, nil
+}
+
+func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest, samlConnector types.SAMLConnector) (*sso.SAMLConnectorInfo, error) {
+	oktaClient, err := s.createOktaClient(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	connectorInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
+	connInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
 	if err != nil {
 		msg := err.Error()
 		if trace.IsAccessDenied(err) {
@@ -68,5 +73,51 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, oktaClient api.C
 		// to the UI that the problem is the underlying SAML connector.
 		return nil, trace.CompareFailed(msg)
 	}
-	return connectorInfo, nil
+	return connInfo, nil
+}
+
+func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*sso.SAMLConnectorInfo, error) {
+	connectorName := req.GetReuseConnector()
+	if connectorName == "" {
+		connectorName = common.OktaSSOConnectorName
+	}
+	// Remove the MFA resp from the context before getting the connector.
+	// Otherwise, it will be consumed before the Create which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	ctxMFA := mfa.ContextWithMFAResponse(ctx, nil)
+	pingInfo, err := s.authService.Ping(ctxMFA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicURL, err := lib.AddrToURL(pingInfo.ProxyPublicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlConnector, err := s.authService.GetSAMLConnector(ctxMFA, connectorName, false)
+	switch {
+	case err != nil && !trace.IsNotFound(err):
+		return nil, trace.Wrap(err, "fetching SAML connector %s", connectorName)
+	case trace.IsNotFound(err):
+		connInfo, createErr := s.pluginInstallCreateSAMLConnector(ctx, req, connectorName, pingInfo.ClusterName, publicURL)
+		if createErr != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+			}
+			return nil, trace.Wrap(createErr, "creating SAML connector %s", connectorName)
+		}
+		return connInfo, nil
+	default:
+		// If the connector already exists, reuse it.
+		// And try to fetch additional details about Okta setup like Okta Application Name or Okta Application ID
+		// that are usable to display Okta plugins status page.
+		connInfo, reuseErr := s.pluginInstallReuseExistingSAMLConnector(ctx, req, samlConnector)
+		if reuseErr != nil {
+			return nil, trace.Wrap(reuseErr, "reusing existing SAML connector %s", connectorName)
+		}
+		return connInfo, nil
+	}
 }

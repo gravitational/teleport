@@ -2,6 +2,8 @@ package sso
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -16,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // SAMLConnectorService defines an interface for querying and creating
@@ -53,6 +56,13 @@ type ConnectorArgs struct {
 	// SigningKeypair is an optional keypair to use for the SAML connector. A sensible,
 	// secure default will be generated if none is supplied.
 	SigningKeypair *types.AsymmetricKeyPair
+
+	// MetadataURL is the URL to fetch the SAML metadata from
+	// the Okta app.
+	MetadataURL string
+
+	// HTTPClient is the HTTP client to use for fetching the metadata.
+	HTTPClient http.RoundTripper
 }
 
 func (a *ConnectorArgs) Check() error {
@@ -74,6 +84,13 @@ func (a *ConnectorArgs) Check() error {
 	if a.Logger == nil {
 		return trace.BadParameter("missing SSO connector parameter Logger")
 	}
+	if a.HTTPClient == nil {
+		tr, err := defaults.Transport()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.HTTPClient = tr
+	}
 	return nil
 }
 
@@ -84,6 +101,7 @@ type SAMLConnectorInfo struct {
 	OktaAppID    string
 	OktaAppLabel string
 	OktaAppName  string
+	OktaOrg      string
 }
 
 // CreateSAMLConnector automates the creation of an Okta SAML app and
@@ -206,9 +224,77 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 		OktaAppID:    app.Id,
 		OktaAppName:  app.Name,
 		OktaAppLabel: app.Label,
+		OktaOrg:      args.OktaClient.OrgURL(),
 	}
 
 	return info, nil
+}
+
+// CreateSAMLConnectorFromMetadatURL creates a new SAML connector in Teleport based on the OKta SAML Application metadataURL.
+func CreateSAMLConnectorFromMetadatURL(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
+	idpMetadata, err := fetchSSOIdPMetadata(ctx, args.MetadataURL, args.HTTPClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connector, err := types.NewSAMLConnector(args.ConnectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: args.PublicURL.JoinPath("/v1/webapi/saml/acs", args.ConnectorName).String(),
+		Display:                  args.ConnectorName,
+		EntityDescriptor:         string(idpMetadata),
+		AttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "groups",
+				Value: api.OktaGroupEveryone,
+				Roles: []string{teleport.SystemOktaRequesterRoleName},
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	oktaOrg, err := ExtractOktaOrganizationFromURL(args.MetadataURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	meta := connector.GetMetadata()
+	meta.Labels = map[string]string{
+		types.OriginLabel:         types.OriginOkta,
+		eteleport.OktaOrgURLLabel: oktaOrg,
+	}
+
+	connector.SetMetadata(meta)
+	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
+		return nil, trace.Wrap(err, "creating Okta SAML connector")
+	}
+	info := &SAMLConnectorInfo{
+		Connector: connector,
+		OktaOrg:   oktaOrg,
+	}
+	return info, nil
+}
+
+func fetchSSOIdPMetadata(ctx context.Context, metadataURL string, rt http.RoundTripper) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, metadataURL, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	httpClient := http.Client{
+		Transport: rt,
+	}
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching SAML app entity metadata")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.BadParameter("failed to fetch IdP metadata from the %q URL, http status: %s", metadataURL, resp.Status)
+	}
+	metadata, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading metadata response")
+	}
+	return metadata, nil
 }
 
 // ValidateSAMLConnector examines SAML Auth connector to see if it is configured
@@ -245,6 +331,7 @@ func ValidateSAMLConnector(ctx context.Context, connector types.SAMLConnector, o
 		OktaAppID:    connectorAppID,
 		OktaAppName:  samlApp.Name,
 		OktaAppLabel: samlApp.Label,
+		OktaOrg:      connectorOrg,
 	}
 
 	return info, nil
@@ -396,4 +483,14 @@ func extractMetadataURL(input any) (*url.URL, string, error) {
 	}
 
 	return url, links.Metadata.Type, nil
+}
+
+// ExtractOktaOrganizationFromURL extracts the Okta organization URL from the
+// given Okta URL.
+func ExtractOktaOrganizationFromURL(oktaURL string) (string, error) {
+	u, err := url.Parse(oktaURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%s://%s", u.Scheme, u.Hostname()), nil
 }

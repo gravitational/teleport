@@ -1,6 +1,7 @@
 package oktaservice
 
 import (
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -71,7 +72,7 @@ func buildSCIMCredentials(scimToken string) *types.PluginStaticCredentialsV1 {
 // provided request in order to save then into plugin static credential backend storage.
 // Depending on the plugin some credentials may be required or optional but this is validated
 // by the plugin itself.
-func getOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) []*types.PluginStaticCredentialsV1 {
+func getOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.PluginStaticCredentialsV1, error) {
 	var out []*types.PluginStaticCredentialsV1
 	if req.GetApiCredentials().GetOauthId() != "" {
 		out = append(out, buildOAuthCredentials(req.GetApiCredentials().GetOauthId()))
@@ -83,10 +84,10 @@ func getOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) []*types.Plu
 		if req.GetScimToken() != "" {
 			scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(req.GetScimToken()), bcrypt.DefaultCost)
 			if err != nil {
-				panic(err)
+				return nil, trace.Wrap(err)
 			}
 			out = append(out, buildSCIMCredentials(string(scimTokenHash)))
 		}
 	}
-	return out
+	return out, nil
 }

@@ -9,12 +9,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -68,6 +71,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	serviceConfig.Auth.HostedPlugins.Enabled = true
 	serviceConfig.Clock = clock
+	serviceConfig.Testing.HTTPTransport = options.HTTPTransport
 	err := teleport.CreateEx(t, nil, serviceConfig)
 	require.NoError(t, err)
 
@@ -94,6 +98,17 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 		require.NoError(t, err)
 	}
 	return &sut
+}
+
+func (s *SUT) GetAuthServiceGRPCConn(t *testing.T, user string) *grpc.ClientConn {
+	tc := s.GetClusterClientForUser(t, user)
+	authClient, ok := tc.AuthClient.(*authclient.Client)
+	require.True(t, ok)
+	return authClient.APIClient.GetConnection()
+}
+
+func (s *SUT) GetOktaAuthClient(t *testing.T, user string) oktapb.OktaServiceClient {
+	return oktapb.NewOktaServiceClient(s.GetAuthServiceGRPCConn(t, user))
 }
 
 // GetClusterClientForUser returns a client for the given user.

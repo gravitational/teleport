@@ -3,6 +3,9 @@ package okta
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -278,6 +282,40 @@ func TestAccessRequest(t *testing.T) {
 	})
 }
 
+// TestPluginEnrolmentSSOMetadataURL tests the enrolment of the Okta plugin where the SSO metadata URL is provided
+// and the SAML connector is created based on the provided metadata URL.
+func TestPluginEnrolmentSSOMetadataURLOnly(t *testing.T) {
+	ctx := context.Background()
+	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(idp.EntityDescriptor)),
+				Header:     http.Header{"Content-Type": []string{"application/xml"}},
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+		}, nil
+	})
+
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(httpMock),
+	)
+
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ScimToken:      "12345",
+		SsoMetadataUrl: "https://trial-7284229.okta.com/app/exkjel1ccet9biVnA697/sso/saml/metadata",
+	})
+	require.NoError(t, err)
+	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+	require.NoError(t, err)
+	require.Equal(t, "https://trial-7284229.okta.com", resp.GetMetadata().Labels[types.OktaOrgURLLabel])
+}
+
 func assertAccessListMembers(t *testing.T, ctx context.Context, sut *common.SUT, accessListName string, want []string) {
 	got, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, accessListName, 0, "")
 	require.NoError(t, err)
@@ -337,4 +375,10 @@ func mustCreateMember(t *testing.T, aclName, memberName string, memberType strin
 	)
 	require.NoError(t, err)
 	return member
+}
+
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

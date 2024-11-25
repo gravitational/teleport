@@ -1,6 +1,7 @@
 package common
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,7 @@ type sutOptions struct {
 	resources     []types.Resource
 	samlConnector string
 	license       string
+	HTTPTransport http.RoundTripper
 }
 
 type option func(*sutOptions)
@@ -24,6 +26,13 @@ func WithUser(t *testing.T, user string, roles ...string) func(*sutOptions) {
 
 	return func(o *sutOptions) {
 		o.resources = append(o.resources, aliceUser)
+	}
+}
+
+// WithHTTPClient  adds an HTTP client to the SUT.
+func WithHTTPClient(tr http.RoundTripper) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.HTTPTransport = tr
 	}
 }
 

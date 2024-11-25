@@ -168,6 +168,7 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 			HostedPlugins:    cfg.Auth.HostedPlugins,
 			AccessMonitoring: cfg.Auth.AccessMonitoring,
 			AccessGraph:      cfg.AccessGraph,
+			HTTPTransport:    cfg.Testing.HTTPTransport,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
