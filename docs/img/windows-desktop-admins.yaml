@@ -1,0 +1,10 @@
+kind: role
+version: v6
+metadata:
+  name: windows-desktop-admins
+spec:
+  allow:
+    windows_desktop_labels:
+      "*": "*"
+    windows_desktop_logins: ["Administrator", “bob”, “marie.mcallister@goteleport.com”]
+

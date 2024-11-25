@@ -1,0 +1,13 @@
+kind: role
+version: v5
+metadata:
+  name: elevated-access
+spec:
+  options:
+    # Define role-specific options here
+  allow:
+    # Specify the permissions and resources this role grants
+    logins: ['root', 'admin']
+    node_labels:
+      env: 'production'
+
