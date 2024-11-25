@@ -1429,6 +1429,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		case types.IntegrationSubKindGitHub:
+			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
