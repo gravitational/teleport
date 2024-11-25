@@ -245,11 +245,10 @@ Initially, the following operators will be supported:
   string.
 - `not_equals_string`: The target attribute must be a string and must not equal
   the given string.
-- `present`: The target attribute must be set. This is effectively equivalent to
-  `not_equals_string: ""` except functions correctly with non-string attributes.
-- `not_present`: The target attribute must not be set. This is effectively 
-  equivalent to `equals_string: ""` except behaves correctly with non-string
-  attributes. 
+- `matches_string`: The target attribute must be a string and must match the
+  given regex pattern.
+- `not_matches_string`: The target attribute must be a string and must not match
+  the given regex pattern.
 
 Future iterations may introduce additional operators as we better understand the
 types of conditions that will be useful to users.
@@ -625,9 +624,14 @@ Specification:
 ```protobuf
 package teleport.workloadidentity.v1;
 
+// AttributeSet is the top-level structure that contains all attributes that
+// are considered during the issuance of a WorkloadIdentity.
 message AttributeSet {
+  // Attributes pertaining to the join process.
   JoinAttributes join = 1;
+  // Attributes pertaining to the workload attestation process.
   WorkloadAttributes workload = 2;
+  // Attributes pertaining to the user that is requesting the WorkloadIdentity. 
   UserAttributes user  = 3;
 }
 ```
@@ -644,9 +648,15 @@ join:
     pipeline_id: 42
     # -- snipped for conciseness --
 workload:
+  unix:
+    attested: true
+    pid: 1234
+    uid: 1000
+    gid: 1000
   k8s:
+    attested: true
+    pod_name: my-pod-ab837c
     namespace: my-namespace
-    pod_name: my-pod
     service_account: my-service-account
 user:
   name: bot-gitlab-workload-identity
@@ -708,25 +718,73 @@ attestation has been performed, the attributes available will differ.
 ```protobuf
 package teleport.workloadidentity.v1;
 
+// Attributes pertaining to unix workload attestation.
+message WorkloadUnix {
+  // Whether or not this attestation method has been performed successfully.
+  bool attested = 1;
+  // The PID of the process that connected to the workload API.
+  int32 pid = 2;
+  // The UID of the process that connected to the workload API.
+  int32 uid = 3;
+  // The GID of the process that connected to the workload API.
+  int32 gid = 4;
+  // -- snipped for conciseness --
+}
+
+// Attributes pertaining to Kubernetes workload attestation.
+message WorkloadKubernetes {
+  // Whether or not this attestation method has been performed successfully.
+  bool attested = 1;
+  // The name of the pod that connected to the workload API.
+  string pod_name = 2;
+  // The namespace of the pod that connected to the workload API.
+  string namespace = 3;
+  // The service account of the pod that connected to the workload API.
+  string service_account = 4;
+  // -- snipped for conciseness --
+}
+
+// Attributes sourced from the workload attestation process.
 message WorkloadAttributes {
-  // TODO: Work out how to encode this.
+  // Attributes pertaining to Unix workload attestation.
+  WorkloadUnix unix = 1;
+  // Attributes pertaining to Kubernetes workload attestation.
+  WorkloadKubernetes k8s = 2;
 }
 ```
 
 Example (marshalled as YAML):
 
 ```yaml
-
+unix:
+  attested: true
+  pid: 1234
+  uid: 1000
+  gid: 1000
+k8s:
+  attested: true
+  pod_name: my-pod-ab837c
+  namespace: my-namespace
+  service_account: my-service-account
 ```
 
 
 #### Join Attributes
 
-The `join` attributes include metadata pertaining to the results of
+The `join` attributes are sourced from the attestation process that occurs when
+a principal (Bot, Agent etc) initially authenticates using a Join Token.
 
-Generally, information related to a join will be grouped under a key for 
-that specific join method. The exception to this is the `meta` key which will
-contain metadata about the join token itself (e.g its name)
+At the top level of the join attributes, the `meta` key will hold attributes
+that apply to all joins. For example, the name of the join token used and the
+method of the join.
+
+A top level key will exist for each join method that is supported by Teleport.
+Under this key, attributes specific to that join method will be present.
+Typically, these attributes will be sourced directly from some identity
+document provided by the principal upon joining (e.g an ID Token issued by
+GitLab).
+
+Specification:
 
 ```protobuf
 package teleport.workloadidentity.v1;
@@ -744,7 +802,14 @@ message JoinMeta {
 
 // Attributes specific to the GitLab join method.
 message JoinGitLab {
-  
+  // The path of the project in GitLab that the CI pipeline is running in.
+  // For example `strideynet/my-project`.
+  string project_path = 1;
+  // The namespace path of the project in GitLab that the CI pipeline is running
+  // in.
+  // For example `strideynet`.
+  string namespace_path = 2;
+  // -- snipped for conciseness --
 }
 
 // Attributes specific to the TPM join method.
@@ -754,6 +819,7 @@ message JoinTPM {
   // The description of the join token rule that matched during the join
   // process.
   string rule_description = 2;
+  // -- snipped for conciseness --
 }
 
 // Attributes sourced from the join process.
@@ -776,7 +842,7 @@ meta:
   method: gitlab
 gitlab:
   project_path: my-org/my-project
-  pipeline_id: 42
+  namespace_path: my-org
   # -- snipped for conciseness --
 ```
 
@@ -834,13 +900,21 @@ message WorkloadIdentity {
   WorkloadIdentitySpec spec = 5;
 }
 
+// The individual condition of a rule. A condition consists of a single target
+// attribute to evaluate against and an operator to use when evaluating.
+// Only one operator field should be set.
 message WorkloadIdentityCondition {
-    // The attribute to evaluate.
-    string attribute = 1;
-    string equals_string = 2;
-    string matches_string = 3;
-    string not_equals_string = 4;
-    string not_matches_string = 5;
+  // The attribute name to evaluate.
+  // Example: `join.gitlab.project_path`
+  string attribute = 1;
+  // The exact string the attribute value must match.
+  string equals_string = 2;
+  // The regex pattern the attribute value must match.
+  string matches_string = 3;
+  // The exact string the attribute value must not match.
+  string not_equals_string = 4;
+  // The regex pattern the attribute value must not match.
+  string not_matches_string = 5;
 }
 
 // WorkloadIdentityRule is an individual rule which can be evaluated against
@@ -852,7 +926,11 @@ message WorkloadIdentityCondition {
 // When conditions are provided, the rule evaluates to true if all conditions
 // evaluate to true.
 message WorkloadIdentityRule {
+  // The set of conditions to evaluate. All condition may return true for this
+  // rule to return true.
   repeated WorkloadIdentityCondition conditions = 1;
+  // The predicate language expression to evaluate. Mutually exclusive with
+  // conditions.
   string expression = 2;
 }
 
@@ -876,11 +954,16 @@ message WorkloadIdentityRules {
 // WorkloadIdentitySPIFFEX509 holds configuration specific to the issuance of
 // an X509 SVID from a WorkloadIdentity.
 message WorkloadIdentitySPIFFEX509 {
+  // The DNS SANs to include in the issued X509 SVID. Each provided entry
+  // supports templating using attributes.
+  repeated string dns_sans = 1;
 }
 
 // WorkloadIdentitySPIFFEJWT holds configuration specific to the issuance of
 // a JWT SVID from a WorkloadIdentity.
 message WorkloadIdentitySPIFFEJWT {
+  // Currently empty - but will eventually permit the modification and insertion
+  // of custom JWT claims.
 }
 
 // WorkloadIdentitySPIFFE holds configuration for the issuance of
@@ -928,17 +1011,22 @@ The proto specification of the RPCs is omitted for conciseness.
 
 ### IssueWorkloadIdentity RPC 
 
-```proto
+```protobuf
 syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
 // WorkloadIdentityService provides the signing of workload identity documents.
 service WorkloadIdentityService {
+  // IssueWorkloadIdentity issues a workload identity credential from a 
+  // specific named WorkloadIdentity resource.
   rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse) {}
+  // IssueWorkloadIdentityWithLabels issues workload identity credentials from
+  // WorkloadIdentity resources that match the provided label selectors.
   rpc IssueWorkloadIdentityWithLabels(IssueWorkloadIdentityWithLabelsRequest) returns (IssueWorkloadIdentityResponse) {}
 }
 
+// The request parameters specific to the issuance of a JWT SVID.
 message JWTSVIDRequest {
   // The value that should be included in the JWT SVID as the `aud` claim.
   // Required.
@@ -949,8 +1037,9 @@ message JWTSVIDRequest {
   google.protobuf.Duration ttl = 2; 
 }
 
+// The request parameters specific to the issuance of an X509 SVID.
 message X509SVIDRequest {
-    // A PKIX, ASN.1 DER encoded public key that should be included in the x509
+  // A PKIX, ASN.1 DER encoded public key that should be included in the x509
   // SVID.
   // Required.
   bytes public_key = 1;
@@ -985,8 +1074,12 @@ message IssueWorkloadIdentityRequest {
   // The name of the Workload Identity resource to attempt issuance using.
   string name = 1;
 
-  oneof type {
+  // The credential_type oneof selects the type of credential (e.g JWT vs X509)
+  // to be issued and also provides any parameters specific to that type.
+  oneof credential_type {
+    // Parameters specific to the issuance of a JWT SVID.
     JWTSVIDRequest jwt_svid = 2;
+    // Parameters specific to the issuance of an X509 SVID.
     X509SVIDRequest x509_svid = 3;
   }
 
@@ -994,20 +1087,33 @@ message IssueWorkloadIdentityRequest {
   WorkloadAttributes workload_attributes = 4;
 }
 
+// Response for IssueWorkloadIdentity 
 message IssueWorkloadIdentityResponse {
+  // The issued credential.
   WorkloadIdentityCredential credential = 1;
 }
 
+// An individual label selector to be used to filter WorkloadIdentity resources.
 message LabelSelector {
+  // The name of the label to match.
   string key = 1;
+  // The values to accept within the label. If multiple are provided, then any
+  // may match. 
   repeated string values = 2;
 }
 
+// Request for IssueWorkloadIdentityWithLabels 
 message IssueWorkloadIdentityWithLabelsRequest {
-  repeated LabelSelector = 1;
+  // The label matchers which should be used to select a subset of the
+  // WorkloadIdentity resources to attempt issuance using.
+  repeated LabelSelector labels = 1;
 
-  oneof type {
+  // The credential_type oneof selects the type of credential (e.g JWT vs X509)
+  // to be issued and also provides any parameters specific to that type.
+  oneof credential_type {
+    // Parameters specific to the issuance of a JWT SVID.
     JWTSVIDRequest jwt_svid = 2;
+    // Parameters specific to the issuance of an X509 SVID.
     X509SVIDRequest x509_svid = 3;
   }
 
@@ -1015,7 +1121,9 @@ message IssueWorkloadIdentityWithLabelsRequest {
   WorkloadAttributes workload_attributes = 4;
 }
 
+// Response for IssueWorkloadIdentityWithLabels 
 message IssueWorkloadIdentityWithLabelsResponse {
+  // The issued credentials.
   repeated WorkloadIdentityCredentials credential = 1;
 }
 ```
@@ -1167,6 +1275,8 @@ Positives:
 - Native support for environments/contexts defined in Protobuf. Our AttributeSet
   will be defined in Protobuf and would natively be supported by CEL. We would
   need to extend the Teleport predicate language to support this.
+- CEL has a built-in "cost estimation" mechanism which could be used to prevent
+  the configuration of overly computationally expensive expressions.
 
 Negatives:
 
