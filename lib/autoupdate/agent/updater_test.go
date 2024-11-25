@@ -84,9 +84,11 @@ func TestUpdater_Disable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})
@@ -170,9 +172,11 @@ func TestUpdater_Unpin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})
@@ -543,9 +547,11 @@ func TestUpdater_Update(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})
@@ -739,9 +745,11 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})
@@ -949,9 +957,11 @@ func TestUpdater_Remove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})
@@ -1278,9 +1288,11 @@ func TestUpdater_Install(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, VersionsDirName, "update.yaml")
+			versionsDir := filepath.Join(dir, versionsDirName)
+			cfgPath := filepath.Join(versionsDir, updateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
 				DataDir:            dir,
 			})

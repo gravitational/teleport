@@ -399,7 +399,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:             slog.Default(),
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
@@ -652,7 +652,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:             slog.Default(),
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
@@ -800,7 +800,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:             slog.Default(),
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
@@ -974,7 +974,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				LinkServicePath: filepath.Join(linkDir, serviceDir, serviceName),
+				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:             slog.Default(),
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))

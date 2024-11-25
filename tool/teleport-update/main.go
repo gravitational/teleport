@@ -60,7 +60,7 @@ const (
 
 const (
 	// lockFileName specifies the name of the file containing the flock lock preventing concurrent updater execution.
-	lockFileName = ".update-lock"
+	lockFileName = "update.lock"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -89,7 +89,11 @@ type cliConfig struct {
 }
 
 func Run(args []string) int {
-	var ccfg cliConfig
+	var (
+		ccfg        cliConfig
+		userLinkDir bool
+		userDataDir bool
+	)
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
@@ -97,13 +101,13 @@ func Run(args []string) int {
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
 	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
-		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
+		Default(libdefaults.DataDir).IsSetByUser(&userDataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("namespace", "Namespace for creating a prefixed installation outside of the default $PATH.").
 		Short('n').StringVar(&ccfg.Namespace)
 	app.Flag("link-dir", "Directory to link the active Teleport installation into.").
-		Default(autoupdate.DefaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 
@@ -157,6 +161,16 @@ func Run(args []string) int {
 		app.Usage(args)
 		libutils.FatalError(err)
 	}
+
+	// These have different defaults if --namespace is specified.
+	// If the user did not set them, let autoupdate.NewNamespace set them.
+	if !userDataDir {
+		ccfg.DataDir = ""
+	}
+	if !userLinkDir {
+		ccfg.LinkDir = ""
+	}
+
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
 	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
@@ -220,25 +234,28 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
-func newUpdater(ccfg *cliConfig) (*autoupdate.Updater, error) {
-	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
+	nsDir, err := autoupdate.CreateNamespaceDir(ccfg.Namespace)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		DataDir:   ccfg.DataDir,
 		LinkDir:   ccfg.LinkDir,
-		SystemDir: autoupdate.DefaultSystemDir,
 		Namespace: ccfg.Namespace,
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
 	})
-	return updater, trace.Wrap(err)
+	return updater, filepath.Join(nsDir, lockFileName), trace.Wrap(err)
 }
 
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
-	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
 		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
@@ -255,11 +272,11 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnpin unpins the current version.
 func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
-	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
 		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
@@ -277,25 +294,19 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 	if ccfg.Namespace != "" {
-		ns, err := autoupdate.NewNamespace(ccfg.Namespace)
+		ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		plog.WarnContext(ctx, "Custom namespace is specified. Teleport's data_dir must be configured accordingly.",
-			"data_dir", ns.DataDir(ccfg.DataDir),
-			"path", filepath.Join(ns.LinkDir(ccfg.LinkDir), "bin"),
-			"config", ns.TeleportConfigPath(),
-			"service", ns.TeleportService(),
-			"pid", ns.TeleportPIDPath(),
-		)
+		ns.LogWarning(ctx)
 	}
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 
 	// Ensure enable can't run concurrently.
-	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
 		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
@@ -312,12 +323,12 @@ func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
 		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
@@ -335,13 +346,13 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdLinkPackage creates system package links if no version is linked and auto-updates is disabled.
 func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 
 	// Skip operation and warn if the updater is currently running.
-	unlock, err := libutils.FSTryReadLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSTryReadLock(lockFile)
 	if errors.Is(err, libutils.ErrUnsuccessfulLockTry) {
 		plog.WarnContext(ctx, "Updater is currently running. Skipping package linking.")
 		return nil
@@ -363,13 +374,13 @@ func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnlinkPackage remove system package links.
 func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
 
 	// Error if the updater is running. We could remove its links by accident.
-	unlock, err := libutils.FSTryWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSTryWriteLock(lockFile)
 	if errors.Is(err, libutils.ErrUnsuccessfulLockTry) {
 		return trace.Errorf("updater is currently running")
 	}
@@ -390,11 +401,11 @@ func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	cluster, err := autoupdate.NewNamespace(ccfg.Namespace)
+	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = cluster.Setup(ctx, plog, ccfg.LinkDir, ccfg.DataDir)
+	err = ns.Setup(ctx)
 	if errors.Is(err, autoupdate.ErrNotSupported) {
 		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
 		return trace.Wrap(err)
@@ -407,7 +418,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdStatus displays auto-update status.
 func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, _, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
@@ -421,12 +432,12 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
 func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := newUpdater(ccfg)
+	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(filepath.Join(ccfg.DataDir, lockFileName))
+	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
 		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}

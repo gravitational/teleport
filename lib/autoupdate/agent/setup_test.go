@@ -20,6 +20,7 @@ package agent
 
 import (
 	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,43 +30,101 @@ import (
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
-func TestWriteConfigFiles(t *testing.T) {
-	t.Parallel()
-	linkDir := t.TempDir()
-	ns, err := NewNamespace("")
-	require.NoError(t, err)
-	err = ns.writeConfigFiles(linkDir)
-	require.NoError(t, err)
-
-	nsTest, err := NewNamespace("test")
-	require.NoError(t, err)
-	err = nsTest.writeConfigFiles(linkDir)
-	require.NoError(t, err)
-
-	for _, p := range []string{
-		filepath.Join(linkDir, serviceDir, "teleport-update.service"),
-		filepath.Join(linkDir, serviceDir, "teleport-update.timer"),
-		filepath.Join(linkDir, serviceDir, "teleport-update_test.service"),
-		filepath.Join(linkDir, serviceDir, "teleport-update_test.timer"),
+func TestNewNamespace(t *testing.T) {
+	for _, p := range []struct {
+		name      string
+		namespace string
+		ns        *Namespace
+	}{
+		{
+			name: "no namespace",
+			ns: &Namespace{
+				dataDir:            "/var/lib/teleport",
+				linkBinDir:         "/usr/local/bin",
+				versionsDir:        "/opt/teleport/local/versions",
+				serviceFile:        "/lib/systemd/system/teleport.service",
+				configFile:         "/etc/teleport.yaml",
+				pidFile:            "/run/teleport.pid",
+				updaterBinFile:     "/usr/local/bin/teleport-update",
+				updaterServiceFile: "/etc/systemd/system/teleport-update.service",
+				updaterTimerFile:   "/etc/systemd/system/teleport-update.timer",
+			},
+		},
+		{
+			name:      "test namespace",
+			namespace: "test",
+			ns: &Namespace{
+				name:               "test",
+				dataDir:            "/var/opt/teleport/test",
+				linkBinDir:         "/opt/teleport/test/bin",
+				versionsDir:        "/opt/teleport/test/versions",
+				serviceFile:        "/etc/systemd/system/teleport_test.service",
+				configFile:         "/opt/teleport/test/etc/teleport.yaml",
+				pidFile:            "/run/teleport_test.pid",
+				updaterBinFile:     "/opt/teleport/test/bin/teleport-update",
+				updaterServiceFile: "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
+			}},
 	} {
-		t.Run(filepath.Base(p), func(t *testing.T) {
-			data, err := os.ReadFile(p)
+		t.Run(p.name, func(t *testing.T) {
+			log := slog.Default()
+			ns, err := NewNamespace(log, p.namespace, "", "")
+			require.NoError(t, err)
+			ns.log = nil
+			require.Equal(t, p.ns, ns)
+		})
+	}
+}
+
+func TestWriteConfigFiles(t *testing.T) {
+	for _, p := range []struct {
+		name      string
+		namespace string
+	}{
+		{
+			name: "no namespace",
+		},
+		{
+			name:      "test namespace",
+			namespace: "test",
+		},
+	} {
+		t.Run(p.name, func(t *testing.T) {
+			log := slog.Default()
+			linkDir := t.TempDir()
+			ns, err := NewNamespace(log, p.namespace, "", linkDir)
+			require.NoError(t, err)
+			ns.updaterServiceFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterServiceFile))
+			ns.updaterTimerFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterTimerFile))
+			err = ns.writeConfigFiles()
+			require.NoError(t, err)
+
+			data, err := os.ReadFile(ns.updaterServiceFile)
 			require.NoError(t, err)
 			data = replaceValues(data, map[string]string{
 				DefaultLinkDir: linkDir,
 			})
 			if golden.ShouldSet() {
-				golden.Set(t, data)
+				golden.SetNamed(t, "service", data)
 			}
-			require.Equal(t, string(golden.Get(t)), string(data))
+			require.Equal(t, string(golden.GetNamed(t, "service")), string(data))
+
+			data, err = os.ReadFile(ns.updaterTimerFile)
+			require.NoError(t, err)
+			data = replaceValues(data, map[string]string{
+				DefaultLinkDir: linkDir,
+			})
+			if golden.ShouldSet() {
+				golden.SetNamed(t, "timer", data)
+			}
+			require.Equal(t, string(golden.GetNamed(t, "timer")), string(data))
 		})
 	}
 }
 
 func replaceValues(data []byte, m map[string]string) []byte {
 	for k, v := range m {
-		data = bytes.ReplaceAll(data, []byte(v),
-			[]byte(k))
+		data = bytes.ReplaceAll(data, []byte(v), []byte(k))
 	}
 	return data
 }

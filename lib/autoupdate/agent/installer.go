@@ -70,12 +70,12 @@ type LocalInstaller struct {
 	InstallDir string
 	// LinkBinDir contains symlinks to the linked installation's binaries.
 	LinkBinDir string
-	// LinkServicePath contains a copy of the linked installation's systemd service.
-	LinkServicePath string
+	// CopyServiceFile contains a copy of the linked installation's systemd service.
+	CopyServiceFile string
 	// SystemBinDir contains binaries for the system (packaged) install of Teleport.
 	SystemBinDir string
-	// SystemServicePath contains the systemd service file for the system (packaged) install of Teleport.
-	SystemServicePath string
+	// SystemServiceFile contains the systemd service file for the system (packaged) install of Teleport.
+	SystemServiceFile string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -415,7 +415,7 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 	return versions, nil
 }
 
-// Link the specified version into the system LinkBinDir and LinkServicePath.
+// Link the specified version into the system LinkBinDir and CopyServiceFile.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
@@ -434,11 +434,11 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
-// LinkSystem links the system (package) version into LinkBinDir and LinkServicePath.
+// LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
-	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServicePath)
+	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile)
 	return revert, trace.Wrap(err)
 }
 
@@ -460,10 +460,10 @@ func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
 // no installation of Teleport is already linked or partially linked.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
-	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServicePath))
+	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
 }
 
-// Unlink unlinks a version from LinkBinDir and LinkServicePath.
+// Unlink unlinks a version from LinkBinDir and CopyServiceFile.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) Unlink(ctx context.Context, version string) error {
 	versionDir, err := li.versionDir(version)
@@ -476,10 +476,10 @@ func (li *LocalInstaller) Unlink(ctx context.Context, version string) error {
 	))
 }
 
-// UnlinkSystem unlinks the system (package) version from LinkBinDir and LinkServicePath.
+// UnlinkSystem unlinks the system (package) version from LinkBinDir and CopyServiceFile.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) UnlinkSystem(ctx context.Context) error {
-	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServicePath))
+	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
 }
 
 // symlink from oldname to newname
@@ -542,7 +542,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.LinkServicePath), systemDirMode)
+	err = os.MkdirAll(filepath.Dir(li.CopyServiceFile), systemDirMode)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
@@ -578,7 +578,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 
 	// create systemd service file
 
-	orig, err := li.forceCopyService(li.LinkServicePath, svcPath, maxServiceFileSize)
+	orig, err := li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return revert, trace.Errorf("failed to copy service: %w", err)
 	}
@@ -727,9 +727,9 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dstBytes, err := readFileN(li.LinkServicePath, maxServiceFileSize)
+	dstBytes, err := readFileN(li.CopyServiceFile, maxServiceFileSize)
 	if errors.Is(err, os.ErrNotExist) {
-		li.Log.DebugContext(ctx, "Service not present.", "path", li.LinkServicePath)
+		li.Log.DebugContext(ctx, "Service not present.", "path", li.CopyServiceFile)
 		return nil
 	}
 	if err != nil {
@@ -739,8 +739,8 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
 		return nil
 	}
-	if err := os.Remove(li.LinkServicePath); err != nil {
-		return trace.Errorf("error removing copy of %s: %w", filepath.Base(li.LinkServicePath), err)
+	if err := os.Remove(li.CopyServiceFile); err != nil {
+		return trace.Errorf("error removing copy of %s: %w", filepath.Base(li.CopyServiceFile), err)
 	}
 	return nil
 }
@@ -755,7 +755,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.LinkServicePath), systemDirMode)
+	err = os.MkdirAll(filepath.Dir(li.CopyServiceFile), systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -796,7 +796,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	}
 
 	// if any binaries are linked from binDir, always link the service from svcDir
-	_, err = li.forceCopyService(li.LinkServicePath, svcPath, maxServiceFileSize)
+	_, err = li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("failed to copy service: %w", err)
 	}

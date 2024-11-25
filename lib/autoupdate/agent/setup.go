@@ -19,6 +19,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/fs"
@@ -26,11 +27,21 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"text/template"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
+)
+
+// Base paths for constructing namespaced directories.
+const (
+	teleportOptDir     = "/opt/teleport"
+	teleportOptDataDir = "/var/opt/teleport"
+	versionsDirName    = "versions"
+	systemdAdminDir    = "/etc/systemd/system"
+	systemdPIDFile     = "/run/teleport.pid"
 )
 
 const (
@@ -58,30 +69,108 @@ WantedBy={{.TeleportService}}
 `
 )
 
+// CreateNamespaceDir creates the base directory for a namespace.
+func CreateNamespaceDir(name string) (string, error) {
+	dir := namespaceDir(name)
+	if err := os.MkdirAll(dir, systemDirMode); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return dir, nil
+}
+
+func namespaceDir(name string) string {
+	if name == "" {
+		name = "local"
+	}
+	return filepath.Join(teleportOptDir, name)
+}
+
 // Namespace represents a namespace within various system paths for a isolated installation of Teleport.
-type Namespace string
+type Namespace struct {
+	log *slog.Logger
+	// name of namespace
+	name string
+	// dataDir for Teleport
+	dataDir string
+	// linkBinDir for Teleport binaries (ns: /opt/teleport/myns/bin)
+	linkBinDir string
+	// versionsDir for Teleport versions (ns: /opt/teleport/myns/versions)
+	versionsDir string
+	// serviceFile for the Teleport systemd service (ns: /etc/systemd/system/teleport_myns.service)
+	serviceFile string
+	// configFile for Teleport config (ns: /opt/teleport/myns/etc/teleport.yaml)
+	configFile string
+	// pidFile for Teleport (ns: /run/teleport_myns.pid)
+	pidFile string
+	// updaterBinFile for the updater when linked (linkBinDir + name)
+	updaterBinFile string
+	// updaterServiceFile is the systemd service path for the updater
+	updaterServiceFile string
+	// updaterTimerFile is the systemd timer path for the updater
+	updaterTimerFile string
+}
 
 var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 
 // NewNamespace validates and returns a Namespace.
 // Namespaces must be alphanumeric + `-`.
-func NewNamespace(name string) (Namespace, error) {
+func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespace, error) {
 	if !alphanum.MatchString(name) {
-		return "", trace.Errorf("invalid namespace name %q, must be alphanumeric", name)
+		return nil, trace.Errorf("invalid namespace name %q, must be alphanumeric", name)
 	}
-	return Namespace(name), nil
+	if name == "" {
+		if dataDir == "" {
+			dataDir = defaults.DataDir
+		}
+		if linkBinDir == "" {
+			linkBinDir = DefaultLinkDir
+		}
+		return &Namespace{
+			log:                log,
+			name:               name,
+			dataDir:            dataDir,
+			linkBinDir:         linkBinDir,
+			versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
+			serviceFile:        filepath.Join("/", serviceDir, serviceName),
+			configFile:         defaults.ConfigFilePath,
+			pidFile:            systemdPIDFile,
+			updaterBinFile:     filepath.Join(linkBinDir, BinaryName),
+			updaterServiceFile: filepath.Join(systemdAdminDir, BinaryName+".service"),
+			updaterTimerFile:   filepath.Join(systemdAdminDir, BinaryName+".timer"),
+		}, nil
+	}
+
+	if dataDir == "" {
+		dataDir = filepath.Join(teleportOptDataDir, name)
+	}
+	if linkBinDir == "" {
+		linkBinDir = filepath.Join(namespaceDir(name), "bin")
+	}
+	return &Namespace{
+		log:                log,
+		name:               name,
+		dataDir:            dataDir,
+		linkBinDir:         linkBinDir,
+		versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
+		serviceFile:        filepath.Join(systemdAdminDir, "teleport_"+name+".service"),
+		configFile:         filepath.Join(namespaceDir(name), defaults.ConfigFilePath),
+		pidFile:            filepath.Join(filepath.Dir(systemdPIDFile), "teleport_"+name+".pid"),
+		updaterBinFile:     filepath.Join(linkBinDir, BinaryName),
+		updaterServiceFile: filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
+		updaterTimerFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
+	}, nil
 }
 
 // Setup installs service and timer files for the teleport-update binary.
 // Afterwords, Setup reloads systemd and enables the timer with --now.
-func (ns Namespace) Setup(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error {
-	err := ns.writeConfigFiles(linkDir)
+func (ns *Namespace) Setup(ctx context.Context) error {
+	err := ns.writeConfigFiles()
 	if err != nil {
 		return trace.Errorf("failed to write teleport-update systemd config files: %w", err)
 	}
 	svc := &SystemdService{
-		ServiceName: ns.UpdaterTimer(),
-		Log:         log,
+		ServiceName: filepath.Base(ns.updaterTimerFile),
+		Log:         ns.log,
 	}
 	if err := svc.Sync(ctx); err != nil {
 		return trace.Errorf("failed to sync systemd config: %w", err)
@@ -93,48 +182,46 @@ func (ns Namespace) Setup(ctx context.Context, log *slog.Logger, linkDir, dataDi
 }
 
 // Teardown removes all traces of the auto-updater, including its configuration.
-func (ns Namespace) Teardown(ctx context.Context, log *slog.Logger, linkDir, dataDir string) error {
+func (ns *Namespace) Teardown(ctx context.Context) error {
 	svc := &SystemdService{
-		ServiceName: ns.UpdaterTimer(),
-		Log:         log,
+		ServiceName: filepath.Base(ns.updaterTimerFile),
+		Log:         ns.log,
 	}
 	if err := svc.Disable(ctx); err != nil {
 		return trace.Errorf("failed to disable teleport-update systemd timer: %w", err)
 	}
-	servicePath := filepath.Join(ns.LinkDir(linkDir), serviceDir, ns.UpdaterService())
-	if err := os.Remove(servicePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := os.Remove(ns.updaterServiceFile); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return trace.Errorf("failed to remove teleport-update systemd service: %w", err)
 	}
-	timerPath := filepath.Join(ns.LinkDir(linkDir), serviceDir, ns.UpdaterTimer())
-	if err := os.Remove(timerPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := os.Remove(ns.updaterTimerFile); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return trace.Errorf("failed to remove teleport-update systemd timer: %w", err)
 	}
 	if err := svc.Sync(ctx); err != nil {
 		return trace.Errorf("failed to sync systemd config: %w", err)
 	}
-	if err := os.RemoveAll(filepath.Join(ns.DataDir(dataDir), VersionsDirName)); err != nil {
+	if err := os.RemoveAll(filepath.Join(ns.dataDir, versionsDirName)); err != nil {
 		return trace.Errorf("failed to remove versions directory: %w", err)
 	}
 	return nil
 }
 
-func (ns Namespace) writeConfigFiles(linkDir string) error {
+func (ns *Namespace) writeConfigFiles() error {
 	var args string
-	if ns != "" {
-		args = " --namespace=" + string(ns)
+	if ns.name != "" {
+		args = " --namespace=" + ns.name
 	}
 	err := writeTemplate(
-		ns.UpdaterServicePath(linkDir), updateServiceTemplate,
+		ns.updaterServiceFile, updateServiceTemplate,
 		struct{ UpdaterCommand string }{
-			ns.UpdaterBinaryPath(linkDir) + args + " update",
+			ns.updaterBinFile + args + " update",
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = writeTemplate(
-		ns.UpdaterTimerPath(linkDir), updateTimerTemplate,
-		struct{ TeleportService string }{ns.TeleportService()},
+		ns.updaterTimerFile, updateTimerTemplate,
+		struct{ TeleportService string }{filepath.Base(ns.serviceFile)},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -168,111 +255,35 @@ func writeTemplate(path, t string, values any) error {
 	return trace.Wrap(f.CloseAtomicallyReplace())
 }
 
-// TeleportName is the namespaced name for Teleport (e.g., teleport_mycluster).
-func (ns Namespace) TeleportName() string {
-	return "teleport" + ns.suffix()
-}
-
-// TeleportService is the namespaced name for the Teleport systemd service (e.g., teleport_mycluster.service).
-func (ns Namespace) TeleportService() string {
-	return ns.TeleportName() + ".service"
-}
-
-// TeleportConfigPath is the namespaced path for the Teleport config file (e.g., /etc/teleport_mycluster.yaml).
-func (ns Namespace) TeleportConfigPath() string {
-	return filepath.Join("/etc", ns.TeleportName()+".yaml")
-}
-
-// TeleportPIDPath is the namespaced path for the Teleport PID file (e.g., /run/teleport_mycluster.pid).
-func (ns Namespace) TeleportPIDPath() string {
-	return filepath.Join("/run", ns.TeleportName()+".pid")
-}
-
-// UpdaterName is the namespaced name for the updater binary.
-func (ns Namespace) UpdaterName() string {
-	return BinaryName + ns.suffix()
-}
-
-// UpdaterService is the namespaced name for the updater systemd service (e.g., updater_mycluster.service).
-func (ns Namespace) UpdaterService() string {
-	return ns.UpdaterName() + ".service"
-}
-
-// UpdaterTimer is the namespaced name for the updater systemd timer (e.g., updater_mycluster.timer).
-func (ns Namespace) UpdaterTimer() string {
-	return ns.UpdaterName() + ".timer"
-}
-
-// DataDir returns the namespaced data directory path.
-func (ns Namespace) DataDir(globalDataDir string) string {
-	if ns == "" {
-		return globalDataDir
-	}
-	return filepath.Join(globalDataDir, "ns", string(ns))
-}
-
-// LinkDir returns the namespaced link directory path.
-func (ns Namespace) LinkDir(globalLinkDir string) string {
-	if ns == "" {
-		return globalLinkDir
-	}
-	return filepath.Join(globalLinkDir, "teleport", string(ns))
-}
-
-// UpdaterBinaryPath returns the namespaced path for the updater binary.
-func (ns Namespace) UpdaterBinaryPath(globalLinkDir string) string {
-	return filepath.Join(
-		ns.LinkDir(globalLinkDir), "bin",
-		BinaryName,
-	)
-}
-
-// LinkServicePath returns the namespaced path for the linked service.
-// Note: /usr/local/lib/systemd/system/teleport_mycluster.service or
-// /lib/systemd/system/teleport.service when not namespaced.
-func (ns Namespace) LinkServicePath(globalLinkDir string) string {
-	if ns == "" {
-		globalLinkDir = "/"
-	}
-	return filepath.Join(
-		globalLinkDir, serviceDir,
-		ns.TeleportService(),
-	)
-}
-
-// UpdaterServicePath returns the namespaced path for the updater service.
-// Note: /usr/local/lib/systemd/system/teleport-update_mycluster.service or
-// /usr/local/lib/systemd/system/teleport-update.service when not namespaced.
-func (ns Namespace) UpdaterServicePath(globalLinkDir string) string {
-	return filepath.Join(
-		globalLinkDir, serviceDir,
-		ns.UpdaterService(),
-	)
-}
-
-// UpdaterTimerPath returns the namespaced path for the updater timer.
-// Note: /usr/local/lib/systemd/system/teleport-update_mycluster.timer or
-// /usr/local/lib/systemd/system/teleport-update.timer when not namespaced.
-func (ns Namespace) UpdaterTimerPath(globalLinkDir string) string {
-	return filepath.Join(
-		globalLinkDir, serviceDir,
-		ns.UpdaterTimer(),
-	)
-}
-
-func (ns Namespace) suffix() string {
-	if ns == "" {
-		return ""
-	}
-	return "_" + string(ns)
-}
-
 // ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
-func (ns Namespace) ReplaceTeleportService(orig []byte, linkDir string) []byte {
-	cfg := string(orig)
-	cfg = strings.ReplaceAll(cfg, "/usr/local/", ns.LinkDir(linkDir)+"/")
-	cfg = strings.ReplaceAll(cfg, "/etc/teleport.yaml", ns.TeleportConfigPath())
-	cfg = strings.ReplaceAll(cfg, "/run/teleport.pid", ns.TeleportPIDPath())
-	cfg = strings.ReplaceAll(cfg, "/etc/default/teleport", "/etc/default/"+ns.TeleportName())
-	return []byte(cfg)
+func (ns *Namespace) ReplaceTeleportService(cfg []byte) []byte {
+	for _, rep := range []struct {
+		old, new string
+	}{
+		{
+			old: "/usr/local/bin/",
+			new: ns.linkBinDir + "/",
+		},
+		{
+			old: "/etc/teleport.yaml",
+			new: ns.configFile,
+		},
+		{
+			old: "/run/teleport.pid",
+			new: ns.pidFile,
+		},
+	} {
+		cfg = bytes.ReplaceAll(cfg, []byte(rep.old), []byte(rep.new))
+	}
+	return cfg
+}
+
+func (ns *Namespace) LogWarning(ctx context.Context) {
+	ns.log.WarnContext(ctx, "Custom namespace specified. Teleport data_dir must be configured in the config file.",
+		"data_dir", ns.dataDir,
+		"path", ns.linkBinDir,
+		"config", ns.configFile,
+		"service", filepath.Base(ns.serviceFile),
+		"pid", ns.pidFile,
+	)
 }
