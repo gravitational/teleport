@@ -121,14 +121,14 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					}
 
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
-					resourcesFoundByGroup[resourceGroup] = resourcesFoundByGroup[resourceGroup] + 1
+					resourcesFoundByGroup[resourceGroup] += 1
 					discoveryConfigsChanged[resourceGroup.discoveryConfig] = struct{}{}
 
 					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
 						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() }) {
 
-						resourcesEnrolledByGroup[resourceGroup] = resourcesEnrolledByGroup[resourceGroup] + 1
+						resourcesEnrolledByGroup[resourceGroup] += 1
 						continue
 					}
 
