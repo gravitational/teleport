@@ -1289,6 +1289,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "getrandom",
+ "ironrdp-core",
  "ironrdp-graphics",
  "ironrdp-pdu",
  "ironrdp-session",
