@@ -2633,6 +2633,8 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if cf.MaxDuration > 0 {
 		// Time will be relative to the approval time instead of the request time.
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
+	} else {
+		req.SetMaxDuration(time.Now().UTC().Add(time.Hour * 24 * 7))
 	}
 
 	if cf.AssumeStartTimeRaw != "" {
