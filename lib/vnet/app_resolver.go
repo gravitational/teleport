@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AppProvider is an interface providing the necessary methods to log in to apps and get clients able to list
@@ -94,7 +95,7 @@ type DialOptions struct {
 type TCPAppResolver struct {
 	appProvider        AppProvider
 	clusterConfigCache *ClusterConfigCache
-	slog               *slog.Logger
+	log                *slog.Logger
 	clock              clockwork.Clock
 }
 
@@ -109,7 +110,7 @@ type TCPAppResolver struct {
 func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
 	r := &TCPAppResolver{
 		appProvider: appProvider,
-		slog:        slog.With(teleport.ComponentKey, "VNet.AppResolver"),
+		log:         logutils.NewPackageLogger(teleport.ComponentKey, "VNet.AppResolver"),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -159,7 +160,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// the error but don't return it so that DNS resolution will be forwarded upstream instead of
 			// failing, to avoid breaking e.g. web app access (we don't know if this is a web or TCP app yet
 			// because we can't log in).
-			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
+			r.log.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
 
@@ -168,8 +169,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			leafClusterName = clusterClient.ClusterName()
 		}
 
-		slog := r.slog.With("profile", profileName, "fqdn", fqdn, "leaf_cluster", leafClusterName)
-		return r.resolveTCPHandlerForCluster(ctx, slog, clusterClient, profileName, leafClusterName, fqdn)
+		return r.resolveTCPHandlerForCluster(ctx, clusterClient, profileName, leafClusterName, fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
@@ -180,7 +180,7 @@ var errNoMatch = errors.New("cluster does not match queried FQDN")
 func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
 	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
 	if err != nil {
-		r.slog.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		r.log.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
 		return nil, errNoMatch
 	}
 
@@ -192,7 +192,7 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 	leafClusters, err := getLeafClusters(ctx, rootClient)
 	if err != nil {
 		// Good chance we're here because the user is not logged in to the profile.
-		r.slog.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		r.log.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
 		return nil, errNoMatch
 	}
 
@@ -201,13 +201,13 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 	for _, leafClusterName := range allClusters {
 		clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
 		if err != nil {
-			r.slog.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			r.log.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 
 		clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
-			r.slog.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			r.log.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 		for _, zone := range clusterConfig.DNSZones {
@@ -242,10 +242,10 @@ func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, e
 // query.
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
-	slog *slog.Logger,
 	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
 ) (*TCPHandlerSpec, error) {
+	log := r.log.With("profile", profileName, "leaf_cluster", leafClusterName, "fqdn", fqdn)
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
@@ -257,7 +257,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	if err != nil {
 		// Don't return an unexpected error so we can try to find the app in different clusters or forward the
 		// request upstream.
-		slog.InfoContext(ctx, "Failed to list application servers.", "error", err)
+		log.InfoContext(ctx, "Failed to list application servers.", "error", err)
 		return nil, ErrNoTCPHandler
 	}
 	if len(resp.Resources) == 0 {
