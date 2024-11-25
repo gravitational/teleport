@@ -1084,7 +1084,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	ch = scx.TrackActivity(ch)
 
 	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
+	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
 	if err != nil {
 		s.stderrWrite(ctx, ch, err.Error())
 		return
