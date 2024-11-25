@@ -2883,13 +2883,46 @@ func (m SSHPortForwardMode) Legacy() bool {
 	return m != SSHPortForwardModeOff
 }
 
+// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet.
+func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
+	// port forwarding is allowed by default, we want to
+	// track explicit denies
+	denyRemote := false
+	denyLocal := false
+
 	for _, role := range set {
+		config := role.GetOptions().SSHPortForwarding
+		// TODO (eriktate): remove legacy check in v20
 		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
-		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
-			return true
+		legacy := types.BoolDefaultTrue(role.GetOptions().PortForwarding)
+		// only consider legacy denies when config isn't provided on the same role
+		if !legacy && config == nil {
+			return SSHPortForwardModeOff
+		}
+
+		if config != nil {
+			if config.Remote != nil && !types.BoolDefaultTrue(config.Remote.Enabled) {
+				denyRemote = true
+			}
+
+			if config.Local != nil && !types.BoolDefaultTrue(config.Local.Enabled) {
+				denyLocal = true
+			}
 		}
 	}
-	return false
+
+	switch {
+	case denyLocal && denyRemote:
+		return SSHPortForwardModeOff
+	case denyRemote:
+		return SSHPortForwardModeLocal
+	case denyLocal:
+		return SSHPortForwardModeRemote
+	default:
+		return SSHPortForwardModeOn
+	}
+}
+
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	return set.SSHPortForwardMode().Legacy()
