@@ -235,8 +235,13 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 	return nil, nil
 }
 
+type appSpec struct {
+	// publicAddr is used bothas the name of the app and its public address in the final spec.
+	publicAddr string
+}
+
 type testClusterSpec struct {
-	apps           []string
+	apps           []appSpec
 	cidrRange      string
 	customDNSZones []string
 	leafClusters   map[string]testClusterSpec
@@ -379,7 +384,7 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.clusterSpec.apps {
 		// Poor-man's predicate expression filter.
-		if !strings.Contains(req.PredicateExpression, app) {
+		if !strings.Contains(req.PredicateExpression, app.publicAddr) {
 			continue
 		}
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
@@ -387,15 +392,15 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 				AppServer: &types.AppServerV3{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{
-						Name: app,
+						Name: app.publicAddr,
 					},
 					Spec: types.AppServerSpecV3{
 						App: &types.AppV3{
 							Metadata: types.Metadata{
-								Name: app,
+								Name: app.publicAddr,
 							},
 							Spec: types.AppSpecV3{
-								PublicAddr: app,
+								PublicAddr: app.publicAddr,
 							},
 						},
 					},
@@ -456,12 +461,22 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps: []string{
-				"echo1.root1.example.com",
-				"echo2.root1.example.com",
-				"echo.myzone.example.com",
-				"echo.nested.myzone.example.com",
-				"not.in.a.custom.zone",
+			apps: []appSpec{
+				appSpec{
+					publicAddr: "echo1.root1.example.com",
+				},
+				appSpec{
+					publicAddr: "echo2.root1.example.com",
+				},
+				appSpec{
+					publicAddr: "echo.myzone.example.com",
+				},
+				appSpec{
+					publicAddr: "echo.nested.myzone.example.com",
+				},
+				appSpec{
+					publicAddr: "not.in.a.custom.zone",
+				},
 			},
 			customDNSZones: []string{
 				"myzone.example.com",
@@ -469,18 +484,37 @@ func TestDialFakeApp(t *testing.T) {
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
-					apps: []string{"echo1.leaf1.example.com"},
+					apps: []appSpec{
+						appSpec{
+							publicAddr: "echo1.leaf1.example.com",
+						},
+					},
 				},
 				"leaf2.example.com": {
-					apps: []string{"echo1.leaf2.example.com"},
+					apps: []appSpec{
+						appSpec{
+							publicAddr: "echo1.leaf2.example.com",
+						},
+					},
 				},
 			},
 		},
 		"root2.example.com": {
-			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
+			apps: []appSpec{
+				appSpec{
+					publicAddr: "echo1.root2.example.com",
+				},
+				appSpec{
+					publicAddr: "echo2.root2.example.com",
+				},
+			},
 			leafClusters: map[string]testClusterSpec{
 				"leaf3.example.com": {
-					apps: []string{"echo1.leaf3.example.com"},
+					apps: []appSpec{
+						appSpec{
+							publicAddr: "echo1.leaf3.example.com",
+						},
+					},
 				},
 			},
 		},
@@ -627,7 +661,11 @@ func TestOnNewConnection(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:         []string{"echo1"},
+			apps: []appSpec{
+				appSpec{
+					publicAddr: "echo1",
+				},
+			},
 			cidrRange:    "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{},
 		},
