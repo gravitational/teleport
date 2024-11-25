@@ -116,6 +116,8 @@ const cfg = {
     // TODO(sshah): limit, startKey and search is supported by this API but currently
     // only limit and startKey based pagination is implemented in the UI.
     devices: '/v1/enterprise/devices?limit=:limit?&startKey=:startKey?',
+    deviceByUser:
+      '/v1/enterprise/user/devices?limit=:limit?&startKey=:startKey?',
 
     surveyPath: '/v1/enterprise/cloud/survey',
     surveyCompanyPath: '/v1/enterprise/cloud/survey/company',
@@ -183,6 +185,10 @@ const cfg = {
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.devices, { ...params });
+  },
+
+  getTrustedDevicesByUserUrl(params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.deviceByUser, { ...params });
   },
 
   getUsageSummarySummaryRoute(clusterId: string) {

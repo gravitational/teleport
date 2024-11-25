@@ -113,6 +113,7 @@ func toUIDevices(devices []*devicepb.Device) []ui.Device {
 				OSType:       devicetrust.FriendlyOSType(v.OsType),
 				EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
 				Owner:        v.Owner,
+				CreateTime:   v.CreateTime.AsTime(),
 			},
 		)
 	}

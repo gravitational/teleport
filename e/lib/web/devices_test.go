@@ -226,7 +226,7 @@ func TestListDevices_errors(t *testing.T) {
 				"startKey": []string{""},
 			},
 			// empty response
-			expected: "{}",
+			expected: "{\"items\":[]}",
 		},
 		{
 			name: "test empty limit",
