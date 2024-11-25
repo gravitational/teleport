@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Label, { Primary, Secondary, Warning, Danger } from './Label';
-export default Label;
-export { Primary, Secondary, Warning, Danger };
+import React from 'react';
+
+import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
+import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
+import { FeatureBox } from 'teleport/components/Layout';
+
+// todo (michellescripts) after routing, ensure this view can be sticky
+export function AwsOidcDashboard() {
+  const { attempt } = useAwsOidcStatus();
+
+  return (
+    <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+      <AwsOidcHeader integration={attempt.data} />
+      Status for integration type aws-oidc is not supported
+    </FeatureBox>
+  );
+}
