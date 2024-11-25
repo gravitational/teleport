@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { useParams } from 'react-router';
+import Label, { Danger, Primary, Secondary, Warning } from './Label';
 
-import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
-import { AwsOidcRoutes } from 'teleport/Integrations/status/AwsOidc/AwsOidcRoutes';
-
-export function IntegrationStatus() {
-  const { type: integrationType } = useParams<{
-    type: PluginKind | IntegrationKind;
-  }>();
-
-  if (integrationType === 'aws-oidc') {
-    return <AwsOidcRoutes />;
-  }
-
-  return <>Status for integration type {integrationType} is not supported</>;
-}
+export default Label;
+export { Primary, Secondary, Warning, Danger };
+export type { LabelKind } from './Label';
