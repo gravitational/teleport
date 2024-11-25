@@ -44,7 +44,7 @@ func TestNewNamespace(t *testing.T) {
 			ns: &Namespace{
 				dataDir:            "/var/lib/teleport",
 				linkBinDir:         "/usr/local/bin",
-				versionsDir:        "/opt/teleport/local/versions",
+				versionsDir:        "/opt/teleport/default/versions",
 				serviceFile:        "/lib/systemd/system/teleport.service",
 				configFile:         "/etc/teleport.yaml",
 				pidFile:            "/run/teleport.pid",
@@ -60,7 +60,7 @@ func TestNewNamespace(t *testing.T) {
 			ns: &Namespace{
 				dataDir:            "/data",
 				linkBinDir:         "/link",
-				versionsDir:        "/opt/teleport/local/versions",
+				versionsDir:        "/opt/teleport/default/versions",
 				serviceFile:        "/lib/systemd/system/teleport.service",
 				configFile:         "/etc/teleport.yaml",
 				pidFile:            "/run/teleport.pid",
@@ -104,13 +104,13 @@ func TestNewNamespace(t *testing.T) {
 			},
 		},
 		{
-			name:      "reserved local",
-			namespace: "local",
+			name:      "reserved default",
+			namespace: defaultNamespace,
 			errMatch:  "reserved",
 		},
 		{
 			name:      "reserved system",
-			namespace: "system",
+			namespace: systemNamespace,
 			errMatch:  "reserved",
 		},
 	} {

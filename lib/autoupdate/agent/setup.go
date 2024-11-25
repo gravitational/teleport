@@ -37,10 +37,12 @@ import (
 
 // Base paths for constructing namespaced directories.
 const (
-	teleportOptDir  = "/opt/teleport"
-	versionsDirName = "versions"
-	systemdAdminDir = "/etc/systemd/system"
-	systemdPIDFile  = "/run/teleport.pid"
+	teleportOptDir   = "/opt/teleport"
+	versionsDirName  = "versions"
+	systemdAdminDir  = "/etc/systemd/system"
+	systemdPIDFile   = "/run/teleport.pid"
+	defaultNamespace = "default"
+	systemNamespace  = "system"
 )
 
 const (
@@ -79,7 +81,7 @@ func CreateNamespaceDir(name string) (string, error) {
 
 func namespaceDir(name string) string {
 	if name == "" {
-		name = "local"
+		name = defaultNamespace
 	}
 	return filepath.Join(teleportOptDir, name)
 }
@@ -114,7 +116,8 @@ var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 // NewNamespace validates and returns a Namespace.
 // Namespaces must be alphanumeric + `-`.
 func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespace, error) {
-	if name == "local" || name == "system" {
+	if name == defaultNamespace ||
+		name == systemNamespace {
 		return nil, trace.Errorf("namespace %q is reserved", name)
 	}
 	if !alphanum.MatchString(name) {
