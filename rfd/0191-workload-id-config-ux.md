@@ -636,6 +636,13 @@ Example (marshalled as YAML):
 
 ```yaml
 join:
+  meta:
+    token_name: my-gitlab-join-token
+    method: gitlab
+  gitlab:
+    project_path: my-org/my-project
+    pipeline_id: 42
+    # -- snipped for conciseness --
 workload:
   k8s:
     namespace: my-namespace
@@ -715,20 +722,62 @@ Example (marshalled as YAML):
 
 #### Join Attributes
 
-The `join` attributes will be encoded into
+The `join` attributes include metadata pertaining to the results of
+
+Generally, information related to a join will be grouped under a key for 
+that specific join method. The exception to this is the `meta` key which will
+contain metadata about the join token itself (e.g its name)
 
 ```protobuf
 package teleport.workloadidentity.v1;
 
+// Attributes present for all joins, including metadata about the join token
+// itself.
+message JoinMeta {
+  // The name of the join token used to join. If the method of the join is
+  // `token`, then this field will not be set as the name of the join token
+  // is sensitive.
+  string token_name = 1;
+  // The join method that was used, e.g `gitlab`, `github`, `token`.
+  string method = 2;
+}
+
+// Attributes specific to the GitLab join method.
+message JoinGitLab {
+  
+}
+
+// Attributes specific to the TPM join method.
+message JoinTPM {
+  // The hash of the EKPub presented during the join process
+  string ekpub_hash = 1;
+  // The description of the join token rule that matched during the join
+  // process.
+  string rule_description = 2;
+}
+
+// Attributes sourced from the join process.
 message JoinAttributes {
-  // TODO: Work out how to encode this.
+  // Attributes of the join token itself (e.g name, method)
+  JoinMeta meta = 1;
+  // Attributes specific to the GitLab join method.
+  JoinGitLab gitlab = 2;
+  // Attributes specific to the TPM join method.
+  JoinTPM tpm = 3;
+  // Snipped for conciseness. A field will exist for each join method.
 }
 ```
 
 Example (marshalled as YAML):
 
 ```yaml
-
+meta:
+  token_name: my-gitlab-join-token
+  method: gitlab
+gitlab:
+  project_path: my-org/my-project
+  pipeline_id: 42
+  # -- snipped for conciseness --
 ```
 
 ##### Propagating Join Attributes
@@ -890,15 +939,6 @@ service WorkloadIdentityService {
   rpc IssueWorkloadIdentityWithLabels(IssueWorkloadIdentityWithLabelsRequest) returns (IssueWorkloadIdentityResponse) {}
 }
 
-message WorkloadIdentityLabelSelector {
-  string key = 1;
-  repeated string values = 2;
-}
-
-message WorkloadIdentityLabelSelectors {
-  repeated WorkloadIdentityLabelSelector = 1;
-}
-
 message JWTSVIDRequest {
   // The value that should be included in the JWT SVID as the `aud` claim.
   // Required.
@@ -919,8 +959,6 @@ message X509SVIDRequest {
   // to check the TTL of the returned workload identity credential.
   google.protobuf.Duration ttl = 2; 
 }
-
-
 
 message WorkloadIdentityCredential {
   oneof credential {
@@ -960,7 +998,26 @@ message IssueWorkloadIdentityResponse {
   WorkloadIdentityCredential credential = 1;
 }
 
-message
+message LabelSelector {
+  string key = 1;
+  repeated string values = 2;
+}
+
+message IssueWorkloadIdentityWithLabelsRequest {
+  repeated LabelSelector = 1;
+
+  oneof type {
+    JWTSVIDRequest jwt_svid = 2;
+    X509SVIDRequest x509_svid = 3;
+  }
+
+  // The results of any workload attestation performed by `tbot`.
+  WorkloadAttributes workload_attributes = 4;
+}
+
+message IssueWorkloadIdentityWithLabelsResponse {
+  repeated WorkloadIdentityCredentials credential = 1;
+}
 ```
 
 When a specific WorkloadIdentity is specified by-name by the client:
