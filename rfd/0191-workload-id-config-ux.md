@@ -341,7 +341,28 @@ services:
     '*': '*'
 ```
 
-// TODO: CLI variants.
+These configuration values may also be provided using the "zero-config" CLI
+flags for `tbot`:
+
+```shell
+$ tbot start workload-identity \
+  --proxy-server example.teleport.sh:443 \
+  --join-token my-join-token \
+  --workload-identity my-workload-identity \
+  --destination /opt/workload-id
+
+$ tbot start workload-identity \
+  --proxy-server example.teleport.sh:443 \
+  --join-token my-join-token \
+  --workload-identity-labels env:production \
+  --destination /opt/workload-id
+
+ $ tbot start workload-identity \
+  --proxy-server example.teleport.sh:443 \
+  --join-token my-join-token \
+  --workload-identity-labels *:* \
+  --destination /opt/workload-id
+```
 
 ### Configuration Tooling 
 
@@ -422,7 +443,7 @@ This ability serves many purposes:
 - Allow the encoding of additional information that is only rarely used for
   authorization - or - does not fit well into the structure of a SPIFFE ID for
   other reasons.
-- Support compatablity with services which may require information to be
+- Support compatibility with services which may require information to be
   encoded into non-standard fields.
 
 The fields for controlling customization of the credentials would also accept
@@ -703,6 +724,16 @@ message WorkloadIdentityRules {
   repeated WorkloadIdentityRule deny = 2;
 }
 
+// WorkloadIdentitySPIFFEX509 holds configuration specific to the issuance of
+// an X509 SVID from a WorkloadIdentity.
+message WorkloadIdentitySPIFFEX509 {
+}
+
+// WorkloadIdentitySPIFFEJWT holds configuration specific to the issuance of
+// a JWT SVID from a WorkloadIdentity.
+message WorkloadIdentitySPIFFEJWT {
+}
+
 // WorkloadIdentitySPIFFE holds configuration for the issuance of
 // SPIFFE-compatible workload identity credentials when this WorkloadIdentity
 // is used.
@@ -714,7 +745,16 @@ message WorkloadIdentitySPIFFE {
   // Examples:
   // - `/no/templating/used` -> `spiffe://example.teleport.sh/no/templating/used`
   // - `/gitlab/{{ join.gitlab.project_path }}` -> `spiffe://example.teleport.sh/gitlab/org/project`
-  string id = 1; 
+  string id = 1;
+  // Hint is an optional hint that will be provided to workloads using the
+  // SPIFFE Workload API to fetch workload identity credentials.
+  string hint = 2;
+  // x509 holds configuration specific to the issuance of X509 SVIDs from this
+  // WorkloadIdentity resource.
+  WorkloadIdentitySPIFFEX509 x509 = 3;
+  // jwt holds configuration specific to the issuance of JWT SVIDs from this
+  // WorkloadIdentity resource.
+  WorkloadIdentitySPIFFEJWT jwt = 4;
 }
 
 // WorkloadIdentitySpec holds the configuration element of the WorkloadIdentity
@@ -860,6 +900,16 @@ leverage labels so that the set of returned WorkloadIdentity falls below this
 threshold. This limits the runaway resource consumption if there is a 
 misconfiguration.
 
+### Predicate Language
+
+For the purposes of rule evaluation and templating, a predicate language and
+engine must be implemented. 
+
+Today, Teleport already includes a predicate language engine that serves
+extremely similar functionality (e.g role templating, login rules).
+
+This engine and language will be reused.
+
 ### Performance
 
 In the initial release, the standard resource cache will be used to improve the
@@ -910,7 +960,9 @@ This work is well-suited to being broken down into a number of smaller tasks:
 3. Implement the IssueWorkloadIdentity RPC without templating or rules
   evaluation.
 4. Implement rules and template evaluation.
-5. Implement changes in `tbot` to support using the IssueWorkloadIdentity RPC.
+5. Implement label-based IssueWorkloadIdentity RPC functionality.
+6. Implement changes in `tbot` to support using the IssueWorkloadIdentity RPC.
+7. Implement the `tctl workload-identity test` command.
 
 ## Alternatives
 
@@ -941,6 +993,33 @@ Negatives:
 3. Teleport Roles are already pretty complex, and this is introducing further
   complexity.
 
+### CEL vs Teleport Predicate Language
+
+Rather than use the existing Teleport predicate language, we could base the
+templating and rule evaluation functionality in Workload Identity on Google's
+open-source Common Expression Language (CEL).
+
+Positives:
+
+- A more widely-used and understood language. Users are more likely to have
+  encountered this previously, and, there exists a wealth of tooling and
+  documentation.
+- Native support for encoding compiled expressions in Protobuf. This would 
+  support the pre-compilation of expressions at creation time for the purposes
+  of validation and performance.
+- Native support for environments/contexts defined in Protobuf. Our AttributeSet
+  will be defined in Protobuf and would natively be supported by CEL. We would
+  need to extend the Teleport predicate language to support this.
+
+Negatives:
+
+- Inconsistency with other functionality in Teleport may be confusing for users.
+- We already have internal expertise about the functionality of the Teleport
+  predicate language and understand the existing limitations of it, CEL
+  introduces a new set of limitations and challenges, many of which are unknown
+  to us. That being said, CEL is more mature and battle-tested, it's unlikely
+  we will encounter problems which are not already well-documented.
+
 ## Security Considerations
 
 ### Auditing
@@ -953,8 +1032,8 @@ events:
 - `workload_identity.delete`
 
 The new RPC for issuing a credential based on a WorkloadIdentity will emit a
-new audit event `workload_identity.generate` which will contain the following
-information:
+new audit event `workload_identity.generate` for each issued identity. This will
+contain the following information:
 
 - Connection Metadata
 - The User or Bot Instance that has requested the issuance
@@ -985,7 +1064,7 @@ completed using information that is local to the workload.
 To make this risk easier to mitigate, care should be taken to distinguish 
 attributes sourced from workload attestation against the more verifiable
 attributes sourced from the join process. This has been achieved by placing
-them under seperate root attribute keys (e.g `join` vs `workload`).
+them under separate root attribute keys (e.g `join` vs `workload`).
 
 Largely, the blast radius of this risk is mitigated by the use of best practices
 such as ensuring that attributes from the join are included in rules or 
