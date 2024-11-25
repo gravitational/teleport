@@ -66,7 +66,7 @@ type webSuite struct {
 	webPlugin             *Plugin
 	authPlugin            *eauth.Plugin
 	proxyClient           *authclient.Client
-	clock                 clockwork.FakeClock
+	clock                 clockwork.Clock
 	accessGraphGrpcFile   *atomic.Int32
 	accessGraphGrpcQuery  *atomic.Int32
 	accessGraphHTTPFile   *atomic.Int32
@@ -117,7 +117,7 @@ type webSuiteOptions struct {
 	customPlugin                plugin.Plugin
 	accessGraphFeatures         string
 	runWhileLockedRetryInterval time.Duration
-	clock                       clockwork.FakeClock
+	clock                       clockwork.Clock
 	roundTripper                http.RoundTripper
 }
 
@@ -133,7 +133,7 @@ func withRunWhileLockedRetryInterval(interval time.Duration) webSuiteOption {
 	}
 }
 
-func withClock(clock clockwork.FakeClock) webSuiteOption {
+func withClock(clock clockwork.Clock) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.clock = clock
 	}

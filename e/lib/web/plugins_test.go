@@ -1,13 +1,14 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"maps"
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -193,7 +194,10 @@ func TestPluginCleanup(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 	})
 
-	s := newWebSuite(t)
+	// We define a real clock here, so we don't run into cases of
+	// `backend.RunWhileLocked()` never retrying lock acquisition.
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
 	webPack := s.newAuthWebPack(t, "foo")
 
 	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole())
@@ -209,8 +213,7 @@ func TestPluginCleanup(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
 	require.False(t, needsCleanup.NeedsCleanup)
 
-	ctx := context.Background()
-	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(ctx, newAccessList(t, "okta-access-list", types.OriginOkta))
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(s.ctx, newAccessList(t, "okta-access-list", types.OriginOkta))
 	require.NoError(t, err)
 
 	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
