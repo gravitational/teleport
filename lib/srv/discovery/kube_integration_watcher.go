@@ -73,11 +73,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-	},
-		common.WithPreFetchHookFn(func() {
+		PreFetchHookFn: func() {
 			s.awsEKSResourcesStatus.reset()
-		}),
-	)
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
