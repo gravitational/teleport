@@ -786,7 +786,9 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	} else if err != nil {
 		return trace.Errorf("failed to link system package installation: %w", err)
 	}
-	if err := u.Process.Sync(ctx); err != nil {
+	if err := u.Process.Sync(ctx); errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Systemd is not installed. Skipping sync.")
+	} else if err != nil {
 		return trace.Errorf("failed to sync systemd configuration: %w", err)
 	}
 	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
@@ -799,7 +801,9 @@ func (u *Updater) UnlinkPackage(ctx context.Context) error {
 	if err := u.Installer.UnlinkSystem(ctx); err != nil {
 		return trace.Errorf("failed to unlink system package installation: %w", err)
 	}
-	if err := u.Process.Sync(ctx); err != nil {
+	if err := u.Process.Sync(ctx); errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Systemd is not installed. Skipping sync.")
+	} else if err != nil {
 		return trace.Errorf("failed to sync systemd configuration: %w", err)
 	}
 	u.Log.InfoContext(ctx, "Successfully unlinked system package installation.")
