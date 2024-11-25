@@ -1051,11 +1051,6 @@
       "permanent": true
     },
     {
-      "source": "/machine-id/reference/v14-upgrade-guide/",
-      "destination": "/reference/machine-id/v14-upgrade-guide/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/reference/v16-upgrade-guide/",
       "destination": "/reference/machine-id/v16-upgrade-guide/",
       "permanent": true
@@ -2118,11 +2113,6 @@
     {
       "source": "/enroll-resources/machine-id/reference/telemetry/",
       "destination": "/reference/machine-id/telemetry/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/machine-id/reference/v14-upgrade-guide/",
-      "destination": "/reference/machine-id/v14-upgrade-guide/",
       "permanent": true
     },
     {
