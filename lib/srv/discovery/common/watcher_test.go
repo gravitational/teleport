@@ -63,16 +63,15 @@ func TestWatcher(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	fetchIterations := atomic.Uint32{}
-	watcher, err := NewWatcher(ctx,
-		WatcherConfig{
-			FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
-			Interval:   time.Hour,
-			Clock:      clock,
-			Origin:     types.OriginCloud,
-		},
-		WithPreFetchHookFn(func() {
+	watcher, err := NewWatcher(ctx, WatcherConfig{
+		FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
+		Interval:   time.Hour,
+		Clock:      clock,
+		Origin:     types.OriginCloud,
+		PreFetchHookFn: func() {
 			fetchIterations.Add(1)
-		}))
+		},
+	})
 	require.NoError(t, err)
 	go watcher.Start()
 
