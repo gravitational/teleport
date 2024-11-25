@@ -46,6 +46,10 @@ type FluentdConfig struct {
 
 	// FluentdCA is a path to fluentd CA
 	FluentdCA string `help:"fluentd TLS CA file" type:"existingfile" env:"FDWRD_FLUENTD_CA"`
+
+	// FluentdMaxConnections caps the number of connections to fluentd. Defaults to a dynamic value
+	// calculated relative to app-level concurrency.
+	FluentdMaxConnections int `help:"Maximum number of connections to fluentd" env:"FDWRD_MAX_CONNECTIONS"`
 }
 
 // TeleportConfig is Teleport instance configuration
@@ -238,6 +242,11 @@ func (c *StartCmdConfig) Validate() error {
 	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
 	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
+	if c.FluentdMaxConnections < 1 {
+		// 2x concurrency is effectively uncapped.
+		c.FluentdMaxConnections = c.Concurrency * 2
+	}
+
 	return nil
 }
 
@@ -257,6 +266,7 @@ func (c *StartCmdConfig) Dump(ctx context.Context) {
 	log.WithField("ca", c.FluentdCA).Info("Using Fluentd ca")
 	log.WithField("cert", c.FluentdCert).Info("Using Fluentd cert")
 	log.WithField("key", c.FluentdKey).Info("Using Fluentd key")
+	log.WithField("max_connections", c.FluentdMaxConnections).Info("Using Fluentd max connections")
 	log.WithField("window-size", c.WindowSize).Info("Using window size")
 
 	if c.TeleportIdentityFile != "" {

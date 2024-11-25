@@ -59,6 +59,7 @@ export const allAccessAcl: Acl = {
   clipboardSharingEnabled: true,
   desktopSessionRecordingEnabled: true,
   directorySharingEnabled: true,
+  reviewRequests: true,
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,

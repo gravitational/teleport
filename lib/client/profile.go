@@ -203,6 +203,9 @@ type ProfileStatus struct {
 	// ValidUntil is the time at which this SSH certificate will expire.
 	ValidUntil time.Time
 
+	// GetKeyRingError is any error encountered while loading the KeyRing.
+	GetKeyRingError error
+
 	// Extensions is a list of enabled SSH features for the certificate.
 	Extensions []string
 

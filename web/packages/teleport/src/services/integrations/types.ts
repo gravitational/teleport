@@ -69,6 +69,23 @@ export type IntegrationSpecAwsOidc = {
   issuerS3Bucket?: string;
 };
 
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
+};
+
 export enum IntegrationStatusCode {
   Unknown = 0,
   Running = 1,
@@ -436,11 +453,11 @@ export type AwsEksCluster = {
   authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
 
   /**
-   * EndpointPublicAddress indicates whether this cluster is publicly accessible.
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
    * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
    * in order to deploy the helm chart.
    */
-  endpointPublicAddress: boolean;
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {

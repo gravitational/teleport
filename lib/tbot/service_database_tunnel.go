@@ -93,7 +93,10 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
+	}
 
 	// Fetch information about the database and then issue the initial
 	// certificate. We issue the initial certificate to allow us to fail faster.

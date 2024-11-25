@@ -1451,6 +1451,10 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 
+	if req.RoleARN != "" {
+		integrationName = ""
+	}
+
 	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
 		Integration: integrationName,
 		RoleArn:     req.RoleARN,

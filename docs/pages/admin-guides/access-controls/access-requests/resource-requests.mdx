@@ -406,6 +406,78 @@ Requesting access to a Kubernetes Namespace allows you to access all resources
 in that namespace but you won't be able to access any other supported resources
 in the cluster.
 
+##### Restrict Access Requests to specific Kubernetes resource kinds
+
+<Admonition type="note">
+The `request.kubernetes_resources` field was released in Teleport 16.4.7.
+All Auth Service instances must be on version 16.4.7+ before the Kubernetes resource restrictions will be enforced.
+</Admonition>
+
+The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
+resources a user can request access to. Configuring this field to any value will disallow
+requesting access to the entire Kubernetes cluster.
+
+If the `request.kubernetes_resources` field is not configured, then a user can request access 
+to any Kubernetes resources, including the entire Kubernetes cluster.
+
+The following role allows users to request access to Kubernetes namespaces. 
+Requests for Kubernetes resources other than `namespace` will not be allowed.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+```
+
+The following role allows users to request access only to Kubernetes namespaces and/or pods.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+        - kind: "pod"
+```
+
+The following role allows users to request access to any specific Kubernetes resources.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "*"
+```
+
+See related section about [Kubernetes Resources](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) 
+to see a list of supported `kind` values.
+
+The `request.kubernetes_resources` field only restricts what `kinds` of Kubernetes resource requests are allowed.
+To control Kubernetes access to these resources see 
+[Preventing unintended access to Kubernetes resources](#preventing-unintended-access-to-kubernetes-resources) 
+section for more details.
+
 #### `db`
 
 You can restrict access to searching `db` resources by assigning values to the

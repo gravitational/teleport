@@ -100,5 +100,5 @@ spec:
 {{- if $proxy.extraVolumes }}
   {{- toYaml $proxy.extraVolumes | nindent 6 }}
 {{- end }}
-      serviceAccountName: {{ include "teleport-cluster.proxy.serviceAccountName" . }}
+      serviceAccountName: {{ include "teleport-cluster.proxy.hookServiceAccountName" . }}
 {{- end }}

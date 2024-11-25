@@ -131,6 +131,12 @@ export const routing = {
     return routing.getClusterUri(params);
   },
 
+  ensureKubeUri(uri: KubeResourceNamespaceUri) {
+    const { kubeId, rootClusterId, leafClusterId } =
+      routing.parseKubeResourceNamespaceUri(uri).params;
+    return routing.getKubeUri({ kubeId, rootClusterId, leafClusterId });
+  },
+
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
   },
@@ -296,6 +302,14 @@ export const routing = {
     const resourceRootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
     return resourceRootClusterUri === rootClusterUri;
+  },
+
+  belongsToKube(
+    kubeClusterUri: KubeUri,
+    namespaceUri: KubeResourceNamespaceUri
+  ) {
+    const kubeUri = routing.ensureKubeUri(namespaceUri);
+    return kubeUri === kubeClusterUri;
   },
 };
 

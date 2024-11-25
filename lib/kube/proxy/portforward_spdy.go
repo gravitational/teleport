@@ -46,6 +46,7 @@ type portForwardRequest struct {
 	context            context.Context
 	targetDialer       httpstream.Dialer
 	pingPeriod         time.Duration
+	idleTimeout        time.Duration
 }
 
 func (p portForwardRequest) String() string {
@@ -103,8 +104,10 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 		targetConn:            targetConn,
 	}
 	defer h.Close()
-	h.Debugf("Setting port forwarding streaming connection idle timeout to %v", IdleTimeout)
-	conn.SetIdleTimeout(IdleTimeout)
+
+	h.Debugf("Setting port forwarding streaming connection idle timeout to %s.", req.idleTimeout)
+	conn.SetIdleTimeout(req.idleTimeout)
+
 	h.run()
 	return nil
 }

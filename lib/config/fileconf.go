@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -922,6 +921,11 @@ type AWSKMS struct {
 		// Enabled configures new keys to be multi-region.
 		Enabled bool
 	} `yaml:"multi_region,omitempty"`
+	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
+	// tag is added automatically if not specified in the set of tags. Changing tags
+	// after Teleport has already created KMS keys may require manually updating
+	// the tags of existing keys.
+	Tags map[string]string `yaml:"tags,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1304,10 +1308,6 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		if err != nil {
 			return out, trace.Wrap(err)
 		}
-		out.Slack = &oauth2.ClientCredentials{
-			ID:     slack.ClientID,
-			Secret: slack.ClientSecret,
-		}
 		out.SlackCredentials = slack
 	}
 	return out, nil
@@ -1506,6 +1506,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.

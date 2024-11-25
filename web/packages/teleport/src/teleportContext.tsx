@@ -161,6 +161,7 @@ class TeleportContext implements types.Context {
       // having list access, requestable roles, or allowed search_as_roles.
       if (cfg.hideInaccessibleFeatures) {
         return !!(
+          userContext.getReviewRequests() ||
           userContext.getAccessRequestAccess().list ||
           userContext.getRequestableRoles().length ||
           userContext.getAllowedSearchAsRoles().length

@@ -309,6 +309,8 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
@@ -933,6 +935,19 @@ const cfg = {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
       clusterId,
       name: integrationName,
     });

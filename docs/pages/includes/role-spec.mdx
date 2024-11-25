@@ -350,6 +350,14 @@ spec:
       # resources accessible by the listed roles (enterprise-only)
       search_as_roles: ['access']
 
+      # Starting version 16.4.7:
+      # 'kubernetes_resources' restricts what kinds of Kubernetes resources
+      # a user can request access to. In the below example, users can
+      # request only Kubernetes namespaces. Default (when nothing is defined) allows
+      # access requests to any Kubernetes resource or the entire cluster.
+      kubernetes_resources:
+        - kind: "namespace"
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
       thresholds:
@@ -381,7 +389,7 @@ spec:
           # generates a role name from the value capture
           roles: ['$1-admin']
 
-      # Teleport can attach annotations to pending Access Requests. these
+      # Teleport can attach annotations to pending Access Requests. These
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -419,7 +427,7 @@ spec:
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
+        modes: ['moderator', 'observer', 'peer']
 
     # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
     # SVIDs for. As long as the request matches one of the blocks within the

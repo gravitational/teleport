@@ -1407,6 +1407,11 @@ message ProvisionTokenSpecV2GitHub {
   // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
   // for more information about customized issuer values.
   string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
+  // StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitHub Actions in GHES instances that are not reachable by the
+  // Teleport Auth Service.
+  string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
@@ -6243,6 +6248,11 @@ message PluginEntraIDSyncSettings {
   // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the Entra integration when utilized.
   string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
 }
 
 // EntraIDCredentialsSource defines the credentials source for Entra ID.
@@ -7399,6 +7409,12 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // PollInterval is the frequency at which to poll for AWS resources
+  google.protobuf.Duration PollInterval = 2 [
+    (gogoproto.jsontag) = "poll_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.

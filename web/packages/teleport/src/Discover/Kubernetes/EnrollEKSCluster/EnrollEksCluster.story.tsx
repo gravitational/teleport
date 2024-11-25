@@ -174,7 +174,6 @@ WithAwsPermissionsError.parameters = {
 };
 
 export const WithEnrollmentError = () => <Component />;
-
 WithEnrollmentError.parameters = {
   msw: {
     handlers: [
@@ -209,6 +208,46 @@ WithEnrollmentError.parameters = {
   },
 };
 
+export const WithAlreadyExistsError = () => (
+  <Component devInfoText="select any region, select EKS1 to see already exist error" />
+);
+WithAlreadyExistsError.parameters = {
+  msw: {
+    handlers: [
+      tokenHandler,
+      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
+        {
+          return res(ctx.json({ clusters: eksClusters }));
+        }
+      }),
+      rest.get(
+        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+        (req, res, ctx) => {
+          return res(ctx.json({ items: kubeServers }));
+        }
+      ),
+      rest.post(
+        cfg.getEnrollEksClusterUrl(integrationName),
+        async (req, res, ctx) => {
+          return res(
+            ctx.delay(1000),
+            ctx.status(200),
+            ctx.json({
+              results: [
+                {
+                  clusterName: 'EKS1',
+                  error:
+                    'teleport-kube-agent is already installed on the cluster',
+                },
+              ],
+            })
+          );
+        }
+      ),
+    ],
+  },
+};
+
 export const WithOtherError = () => <Component />;
 
 WithOtherError.parameters = {
@@ -222,7 +261,7 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = () => {
+const Component = ({ devInfoText = '' }) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -278,7 +317,9 @@ const Component = () => {
           resourceKind={ResourceKind.Kubernetes}
         >
           <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>Devs: Select any region to see story state</Info>
+            <Info>
+              {devInfoText || 'Devs: Select any region to see story state'}
+            </Info>
             <EnrollEksCluster
               nextStep={discoverCtx.nextStep}
               updateAgentMeta={discoverCtx.updateAgentMeta}
@@ -314,7 +355,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS2',
@@ -328,7 +369,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS3',
@@ -342,7 +383,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS4',
@@ -356,7 +397,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'CONFIG_MAP',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS5',
@@ -370,6 +411,6 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API_AND_CONFIG_MAP',
-    endpointPublicAddress: false,
+    endpointPublicAccess: false,
   },
 ];
