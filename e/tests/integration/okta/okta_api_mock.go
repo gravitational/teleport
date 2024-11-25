@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ type mockOktaAPIClient struct {
 	appGroupAssignments map[string]map[string]*okta.ApplicationGroupAssignment
 	// Okta Token Scopes
 	scopes []string
+	rt     http.RoundTripper
 }
 
 // GetScopes returns the scopes.
@@ -162,7 +164,19 @@ func (m *mockOktaAPIClient) ListGroups(_ context.Context, _ *query.Params) ([]*o
 
 // CloneRequestExecutor returns a clone of the request executor.
 func (m *mockOktaAPIClient) CloneRequestExecutor() *okta.RequestExecutor {
-	return &okta.RequestExecutor{}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, c, err := okta.NewClient(
+		context.Background(),
+		okta.WithOrgUrl("https://example.com"),
+		okta.WithHttpClientPtr(&http.Client{Transport: m.rt}),
+		okta.WithToken("token"),
+	)
+	if err != nil {
+		panic(err)
+	}
+	executor := c.CloneRequestExecutor()
+	return executor
 }
 
 // GetOrgSettings will return the organization settings.
@@ -339,7 +353,12 @@ func (m *mockOktaAPIClient) CreateApplication(_ context.Context, body okta.App, 
 	case *okta.SamlApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
-		t.Links = links
+		t.Links = map[string]any{
+			"metadata": map[string]string{
+				"href": "https://12345.okta.com/api/v1/apps/12345/sso/saml/metadata",
+				"type": "application/xml",
+			},
+		}
 	case *okta.BookmarkApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
@@ -453,4 +472,10 @@ func (m *mockOktaAPIClient) DeleteApplication(_ context.Context, appId string) (
 		delete(m.appGroupAssignments, appId)
 	}
 	return &okta.Response{}, nil
+}
+
+func (m *mockOktaAPIClient) setRoundTripper(rt http.RoundTripper) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rt = rt
 }
