@@ -1,5 +1,15 @@
 {
   "navigation": [
+    {
+      "title": "Home",
+      "icon": "wrench",
+      "entries": [
+        {
+          "title": "Test",
+          "slug": "/test/"
+        }
+      ]
+    }
   ],
   "variables": {
     "clusterDefaults": {
