@@ -58,7 +58,12 @@ const kind = ({ kind, theme }) => {
   };
 };
 
-type LabelKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+export type LabelKind =
+  | 'primary'
+  | 'secondary'
+  | 'warning'
+  | 'danger'
+  | 'success';
 
 interface LabelProps extends SpaceProps {
   kind?: LabelKind;
