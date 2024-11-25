@@ -18,8 +18,6 @@
 
 import React from 'react';
 
-import { Auth2faType } from 'shared/services';
-
 import Dialog from 'design/Dialog';
 
 import { http, HttpResponse, delay } from 'msw';
@@ -29,7 +27,13 @@ import { ContextProvider } from 'teleport/index';
 
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/mfa';
+import {
+  DeviceType,
+  DeviceUsage,
+  MFA_OPTION_SSO_DEFAULT,
+  MFA_OPTION_TOTP,
+  MFA_OPTION_WEBAUTHN,
+} from 'teleport/services/mfa';
 
 import {
   AddAuthDeviceWizardStepProps,
@@ -37,6 +41,7 @@ import {
   SaveDeviceStep,
 } from './AddAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',
@@ -62,23 +67,9 @@ export function ReauthenticateLimitedOptions() {
   return (
     <ReauthenticateStep
       {...stepProps}
-      devices={[
-        {
-          id: '1',
-          description: 'Authenticator App',
-          name: 'gizmo',
-          registeredDate: new Date(1628799417000),
-          lastUsedDate: new Date(1628799417000),
-          type: 'totp',
-          usage: 'mfa',
-        },
-      ]}
+      mfaChallengeOptions={[{ value: 'totp', label: 'Authenticator App' }]}
     />
   );
-}
-
-export function ReauthenticateNoOptions() {
-  return <ReauthenticateStep {...stepProps} devices={[]} />;
 }
 
 export function CreatePasskey() {
@@ -92,7 +83,9 @@ export function CreateMfaHardwareDevice() {
 }
 
 export function CreateMfaAppQrCodeLoading() {
-  return <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
+  return (
+    <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
+  );
 }
 CreateMfaAppQrCodeLoading.parameters = {
   msw: {
@@ -105,10 +98,12 @@ CreateMfaAppQrCodeLoading.parameters = {
   },
 };
 
-export function CreateMfaAppQrCodeFailed() {
-  return <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
+export function CreateAuthenticatorAppQrCodeFailed() {
+  return (
+    <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
+  );
 }
-CreateMfaAppQrCodeFailed.parameters = {
+CreateAuthenticatorAppQrCodeFailed.parameters = {
   msw: {
     handlers: [
       http.post(
@@ -128,10 +123,12 @@ CreateMfaAppQrCodeFailed.parameters = {
 const dummyQrCode =
   'iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdAQMAAABsXfVMAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlP//8i138cAAAAJcEhZcwAACxIAAAsSAdLdfvwAAABrSURBVAiZY/gPBAxoxAcxh3qG71fv1zN8iQ8EEReBRACQ+H4ZKPZBFCj7/3v9f4aPU9vqGX4kFtUzfG5mBLK2aNUz/PM3AsmqAk2RNQTquLYLqDdG/z/QlGAgES4CFLu4GygrXF2Pbi+IAADZqFQFAjXZWgAAAABJRU5ErkJggg==';
 
-export function CreateMfaApp() {
-  return <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
+export function CreateAuthenticatorApp() {
+  return (
+    <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
+  );
 }
-CreateMfaApp.parameters = {
+CreateAuthenticatorApp.parameters = {
   msw: {
     handlers: [
       http.post(
@@ -153,7 +150,7 @@ export function SaveMfaHardwareDevice() {
 }
 
 export function SaveMfaAuthenticatorApp() {
-  return <SaveDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
+  return <SaveDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />;
 }
 
 const stepProps: AddAuthDeviceWizardStepProps = {
@@ -165,35 +162,28 @@ const stepProps: AddAuthDeviceWizardStepProps = {
   flowLength: 1,
   refCallback: () => {},
 
-  // Other props
+  // Shared props
   privilegeToken: 'privilege-token',
-  usage: 'passwordless' as DeviceUsage,
-  auth2faType: 'on' as Auth2faType,
-  credential: { id: 'cred-id', type: 'public-key' },
-  newMfaDeviceType: 'webauthn' as Auth2faType,
-  devices: [
-    {
-      id: '1',
-      description: 'Authenticator App',
-      name: 'gizmo',
-      registeredDate: new Date(1628799417000),
-      lastUsedDate: new Date(1628799417000),
-      type: 'totp',
-      usage: 'mfa',
-    },
-    {
-      id: '2',
-      description: 'Hardware Key',
-      name: 'key',
-      registeredDate: new Date(1623722252000),
-      lastUsedDate: new Date(1623981452000),
-      type: 'webauthn',
-      usage: 'mfa',
-    },
-  ],
-  onNewMfaDeviceTypeChange: () => {},
-  onDeviceCreated: () => {},
-  onAuthenticated: () => {},
+  newMfaDeviceType: 'webauthn',
   onClose: () => {},
   onSuccess: () => {},
+  usage: 'passwordless' as DeviceUsage,
+
+  // Reauth props
+  reauthAttempt: {} as Attempt,
+  clearReauthAttempt: () => {},
+  mfaChallengeOptions: [
+    MFA_OPTION_WEBAUTHN,
+    MFA_OPTION_TOTP,
+    MFA_OPTION_SSO_DEFAULT,
+  ],
+  submitWithMfa: async (mfaType?: DeviceType, otpCode?: string) => {},
+
+  // Create props
+  mfaRegisterOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP],
+  onDeviceCreated: (c: Credential) => {},
+  onNewMfaDeviceTypeChange: (d: DeviceType) => {},
+
+  // Save props
+  credential: { id: 'cred-id', type: 'public-key' },
 };

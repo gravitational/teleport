@@ -29,7 +29,10 @@ import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { PasswordState } from 'teleport/services/user';
 import auth from 'teleport/services/auth/auth';
-import MfaService, { MfaDevice } from 'teleport/services/mfa';
+import MfaService, {
+  MfaDevice,
+  WebauthnAssertionResponse,
+} from 'teleport/services/mfa';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -244,10 +247,11 @@ test('adding an MFA device', async () => {
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
   jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
-    webauthnPublicKey: null,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
     totpChallenge: true,
     ssoChallenge: null,
   });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
@@ -255,8 +259,8 @@ test('adding an MFA device', async () => {
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
 
   await renderComponent(ctx);
@@ -276,7 +280,7 @@ test('adding an MFA device', async () => {
     addRequest: {
       deviceName: 'new-mfa',
       deviceUsage: 'mfa',
-      tokenId: 'webauthn-privilege-token',
+      tokenId: 'privilege-token',
     },
   });
   expect(
@@ -288,6 +292,12 @@ test('adding a passkey', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
+    ssoChallenge: null,
+  });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
@@ -295,8 +305,8 @@ test('adding a passkey', async () => {
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
   cfg.auth.allowPasswordless = true;
 
@@ -315,7 +325,7 @@ test('adding a passkey', async () => {
     addRequest: {
       deviceName: 'new-passkey',
       deviceUsage: 'passwordless',
-      tokenId: 'webauthn-privilege-token',
+      tokenId: 'privilege-token',
     },
   });
   expect(
@@ -328,13 +338,14 @@ test('removing an MFA method', async () => {
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
   jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
-    webauthnPublicKey: null,
-    totpChallenge: false,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    totpChallenge: true,
     ssoChallenge: null,
   });
+  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
   jest
-    .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
-    .mockResolvedValueOnce('webauthn-privilege-token');
+    .spyOn(auth, 'createPrivilegeToken')
+    .mockResolvedValueOnce('privilege-token');
   jest
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
@@ -352,7 +363,7 @@ test('removing an MFA method', async () => {
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
-    'webauthn-privilege-token',
+    'privilege-token',
     'touch_id'
   );
   expect(screen.queryByTestId('delete-step')).not.toBeInTheDocument();

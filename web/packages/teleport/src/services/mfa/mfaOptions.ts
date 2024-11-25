@@ -57,14 +57,20 @@ export type MfaOption = {
   label: string;
 };
 
-const MFA_OPTION_WEBAUTHN: MfaOption = {
+export const MFA_OPTION_WEBAUTHN: MfaOption = {
   value: 'webauthn',
   label: 'Passkey or Security Key',
 };
 
-const MFA_OPTION_TOTP: MfaOption = {
+export const MFA_OPTION_TOTP: MfaOption = {
   value: 'totp',
   label: 'Authenticator App',
+};
+
+// used in tests, returned by getSsoOptions(null).
+export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
+  value: 'sso',
+  label: 'SSO',
 };
 
 const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
