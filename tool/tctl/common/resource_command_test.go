@@ -1552,11 +1552,6 @@ spec:
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     port_forwarding: true
-    ssh_port_forwarding:
-      remote:
-        enabled: true
-      local:
-        enabled: true
     record_session:
       default: best_effort
       desktop: true
