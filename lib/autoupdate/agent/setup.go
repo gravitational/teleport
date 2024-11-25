@@ -37,11 +37,10 @@ import (
 
 // Base paths for constructing namespaced directories.
 const (
-	teleportOptDir     = "/opt/teleport"
-	teleportOptDataDir = "/var/opt/teleport"
-	versionsDirName    = "versions"
-	systemdAdminDir    = "/etc/systemd/system"
-	systemdPIDFile     = "/run/teleport.pid"
+	teleportOptDir  = "/opt/teleport"
+	versionsDirName = "versions"
+	systemdAdminDir = "/etc/systemd/system"
+	systemdPIDFile  = "/run/teleport.pid"
 )
 
 const (
@@ -140,8 +139,9 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespac
 		}, nil
 	}
 
+	prefix := "teleport_" + name
 	if dataDir == "" {
-		dataDir = filepath.Join(teleportOptDataDir, name)
+		dataDir = filepath.Join(filepath.Dir(defaults.DataDir), prefix)
 	}
 	if linkBinDir == "" {
 		linkBinDir = filepath.Join(namespaceDir(name), "bin")
@@ -152,9 +152,9 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespac
 		dataDir:            dataDir,
 		linkBinDir:         linkBinDir,
 		versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
-		serviceFile:        filepath.Join(systemdAdminDir, "teleport_"+name+".service"),
-		configFile:         filepath.Join(namespaceDir(name), defaults.ConfigFilePath),
-		pidFile:            filepath.Join(filepath.Dir(systemdPIDFile), "teleport_"+name+".pid"),
+		serviceFile:        filepath.Join(systemdAdminDir, prefix+".service"),
+		configFile:         filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
+		pidFile:            filepath.Join(filepath.Dir(systemdPIDFile), prefix+".pid"),
 		updaterBinFile:     filepath.Join(linkBinDir, BinaryName),
 		updaterServiceFile: filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
 		updaterTimerFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
