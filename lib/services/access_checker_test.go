@@ -691,7 +691,7 @@ func TestSSHPortForwarding(t *testing.T) {
 		},
 		{
 			name:         "conflicting roles with legacy deny",
-			roleSet:      NewRoleSet(allDeny, legacyDeny),
+			roleSet:      NewRoleSet(allow, legacyDeny),
 			expectedMode: SSHPortForwardModeOff,
 		},
 		{

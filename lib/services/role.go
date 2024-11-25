@@ -2892,8 +2892,7 @@ func (m SSHPortForwardMode) Legacy() bool {
 
 // SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet.
 func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
-	// port forwarding is allowed by default, we want to
-	// track explicit denies
+	// port forwarding is allowed by default, we want to track explicit denies
 	denyRemote := false
 	denyLocal := false
 
