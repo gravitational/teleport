@@ -29,12 +29,14 @@ const Document: React.FC<{
     shouldFocus: visible && !autoFocusDisabled,
   });
 
+  // The background-color of Document is controlled through <body> and it
+  // cannot be set on Document directly because of Chromium issues with z-index.
+  // Read more https://github.com/gravitational/teleport/pull/49351.
   return (
     <Flex
       tabIndex={visible ? 0 : -1}
       flex="1"
       ref={ref}
-      bg="levels.sunken"
       style={{
         overflow: 'auto',
         display: visible ? 'flex' : 'none',
