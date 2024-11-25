@@ -96,7 +96,7 @@ func (s *Server) startDatabaseWatchers() error {
 					}
 
 					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
-					resourcesFoundByGroup[resourceGroup] = resourcesFoundByGroup[resourceGroup] + 1
+					resourcesFoundByGroup[resourceGroup] += 1
 					discoveryConfigsChanged[resourceGroup.discoveryConfig] = struct{}{}
 
 					dbs = append(dbs, db)
