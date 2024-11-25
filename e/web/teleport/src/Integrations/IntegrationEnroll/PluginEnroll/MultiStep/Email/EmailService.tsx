@@ -181,7 +181,7 @@ export function EmailService() {
           rule={requiredField('Username Required')}
           value={username}
           onChange={e => setUsername(e.target.value)}
-          placeholder="username@exmaple.com"
+          placeholder="username@example.com"
           toolTipContent="Username specifies the SMTP service username credential"
           mb={3}
         />
