@@ -36,6 +36,7 @@ func TestNewNamespace(t *testing.T) {
 		namespace string
 		linkDir   string
 		dataDir   string
+		errMatch  string
 		ns        *Namespace
 	}{
 		{
@@ -102,10 +103,25 @@ func TestNewNamespace(t *testing.T) {
 				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
 			},
 		},
+		{
+			name:      "reserved local",
+			namespace: "local",
+			errMatch:  "reserved",
+		},
+		{
+			name:      "reserved system",
+			namespace: "system",
+			errMatch:  "reserved",
+		},
 	} {
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
 			ns, err := NewNamespace(log, p.namespace, p.dataDir, p.linkDir)
+			if p.errMatch != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), p.errMatch)
+				return
+			}
 			require.NoError(t, err)
 			ns.log = nil
 			require.Equal(t, p.ns, ns)
