@@ -475,6 +475,36 @@ spec:
       - {{ join.gitlab.environment }}.gitlab.example.com 
 ```
 
+### Time To Live (TTL)
+
+Both X509 and JWT SVIDs include fields which control when the credential is
+valid from and when it is valid to.
+
+When requesting the issuance of a credential, the `tbot` agent will provide a
+requested TTL for the credential - which will either be a default value or
+one explicitly configured by a user.
+
+However, the WorkloadIdentity resource will also include a `spec.spiffe.ttl.max`
+field. If `tbot` requests a credential with a TTL greater than this value, the
+TTL will be capped at this value. This provides the ability to enforce a 
+maximum permissible TTL regardless of the configuration of the `tbot` agent.
+
+If this field is not set, a default maximum value of 24 hours will be used.
+
+Example:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: my-awesome-service 
+spec:
+  spiffe:
+    id: /my-awesome-service
+    ttl:
+      max: 24h
+```
+
 ### Future: Customizing workload identity credentials
 
 In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
@@ -965,6 +995,15 @@ message WorkloadIdentitySPIFFEJWT {
   // of custom JWT claims.
 }
 
+message WorkloadIdentityTTL {
+  // The maximum TTL that can be requested for credential using this
+  // WorkloadIdentity.
+  // If the requested TTL is greater than this value, the TTL will be capped at
+  // this value.
+  // If not set, a default value of 24 hours will be used.
+  google.protobuf.Duration max = 1;
+}
+
 // WorkloadIdentitySPIFFE holds configuration for the issuance of
 // SPIFFE-compatible workload identity credentials when this WorkloadIdentity
 // is used.
@@ -986,6 +1025,9 @@ message WorkloadIdentitySPIFFE {
   // jwt holds configuration specific to the issuance of JWT SVIDs from this
   // WorkloadIdentity resource.
   WorkloadIdentitySPIFFEJWT jwt = 4;
+  // ttl holds configuration specific to the TTL of credentials issued from
+  // this WorkloadIdentity resource.
+  WorkloadIdentityTTL ttl = 5;
 }
 
 // WorkloadIdentitySpec holds the configuration element of the WorkloadIdentity
@@ -1029,6 +1071,8 @@ spec:
     - expression: join.gitlab.project_path == "my-org/my-project"
   spiffe:
     id: /gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.environment }}
+    ttl:
+      max: 12h
     x509:
       dns_sans:
       - {{ join.gitlab.environment }}.gitlab.example.com 
