@@ -16,13 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useState } from 'react';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import {
+  getMfaChallengeOptions as getChallengeOptions,
+  DeviceType,
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+  MfaOption,
+} from 'teleport/services/mfa';
 
 // useReAuthenticate will have different "submit" behaviors depending on:
 //  - If prop field `onMfaResponse` is defined, after a user submits, the
@@ -31,60 +37,69 @@ import type { MfaChallengeResponse } from 'teleport/services/mfa';
 //    user's MFA response are submitted with the request to get a privilege
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
-export default function useReAuthenticate(props: Props) {
-  const { onClose, actionText = defaultActionText } = props;
-
+export default function useReAuthenticate(props: ReauthProps): ReauthState {
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
-  // to the caller who is reponsible for rendering the `ReAuthenticate`
+  // to the caller who is responsible for rendering the `ReAuthenticate`
   // component.
-  const { attempt, setAttempt, handleError } = useAttempt('');
+  const { attempt, setAttempt } = useAttempt('');
 
-  function submitWithTotp(secondFactorToken: string) {
-    if ('onMfaResponse' in props) {
-      props.onMfaResponse({ totp_code: secondFactorToken });
+  const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>(null);
+
+  // Provide a custom error handler to catch a webauthn frontend error that occurs
+  // on Firefox and replace it with a more helpful error message.
+  const handleError = (err: Error) => {
+    if (err.message.includes('attempt was made to use an object that is not')) {
+      setAttempt({
+        status: 'failed',
+        statusText:
+          'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.',
+      });
+      return;
+    } else {
+      setAttempt({ status: 'failed', statusText: err.message });
       return;
     }
+  };
 
-    setAttempt({ status: 'processing' });
-    auth
-      .createPrivilegeToken({ totp_code: secondFactorToken })
-      .then(props.onAuthenticated)
-      .catch(handleError);
+  // TODO(Joerger): Replace onAuthenticated with onMfaResponse at call sites (/e).
+  if (props.onAuthenticated) {
+    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
+    props.challengeScope = MfaChallengeScope.MANAGE_DEVICES;
+    props.onMfaResponse = mfaResponse => {
+      auth
+        .createPrivilegeToken(mfaResponse)
+        .then(props.onAuthenticated)
+        .catch(handleError);
+    };
   }
 
-  function submitWithWebauthn() {
-    setAttempt({ status: 'processing' });
-
-    if ('onMfaResponse' in props) {
-      auth
-        .getMfaChallenge({ scope: props.challengeScope })
-        .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-        .catch(handleError);
-
-      return;
+  async function getMfaChallenge() {
+    if (challenge) {
+      return challenge;
     }
 
-    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
-    auth
-      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
-      .then(auth.createPrivilegeToken)
-      .then(props.onAuthenticated)
-      .catch((err: Error) => {
-        // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
-        if (
-          err.message.includes('attempt was made to use an object that is not')
-        ) {
-          setAttempt({
-            status: 'failed',
-            statusText:
-              'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.',
-          });
-        } else {
-          setAttempt({ status: 'failed', statusText: err.message });
-        }
-      });
+    return auth.getMfaChallenge({ scope: props.challengeScope }).then(chal => {
+      setMfaChallenge(chal);
+      return chal;
+    });
+  }
+
+  function clearMfaChallenge() {
+    setMfaChallenge(null);
+  }
+
+  function getMfaChallengeOptions() {
+    return getMfaChallenge().then(getChallengeOptions);
+  }
+
+  function submitWithMfa(mfaType?: DeviceType, totp_code?: string) {
+    setAttempt({ status: 'processing' });
+    return getMfaChallenge()
+      .then(chal => auth.getMfaChallengeResponse(chal, mfaType, totp_code))
+      .then(props.onMfaResponse)
+      .finally(clearMfaChallenge)
+      .catch(handleError);
   }
 
   function clearAttempt() {
@@ -94,53 +109,23 @@ export default function useReAuthenticate(props: Props) {
   return {
     attempt,
     clearAttempt,
-    submitWithTotp,
-    submitWithWebauthn,
-    auth2faType: cfg.getAuth2faType(),
-    preferredMfaType: cfg.getPreferredMfaType(),
-    actionText,
-    onClose,
+    getMfaChallenge,
+    getMfaChallengeOptions,
+    submitWithMfa,
   };
 }
 
-const defaultActionText = 'performing this action';
-
-type BaseProps = {
-  onClose?: () => void;
-  /**
-   * The text that will be appended to the text in the re-authentication dialog.
-   *
-   * Default value: "performing this action"
-   *
-   * Example: If `actionText` is set to "registering a new device" then the dialog will say
-   * "You must verify your identity with one of your existing two-factor devices before registering a new device."
-   *
-   * */
-  actionText?: string;
+export type ReauthProps = {
+  challengeScope?: MfaChallengeScope;
+  onMfaResponse?(res: MfaChallengeResponse): void;
+  // TODO(Joerger): Remove in favor of onMfaResponse, make onMfaResponse required.
+  onAuthenticated?(privilegeTokenId: string): void;
 };
 
-// MfaResponseProps defines a function
-// that accepts a MFA response. No
-// authentication has been done at this point.
-type MfaResponseProps = BaseProps & {
-  onMfaResponse(res: MfaChallengeResponse): void;
-  /**
-   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
-   */
-  challengeScope: MfaChallengeScope;
-  onAuthenticated?: never;
+export type ReauthState = {
+  attempt: Attempt;
+  clearAttempt: () => void;
+  getMfaChallenge: () => Promise<MfaAuthenticateChallenge>;
+  getMfaChallengeOptions: () => Promise<MfaOption[]>;
+  submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => Promise<void>;
 };
-
-// DefaultProps defines a function that
-// accepts a privilegeTokenId that is only
-// obtained after MFA response has been
-// validated.
-type DefaultProps = BaseProps & {
-  onAuthenticated(privilegeTokenId: string): void;
-  onMfaResponse?: never;
-  challengeScope?: never;
-};
-
-export type Props = MfaResponseProps | DefaultProps;
-
-export type State = ReturnType<typeof useReAuthenticate>;
