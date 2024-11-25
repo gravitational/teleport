@@ -176,6 +176,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.PermitPortForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitPortForwarding] = ""
 	}
+	if c.SSHPortForwardMode != services.SSHPortForwardModeOff {
+		cert.Permissions.Extensions[teleport.CertExtensionSSHPortForwardMode] = c.SSHPortForwardMode.String()
+	}
 	if c.MFAVerified != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionMFAVerified] = c.MFAVerified
 	}

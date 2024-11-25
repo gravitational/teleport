@@ -341,6 +341,8 @@ type UserCertParams struct {
 	PermitAgentForwarding bool
 	// PermitPortForwarding permits port forwarding.
 	PermitPortForwarding bool
+	// SSHPortForwardMode permits local and/or remote SSH port forwarding.
+	SSHPortForwardMode SSHPortForwardMode
 	// PermitFileCopying permits the use of SCP/SFTP.
 	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
