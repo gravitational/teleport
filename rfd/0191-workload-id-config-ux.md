@@ -84,11 +84,11 @@ identity document:
     repository or workflow is more interesting for the purposes of templating a
     SPIFFE ID than the UID or PID of the workload that has connected to tbot
     within the workflow execution.
-- Bot Metadata
-  - This is a looser category, but consider traits, labels and name of the Bot
-    requesting the generation of the identity. This information doesn't come 
-    from an attestation process, but is typically "administrative" and set by
-    the operator.
+- User Metadata
+  - This is a looser category, but consider traits, labels and name of the
+    User/Bot requesting the generation of the identity. This information doesn't
+    come from an attestation process, but is typically "administrative" and set
+    by the operator.
 
 Today:
 
@@ -285,8 +285,8 @@ three sources:
   these attributes is dependent on whether workload attestation has been
   performed by `tbot` and which form of attestation has been performed. E.g
   `workload.k8s.namespace`.
-- `traits`: From the traits configured on the Bot which is requesting the
-  issuance of the WorkloadIdentity. E.g `traits.foo`.
+- `user`: From the identity of the user calling the WorkloadIdentity API. E.g
+  `user.bot_name`.
 
 Attributes take a hierarchical form which can be navigated within templates and
 rules using `.`. For example, `join.gitlab.project_path`.
@@ -430,6 +430,46 @@ credentials would have been issued:
 It stands to reason that this functionality could eventually be integrated into 
 the Teleport Web UI.
 
+### X509 SVIDs and DNS SANs
+
+By default, the X509 SVIDs issued for a WorkloadIdentity resource will not 
+include any DNS SANs.
+
+To include DNS SANs, the `spec.spiffe.x509.dns_sans` field can be used:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+spec:
+  spiffe:
+    id: /my-awesome-service
+    x509:
+      dns_sans:
+      - my.awesome.service.example.com
+      - "*.my.awesome.service.example.com"
+```
+
+This will result in any X509 SVID issued using this WorkloadIdentity including
+both the specified DNS SANs.
+
+As with `spec.spiffe.id`, templating can be used to include attributes within
+DNS SANs:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: gitlab
+spec:
+  spiffe:
+    id: /my-awesome-service
+    x509:
+      dns_sans:
+      - {{ join.gitlab.environment }}.gitlab.example.com 
+```
+
 ### Future: Customizing workload identity credentials
 
 In a future iteration, we'd introduce the ability for the `WorkloadIdentity`
@@ -458,7 +498,6 @@ For JWTs, the following options are good candidates for inclusion:
 
 For X509 certificates, the following options are good candidates for inclusion:
 
-- Additional SANs
 - Control of the Subject CN behaviour (e.g should the CN match the SPIFFE ID or
   the first DNS SAN)
 - Overriding Subject DN entirely (e.g populate DN attributes with values from
@@ -482,9 +521,8 @@ spec:
     x509:
       override_subject:
         cn: my-lovely-common-name
-      additional_sans:
-        dns:
-        - example.com
+      dns_sans:
+      - example.com
 ```
 
 We may wish to consider a second-order configuration resource
@@ -551,7 +589,7 @@ tbot start workload-api \
   --proxy-server example.teleport.sh:443 \
   --join-token gitlab-workload-id \
   --join-method gitlab \
-  --workload-identity-labels "'*':'*'"  \
+  --workload-identity-labels *:* \
   --listen-addr unix:///opt/workload.sock
 ```
 
@@ -567,7 +605,7 @@ keys:
 
 - `join`
 - `workload`
-- `traits`
+- `user`
 
 The attribute hierarchy will be defined using Protobuf. This will enable:
 
@@ -576,31 +614,74 @@ The attribute hierarchy will be defined using Protobuf. This will enable:
 - Serialization and deserialization of attributes for the purposes of
   persistence, auditing or transport.
 
+Specification:
+
 ```protobuf
 package teleport.workloadidentity.v1;
 
 message AttributeSet {
   JoinAttributes join = 1;
   WorkloadAttributes workload = 2;
-  TraitAttributes traits = 3;
+  UserAttributes user  = 3;
 }
 ```
 
-#### Trait Attributes
+Example (marshalled as YAML):
 
-The trait attributes are extracted during the RPC invocation from the X509
-identity of the caller.
+```yaml
+join:
+workload:
+  k8s:
+    namespace: my-namespace
+    pod_name: my-pod
+    service_account: my-service-account
+user:
+  name: bot-gitlab-workload-identity
+  is_bot: true
+  bot_name: gitlab-workload-identity
+  traits:
+  - name: foo
+    values:
+    - bar
+    - bizz
+  - name: logins
+    values:
+    - root
+```
 
-These values provide a simple way to attach specific values to a specific
-Bot, which may not be available through any attestation process. These may
-have organizational or administrative significance.
+#### User Attributes
+
+The user attributes are extracted during the RPC invocation from the X509
+identity of the caller, and include information such as the name of the user,
+whether the user is a bot, and any traits attached to that user.
+
+Specification:
 
 ```protobuf
 package teleport.workloadidentity.v1;
 
-message TraitAttributes {
-  // TODO: Work out how to encode this.
+message UserAttributes {
+  string name = 1;
+  bool is_bot = 2;
+  string bot_name = 3;
+  string traits = 4;
 }
+```
+
+Example (marshalled as YAML):
+
+```yaml
+name: bot-gitlab-workload-identity
+is_bot: true
+bot_name: gitlab-workload-identity
+traits:
+- name: foo
+  values:
+  - bar
+  - bizz
+- name: logins
+  values:
+  - root
 ```
 
 #### Workload Attributes
@@ -619,6 +700,13 @@ message WorkloadAttributes {
 }
 ```
 
+Example (marshalled as YAML):
+
+```yaml
+
+```
+
+
 #### Join Attributes
 
 The `join` attributes will be encoded into
@@ -629,6 +717,12 @@ package teleport.workloadidentity.v1;
 message JoinAttributes {
   // TODO: Work out how to encode this.
 }
+```
+
+Example (marshalled as YAML):
+
+```yaml
+
 ```
 
 ##### Propagating Join Attributes
@@ -780,6 +874,10 @@ The proto specification of the RPCs is omitted for conciseness.
 ### IssueWorkloadIdentity RPC 
 
 ```proto
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
 // WorkloadIdentityService provides the signing of workload identity documents.
 service WorkloadIdentityService {
   rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse) {}
