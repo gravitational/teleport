@@ -48,7 +48,7 @@ const (
 	maxConcurrentUpdates = 3
 )
 
-func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
+func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automaticupgrades.Channels) error {
 	// start process only after teleport process has started
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return trace.Wrap(err)
@@ -68,11 +68,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return nil
 	}
 
-	// TODO: use the proxy channel if available?
-	// This would require to pass the proxy configuration there, but would avoid
-	// future inconsistencies: if the proxy is manually configured to serve a
-	// static version, it will not be picked up by the AWS OIDC deploy updater.
-	upgradeChannel, err := automaticupgrades.NewDefaultChannel()
+	upgradeChannel, err := channels.DefaultChannel()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -128,6 +124,10 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster version required")
 	}
 
+	if cfg.UpgradeChannel == nil {
+		return trace.BadParameter("automatic upgrades channel required")
+	}
+
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater"))
 	}
@@ -159,7 +159,7 @@ func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDC
 func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration: updateAWSOIDCDeployServiceInterval,
-		Jitter:   retryutils.NewSeventhJitter(),
+		Jitter:   retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 
@@ -265,10 +265,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	req := &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsRegion,
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsRegion,
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.
@@ -307,7 +306,11 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		}
 	}()
 
-	updater.Log.DebugContext(ctx, "Updating AWS OIDC Deploy Service", "integration", integration.GetName(), "region", awsRegion)
+	updater.Log.DebugContext(ctx, "Updating AWS OIDC Deploy Service",
+		"integration", integration.GetName(),
+		"region", awsRegion,
+		"new_version", teleportVersion,
+	)
 	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
 		TeleportVersionTag:  teleportVersion,

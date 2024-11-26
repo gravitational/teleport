@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Role } from 'teleport/services/resources';
+import { Role, RoleOptions } from 'teleport/services/resources';
 
 export type DeepPartial<T> = {
   [k in keyof T]?: T[k] extends object ? DeepPartial<T[k]> : T[k];
@@ -48,29 +48,54 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
       ...role.spec?.deny,
     },
 
-    options: {
-      cert_format: 'standard',
-      create_db_user: false,
-      create_desktop_user: false,
-      desktop_clipboard: true,
-      desktop_directory_sharing: true,
-      enhanced_recording: ['command', 'network'],
-      forward_agent: false,
-      idp: {
-        saml: {
-          enabled: true,
-        },
-      },
-      max_session_ttl: '30h0m0s',
-      pin_source_ip: false,
-      port_forwarding: true,
-      record_session: {
-        default: 'best_effort',
-        desktop: true,
-      },
-      ssh_file_copy: true,
+    options: optionsWithDefaults(role.spec?.options),
+  },
+});
 
-      ...role.spec?.options,
+const optionsWithDefaults = (
+  options?: DeepPartial<RoleOptions>
+): RoleOptions => {
+  const defaults = defaultOptions();
+  return {
+    ...defaults,
+    ...options,
+
+    idp: {
+      ...defaults.idp,
+      ...options?.idp,
+
+      saml: {
+        ...defaults.idp.saml,
+        ...options?.idp?.saml,
+      },
+    },
+
+    record_session: {
+      ...defaults.record_session,
+      ...options?.record_session,
+    },
+  };
+};
+
+export const defaultOptions = (): RoleOptions => ({
+  cert_format: 'standard',
+  create_db_user: false,
+  create_desktop_user: false,
+  desktop_clipboard: true,
+  desktop_directory_sharing: true,
+  enhanced_recording: ['command', 'network'],
+  forward_agent: false,
+  idp: {
+    saml: {
+      enabled: true,
     },
   },
+  max_session_ttl: '30h0m0s',
+  pin_source_ip: false,
+  port_forwarding: true,
+  record_session: {
+    default: 'best_effort',
+    desktop: true,
+  },
+  ssh_file_copy: true,
 });

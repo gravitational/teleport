@@ -68,8 +68,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
 test('input validation error state', () => {
   const rule = jest.fn();
-  const errorColor =
-    darkTheme.colors.interactive.solid.danger.default.background;
+  const errorColor = darkTheme.colors.interactive.solid.danger.default;
 
   // mock negative validation
   jest

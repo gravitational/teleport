@@ -155,7 +155,7 @@ func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params
 	}
 
 	var yaml CreateTokenRequest
-	if err := httplib.ReadJSON(r, &yaml); err != nil {
+	if err := httplib.ReadResourceJSON(r, &yaml); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -207,7 +207,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	var req upsertTokenHandleRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -261,7 +261,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	}
 
 	var req types.ProvisionTokenSpecV2
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

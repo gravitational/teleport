@@ -38,7 +38,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -515,8 +514,8 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			}
 			require.Empty(t, cmp.Diff(tt.expectedCfg, tt.cfg,
 				cmpopts.IgnoreUnexported(Config{}),
-				cmpopts.IgnoreInterfaces(struct{ logrus.FieldLogger }{})),
-			)
+				cmpopts.IgnoreFields(Config{}, "Logger"),
+			))
 			require.NotNil(t, tt.cfg.Logger)
 		})
 	}

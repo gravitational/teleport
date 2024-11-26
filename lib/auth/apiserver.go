@@ -109,10 +109,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	// Operations on users
-	// TODO(tross): DELETE IN 17.0.0
-	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
-
 	// Passwords and sessions
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
@@ -145,6 +141,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// Tokens
+	// TODO(strideynet): REMOVE IN 18.0.0 - this method is now gRPC
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Namespaces
@@ -485,30 +482,6 @@ func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWr
 	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
-type upsertUserRawReq struct {
-	User json.RawMessage `json:"user"`
-}
-
-func (s *APIServer) upsertUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertUserRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := services.UnmarshalUser(req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = auth.UpsertUser(r.Context(), user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
-}
-
 func rawMessage(data []byte, err error) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -517,6 +490,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	return &m, nil
 }
 
+// TODO(strideynet): REMOVE IN v18.0.0
 func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {

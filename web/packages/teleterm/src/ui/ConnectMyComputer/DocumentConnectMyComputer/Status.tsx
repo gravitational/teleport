@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   Alert,
   Box,
   ButtonPrimary,
   Flex,
   Label,
-  Link,
   MenuItem,
   Text,
   ButtonSecondary,
@@ -81,7 +80,7 @@ export function Status(props: { closeDocument?: () => void }) {
   const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
     try {
       await downloadAndStartAgent();
-    } catch (error) {
+    } catch {
       // Ignore the error, it'll be shown in the UI by inspecting the attempts.
     }
   }, [downloadAndStartAgent]);
@@ -147,6 +146,8 @@ export function Status(props: { closeDocument?: () => void }) {
     isRemoved ||
     isAgentIncompatibleOrUnknown;
 
+  const transitionRef = useRef<HTMLDivElement>();
+
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
       {shouldShowAgentUpgradeSuggestion(proxyVersion, {
@@ -160,22 +161,13 @@ export function Status(props: { closeDocument?: () => void }) {
       )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
-          css={`
-            display: block;
-          `}
+          primaryAction={{
+            content: 'Run setup again',
+            onClick: replaceWithSetup,
+          }}
+          details={isAgentConfiguredAttempt.statusText}
         >
-          An error occurred while reading the agent config file:{' '}
-          {isAgentConfiguredAttempt.statusText}. <br />
-          You can try to{' '}
-          <Link
-            onClick={replaceWithSetup}
-            css={`
-              cursor: pointer;
-            `}
-          >
-            run the setup
-          </Link>{' '}
-          again.
+          An error occurred while reading the agent config file
         </Alert>
       )}
 
@@ -219,12 +211,13 @@ export function Status(props: { closeDocument?: () => void }) {
 
           <Transition
             in={!!agentNode}
+            nodeRef={transitionRef}
             timeout={1_800}
             mountOnEnter
             unmountOnExit
           >
             {state => (
-              <LabelsContainer gap={1} className={state}>
+              <LabelsContainer gap={1} className={state} ref={transitionRef}>
                 {/* Explicitly check for existence of agentNode because Transition doesn't seem to
                 unmount immediately when `in` becomes falsy. */}
                 {agentNode?.labels && renderLabels(agentNode.labels)}

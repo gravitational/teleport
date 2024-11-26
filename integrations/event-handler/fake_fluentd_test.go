@@ -123,9 +123,10 @@ func (f *FakeFluentd) createServer() error {
 // GetClientConfig returns FlientdConfig to connect to this fake fluentd server instance
 func (f *FakeFluentd) GetClientConfig() FluentdConfig {
 	return FluentdConfig{
-		FluentdCA:   f.caCertPath,
-		FluentdCert: f.clientCertPath,
-		FluentdKey:  f.clientKeyPath,
+		FluentdCA:             f.caCertPath,
+		FluentdCert:           f.clientCertPath,
+		FluentdKey:            f.clientKeyPath,
+		FluentdMaxConnections: 3,
 	}
 }
 

@@ -13,7 +13,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
+| TELEPORT_AUTH | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |

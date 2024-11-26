@@ -37,8 +37,8 @@ import {
   ChangePasswordReq,
   CreateNewHardwareDeviceRequest,
   DeviceUsage,
+  CreateAuthenticateChallengeRequest,
 } from './types';
-import { CreateAuthenticateChallengeRequest } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -256,6 +256,21 @@ const auth = {
 
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
+  },
+
+  async getChallenge(
+    req: CreateAuthenticateChallengeRequest,
+    abortSignal?: AbortSignal
+  ) {
+    return api
+      .post(
+        cfg.api.mfaAuthnChallengePath,
+        {
+          challenge_scope: req.scope,
+        },
+        abortSignal
+      )
+      .then(makeMfaAuthenticateChallenge);
   },
 
   async fetchWebAuthnChallenge(

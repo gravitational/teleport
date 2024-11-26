@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -316,12 +316,9 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		}
 		// Shuffle the list of servers to avoid always connecting to the same
 		// server.
-		rand.Shuffle(
-			len(kubeServers),
-			func(i, j int) {
-				kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
-			},
-		)
+		rand.Shuffle(len(kubeServers), func(i, j int) {
+			kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
+		})
 
 		var errs []error
 		// Validate that the requested kube cluster is registered.
@@ -347,6 +344,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				ProxyIDs: s.GetProxyIDs(),
 			})
 			if err == nil {
+				opt.collect(s.GetHostID())
 				return conn, nil
 			}
 			errs = append(errs, trace.Wrap(err))
@@ -423,13 +421,21 @@ func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDiale
 // contextDialerOptions is a set of options that can be used to filter
 // the hosts that the dialer connects to.
 type contextDialerOptions struct {
-	hostID string
+	hostIDFilter  string
+	collectHostID *string
 }
 
 // matches returns true if the host matches the hostID of the dialer options or
 // if the dialer hostID is empty.
 func (c *contextDialerOptions) matches(hostID string) bool {
-	return c.hostID == "" || c.hostID == hostID
+	return c.hostIDFilter == "" || c.hostIDFilter == hostID
+}
+
+// collect sets the hostID that the dialer connected to if collectHostID is not nil.
+func (c *contextDialerOptions) collect(hostID string) {
+	if c.collectHostID != nil {
+		*c.collectHostID = hostID
+	}
 }
 
 // contextDialerOption is a functional option for the contextDialerOptions.
@@ -442,6 +448,14 @@ type contextDialerOption func(*contextDialerOptions)
 // error.
 func withTargetHostID(hostID string) contextDialerOption {
 	return func(o *contextDialerOptions) {
-		o.hostID = hostID
+		o.hostIDFilter = hostID
+	}
+}
+
+// withHostIDCollection is a functional option that sets the hostID of the dialer
+// to the provided pointer.
+func withHostIDCollection(hostID *string) contextDialerOption {
+	return func(o *contextDialerOptions) {
+		o.collectHostID = hostID
 	}
 }

@@ -20,11 +20,16 @@ import React, { createRef, cloneElement } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
 
-export type Props = {
+export type ModalProps = {
   /**
    * If `true`, the modal is open.
    */
   open: boolean;
+  /**
+   * Prevent unmounting the component and its children from the DOM when closed.
+   * Instead, hides it with CSS.
+   */
+  keepInDOMAfterClose?: boolean;
 
   className?: string;
 
@@ -89,7 +94,7 @@ export type Props = {
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
 };
 
-export default class Modal extends React.Component<Props> {
+export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
   modalRef = createRef<HTMLElement>();
   mounted = false;
@@ -101,7 +106,7 @@ export default class Modal extends React.Component<Props> {
     }
   }
 
-  componentDidUpdate(prevProps: Props) {
+  componentDidUpdate(prevProps: ModalProps) {
     if (prevProps.open && !this.props.open) {
       this.handleClose();
     } else if (!prevProps.open && this.props.open) {
@@ -117,10 +122,10 @@ export default class Modal extends React.Component<Props> {
     }
   }
 
-  dialogEl = (): Element => {
+  dialogEl = (): Element | null => {
     const modalEl = this.modalRef.current;
     if (!modalEl) {
-      return;
+      return null;
     }
 
     const isBackdropRenderedFirst = !this.props.hideBackdrop;
@@ -142,7 +147,9 @@ export default class Modal extends React.Component<Props> {
 
   handleOpened = () => {
     // Fix a bug on Chrome where the scroll isn't initially 0.
-    this.modalRef.current.scrollTop = 0;
+    if (this.modalRef.current) {
+      this.modalRef.current.scrollTop = 0;
+    }
   };
 
   handleClose = () => {
@@ -194,19 +201,27 @@ export default class Modal extends React.Component<Props> {
       this.lastFocus.focus();
     }
 
-    this.lastFocus = null;
+    this.lastFocus = undefined;
   }
 
   render() {
-    const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
-      this.props;
+    const {
+      BackdropProps,
+      children,
+      modalCss,
+      hideBackdrop,
+      open,
+      className,
+      keepInDOMAfterClose,
+    } = this.props;
 
-    if (!open) {
+    if (!open && !keepInDOMAfterClose) {
       return null;
     }
 
     return createPortal(
       <StyledModal
+        hiddenInDom={!open}
         modalCss={modalCss}
         data-testid="Modal"
         ref={this.modalRef}
@@ -216,7 +231,7 @@ export default class Modal extends React.Component<Props> {
         {!hideBackdrop && (
           <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
         )}
-        {cloneElement(children, {})}
+        {children && cloneElement(children, {})}
       </StyledModal>,
       document.body
     );
@@ -227,7 +242,7 @@ export type BackdropProps = {
   /**
    * Allows backdrop to keep bg color of parent eg: popup menu
    */
-  invisible: boolean;
+  invisible?: boolean;
   [prop: string]: any;
 };
 
@@ -257,8 +272,9 @@ const StyledBackdrop = styled.div<BackdropProps>`
 `;
 
 const StyledModal = styled.div<{
-  modalCss: StyleFunction<any>;
-  ref: React.ForwardedRef<HTMLElement>;
+  modalCss?: StyleFunction<any>;
+  ref: React.RefObject<HTMLElement>;
+  hiddenInDom?: boolean;
 }>`
   position: fixed;
   z-index: 1200;
@@ -266,5 +282,6 @@ const StyledModal = styled.div<{
   bottom: 0;
   top: 0;
   left: 0;
+  ${props => props.hiddenInDom && `display: none;`};
   ${props => props.modalCss?.(props)}
 `;

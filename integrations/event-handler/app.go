@@ -18,16 +18,15 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/integrations/diagnostics"
 )
 
@@ -35,16 +34,18 @@ import (
 type App struct {
 	// Fluentd represents the instance of Fluentd client
 	Fluentd *FluentdClient
-	// EventWatcher represents the instance of TeleportEventWatcher
-	EventWatcher *TeleportEventsWatcher
 	// State represents the instance of the persistent state
 	State *State
 	// cmd is start command CLI config
 	Config *StartCmdConfig
+	// client is the teleport api client
+	client TeleportSearchEventsClient
 	// eventsJob represents main audit log event consumer job
 	eventsJob *EventsJob
 	// sessionEventsJob represents session events consumer job
 	sessionEventsJob *SessionEventsJob
+	// log is the logger to use.
+	log *slog.Logger
 	// Process
 	*lib.Process
 }
@@ -59,8 +60,8 @@ const (
 )
 
 // NewApp creates new app instance
-func NewApp(c *StartCmdConfig) (*App, error) {
-	app := &App{Config: c}
+func NewApp(c *StartCmdConfig, log *slog.Logger) (*App, error) {
+	app := &App{Config: c, log: log}
 
 	app.eventsJob = NewEventsJob(app)
 	app.sessionEventsJob = NewSessionEventsJob(app)
@@ -81,9 +82,6 @@ func (a *App) Run(ctx context.Context) error {
 	a.SpawnCriticalJob(a.sessionEventsJob)
 	a.SpawnCritical(a.sessionEventsJob.processMissingRecordings)
 	<-a.Process.Done()
-
-	lastWindow := a.EventWatcher.getWindowStartTime()
-	a.State.SetLastWindowTime(&lastWindow)
 
 	return a.Err()
 }
@@ -110,8 +108,6 @@ func (a *App) WaitReady(ctx context.Context) (bool, error) {
 
 // SendEvent sends an event to fluentd. Shared method used by jobs.
 func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error {
-	log := logger.Get(ctx)
-
 	if !a.Config.DryRun {
 		backoff := backoff.NewDecorr(sendBackoffBase, sendBackoffMax, clockwork.NewRealClock())
 		backoffCount := sendBackoffNumTries
@@ -122,7 +118,7 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 				break
 			}
 
-			log.Error("Error sending event to fluentd: ", err)
+			a.log.DebugContext(ctx, "Error sending event to fluentd", "error", err)
 
 			bErr := backoff.Do(ctx)
 			if bErr != nil {
@@ -131,98 +127,74 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 
 			backoffCount--
 			if backoffCount < 0 {
-				if !lib.IsCanceled(err) {
-					return trace.Wrap(err)
+				if lib.IsCanceled(err) {
+					return nil
 				}
-				return nil
+				a.log.ErrorContext(
+					ctx,
+					"Failed to send event to fluentd",
+					"error", err,
+					"attempts", sendBackoffNumTries,
+				)
+				return trace.Wrap(err)
 			}
 		}
 	}
 
-	fields := logrus.Fields{"id": e.ID, "type": e.Type, "ts": e.Time, "index": e.Index}
-	if e.SessionID != "" {
-		fields["sid"] = e.SessionID
+	fields := []slog.Attr{
+		slog.String("id", e.ID),
+		slog.String("type", e.Type),
+		slog.Time("ts", e.Time),
+		slog.Int64("index", e.Index),
 	}
-
-	log.WithFields(fields).Debug("Event sent")
+	if e.SessionID != "" {
+		fields = append(fields, slog.String("sid", e.SessionID))
+	}
+	a.log.LogAttrs(
+		ctx, slog.LevelDebug, "Event sent",
+		fields...,
+	)
 
 	return nil
 }
 
 // init initializes application state
 func (a *App) init(ctx context.Context) error {
-	log := logger.Get(ctx)
+	a.Config.Dump(ctx, a.log)
 
-	a.Config.Dump(ctx)
-
-	s, err := NewState(a.Config)
+	var err error
+	a.client, err = newClient(ctx, a.log, a.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = a.setStartTime(ctx, s)
+	a.State, err = NewState(a.Config, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	f, err := NewFluentdClient(&a.Config.FluentdConfig)
+	err = a.setStartTime(ctx, a.State)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	latestCursor, err := s.GetCursor()
+	a.Fluentd, err = NewFluentdClient(&a.Config.FluentdConfig, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	latestID, err := s.GetID()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	startTime, err := s.GetStartTime()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	lastWindowTime, err := s.GetLastWindowTime()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// if lastWindowTime is nil, set it to startTime
-	// lastWindowTime is used to track the last window of events ingested
-	// and is updated on exit
-	if lastWindowTime == nil {
-		lastWindowTime = startTime
-	}
-
-	t, err := NewTeleportEventsWatcher(ctx, a.Config, *lastWindowTime, latestCursor, latestID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.State = s
-	a.Fluentd = f
-	a.EventWatcher = t
-
-	log.WithField("cursor", latestCursor).Info("Using initial cursor value")
-	log.WithField("id", latestID).Info("Using initial ID value")
-	log.WithField("value", startTime).Info("Using start time from state")
 
 	return nil
 }
 
 // setStartTime sets start time or fails if start time has changed from the last run
 func (a *App) setStartTime(ctx context.Context, s *State) error {
-	log := logger.Get(ctx)
-
 	prevStartTime, err := s.GetStartTime()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if prevStartTime == nil {
-		log.WithField("value", a.Config.StartTime).Debug("Setting start time")
+		a.log.DebugContext(ctx, "Setting start time", "value", a.Config.StartTime)
 
 		t := a.Config.StartTime
 		if t == nil {
@@ -244,14 +216,13 @@ func (a *App) setStartTime(ctx context.Context, s *State) error {
 
 // RegisterSession registers new session
 func (a *App) RegisterSession(ctx context.Context, e *TeleportEvent) {
-	log := logger.Get(ctx)
 	if err := a.sessionEventsJob.RegisterSession(ctx, e); err != nil {
-		log.Error("Registering session: ", err)
+		a.log.ErrorContext(ctx, "Registering session", "error", err)
 	}
 }
 
 func (a *App) Profile() {
 	if err := diagnostics.Profile(filepath.Join(a.Config.StorageDir, "profiles")); err != nil {
-		logrus.WithError(err).Warn("failed to capture profiles")
+		a.log.WarnContext(context.TODO(), "Failed to capture profiles", "error", err)
 	}
 }

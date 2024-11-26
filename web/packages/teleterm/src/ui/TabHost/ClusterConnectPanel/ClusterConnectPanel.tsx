@@ -17,14 +17,11 @@
  */
 
 import React from 'react';
-import { Box, ButtonPrimary, Flex, H1, Text } from 'design';
+import { Box, ButtonPrimary, Flex, H1, ResourceIcon, Text } from 'design';
 import styled from 'styled-components';
-
-import Image from 'design/Image';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import clusterPng from './clusters.png';
 import { RecentClusters } from './RecentClusters';
 
 export function ClusterConnectPanel() {
@@ -43,7 +40,7 @@ export function ClusterConnectPanel() {
           flexDirection="column"
           alignItems="center"
         >
-          <Image width="120px" src={clusterPng} mb={3} />
+          <ResourceIcon width="120px" name="server" mb={3} />
           <H1 mb={2}>Connect a Cluster</H1>
           <Text color="text.slightlyMuted" mb={3} textAlign="center">
             Connect an existing Teleport cluster <br /> to start using Teleport

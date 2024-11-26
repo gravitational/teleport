@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import PropTypes from 'prop-types';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import {
@@ -31,7 +31,7 @@ import {
 } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import * as Alerts from 'design/Alert';
-import { useAttempt, useState } from 'shared/hooks';
+import { useAttempt } from 'shared/hooks';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 

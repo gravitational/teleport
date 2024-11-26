@@ -21,6 +21,7 @@ import { ComponentType, ReactElement, useRef, useState } from 'react';
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import * as icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
+import { ButtonSize } from 'design/Button';
 
 /**
  * Displays a button with a menu to the right of it. Unlike with a regular <Button>, the text of
@@ -49,16 +50,18 @@ export const ButtonWithMenu = (props: {
   text: string;
   children: MenuItemComponent | MenuItemComponent[];
   MenuIcon?: ComponentType<IconProps>;
+  size?: ButtonSize;
   [buttonBorderProp: string]: any;
 }) => {
   const {
     text,
     MenuIcon = icons.MoreVert,
     children,
+    size = 'medium',
     ...buttonBorderProps
   } = props;
 
-  const moreButtonRef = useRef<HTMLButtonElement>();
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -68,6 +71,7 @@ export const ButtonWithMenu = (props: {
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
         `}
+        size={size}
         {...buttonBorderProps}
       >
         {text}
@@ -75,7 +79,7 @@ export const ButtonWithMenu = (props: {
       <ButtonBorder
         setRef={moreButtonRef}
         px={1}
-        size={buttonBorderProps.size}
+        size={size}
         onClick={() => setIsOpen(true)}
         css={`
           border-left: none;
@@ -84,10 +88,7 @@ export const ButtonWithMenu = (props: {
         `}
         title="Open menu"
       >
-        <MenuIcon
-          size={menuIconSize[buttonBorderProps.size]}
-          color="text.slightlyMuted"
-        />
+        <MenuIcon size={size} color="text.slightlyMuted" />
       </ButtonBorder>
       <Menu
         anchorEl={moreButtonRef.current}
@@ -109,12 +110,6 @@ export const ButtonWithMenu = (props: {
       </Menu>
     </Flex>
   );
-};
-
-const menuIconSize = {
-  large: 28,
-  medium: 24,
-  small: 16,
 };
 
 // TODO(ravicious): At the moment, this doesn't accomplish much – it only prevents ButtonWithMenu

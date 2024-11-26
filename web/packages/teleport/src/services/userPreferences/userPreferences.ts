@@ -32,7 +32,9 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { getPrefersDark } from 'design/ThemeProvider';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+
+import { getPrefersDark } from 'teleport/ThemeProvider';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
@@ -43,6 +45,7 @@ interface BackendClusterUserPreferences {
 
 export interface BackendUserPreferences {
   theme: Theme;
+  sideNavDrawerMode: SideNavDrawerMode;
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
@@ -101,6 +104,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
   };
 }
 

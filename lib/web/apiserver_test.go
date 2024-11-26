@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -104,7 +103,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -181,7 +179,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -383,6 +381,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Component: teleport.ComponentProxy,
 			Client:    s.proxyClient,
 		},
+		NodesGetter: s.proxyClient,
 	})
 	require.NoError(t, err)
 
@@ -1151,7 +1150,7 @@ func TestClusterNodesGet(t *testing.T) {
 	server1 := servers[0]
 
 	// Add another node.
-	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{Hostname: "server2"}, map[string]string{"test-field": "test-value"})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
 	require.NoError(t, err)
@@ -1187,7 +1186,8 @@ func TestClusterNodesGet(t *testing.T) {
 			Kind:        types.KindNode,
 			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
-			Name:        "server2",
+			Name:        server2.GetName(),
+			Hostname:    server2.GetHostname(),
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
 			Tunnel:      false,
 			SSHLogins:   []string{pack.login},
@@ -2183,7 +2183,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
-					Type:    defaults.WebsocketWebauthnChallenge,
+					Type:    defaults.WebsocketMFAChallenge,
 					Payload: string(webauthnResBytes),
 				}
 				protoBytes, err := proto.Marshal(envelope)
@@ -2390,7 +2390,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 	})
 	require.NoError(t, err)
 	err = tdpConn.WriteMessage(tdp.MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: res.GetWebauthn(),
@@ -3094,7 +3094,6 @@ func TestPingSSHDialTimeout(t *testing.T) {
 
 	// Validate the timeout is the default value.
 	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
-
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -4388,7 +4387,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 			}
-
 		})
 	}
 }
@@ -4613,7 +4611,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
-		SecondFactor:  constants.SecondFactorOptional,
+		SecondFactor:  constants.SecondFactorOn,
 		ConnectorName: constants.PasswordlessConnector,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -4643,7 +4641,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Providers: []webclient.WebConfigAuthProvider{{
 				Name:      "test-github",
 				Type:      constants.Github,
@@ -4769,7 +4767,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4807,7 +4804,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -5169,7 +5165,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		name    string
 		clt     *TestWebClient
 		ep      []string
-		reqBody client.MFAChallengeRequest
+		reqBody any
 	}{
 		{
 			name: "/webapi/mfa/authenticatechallenge/password",
@@ -5192,6 +5188,9 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			name: "/webapi/mfa/authenticatechallenge",
 			clt:  authnClt,
 			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+			reqBody: createAuthenticateChallengeRequest{
+				ChallengeScope: int(mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
+			},
 		},
 		{
 			name: "/webapi/mfa/token/:token/authenticatechallenge",
@@ -7803,6 +7802,10 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return &mock.server, nil
 }
@@ -8180,6 +8183,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			Component: teleport.ComponentProxy,
 			Client:    client,
 		},
+		NodesGetter: client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
@@ -8936,9 +8940,7 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 				Burst:   burst,
 			},
 		},
-		Clock: &timetools.FreezedTime{
-			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
-		},
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 	h := &Handler{limiter: limiter}
@@ -9069,10 +9071,10 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: component,
-			Log:       log,
 			Client:    client,
 			Clock:     clock,
 		},
+		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
 
@@ -9127,8 +9129,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		AccessPoint:   client,
 		DynamicLabels: nil,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
@@ -10004,8 +10005,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
 		},
 	})
 
@@ -10059,7 +10060,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10090,7 +10091,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10128,7 +10129,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 		envelope := &terminal.Envelope{
 			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketWebauthnChallenge,
+			Type:    defaults.WebsocketMFAChallenge,
 			Payload: string(webauthnResBytes),
 		}
 		envelopeBytes, err := proto.Marshal(envelope)
@@ -10563,63 +10564,31 @@ func TestCalculateSSHLogins(t *testing.T) {
 		allowedLogins     []string
 		grantedPrincipals []string
 		expectedLogins    []string
-		loginGetter       loginGetterFunc
 	}{
 		{
 			name:              "no matching logins",
 			allowedLogins:     []string{"llama"},
 			grantedPrincipals: []string{"fish"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:              "no matching logins ignores fallback",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "identical logins",
 			allowedLogins:     []string{"llama", "shark", "goose"},
 			grantedPrincipals: []string{"shark", "goose", "llama"},
 			expectedLogins:    []string{"goose", "shark", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "subset of logins",
 			allowedLogins:     []string{"llama"},
 			grantedPrincipals: []string{"shark", "goose", "llama"},
 			expectedLogins:    []string{"llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "no allowed logins",
 			grantedPrincipals: []string{"shark", "goose", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:              "no allowed logins with fallback",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"apple", "banana"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:          "no granted logins",
 			allowedLogins: []string{"shark", "goose", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
 		},
 	}
 
@@ -10627,48 +10596,7 @@ func TestCalculateSSHLogins(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
 
-			logins, err := calculateSSHLogins(identity, test.loginGetter, nil, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
-}
-
-func TestCalculateDesktopLogins(t *testing.T) {
-	cases := []struct {
-		name           string
-		allowedLogins  []string
-		expectedLogins []string
-		loginGetter    loginGetterFunc
-	}{
-		{
-			name:           "allowed logins",
-			allowedLogins:  []string{"llama", "fish", "dog"},
-			expectedLogins: []string{"llama", "fish", "dog"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name: "no allowed logins",
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:           "no allowed logins with fallback",
-			expectedLogins: []string{"apple", "banana"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			logins, err := calculateDesktopLogins(test.loginGetter, nil, test.allowedLogins)
+			logins, err := calculateSSHLogins(identity, test.allowedLogins)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0

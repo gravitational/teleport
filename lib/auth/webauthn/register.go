@@ -346,8 +346,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	newDevice := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
-	newDevice.Device = &types.MFADevice_Webauthn{
+	newDevice, err := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */, &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
 			CredentialId:      credential.ID,
 			PublicKeyCbor:     credential.PublicKey,
@@ -364,7 +363,11 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 				Value: credential.Flags.BackupState,
 			},
 		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	// We delegate a few checks to identity, including:
 	// * The validity of the created MFADevice
 	// * Uniqueness validation of the deviceName

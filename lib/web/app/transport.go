@@ -311,15 +311,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	claims, err := clientJWTKey.VerifyAzureToken(token)
 	if err != nil {
-		// If we fail to parse the token using the client's public key,
-		// that likely means the client is on an old version and is
-		// signing the token with the web session key directly, meaning
-		// we don't need to resign it, just let it through.
-		// TODO (Joerger): DELETE IN 17.0.0
-		if _, err := wsJWTKey.VerifyAzureToken(token); err == nil {
-			return nil
-		}
-
 		// jwt signed by unknown key.
 		return trace.Wrap(err, "azure jwt signed by unknown key")
 	}

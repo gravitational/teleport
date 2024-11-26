@@ -42,6 +42,8 @@ var AllPluginTypes = []PluginType{
 	PluginTypeEntraID,
 	PluginTypeSCIM,
 	PluginTypeDatadog,
+	PluginTypeAWSIdentityCenter,
+	PluginTypeEmail,
 }
 
 const (
@@ -75,6 +77,12 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
+	// PluginTypeAWSIdentityCenter indicates AWS Identity Center plugin
+	PluginTypeAWSIdentityCenter = "aws-identity-center"
+	// PluginTypeEmail indicates an Email Access Request plugin
+	PluginTypeEmail = "email"
+	// PluginTypeMSTeams indicates a Microsoft Teams integration
+	PluginTypeMSTeams = "msteams"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -110,6 +118,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
@@ -121,6 +130,7 @@ type PluginStatus interface {
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
+	GetAwsIc() *PluginAWSICStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -318,6 +328,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+		// backfill the credentials source if it's not set.
+		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
+			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
+		}
+
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
@@ -347,6 +362,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 
 		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Email:
+		if settings.Email == nil {
+			return trace.BadParameter("missing Email settings")
+		}
+		if err := settings.Email.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Email plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	default:
 		return nil
@@ -512,7 +541,12 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
-
+	case *PluginSpecV1_AwsIc:
+		return PluginTypeAWSIdentityCenter
+	case *PluginSpecV1_Email:
+		return PluginTypeEmail
+	case *PluginSpecV1_Msteams:
+		return PluginTypeMSTeams
 	default:
 		return PluginTypeUnknown
 	}
@@ -728,6 +762,55 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
+	return nil
+}
+
+func (c *PluginEmailSettings) CheckAndSetDefaults() error {
+	if c.Sender == "" {
+		return trace.BadParameter("sender must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
+
+	switch spec := c.GetSpec().(type) {
+	case *PluginEmailSettings_MailgunSpec:
+		if c.GetMailgunSpec() == nil {
+			return trace.BadParameter("missing Mailgun Spec")
+		}
+		if err := c.GetMailgunSpec().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginEmailSettings_SmtpSpec:
+		if c.GetSmtpSpec() == nil {
+			return trace.BadParameter("missing SMTP Spec")
+		}
+		if err := c.GetSmtpSpec().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown email spec: %T", spec)
+	}
+	return nil
+}
+
+func (c *MailgunSpec) CheckAndSetDefaults() error {
+	if c.Domain == "" {
+		return trace.BadParameter("domain must be set")
+	}
+	return nil
+}
+
+func (c *SMTPSpec) CheckAndSetDefaults() error {
+	if c.Host == "" {
+		return trace.BadParameter("host must be set")
+	}
+	if c.Port == 0 {
+		return trace.BadParameter("port must be set")
+	}
+	if c.StartTlsPolicy == "" {
+		return trace.BadParameter("start TLS policy must be set")
+	}
 	return nil
 }
 

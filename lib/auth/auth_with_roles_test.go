@@ -52,6 +52,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -62,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -1484,7 +1484,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
@@ -2255,6 +2255,60 @@ func TestStreamSessionEvents(t *testing.T) {
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
 	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted with the correct session type.
+func TestStreamSessionEvents_SessionType(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, []string{}, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	sessionID := "44c6cea8-362f-11ea-83aa-125400432324"
+
+	// Emitting a session end event will cause the listing to correctly locate
+	// the recording (even if there might not be a recording file to stream).
+	require.NoError(t, srv.Auth().EmitAuditEvent(ctx, &apievents.DatabaseSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseSessionEndEvent,
+			Code: events.DatabaseSessionEndCode,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID,
+		},
+	}))
+
+	accessedFormat := teleport.PTY
+	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), session.ID(sessionID), 0)
+
+	// Perform the listing an eventually loop to ensure the event is emitted.
+	var searchEvents []apievents.AuditEvent
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var err error
+		searchEvents, _, err = srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       srv.Clock().Now().Add(-time.Hour),
+			To:         srv.Clock().Now().Add(time.Hour),
+			EventTypes: []string{events.SessionRecordingAccessEvent},
+			Limit:      1,
+			Order:      types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+	}, 5*time.Second, 200*time.Millisecond)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+	require.Equal(t, string(types.DatabaseSessionKind), event.SessionType)
+	require.Equal(t, accessedFormat, event.Format)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -4116,6 +4170,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -5100,8 +5155,8 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
 
 		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
-			HostID:   "_",
-			Hostname: "_",
+			HostID:   strconv.Itoa(i),
+			Hostname: "example.com",
 			App: &types.AppV3{
 				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
 				Spec: types.AppSpecV3{
@@ -5121,6 +5176,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -5129,25 +5185,39 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	var results []*proto.PaginatedResource
-	var start string
-	for {
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Limit:         5,
-			IncludeLogins: true,
-			SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-			StartKey:      start,
-		})
-		require.NoError(t, err)
 
-		results = append(results, resp.Resources...)
-		start = resp.NextKey
-		if start == "" {
-			break
+	// Immediately listing resources can be problematic, given that not all were
+	// necessarily replicated in the unified resources cache. To cover this
+	// scenario, perform multiple attempts (if necessary) to read the complete
+	// list of resources.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Reset the resources list to avoid having items from previous
+		// iterations.
+		results = nil
+
+		var start string
+		for {
+			resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Limit:         5,
+				IncludeLogins: true,
+				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+				StartKey:      start,
+			})
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			results = append(results, resp.Resources...)
+			start = resp.NextKey
+			if start == "" {
+				break
+			}
 		}
-	}
-	// Note: this number should be updated in case we add more resources to the
-	// setup loop.
-	require.Len(t, results, 20)
+
+		// Note: this number should be updated in case we add more resources to
+		// the setup loop.
+		assert.Len(t, results, 20)
+	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
 
 	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
@@ -5336,6 +5406,14 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+
+	// Check for invalid sort error message
+	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:  []string{types.KindDatabase},
+		Limit:  5,
+		SortBy: types.SortBy{},
+	})
+	require.ErrorContains(t, err, "sort field is required")
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6275,7 +6353,41 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		require.NoError(t, err)
 
 		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
-	}()}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRoleWithVersion("dev", types.V3, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels:        types.Labels{"*": []string{"*"}},
+				DatabaseLabels:   types.Labels{"*": []string{"*"}},
+				KubernetesLabels: types.Labels{"*": []string{"*"}},
+				KubernetesResources: []types.KubernetesResource{
+					{Kind: types.KindKubePod, Name: "*", Namespace: "*", Verbs: []string{"*"}},
+				},
+				NodeLabels:           types.Labels{"*": []string{"*"}},
+				NodeLabelsExpression: `contains(user.spec.traits["cluster_ids"], labels["cluster_id"]) || contains(user.spec.traits["sub"], labels["owner"])`,
+				Logins:               []string{"{{external.sub}}"},
+				WindowsDesktopLabels: types.Labels{"cluster_id": []string{"{{external.cluster_ids}}"}},
+				WindowsDesktopLogins: []string{"{{external.sub}}", "{{external.windows_logins}}"},
+			},
+			Deny: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindDatabaseServer, types.KindAppServer, types.KindSession, types.KindSSHSession, types.KindKubeService, types.KindSessionTracker},
+						Verbs:     []string{"list", "read"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"filter bug v3 role", tracker, role, false}
+	}(),
+	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -7433,17 +7545,8 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Server used to create users and roles.
-	setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
-	require.NoError(t, err)
-	setupServer := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *setupAuthContext,
-	}
-
 	// Create a test user.
-	_, err = CreateUser(ctx, setupServer, "username")
+	_, err = CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -7950,7 +8053,7 @@ func TestCreateAccessRequest(t *testing.T) {
 	clock := srv.Clock()
 	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 
-	searchRole, err := types.NewRole("requestRole", types.RoleSpecV6{
+	searchRole, err := types.NewRole("searchRole", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles:         []string{"requestRole"},
@@ -7960,11 +8063,32 @@ func TestCreateAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{})
+	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			GroupLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
 	require.NoError(t, err)
 
-	srv.Auth().CreateRole(ctx, searchRole)
-	srv.Auth().CreateRole(ctx, requestRole)
+	nodeAllowedByRequestRole, err := types.NewServerWithLabels(
+		"test-node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"any-key": "any-val"},
+	)
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertNode(ctx, nodeAllowedByRequestRole)
+	require.NoError(t, err)
+	_, err = srv.Auth().CreateRole(ctx, requestRole)
+	require.NoError(t, err)
+	_, err = srv.Auth().CreateRole(ctx, searchRole)
+	require.NoError(t, err)
 
 	user, err := srv.Auth().GetUser(ctx, alice, true)
 	require.NoError(t, err)
@@ -8007,12 +8131,12 @@ func TestCreateAccessRequest(t *testing.T) {
 			user: alice,
 			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), nodeAllowedByRequestRole.GetKind(), nodeAllowedByRequestRole.GetName()),
 				}),
 			errAssertionFunc: require.NoError,
 			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), nodeAllowedByRequestRole.GetKind(), nodeAllowedByRequestRole.GetName()),
 				}),
 		},
 		{
@@ -8020,12 +8144,15 @@ func TestCreateAccessRequest(t *testing.T) {
 			user: admin,
 			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
 				}),
 			errAssertionFunc: require.NoError,
 			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, userGroup1.GetApplications()[0]),
+					mustResourceID(srv.ClusterName(), types.KindApp, userGroup1.GetApplications()[1]),
+					mustResourceID(srv.ClusterName(), types.KindApp, userGroup1.GetApplications()[2]),
 				}),
 		},
 		{
@@ -8033,7 +8160,7 @@ func TestCreateAccessRequest(t *testing.T) {
 			user: bob,
 			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
 				}),
 			errAssertionFunc: require.Error,
 		},
@@ -8042,7 +8169,7 @@ func TestCreateAccessRequest(t *testing.T) {
 			user: alice,
 			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), nodeAllowedByRequestRole.GetKind(), nodeAllowedByRequestRole.GetName()),
 					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
 					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
 					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
@@ -8051,7 +8178,7 @@ func TestCreateAccessRequest(t *testing.T) {
 			errAssertionFunc: require.NoError,
 			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
 				[]string{requestRole.GetName()}, []types.ResourceID{
-					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), nodeAllowedByRequestRole.GetKind(), nodeAllowedByRequestRole.GetName()),
 					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
 					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
 					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
@@ -8286,9 +8413,13 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 	require.NoError(t, err)
 	paymentsServer.SetStaticLabels(map[string]string{"service": "payments"})
 
-	idServer, err := types.NewServer("server-identity", types.KindNode, types.ServerSpecV2{})
+	idServer, err := types.NewServerWithLabels(
+		"server-identity",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"service": "identity"},
+	)
 	require.NoError(t, err)
-	idServer.SetStaticLabels(map[string]string{"service": "payments"})
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -9057,6 +9188,117 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// assert that the auth preference matches the expected
 			require.Equal(t, tc.expectedDefaultConnector, authPreferences.GetConnectorName())
+		})
+	}
+}
+
+func TestRoleRequestReasonModeValidation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	testCases := []struct {
+		desc          string
+		allow         types.AccessRequestConditions
+		deny          types.AccessRequestConditions
+		expectedError error
+	}{
+		{
+			desc: "Reason mode can be omitted",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be required in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeRequired,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be optional in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode cannot be set to any other value",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "other-value",
+				},
+			},
+			expectedError: trace.BadParameter(`unrecognized request reason mode "other-value", must be one of: [required optional]`),
+		},
+		{
+			desc: "Reason mode cannot be set deny condition",
+			deny: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: trace.BadParameter("request reason mode can be provided only for allow rules"),
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			var err error
+
+			createRole := newRole(t, fmt.Sprintf("test-create-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			updateRole := newRole(t, fmt.Sprintf("test-update-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			upsertRole := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+
+			createRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			createRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.CreateRole(ctx, createRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			updateRole, err = s.CreateRole(ctx, updateRole)
+			require.NoError(t, err)
+			updateRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			updateRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpdateRole(ctx, updateRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			upsertRole, err = s.CreateRole(ctx, upsertRole)
+			require.NoError(t, err)
+			upsertRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			upsertRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpsertRole(ctx, upsertRole)
+			require.ErrorIs(t, err, tt.expectedError)
 		})
 	}
 }

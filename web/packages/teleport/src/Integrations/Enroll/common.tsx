@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Flex, H2 } from 'design';
+import { Box, Flex, H2, ResourceIcon } from 'design';
 import styled from 'styled-components';
 import { P } from 'design/Text/Text';
 
@@ -29,18 +29,19 @@ export const IntegrationTile = styled(Flex)<{
   text-decoration: none;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   position: relative;
   border-radius: 4px;
+  padding: 15px 10px 6px 10px;
   height: 170px;
   width: 170px;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
-  cursor: pointer;
-
+  cursor: ${({ disabled, $exists }) =>
+    disabled || $exists ? 'default' : 'pointer'};
   ${props => {
-    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
-      return { pointerEvents };
+      return;
     }
 
     return `
@@ -48,9 +49,8 @@ export const IntegrationTile = styled(Flex)<{
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
-    pointer-events: ${pointerEvents};
     `;
-  }}
+  }};
 `;
 
 export const NoCodeIntegrationDescription = () => (
@@ -62,3 +62,17 @@ export const NoCodeIntegrationDescription = () => (
     </P>
   </Box>
 );
+
+/**
+ * IntegrationIcon wraps ResourceIcon with css required for integration
+ * and plugin tiles.
+ */
+export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
+  display: inline-block;
+  height: 100%;
+  ${({ size }) =>
+    size &&
+    `
+    max-height: ${size}px;
+  `}
+`;

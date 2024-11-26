@@ -18,7 +18,11 @@
 
 import React, { useState } from 'react';
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
-import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import {
+  LoginItem,
+  MenuInputType,
+  MenuLogin,
+} from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
@@ -84,6 +88,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
   return (
     <MenuLogin
       width="123px"
+      inputType={MenuInputType.FILTER}
       textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -124,6 +129,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   return (
     <MenuLogin
       width="123px"
+      inputType={MenuInputType.FILTER}
       textTransform="none"
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}

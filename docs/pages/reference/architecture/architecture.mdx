@@ -83,7 +83,7 @@ deny access to a resource.
 
 Agents must establish trust with the Teleport Auth Service when first joining a
 cluster, and there is are [variety of
-methods](../../enroll-resources/agents/join-services-to-your-cluster.mdx) that
+methods](../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) that
 Agents use for this.
 
 Read more about [Teleport Agent Architecture](agents.mdx). You can also read
@@ -93,7 +93,7 @@ about the architecture of Teleport Agent features:
   Teleport cluster ensures that Agents run the most up-to-date version of the
   `teleport` binary.
 - [Automatically discovering Kubernetes
-  applications](../../reference/architecture//kubernetes-applications-architecture.mdx):
+  applications](../../reference/architecture/kubernetes-applications-architecture.mdx):
   The Teleport Discovery Service queries your Kubernetes cluster and registers
   applications with the Teleport Auth Service.
 - [Session recordings](session-recording.mdx): Teleport Agents record user
@@ -110,7 +110,7 @@ Instances of the `tbot` binary communicate with the Teleport Auth Service to
 continuously refresh credentials. As with Agents, administrators must deploy
 `tbot` instances on their own infrastructure, including on CI/CD platforms such
 as GitHub Actions, and [join
-them](../../enroll-resources/machine-id/deployment.mdx) to a cluster.
+them](../../enroll-resources/machine-id/deployment/deployment.mdx) to a cluster.
 
 Read more about [Machine ID Architecture](machine-id-architecture.mdx).
 

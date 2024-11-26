@@ -48,10 +48,12 @@ func TestMultiIntervalReset(t *testing.T) {
 			resetTimer := time.NewTimer(duration / 3)
 			defer resetTimer.Stop()
 
-			interval := NewMulti[string](clockwork.NewRealClock(), SubInterval[string]{
-				Key:      "key",
-				Duration: duration,
-			})
+			interval := NewMulti[string](
+				clockwork.NewRealClock(),
+				SubInterval[string]{
+					Key:      "key",
+					Duration: duration,
+				})
 			defer interval.Stop()
 
 			start := time.Now()

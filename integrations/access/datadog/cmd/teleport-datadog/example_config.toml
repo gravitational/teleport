@@ -29,7 +29,7 @@ api_key = "api_key"
 # Datadog Application Key accepts a key value or a filepath if the value starts with a '/'.
 application_key = "application_key"
 
-# Datadog Severity specivies the severity level of incidents.
+# Datadog Severity specifies the severity level of incidents.
 severity = "SEV-3"
 
 [role_to_recipients]

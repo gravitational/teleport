@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -75,45 +74,6 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 		URI:      c.URI.AppendDB(database.GetName()),
 		Database: database,
 	}, err
-}
-
-func (c *Cluster) GetDatabases(ctx context.Context, authClient authclient.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
-	var (
-		page apiclient.ResourcePage[types.DatabaseServer]
-		err  error
-	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
-
-	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, authClient, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &GetDatabasesResponse{
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
-	}
-	for _, database := range page.Resources {
-		response.Databases = append(response.Databases, Database{
-			URI:      c.URI.AppendDB(database.GetName()),
-			Database: database.GetDatabase(),
-		})
-	}
-
-	return response, nil
 }
 
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.

@@ -38,8 +38,10 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	insecurerand "math/rand"
+	mathrand "math/rand/v2"
+	"net"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -47,7 +49,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -87,6 +88,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -247,6 +249,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.DynamicWindowsDesktops == nil {
+		cfg.DynamicWindowsDesktops, err = local.NewDynamicWindowsDesktopService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
@@ -323,6 +331,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -340,6 +354,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.UserLoginState == nil {
 		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.ProvisioningStates == nil {
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.IdentityCenter == nil {
+		svcCfg := local.IdentityCenterServiceConfig{Backend: cfg.Backend}
+		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -388,7 +415,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
@@ -437,6 +464,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuditLogSessionStreamer:   cfg.AuditLog,
 		Events:                    cfg.Events,
 		WindowsDesktops:           cfg.WindowsDesktops,
+		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
 		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
 		UserGroups:                cfg.UserGroups,
 		SessionTrackerService:     cfg.SessionTrackerService,
@@ -461,6 +489,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
+		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 	}
 
 	as := Server{
@@ -470,7 +501,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Authority:               cfg.Authority,
 		AuthServiceName:         cfg.AuthServiceName,
 		ServerID:                cfg.HostUUID,
-		githubClients:           make(map[string]*githubClient),
 		cancelFunc:              cancelFunc,
 		closeCtx:                closeCtx,
 		emitter:                 cfg.Emitter,
@@ -496,9 +526,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
 		}),
-		inventory.WithOnDisconnect(func(s string) {
+		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
-				g.Dec()
+				g.Sub(float64(c))
 			} else {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
@@ -546,6 +576,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				Clock: as.clock,
 			},
 		)
+	}
+	if as.ghaIDTokenJWKSValidator == nil {
+		as.ghaIDTokenJWKSValidator = githubactions.ValidateTokenWithJWKS
 	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
@@ -598,6 +631,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		})
 	}
 
+	if as.bitbucketIDTokenValidator == nil {
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -638,6 +675,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
@@ -669,6 +707,9 @@ type Services struct {
 	services.SPIFFEFederations
 	services.StaticHostUser
 	services.AutoUpdateService
+	services.ProvisioningStates
+	services.IdentityCenter
+	services.PluginStaticCredentials
 }
 
 // GetWebSession returns existing web session described by req.
@@ -728,6 +769,14 @@ var (
 		prometheus.GaugeOpts{
 			Name: teleport.MetricHeartbeatsMissed,
 			Help: "Number of heartbeats missed by auth server",
+		},
+	)
+
+	roleCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "roles_total",
+			Help:      "Number of roles that exist in the cluster",
 		},
 	)
 
@@ -815,6 +864,7 @@ var (
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
+		roleCount,
 	}
 )
 
@@ -848,10 +898,9 @@ type ReadOnlyCache = readonly.Cache
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
-	githubClients map[string]*githubClient
-	clock         clockwork.Clock
-	bk            backend.Backend
+	lock  sync.RWMutex
+	clock clockwork.Clock
+	bk    backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
@@ -952,6 +1001,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	//the purpose of tests.
+	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
@@ -988,6 +1041,8 @@ type Server struct {
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
+
+	bitbucketIDTokenValidator bitbucketIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1261,124 +1316,127 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	return nil
 }
 
-func (a *Server) periodicSyncUpgradeWindowStartHour() {
-	checkInterval := interval.New(interval.Config{
-		Duration:      time.Minute * 3,
-		FirstDuration: utils.FullJitter(time.Second * 30),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer checkInterval.Stop()
+// periodicIntervalKey is used to uniquely identify the subintervals registered with
+// the interval.MultiInterval instance that we use for managing periodics operations.
 
-	for {
-		select {
-		case <-checkInterval.Next():
-			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
-				if a.closeCtx.Err() == nil {
-					// we run this periodic at a fairly high frequency, so errors are just
-					// logged but otherwise ignored.
-					log.Warnf("Failed to sync upgrade window start hour: %v", err)
-				}
-			}
-		case <-a.closeCtx.Done():
-			return
-		}
-	}
-}
+type periodicIntervalKey int
+
+const (
+	heartbeatCheckKey periodicIntervalKey = 1 + iota
+	rotationCheckKey
+	metricsKey
+	releaseCheckKey
+	localReleaseCheckKey
+	instancePeriodicsKey
+	dynamicLabelsCheckKey
+	notificationsCleanupKey
+	desktopCheckKey
+	upgradeWindowCheckKey
+	roleCountKey
+)
 
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	ctx := context.TODO()
-	// run periodic functions with a semi-random period
-	// to avoid contention on the database in case if there are multiple
-	// auth servers running - so they don't compete trying
-	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
-	log.Debugf("Ticking with period: %v.", period)
-	a.lock.RLock()
-	ticker := a.clock.NewTicker(period)
-	a.lock.RUnlock()
-	// Create a ticker with jitter
-	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   retryutils.NewSeventhJitter(),
-	})
-	promTicker := interval.New(interval.Config{
-		FirstDuration: 5 * time.Second,
-		Duration:      defaults.PrometheusScrapeInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	missedKeepAliveCount := 0
-	defer ticker.Stop()
-	defer heartbeatCheckTicker.Stop()
-	defer promTicker.Stop()
-
-	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+	firstReleaseCheck := retryutils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
 	// by an upcoming tctl command. currently exists for testing purposes only.
 	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
-		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+		firstReleaseCheck = retryutils.HalfJitter(time.Second * 10)
 	}
 
-	// note the use of FullJitter for the releases check interval. this lets us ensure
-	// that frequent restarts don't prevent checks from happening despite the infrequent
-	// effective check rate.
-	releaseCheck := interval.New(interval.Config{
-		Duration:      time.Hour * 24,
-		FirstDuration: firstReleaseCheck,
-		Jitter:        retryutils.NewFullJitter(),
-	})
-	defer releaseCheck.Stop()
+	// run periodic functions with a semi-random period
+	// to avoid contention on the database in case if there are multiple
+	// auth servers running - so they don't compete trying
+	// to update the same resources.
+	period := retryutils.HalfJitter(2 * defaults.HighResPollingPeriod)
 
-	// more frequent release check that just re-calculates alerts based on previously
-	// pulled versioning info.
-	localReleaseCheck := interval.New(interval.Config{
-		Duration:      time.Minute * 10,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewHalfJitter(),
-	})
-	defer localReleaseCheck.Stop()
+	ticker := interval.NewMulti(
+		a.GetClock(),
+		interval.SubInterval[periodicIntervalKey]{
+			Key:      rotationCheckKey,
+			Duration: period,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           metricsKey,
+			Duration:      defaults.PrometheusScrapeInterval,
+			FirstDuration: 5 * time.Second,
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           instancePeriodicsKey,
+			Duration:      9 * time.Minute,
+			FirstDuration: retryutils.HalfJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           notificationsCleanupKey,
+			Duration:      48 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           roleCountKey,
+			Duration:      12 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
+		},
+	)
 
-	instancePeriodics := interval.New(interval.Config{
-		Duration:      time.Minute * 9,
-		FirstDuration: utils.HalfJitter(time.Minute),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer instancePeriodics.Stop()
+	defer ticker.Stop()
 
-	var ossDesktopsCheck <-chan time.Time
+	missedKeepAliveCount := 0
+
+	// Prevent some periodic operations from running for dashboard tenants.
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           dynamicLabelsCheckKey,
+			Duration:      dynamicLabelCheckPeriod,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:      heartbeatCheckKey,
+			Duration: apidefaults.ServerKeepAliveTTL() * 2,
+			Jitter:   retryutils.SeventhJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           releaseCheckKey,
+			Duration:      24 * time.Hour,
+			FirstDuration: firstReleaseCheck,
+			// note the use of FullJitter for the releases check interval. this lets us ensure
+			// that frequent restarts don't prevent checks from happening despite the infrequent
+			// effective check rate.
+			Jitter: retryutils.FullJitter,
+		})
+		// more frequent release check that just re-calculates alerts based on previously
+		// pulled versioning info.
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           localReleaseCheckKey,
+			Duration:      10 * time.Minute,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
+		})
+	}
+
 	if modules.GetModules().IsOSSBuild() {
-		ossDesktopsCheck = interval.New(interval.Config{
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(time.Second * 10),
-			Jitter:        retryutils.NewHalfJitter(),
-		}).Next()
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
+		})
+	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
 	}
-
-	dynamicLabelsCheck := interval.New(interval.Config{
-		Duration:      dynamicLabelCheckPeriod,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer dynamicLabelsCheck.Stop()
-
-	notificationsCleanup := interval.New(interval.Config{
-		Duration:      48 * time.Hour,
-		FirstDuration: utils.FullJitter(time.Hour),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer notificationsCleanup.Stop()
 
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
 		remoteClustersRefresh := interval.New(interval.Config{
 			Duration: time.Second * 40,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		defer remoteClustersRefresh.Stop()
 
@@ -1387,7 +1445,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(ctx, r)
+				a.refreshRemoteClusters(a.closeCtx)
 			}
 		}
 	}()
@@ -1395,60 +1453,140 @@ func (a *Server) runPeriodicOperations() {
 	// cloud auth servers need to periodically sync the upgrade window
 	// from the cloud db.
 	if modules.GetModules().Features().Cloud {
-		go a.periodicSyncUpgradeWindowStartHour()
-	}
-
-	// disable periodics that are not required for cloud dashboard tenants
-	if services.IsDashboard(*modules.GetModules().Features().ToProto()) {
-		releaseCheck.Stop()
-		localReleaseCheck.Stop()
-		heartbeatCheckTicker.Stop()
-		dynamicLabelsCheck.Stop()
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           upgradeWindowCheckKey,
+			Duration:      3 * time.Minute,
+			FirstDuration: retryutils.FullJitter(30 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
+		})
 	}
 
 	for {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.Chan():
-			err := a.AutoRotateCertAuthorities(ctx)
-			if err != nil {
-				if trace.IsCompareFailed(err) {
-					log.Debugf("Cert authority has been updated concurrently: %v.", err)
-				} else {
-					log.Errorf("Failed to perform cert rotation check: %v.", err)
-				}
+		case tick := <-ticker.Next():
+			switch tick.Key {
+			case rotationCheckKey:
+				go func() {
+					if err := a.AutoRotateCertAuthorities(a.closeCtx); err != nil {
+						if trace.IsCompareFailed(err) {
+							log.Debugf("Cert authority has been updated concurrently: %v.", err)
+						} else {
+							log.Errorf("Failed to perform cert rotation check: %v.", err)
+						}
+					}
+				}()
+			case heartbeatCheckKey:
+				go func() {
+					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
+
+					for {
+						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
+							func(rwl types.ResourceWithLabels) (bool, error) {
+								srv, ok := rwl.(types.Server)
+								if !ok {
+									return false, nil
+								}
+								if services.NodeHasMissedKeepAlives(srv) {
+									missedKeepAliveCount++
+								}
+
+								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+								if !validServerHostname(srv.GetHostname()) {
+									if srv.GetSubKind() != types.SubKindOpenSSHNode {
+										return false, nil
+									}
+
+									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+									// Any existing static hosts will not have their
+									// hostname sanitized since they don't heartbeat.
+									if err := sanitizeHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+										return false, nil
+									}
+
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								}
+
+								return false, nil
+							},
+							req,
+						)
+						if err != nil {
+							log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+							return
+						}
+
+						req.StartKey = next
+						if req.StartKey == "" {
+							break
+						}
+					}
+
+					// Update prometheus gauge
+					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+				}()
+			case metricsKey:
+				go a.updateAgentMetrics()
+			case releaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, true)
+			case localReleaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, false)
+			case instancePeriodicsKey:
+				go a.doInstancePeriodics(a.closeCtx)
+			case desktopCheckKey:
+				go a.syncDesktopsLimitAlert(a.closeCtx)
+			case dynamicLabelsCheckKey:
+				go a.syncDynamicLabelsAlert(a.closeCtx)
+			case notificationsCleanupKey:
+				go a.CleanupNotifications(a.closeCtx)
+			case upgradeWindowCheckKey:
+				go a.syncUpgradeWindowStartHour(a.closeCtx)
+			case roleCountKey:
+				go a.tallyRoles(a.closeCtx)
 			}
-		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
-			if err != nil {
-				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
-			}
-			for _, node := range nodes {
-				if services.NodeHasMissedKeepAlives(node) {
-					missedKeepAliveCount++
-				}
-			}
-			// Update prometheus gauge
-			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.Next():
-			a.updateAgentMetrics()
-		case <-releaseCheck.Next():
-			a.syncReleaseAlerts(ctx, true)
-		case <-localReleaseCheck.Next():
-			a.syncReleaseAlerts(ctx, false)
-		case <-instancePeriodics.Next():
-			// instance periodics are rate-limited and may be time-consuming in large
-			// clusters, so launch them in the background.
-			go a.doInstancePeriodics(ctx)
-		case <-ossDesktopsCheck:
-			a.syncDesktopsLimitAlert(ctx)
-		case <-dynamicLabelsCheck.Next():
-			a.syncDynamicLabelsAlert(ctx)
-		case <-notificationsCleanup.Next():
-			go a.CleanupNotifications(ctx)
 		}
 	}
+}
+
+func (a *Server) tallyRoles(ctx context.Context) {
+	var count = 0
+	a.logger.DebugContext(ctx, "tallying roles")
+	defer func() {
+		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
+	}()
+
+	req := &proto.ListRolesRequest{Limit: 20}
+
+	readLimiter := time.NewTicker(20 * time.Millisecond)
+	defer readLimiter.Stop()
+
+	for {
+		resp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return
+		}
+
+		count += len(resp.Roles)
+		req.StartKey = resp.NextKey
+
+		if req.StartKey == "" {
+			break
+		}
+
+		select {
+		case <-readLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	roleCount.Set(float64(count))
 }
 
 func (a *Server) doInstancePeriodics(ctx context.Context) {
@@ -1736,7 +1874,7 @@ var (
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
-func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
@@ -1750,7 +1888,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
 		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
 	})
 
@@ -1884,13 +2022,20 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 }
 
 // GetAnonymizationKey returns the anonymization key that identifies this client.
-// It falls back to the cluster ID if the anonymization key is not set in license file.
+// The anonymization key may be any of the following, in order of precedence:
+// - (Teleport Cloud) a key provided by the Teleport Cloud API
+// - a key embedded in the license file
+// - the cluster's UUID
 func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
-		return a.GetClusterID(ctx, opts...)
+	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
+		return string(key), nil
 	}
 
-	return string(a.license.AnonymizationKey), nil
+	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
+		return string(a.license.AnonymizationKey), nil
+	}
+	id, err := a.GetClusterID(ctx, opts...)
+	return id, trace.Wrap(err)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -3270,8 +3415,8 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 	// verify that the required private key policy for the requested identity
 	// is met by the provided attestation statement.
 	attestedKeyPolicy = attestationData.PrivateKeyPolicy
-	if err := params.requiredKeyPolicy.VerifyPolicy(attestedKeyPolicy); err != nil {
-		return attestedKeyPolicy, trace.Wrap(err)
+	if !params.requiredKeyPolicy.IsSatisfiedBy(attestedKeyPolicy) {
+		return attestedKeyPolicy, keys.NewPrivateKeyPolicyError(params.requiredKeyPolicy)
 	}
 
 	var validateSerialNumber bool
@@ -3541,9 +3686,13 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
 			return nil, trace.Wrap(ErrDone)
 		}
-
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
-		// TODO(Joerger): in v16.0.0, require scope to be specified in the request.
+
+		// Require that a scope was provided.
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.BadParameter("scope not present in request")
+		}
+
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -3551,7 +3700,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -3815,7 +3964,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 //   - Last resident key credential in a passwordless-capable cluster (avoids
 //     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
-	devs, err := a.Services.GetMFADevices(ctx, user, true)
+	mfaDevices, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3825,114 +3974,75 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
-		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
-	}
-	sfToCount := make(map[constants.SecondFactorType]int)
-	var knownDevices int
-	var deviceToDelete *types.MFADevice
-	var numResidentKeys int
-
-	isResidentKey := func(d *types.MFADevice) bool {
+	isPasskey := func(d *types.MFADevice) bool {
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
+	var deviceToDelete *types.MFADevice
+	remainingDevices := make(map[types.SecondFactorType]int)
+	var remainingPasskeys int
+
 	// Find the device to delete and count devices.
-	for _, d := range devs {
+	for _, d := range mfaDevices {
 		// Match device by name or ID.
 		if d.GetName() == deviceName || d.Id == deviceName {
 			deviceToDelete = d
+			switch d.Device.(type) {
+			case *types.MFADevice_Totp, *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			case *types.MFADevice_Sso:
+				return nil, trace.BadParameter("cannot delete ephemeral SSO MFA device")
+			default:
+				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
+			}
+			continue
 		}
 
-		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
-		switch {
-		case !ok && d == deviceToDelete:
-			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
-		case !ok:
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP]++
+		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN]++
+		case *types.MFADevice_Sso:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_SSO]++
+		default:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
 		}
 
-		sfToCount[sf]++
-		knownDevices++
-
-		if isResidentKey(d) {
-			numResidentKeys++
+		if isPasskey(d) {
+			remainingPasskeys++
 		}
 	}
 	if deviceToDelete == nil {
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
-	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 1
-	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
-	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
-		}
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
-		}
-	default:
-		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
+	var remainingAllowedDevices int
+	for _, sf := range readOnlyAuthPref.GetSecondFactors() {
+		remainingAllowedDevices += remainingDevices[sf]
 	}
 
-	// canDeleteLastPasskey figures out whether the user can safely delete their
-	// credential without locking themselves out in case if it's the last passkey.
-	// It checks whether the credential to delete is a last passkey and whether
-	// the user has other valid local credentials.
-	canDeleteLastPasskey := func() (bool, error) {
-		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
-			return true, nil
-		}
+	// Prevent users from deleting their last allowed device for clusters that require second factors.
+	if readOnlyAuthPref.IsSecondFactorEnforced() && remainingAllowedDevices == 0 {
+		return nil, trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+	}
 
-		// Deleting the last passkey is OK if the user has a password set and an
-		// additional MFA device, otherwise they would be locked out.
+	// Check whether the device to delete is the last passwordless device,
+	// and whether deleting it would lockout the user from login.
+	//
+	// Note: the user may already be locked out from login if a password
+	// is not set and passwordless is disabled. Prevent them from deleting
+	// their last passkey to prevent them from being locked out further,
+	// in the case of passwordless being re-enabled.
+	if isPasskey(deviceToDelete) && remainingPasskeys == 0 {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
-			return false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		// SSO users can always login through their SSO provider.
-		if u.GetUserType() == types.UserTypeSSO {
-			return true, nil
+		if u.GetUserType() != types.UserTypeSSO && u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
+			return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 		}
-
-		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
-			return false, nil
-		}
-
-		// Minimum number of WebAuthn devices includes the passkey that we attempt
-		// to delete, hence 2.
-		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
-			return true, nil
-		}
-
-		// Whether we take TOTPs into consideration or not depends on whether it's
-		// enabled.
-		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-			if sfToCount[constants.SecondFactorOTP] >= 1 {
-				return true, nil
-			}
-		}
-
-		return false, nil
-	}
-
-	can, err := canDeleteLastPasskey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !can {
-		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
@@ -4037,7 +4147,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.Wrap(err)
 	}
 
-	if cap.GetSecondFactor() == constants.SecondFactorOff {
+	if !cap.IsSecondFactorEnabled() {
 		return nil, trace.BadParameter("second factor disabled by cluster configuration")
 	}
 
@@ -4730,7 +4840,7 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	id := insecurerand.Uint64()
+	id := mathrand.Uint64()
 
 	if !req.ControlLog {
 		// this ping doesn't pass through the control log, so just execute it immediately.
@@ -5238,13 +5348,13 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
-		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		allOwners, err := accessLists.GetAccessListOwners(ctx, promotion.AccessListName)
 		if err != nil {
-			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			log.WithError(err).Warnf("Failed to get nested access list owners for %v, skipping additional reviewers", promotion.AccessListName)
 			break
 		}
 
-		for _, owner := range accessList.GetOwners() {
+		for _, owner := range allOwners {
 			additionalReviewers[owner.Name] = struct{}{}
 		}
 	}
@@ -5551,9 +5661,68 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	return nil
 }
 
+const (
+	serverHostnameMaxLen       = 256
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
+)
+
+var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
+
+// validServerHostname returns false if the hostname is longer than 256 characters or
+// does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
+// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+func validServerHostname(hostname string) bool {
+	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
+}
+
+func sanitizeHostname(server types.Server) error {
+	invalidHostname := server.GetHostname()
+
+	replacedHostname := server.GetName()
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		host, _, err := net.SplitHostPort(server.GetAddr())
+		if err != nil || !validServerHostname(host) {
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			host = id.String()
+		}
+
+		replacedHostname = host
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		s.Spec.Hostname = replacedHostname
+
+		if s.Metadata.Labels == nil {
+			s.Metadata.Labels = map[string]string{}
+		}
+
+		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if !validServerHostname(server.GetHostname()) {
+		a.logger.DebugContext(a.closeCtx, "sanitizing invalid server hostname",
+			"server", server.GetName(),
+			"hostname", server.GetHostname(),
+		)
+		if err := sanitizeHostname(server); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	lease, err := a.Services.UpsertNode(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6671,7 +6840,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -6681,6 +6850,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+	enableSSO := apref.IsSecondFactorSSOAllowed()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -6751,7 +6921,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	groupedDevs := groupByDeviceType(devs, enableWebauthn)
+	groupedDevs := groupByDeviceType(devs)
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	// TOTP challenge.
@@ -6760,7 +6930,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 
 	// WebAuthn challenge.
-	if len(groupedDevs.Webauthn) > 0 {
+	if enableWebauthn && len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
@@ -6771,6 +6941,14 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	// If the user has an SSO device and the client provided a redirect URL to handle
+	// the MFA SSO flow, create an SSO challenge.
+	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -6797,22 +6975,21 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
 }
 
-func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
+func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 	res := devicesByType{}
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
 			res.TOTP = true
 		case *types.MFADevice_U2F:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
 		case *types.MFADevice_Webauthn:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
+		case *types.MFADevice_Sso:
+			res.SSO = dev
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
@@ -6828,7 +7005,7 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -6837,16 +7014,18 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 			// Allowed, no devices registered.
 			return false, nil
 		}
+		devsByType := groupByDeviceType(devices)
 
 		authPref, err := a.GetAuthPreference(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
-		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
 
-		devsByType := groupByDeviceType(devices, webauthnEnabled)
-		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
+		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
+		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
+		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+
+		if hasTOTP || hasWebAuthn || hasSSO {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -6874,6 +7053,10 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("required challenge extensions parameter required")
+	}
+
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 
@@ -7008,6 +7191,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
@@ -7347,43 +7533,6 @@ func (k *authKeepAliver) Done() <-chan struct{} {
 func (k *authKeepAliver) Close() error {
 	k.cancel()
 	return nil
-}
-
-// githubClient is internal structure that stores Github OAuth 2client and its config
-type githubClient struct {
-	client *oauth2.Client
-	config oauth2.Config
-}
-
-// oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
-func oauth2ConfigsEqual(a, b oauth2.Config) bool {
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	if a.AuthURL != b.AuthURL {
-		return false
-	}
-	if a.TokenURL != b.TokenURL {
-		return false
-	}
-	if a.AuthMethod != b.AuthMethod {
-		return false
-	}
-	return true
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

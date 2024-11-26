@@ -282,7 +282,7 @@ func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -335,7 +335,7 @@ type unmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T,
 // a [trace.AlreadyExists] error is returned.
 func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn unmarshalFunc[T], createFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -372,7 +372,7 @@ func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn 
 // a [trace.NotFound] error is returned.
 func UpdateResource[T types.Resource](r *http.Request, params httprouter.Params, kind string, unmarshalFn unmarshalFunc[T], updateFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

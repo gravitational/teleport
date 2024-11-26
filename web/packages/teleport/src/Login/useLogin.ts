@@ -134,7 +134,12 @@ type LoginResponse = {
 };
 
 function authorizeWithDeviceTrust(token: DeviceWebToken) {
-  const authorize = cfg.getDeviceTrustAuthorizeRoute(token.id, token.token);
+  let redirect = history.getRedirectParam();
+  const authorize = cfg.getDeviceTrustAuthorizeRoute(
+    token.id,
+    token.token,
+    redirect
+  );
   history.push(authorize, true);
 }
 

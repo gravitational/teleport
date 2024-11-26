@@ -532,6 +532,231 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	}
 }
 
+func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	samlConnectorNoMFA, err := types.NewSAMLConnector("saml-no-mfa", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: false,
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnectorNoMFA)
+	require.NoError(t, err)
+
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access"},
+			},
+		},
+		MFASettings: &types.OIDCConnectorMFASettings{
+			Enabled: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertOIDCConnector(ctx, oidcConnector)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		connectorRef    *types.ConnectorRef
+		expectSSODevice *types.SSOMFADevice
+	}{
+		{
+			name:            "non-sso user",
+			connectorRef:    nil,
+			expectSSODevice: nil,
+		}, {
+			name: "sso user mfa disabled",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorNoMFA.GetName(),
+			},
+		}, {
+			name: "saml user",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnector.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnector.GetName(),
+				DisplayName:   samlConnector.GetDisplay(),
+			},
+		}, {
+			name: "oidc user",
+			connectorRef: &types.ConnectorRef{
+				Type: "oidc",
+				ID:   oidcConnector.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "oidc",
+				ConnectorId:   oidcConnector.GetName(),
+				DisplayName:   oidcConnector.GetDisplay(),
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			user, err := types.NewUser("alice")
+			require.NoError(t, err)
+			user.SetCreatedBy(types.CreatedBy{
+				Time:      clock.Now().UTC(),
+				Connector: test.connectorRef,
+			})
+			_, err = identity.UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
+			require.NoError(t, err)
+
+			if test.expectSSODevice == nil {
+				assert.Empty(t, devs)
+				return
+			}
+
+			expectSSODevice, err := types.NewMFADevice(test.expectSSODevice.ConnectorId, test.expectSSODevice.DisplayName, clock.Now().UTC(), &types.MFADevice_Sso{
+				Sso: test.expectSSODevice,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, []*types.MFADevice{expectSSODevice}, devs)
+		})
+	}
+}
+
+func TestIdentityService_UpsertMFADevice_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	connectorName := "saml"
+	connectorType := "saml"
+	samlConnector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	username := "alice"
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: clock.Now().UTC(),
+		Connector: &types.ConnectorRef{
+			Type: connectorType,
+			ID:   connectorName,
+		},
+	})
+	_, err = identity.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	ssoDevice, err := types.NewMFADevice(connectorName, connectorName, clock.Now().UTC(), &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   connectorName,
+			ConnectorType: connectorType,
+		},
+	})
+	require.NoError(t, err)
+
+	upsertErr := identity.UpsertMFADevice(ctx, username, ssoDevice)
+	assert.ErrorAs(t, upsertErr, new(*trace.BadParameterError), "expected BadParameterError upserting SSO MFA device")
+	assert.ErrorContains(t, upsertErr, "cannot create SSO MFA device", "unexpected error upserting SSO MFA device")
+}
+
+func TestIdentityService_DeleteMFADevice_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	connectorName := "saml"
+	connectorType := "saml"
+	samlConnector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	username := "alice"
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: clock.Now().UTC(),
+		Connector: &types.ConnectorRef{
+			Type: connectorType,
+			ID:   connectorName,
+		},
+	})
+	_, err = identity.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	deleteErr := identity.DeleteMFADevice(ctx, username, connectorName)
+	assert.ErrorAs(t, deleteErr, new(*trace.BadParameterError), "expected BadParameterError deleting SSO MFA device")
+	assert.ErrorContains(t, deleteErr, "cannot delete ephemeral SSO MFA device", "unexpected error deleting SSO MFA device")
+}
+
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
@@ -1431,6 +1656,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	oldRevision := got.GetMetadata().Revision
 
 	u2fDev := &types.MFADevice{
 		Metadata: types.Metadata{
@@ -1451,6 +1677,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Create webauthn device but state should still be MFA_DEVICE_KIND_TOTP
 	// because it shows the weakest state.
@@ -1477,6 +1704,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Delete the TOTP device and the state should be MFA_DEVICE_KIND_WEBAUTHN
 	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
@@ -1485,6 +1713,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+	oldRevision = got.GetMetadata().Revision
 
 	// Delete the U2F device and the state should be MFA_DEVICE_KIND_WEBAUTHN
 	err = identity.DeleteMFADevice(ctx, "bob", u2fDev.Id)
@@ -1493,6 +1722,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Delete the Webauthn device and the state should be MFA_DEVICE_KIND_UNSET
 	err = identity.DeleteMFADevice(ctx, "bob", webauthnDevice.Id)
@@ -1515,4 +1745,43 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+}
+
+func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	// Verify create.
+	sd := &services.SSOMFASessionData{
+		RequestID:     "request",
+		Username:      "alice",
+		ConnectorID:   "saml",
+		ConnectorType: "saml",
+	}
+	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+
+	// Verify read.
+	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify update.
+	sd.Token = "token"
+	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify delete.
+	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.True(t, trace.IsNotFound(err))
 }

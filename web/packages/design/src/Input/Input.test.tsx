@@ -31,7 +31,7 @@ describe('design/Input', () => {
   it('respects hasError prop', () => {
     render(<Input hasError={true} />);
     expect(screen.getByRole('textbox')).toHaveStyle({
-      'border-color': theme.colors.interactive.solid.danger.default.background,
+      'border-color': theme.colors.interactive.solid.danger.default,
     });
     expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
       'aria-label',

@@ -89,7 +89,7 @@ func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, param
 
 func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
 	var req *saveUserRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -157,7 +157,7 @@ func updateUserTraitsPreset(req *saveUserRequest, user types.User) {
 
 func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	var req *saveUserRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -260,7 +260,7 @@ type privilegeTokenRequest struct {
 // createPrivilegeTokenHandle creates and returns a privilege token.
 func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req privilegeTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

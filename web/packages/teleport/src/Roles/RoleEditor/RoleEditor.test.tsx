@@ -18,9 +18,7 @@
 
 import React from 'react';
 import { render, screen, userEvent } from 'design/utils/testing';
-
 import { within } from '@testing-library/react';
-
 import { UserEvent } from '@testing-library/user-event';
 
 import { Role } from 'teleport/services/resources';
@@ -34,7 +32,7 @@ import {
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
-import { withDefaults } from './withDefaults';
+import { defaultOptions, withDefaults } from './withDefaults';
 
 // The Ace editor is very difficult to deal with in tests, especially that for
 // handling its state, we are using input event, which is asynchronous. Thus,
@@ -58,7 +56,7 @@ beforeEach(() => {
     if (kind != YamlSupportedResourceKind.Role) {
       throw new Error(`Wrong kind: ${kind}`);
     }
-    return withDefaults(withDefaults(fromFauxYaml(req.yaml)));
+    return withDefaults(fromFauxYaml(req.yaml));
   });
   jest
     .spyOn(yamlService, 'stringify')
@@ -107,11 +105,10 @@ test('rendering and switching tabs for new role', async () => {
 
   await user.click(screen.getByRole('tab', { name: 'Standard' }));
   await screen.findByLabelText('Role Name');
-  // TODO(bl-nero): That's the next step.
-  // expect(
-  //   screen.queryByRole('button', { name: /Reset to Standard Settings/i })
-  // ).not.toBeInTheDocument();
-  // expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
+  expect(
+    screen.queryByRole('button', { name: /Reset to Standard Settings/i })
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 });
 
 test('rendering and switching tabs for a non-standard role', async () => {
@@ -210,7 +207,7 @@ test('saving a new role', async () => {
       spec: {
         allow: {},
         deny: {},
-        options: {},
+        options: defaultOptions(),
       },
       version: 'v7',
     },

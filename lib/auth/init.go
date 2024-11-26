@@ -218,8 +218,11 @@ type InitConfig struct {
 	// session related streams
 	Streamer events.Streamer
 
-	// WindowsServices is a service that manages Windows desktop resources.
+	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -322,8 +325,19 @@ type InitConfig struct {
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
 
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
+
+	// PluginStaticCredentials handles credentials for integrations and plugins.
+	PluginStaticCredentials services.PluginStaticCredentials
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -531,7 +545,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	cfg.ClusterName = cn
 
 	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
 
@@ -780,32 +794,39 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			return nil
 		}
 
+		switch {
+		case storedAuthPref == nil:
+			// This is a brand new cluster with no stored auth pref, set a
+			// default signature algorithm suite.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+				FIPS:          asrv.fips,
+				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				Cloud:         modules.GetModules().Features().Cloud,
+			})
+		case newAuthPref.Origin() == types.OriginDefaults:
+			// There is a stored auth preference which we are overwriting with a
+			// default auth preference. Maintain the stored signature algorithm
+			// suite to avoid automatically changing it on version upgrades, new
+			// suites should always be opt-in for existing clusters.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		case newAuthPref.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED:
+			// There is a stored auth preference and the new auth preference is
+			// coming from a config file where the signature_algorithm_suite is
+			// unset. Maintain the stored signature algorithm suite otherwise we
+			// would unset the default suite after the first auth restart.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
-
-			if newAuthPref.Origin() == types.OriginDefaults {
-				// Set a default signature algorithm suite for a new cluster.
-				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-					FIPS:          asrv.fips,
-					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-					Cloud:         modules.GetModules().Features().Cloud,
-				})
-			}
-
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
-
 			return trace.Wrap(err)
-		}
-
-		if newAuthPref.Origin() == types.OriginDefaults {
-			// Never overwrite a stored signature algorithm suite with a default
-			// signature algorithm suite. This prevents the suite from being
-			// "upgraded" by a Teleport version upgrade alone, even if defaults
-			// are used on both versions.
-			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())
@@ -1127,6 +1148,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1217,7 +1257,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	// TODO(nklaassen): split SSH and TLS keys for host identities.
 	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)

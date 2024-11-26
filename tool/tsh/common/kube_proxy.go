@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -260,9 +261,14 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
 	fmt.Fprintln(cf.Stdout(), title)
-	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name"})
+	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
-		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster})
+		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
+		if err != nil {
+			slog.WarnContext(cf.Context, "Failed to generate context name.", "error", err)
+			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
+		}
+		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
 	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
 }

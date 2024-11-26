@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -57,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
@@ -453,11 +453,7 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	sshSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	sshKey, err := keys.NewSoftwarePrivateKey(sshSigner)
-	require.NoError(t, err)
-	sshKeyPEM, err := sshKey.MarshalSSHPrivateKey()
+	sshKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
@@ -468,9 +464,8 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     sshKeyPEM,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      sshKey.MarshalSSHPublicKey(),
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
@@ -1035,7 +1030,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		promptCfg.WebauthnSupported = true
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.
@@ -1080,7 +1077,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),

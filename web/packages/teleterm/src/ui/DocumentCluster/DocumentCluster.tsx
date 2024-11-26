@@ -185,6 +185,7 @@ function PrintState(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
+      px={4}
       css={`
         top: 11%;
         position: relative;

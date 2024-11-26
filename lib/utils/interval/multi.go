@@ -41,6 +41,7 @@ import (
 // but it is still a potential source of bugs/confusion when transitioning to using this type from one
 // of the single-interval alternatives.
 type MultiInterval[T comparable] struct {
+	clock     clockwork.Clock
 	subs      []subIntervalEntry[T]
 	push      chan subIntervalEntry[T]
 	ch        chan Tick[T]
@@ -48,7 +49,6 @@ type MultiInterval[T comparable] struct {
 	fire      chan T
 	closeOnce sync.Once
 	done      chan struct{}
-	clock     clockwork.Clock
 }
 
 // Tick represents a firing of the interval. The Key field denominates the sub-interval that
@@ -133,14 +133,18 @@ func NewMulti[T comparable](clock clockwork.Clock, intervals ...SubInterval[T]) 
 		panic(errors.New("empty sub-interval set for interval.NewMulti"))
 	}
 
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	interval := &MultiInterval[T]{
+		clock: clock,
 		subs:  make([]subIntervalEntry[T], 0, len(intervals)),
 		push:  make(chan subIntervalEntry[T]),
 		ch:    make(chan Tick[T], 1),
 		reset: make(chan T),
 		fire:  make(chan T),
 		done:  make(chan struct{}),
-		clock: clock,
 	}
 
 	// check and initialize our sub-intervals.
@@ -177,7 +181,7 @@ func (i *MultiInterval[T]) Push(sub SubInterval[T]) {
 		SubInterval: sub,
 	}
 	// we initialize here in order to improve consistency of start time
-	entry.init(time.Now())
+	entry.init(i.clock.Now())
 	select {
 	case i.push <- entry:
 	case <-i.done:

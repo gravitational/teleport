@@ -65,6 +65,14 @@ module.exports = {
         'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
       },
     },
+    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot of
+    // changes.
+    {
+      files: ['**/*.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'warn',
+      },
+    },
   ],
   rules: {
     'import/order': [
@@ -83,8 +91,21 @@ module.exports = {
         'newlines-between': 'always-and-inside-groups',
       },
     ],
+    // typescript-eslint recommends to turn import/no-unresolved off.
+    // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
+    'import/no-unresolved': 0,
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
+    'no-unused-expressions': 'off',
+    '@typescript-eslint/no-unused-expressions': [
+      'error',
+      { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
+    ],
+    '@typescript-eslint/no-empty-object-type': [
+      'error',
+      // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
+      { allowInterfaces: 'with-single-extends' },
+    ],
 
     // Severity should be one of the following:
     // "off" or 0 - turn the rule off
@@ -111,8 +132,6 @@ module.exports = {
     'no-alert': 0,
     'import/no-named-as-default': 0,
     'import/default': 2,
-    // XXX Change to a 2 once e pkg imports are removed from teleterm.
-    'import/no-unresolved': 1,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
     'prefer-const': 0,

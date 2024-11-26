@@ -62,9 +62,13 @@ export interface EnterpriseComponentProps {
 
 export interface AccountPageProps {
   enterpriseComponent?: React.ComponentType<EnterpriseComponentProps>;
+  userTrustedDevicesComponent?: React.ComponentType;
 }
 
-export function AccountPage({ enterpriseComponent }: AccountPageProps) {
+export function AccountPage({
+  enterpriseComponent,
+  userTrustedDevicesComponent,
+}: AccountPageProps) {
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
   const isSso = storeUser.isSso();
@@ -85,6 +89,7 @@ export function AccountPage({ enterpriseComponent }: AccountPageProps) {
       passwordState={storeUser.getPasswordState()}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
+      userTrustedDevicesComponent={userTrustedDevicesComponent}
       onPasswordChange={onPasswordChange}
     />
   );
@@ -116,6 +121,7 @@ export function Account({
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
+  userTrustedDevicesComponent: TrustedDeviceListComponent,
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
@@ -191,7 +197,7 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox>
+      <FeatureBox maxWidth={1440} margin="auto">
         <FeatureHeader>
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
@@ -264,6 +270,7 @@ export function Account({
           {EnterpriseComponent && (
             <EnterpriseComponent addNotification={addNotification} />
           )}
+          {TrustedDeviceListComponent && <TrustedDeviceListComponent />}
         </Flex>
       </FeatureBox>
 
@@ -344,7 +351,7 @@ function PasskeysHeader({
     return (
       <Flex flexDirection="column" alignItems="center">
         <Box
-          bg={theme.colors.interactive.tonal.neutral[0].background}
+          bg={theme.colors.interactive.tonal.neutral[0]}
           lineHeight={0}
           p={2}
           borderRadius={3}

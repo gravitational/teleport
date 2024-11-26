@@ -110,7 +110,7 @@ export function UploadForm(props: UploadFormProps) {
           openFilePicker();
         }}
       >
-        <NoteAdded size="extraLarge" mb={2} />
+        <NoteAdded size="extra-large" mb={2} />
         <Text typography="body2" bold>
           Drag your files here
         </Text>

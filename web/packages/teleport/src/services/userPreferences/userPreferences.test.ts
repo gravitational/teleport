@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import {
   getCurrentTheme,
   getNextTheme,
   updateFavicon,
-} from 'design/ThemeProvider';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+} from 'teleport/ThemeProvider';
 
 import {
   BackendUserPreferences,
@@ -40,6 +42,7 @@ test('should convert the old cluster user preferences format to the new one', ()
     clusterPreferences: {
       pinnedResources: ['resource1', 'resource2'],
     },
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
   };
 
   const actualUserPreferences: UserPreferences = {
@@ -47,6 +50,7 @@ test('should convert the old cluster user preferences format to the new one', ()
     clusterPreferences: {
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
   };
 
   // when we grab the user preferences from the local storage, we check if it is in the old format
@@ -69,6 +73,7 @@ test('should convert the user preferences back to the old format when updating',
     clusterPreferences: {
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
   };
 
   const convertedPreferences = convertUserPreferences(actualUserPreferences);

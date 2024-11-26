@@ -35,10 +35,12 @@ export const EditorSaveCancelButton = ({
   const ctx = useTeleport();
   const roleAccess = ctx.storeUser.getRoleAccess();
 
-  const hoverTooltipContent =
-    isEditing && !roleAccess.edit
-      ? 'You do not have access to update roles'
-      : '';
+  let hoverTooltipContent = '';
+  if (isEditing && !roleAccess.edit) {
+    hoverTooltipContent = 'You do not have access to update roles';
+  } else if (!isEditing && !roleAccess.create) {
+    hoverTooltipContent = 'You do not have access to create roles';
+  }
 
   return (
     <Flex gap={2} mt={3}>
@@ -48,7 +50,11 @@ export const EditorSaveCancelButton = ({
             width="100%"
             size="large"
             onClick={onSave}
-            disabled={disabled || (isEditing && !roleAccess.edit)}
+            disabled={
+              disabled ||
+              (isEditing && !roleAccess.edit) ||
+              (!isEditing && !roleAccess.create)
+            }
           >
             {isEditing ? 'Update' : 'Create'} Role
           </ButtonPrimary>

@@ -58,6 +58,13 @@ func (s *UserTasksService) ListUserTasks(ctx context.Context, pagesize int64, la
 	return r, nextToken, trace.Wrap(err)
 }
 
+func (s *UserTasksService) ListUserTasksByIntegration(ctx context.Context, pagesize int64, lastKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	r, nextToken, err := s.service.ListResourcesWithFilter(ctx, int(pagesize), lastKey, func(ut *usertasksv1.UserTask) bool {
+		return ut.GetSpec().GetIntegration() == integration
+	})
+	return r, nextToken, trace.Wrap(err)
+}
+
 func (s *UserTasksService) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
 	r, err := s.service.GetResource(ctx, name)
 	return r, trace.Wrap(err)

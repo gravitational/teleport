@@ -17,11 +17,6 @@
  */
 
 import { useStore } from 'shared/libs/stores';
-import {
-  DbProtocol,
-  DbType,
-  formatDatabaseInfo,
-} from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
@@ -30,9 +25,6 @@ import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import {
   CreateAccessRequestRequest,
   ReviewAccessRequestRequest,
@@ -45,6 +37,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -59,6 +52,10 @@ export function createClusterServiceState(): types.ClustersServiceState {
     gateways: new Map(),
   };
 }
+
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
 
 export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
   state: types.ClustersServiceState = createClusterServiceState();
@@ -134,7 +131,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
     // cluster fails, we don't want to stop the user on the failed modal – we want to open the
     // workspace and show an error state within the workspace.
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
@@ -155,7 +152,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
       { abort: abortSignal }
     );
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
@@ -273,15 +270,17 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
 
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
   /**
-   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
-   * errors and instead wants to depend on the notifications service.
+   * Synchronizes the cluster state and starts a headless watcher for it.
+   * It shows errors as notifications.
    */
-  async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
+  async syncAndWatchRootClusterWithErrorHandling(
+    clusterUri: uri.RootClusterUri
+  ) {
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
@@ -290,9 +289,40 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
+      });
+      // only start the watcher if the cluster was synchronized successfully.
+      return;
+    }
+
+    try {
+      await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
+    } catch (e) {
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
+        title: `Could not start headless requests watcher for ${clusterName}`,
+        description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            // retry the entire call
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
     }
   }
@@ -315,9 +345,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       const { response } = await this.client.listRootClusters({});
       clusters = response.clusters;
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncRootClustersAndCatchErrors();
+          },
+        },
       });
       return;
     }
@@ -328,9 +365,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       );
     });
 
+    // Sync root clusters and resume headless watchers for any active login sessions.
     clusters
       .filter(c => c.connected)
-      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      .forEach(c => this.syncAndWatchRootClusterWithErrorHandling(c.uri));
   }
 
   async syncGatewaysAndCatchErrors() {
@@ -340,9 +378,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         draft.gateways = new Map(response.gateways.map(g => [g.uri, g]));
       });
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not synchronize database connections',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncGatewaysAndCatchErrors();
+          },
+        },
       });
     }
   }
@@ -364,9 +409,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
+  getAssumedRequests(
+    rootClusterUri: uri.RootClusterUri
+  ): Record<string, AssumedRequest> {
     const cluster = this.state.clusters.get(rootClusterUri);
-    return cluster?.loggedInUser?.assumedRequests || {};
+    return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
   }
 
   /** Assumes roles for the given requests. */
@@ -485,9 +532,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         : gatewayUri;
       const title = `Could not close the database connection ${gatewayDescription}`;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title,
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.removeGateway(gatewayUri);
+          },
+        },
       });
       throw error;
     }
@@ -702,39 +756,4 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
     };
   }
-}
-
-export function makeServer(source: Server) {
-  return {
-    uri: source.uri,
-    id: source.name,
-    clusterId: source.name,
-    hostname: source.hostname,
-    labels: source.labels,
-    addr: source.addr,
-    tunnel: source.tunnel,
-    sshLogins: [],
-  };
-}
-
-export function makeDatabase(source: Database) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    description: source.desc,
-    type: formatDatabaseInfo(
-      source.type as DbType,
-      source.protocol as DbProtocol
-    ).title,
-    protocol: source.protocol,
-    labels: source.labels,
-  };
-}
-
-export function makeKube(source: Kube) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    labels: source.labels,
-  };
 }

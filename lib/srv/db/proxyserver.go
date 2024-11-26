@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sort"
 	"strconv"
@@ -111,10 +111,9 @@ type ShuffleFunc func([]types.DatabaseServer) []types.DatabaseServer
 // ShuffleRandom is a ShuffleFunc that randomizes the order of database servers.
 // Used to provide load balancing behavior when proxying to multiple agents.
 func ShuffleRandom(servers []types.DatabaseServer) []types.DatabaseServer {
-	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(
-		len(servers), func(i, j int) {
-			servers[i], servers[j] = servers[j], servers[i]
-		})
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
+	})
 	return servers
 }
 
@@ -379,8 +378,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 // the MySQL.ServerVersion set in configuration if the first one is not available.
 // Function picks a random server each time if more than one are available.
 func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
-	count := len(servers)
-	db := servers[rand.Intn(count)].GetDatabase()
+	db := servers[rand.N(len(servers))].GetDatabase()
 	return db.GetMySQLServerVersion()
 }
 

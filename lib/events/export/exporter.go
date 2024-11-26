@@ -30,7 +30,6 @@ import (
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -195,6 +194,13 @@ func (e *Exporter) Done() <-chan struct{} {
 	return e.done
 }
 
+// GetCurrentDate returns the current target date. Note that earlier dates may also be being processed concurrently.
+func (e *Exporter) GetCurrentDate() time.Time {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.currentDate
+}
+
 // GetState loads the current state of the exporter. Note that there may be concurrent export operations
 // in progress, meaning that by the time state is observed it may already be outdated.
 func (e *Exporter) GetState() ExporterState {
@@ -237,8 +243,8 @@ func (e *Exporter) run(ctx context.Context) {
 
 	poll := interval.New(interval.Config{
 		Duration:      e.cfg.PollInterval,
-		FirstDuration: utils.FullJitter(e.cfg.PollInterval / 2),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.FullJitter(e.cfg.PollInterval / 2),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer poll.Stop()
 

@@ -23,6 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
@@ -59,5 +61,92 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 		Init:                init,
 		HandleRedirect:      rd.OpenRedirect,
 		GetCallbackResponse: rd.WaitForResponse,
+	}
+}
+
+// Ceremony is a customizable SSO MFA ceremony.
+type MFACeremony struct {
+	close               func()
+	ClientCallbackURL   string
+	HandleRedirect      func(ctx context.Context, redirectURL string) error
+	GetCallbackMFAToken func(ctx context.Context) (string, error)
+}
+
+// GetClientCallbackURL returns the client callback URL.
+func (m *MFACeremony) GetClientCallbackURL() string {
+	return m.ClientCallbackURL
+}
+
+// Run the SSO MFA ceremony.
+func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaToken, err := m.GetCallbackMFAToken(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: chal.SSOChallenge.RequestId,
+				Token:     mfaToken,
+			},
+		},
+	}, nil
+}
+
+// Close closes resources associated with the SSO MFA ceremony.
+func (m *MFACeremony) Close() {
+	if m.close != nil {
+		m.close()
+	}
+}
+
+// NewCLIMFACeremony creates a new CLI SSO ceremony from the given redirector.
+// The returned MFACeremony takes ownership of the Redirector.
+func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
+	return &MFACeremony{
+		close:             rd.Close,
+		ClientCallbackURL: rd.ClientCallbackURL,
+		HandleRedirect:    rd.OpenRedirect,
+		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if loginResp.MFAToken == "" {
+				return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+			}
+
+			return loginResp.MFAToken, nil
+		},
+	}
+}
+
+// NewConnectMFACeremony creates a new Teleport Connect SSO ceremony from the given redirector.
+func NewConnectMFACeremony(rd *Redirector) mfa.SSOMFACeremony {
+	return &MFACeremony{
+		close:             rd.Close,
+		ClientCallbackURL: rd.ClientCallbackURL,
+		HandleRedirect: func(ctx context.Context, redirectURL string) error {
+			// Connect handles redirect on the Electron side.
+			return nil
+		},
+		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if loginResp.MFAToken == "" {
+				return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+			}
+
+			return loginResp.MFAToken, nil
+		},
 	}
 }

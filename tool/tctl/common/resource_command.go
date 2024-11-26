@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -155,6 +156,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
+		types.KindDynamicWindowsDesktop:    rc.createDynamicWindowsDesktop,
 		types.KindAccessList:               rc.createAccessList,
 		types.KindDiscoveryConfig:          rc.createDiscoveryConfig,
 		types.KindAuditQuery:               rc.createAuditQuery,
@@ -192,6 +194,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindUserTask:                rc.updateUserTask,
 		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
+		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
 	}
 	rc.config = config
 
@@ -714,6 +717,14 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,6 +758,14 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -805,6 +824,14 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -887,6 +914,45 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	}
 
 	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("application %q already exists", wd.GetName())
+			}
+			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
 	return nil
 }
 
@@ -1363,6 +1429,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		case types.IntegrationSubKindGitHub:
+			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -1687,6 +1755,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	case types.KindDynamicWindowsDesktop:
+		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: rc.ref.Name})
@@ -2460,6 +2533,41 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 		}
 		return &windowsDesktopCollection{desktops: out}, nil
+	case types.KindDynamicWindowsDesktop:
+		dynamicDesktopClient := client.DynamicDesktopClient()
+		if rc.ref.Name != "" {
+			desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &dynamicWindowsDesktopCollection{
+				desktops: []types.DynamicWindowsDesktop{desktop},
+			}, nil
+		}
+
+		pageToken := ""
+		desktops := make([]types.DynamicWindowsDesktop, 0, 100)
+		for {
+			d, next, err := dynamicDesktopClient.ListDynamicWindowsDesktops(ctx, 100, pageToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if rc.ref.Name == "" {
+				desktops = append(desktops, d...)
+			} else {
+				for _, desktop := range desktops {
+					if desktop.GetName() == rc.ref.Name {
+						desktops = append(desktops, desktop)
+					}
+				}
+			}
+			pageToken = next
+			if next == "" {
+				break
+			}
+		}
+
+		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
 			tokens, err := client.GetTokens(ctx)
@@ -3080,6 +3188,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAccessMonitoringRule:
+		if rc.ref.Name != "" {
+			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
+		}
+
+		var rules []*accessmonitoringrulesv1pb.AccessMonitoringRule
+		nextToken := ""
+		for {
+			resp, token, err := client.AccessMonitoringRuleClient().ListAccessMonitoringRules(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			rules = append(rules, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &accessMonitoringRuleCollection{items: rules}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3141,10 +3272,15 @@ func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc s
 	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
 		return trace.AlreadyExists("non-default %s already exists", resDesc)
 	}
-	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
+}
+
+func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
+	managedByStatic := storedRes.Origin() == types.OriginConfigFile
+	if managedByStatic && !confirm {
 		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
-If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
 	}
 	return nil
 }

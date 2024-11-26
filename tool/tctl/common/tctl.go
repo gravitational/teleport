@@ -44,15 +44,18 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -103,7 +106,11 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
+func Run(ctx context.Context, commands []CLICommand) {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+		utils.FatalError(err)
+	}
+
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
@@ -253,7 +260,21 @@ func TryRun(commands []CLICommand, args []string) error {
 	proxyAddr := resp.ProxyPublicAddr
 	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
+	})
+	client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+		rdConfig := sso.RedirectorConfig{
+			ProxyAddr: proxyAddr,
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return sso.NewCLIMFACeremony(rd), nil
 	})
 
 	// execute whatever is selected:
@@ -380,16 +401,16 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	authConfig := new(authclient.Config)
 	// read the host UUID only in case the identity was not provided,
 	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
 				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		} else if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
 				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -436,6 +457,14 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.Wrap(err)
 	}
 	if profile.IsExpired(time.Now()) {
+		if profile.GetKeyRingError != nil {
+			if errors.As(profile.GetKeyRingError, new(*client.LegacyCertPathError)) {
+				// Intentionally avoid wrapping the error because the caller
+				// ignores NotFound errors.
+				return nil, trace.Errorf("it appears tsh v16 or older was used to log in, make sure to use tsh and tctl on the same major version\n\t%v", profile.GetKeyRingError)
+			}
+			return nil, trace.Wrap(profile.GetKeyRingError)
+		}
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 

@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_database Terraform resource
+sidebar_label: database
 description: This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_database r
 # Teleport Database
 
 resource "teleport_database" "example" {
+  version = "v3"
   metadata = {
     name        = "example"
     description = "Test database"

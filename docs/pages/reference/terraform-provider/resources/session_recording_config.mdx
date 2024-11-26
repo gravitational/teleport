@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_session_recording_config Terraform resource
+sidebar_label: session_recording_config
 description: This page describes the supported values of the teleport_session_recording_config resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_session_re
 # Teleport session recording config
 
 resource "teleport_session_recording_config" "example" {
+  version = "v2"
   metadata = {
     description = "Session recording config"
     labels = {
@@ -55,5 +57,5 @@ Optional:
 Optional:
 
 - `mode` (String) Mode controls where (or if) the session is recorded.
-- `proxy_checks_host_keys` (Boolean)
+- `proxy_checks_host_keys` (Boolean) ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode.
 

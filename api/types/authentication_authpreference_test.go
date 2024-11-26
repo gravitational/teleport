@@ -153,18 +153,13 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				},
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
-				// Did we derive the WebAuthn config from U2F?
-				if sf := got.GetSecondFactor(); sf == constants.SecondFactorWebauthn ||
-					sf == constants.SecondFactorOn ||
-					sf == constants.SecondFactorOptional {
-					wantWeb := &types.Webauthn{
-						RPID:                  "example.com",
-						AttestationAllowedCAs: []string{yubicoU2FCA},
-					}
-					gotWeb, err := got.GetWebauthn()
-					require.NoError(t, err, "webauthn config not found")
-					require.Empty(t, cmp.Diff(wantWeb, gotWeb))
+				wantWeb := &types.Webauthn{
+					RPID:                  "example.com",
+					AttestationAllowedCAs: []string{yubicoU2FCA},
 				}
+				gotWeb, err := got.GetWebauthn()
+				require.NoError(t, err, "webauthn config not found")
+				require.Empty(t, cmp.Diff(wantWeb, gotWeb))
 			},
 		},
 		{

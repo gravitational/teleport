@@ -28,7 +28,7 @@ import parseError, { ApiError } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url, abortSignal?) {
+  get(url: string, abortSignal?: AbortSignal) {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
@@ -184,7 +184,7 @@ const api = {
       webauthnResponseForRetry = await auth.getWebauthnResponse(
         MfaChallengeScope.ADMIN_ACTION
       );
-    } catch (err) {
+    } catch {
       throw new Error(
         'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
       );

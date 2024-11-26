@@ -838,6 +838,12 @@ func (c *ServerContext) takeClosers() []io.Closer {
 // When the ServerContext (connection) is closed, emit "session.data" event
 // containing how much data was transmitted and received over the net.Conn.
 func (c *ServerContext) reportStats(conn utils.Stater) {
+	// We may not want to record session data for this connection context, e.g. if this is
+	// for a networking subprocess tied to a shell process.
+	if c.SessionRecordingConfig.GetMode() == types.RecordOff {
+		return
+	}
+
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
@@ -862,7 +868,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.GetServerMetadata(),
+		ServerMetadata:  c.srv.TargetMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -1245,15 +1251,6 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 		return nil, trace.NotFound("execRequest has not been set")
 	}
 	return c.execRequest, nil
-}
-
-func (c *ServerContext) GetServerMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{
-		ServerVersion:   teleport.Version,
-		ServerID:        c.srv.HostUUID(),
-		ServerHostname:  c.srv.GetInfo().GetHostname(),
-		ServerNamespace: c.srv.GetNamespace(),
-	}
 }
 
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {

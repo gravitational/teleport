@@ -22,22 +22,28 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
-import { AWSIcon, AzureIcon } from 'design/SVGIcon';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import api from 'teleport/services/api';
 
 import {
+  ExternalAuditStorageIntegration,
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
-  IntegrationStatusCode,
   IntegrationKind,
+  IntegrationStatusCode,
   Plugin,
-  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+
+import { getStatus } from 'teleport/Integrations/helpers';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
@@ -51,7 +57,10 @@ type Props<IntegrationLike> = {
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
 
-type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
+export type IntegrationLike =
+  | Integration
+  | Plugin
+  | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
@@ -66,6 +75,18 @@ export function IntegrationList(props: Props<IntegrationLike>) {
     return { cursor: 'pointer' };
   }
 
+  const [downloadAttempt, download] = useAsync(
+    async (clusterId: string, itemName: string) => {
+      return api
+        .fetch(cfg.getMsTeamsAppZipRoute(clusterId, itemName))
+        .then(response => response.blob())
+        .then(blob => {
+          saveOnDisk(blob, 'app.zip', 'application/zip');
+        });
+    }
+  );
+
+  const { clusterId } = useStickyClusterId();
   return (
     <Table
       pagination={{ pageSize: 20 }}
@@ -110,6 +131,14 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                         to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
                       >
                         View Status
+                      </MenuItem>
+                    )}
+                    {item.kind === 'msteams' && (
+                      <MenuItem
+                        disabled={downloadAttempt.status === 'processing'}
+                        onClick={() => download(clusterId, item.name)}
+                      >
+                        Download app.zip
                       </MenuItem>
                     )}
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
@@ -230,38 +259,10 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   );
 };
 
-enum Status {
+export enum Status {
   Success,
   Warning,
   Error,
-}
-
-function getStatus(item: IntegrationLike): Status | null {
-  if (item.resourceType === 'integration') {
-    return Status.Success;
-  }
-
-  if (item.resourceType === 'external-audit-storage') {
-    switch (item.statusCode) {
-      case IntegrationStatusCode.Draft:
-        return Status.Warning;
-      default:
-        return Status.Success;
-    }
-  }
-
-  switch (item.statusCode) {
-    case IntegrationStatusCode.Unknown:
-      return null;
-    case IntegrationStatusCode.Running:
-      return Status.Success;
-    case IntegrationStatusCode.SlackNotInChannel:
-      return Status.Warning;
-    case IntegrationStatusCode.Draft:
-      return Status.Warning;
-    default:
-      return Status.Error;
-  }
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
@@ -340,6 +341,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Datadog Incident Management';
         icon = <IconContainer name="datadog" />;
         break;
+      case 'aws-identity-center':
+        formattedText = 'AWS IAM Identity Center';
+        icon = <IconContainer name="aws" />;
+        break;
     }
   } else {
     // Default is integration.
@@ -347,19 +352,11 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
-        icon = (
-          <SvgIconContainer>
-            <AWSIcon />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="aws" />;
         break;
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';
-        icon = (
-          <SvgIconContainer>
-            <AzureIcon size={24} />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="azure" />;
         break;
     }
   }
@@ -380,9 +377,5 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(ResourceIcon)`
   width: 22px;
-  margin-right: 10px;
-`;
-
-const SvgIconContainer = styled(Flex)`
   margin-right: 10px;
 `;

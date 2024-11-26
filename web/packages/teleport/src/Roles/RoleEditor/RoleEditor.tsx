@@ -18,15 +18,11 @@
 
 import { Alert, Box, Flex } from 'design';
 import React, { useState } from 'react';
-
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
-
 import { yamlService } from 'teleport/services/yaml';
-
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
@@ -37,7 +33,6 @@ import {
 } from './standardmodel';
 import { YamlEditorModel } from './yamlmodel';
 import { EditorTab, EditorTabs } from './EditorTabs';
-
 import { EditorHeader } from './EditorHeader';
 import { StandardEditor } from './StandardEditor';
 import { YamlEditor } from './YamlEditor';
@@ -191,7 +186,7 @@ export const RoleEditor = ({
       {selectedEditorTab === EditorTab.Standard && (
         <StandardEditor
           originalRole={originalRole}
-          onSave={async object => void (await handleSave({ object }))}
+          onSave={object => handleSave({ object })}
           onCancel={handleCancel}
           standardEditorModel={standardModel}
           isProcessing={isProcessing}

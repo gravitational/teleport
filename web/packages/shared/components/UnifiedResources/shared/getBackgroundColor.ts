@@ -27,16 +27,16 @@ export interface BackgroundColorProps {
 
 export const getBackgroundColor = (props: BackgroundColorProps) => {
   if (props.requiresRequest && props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0].background;
+    return props.theme.colors.interactive.tonal.primary[0];
   }
   if (props.requiresRequest) {
     return props.theme.colors.spotBackground[0];
   }
   if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2].background;
+    return props.theme.colors.interactive.tonal.primary[2];
   }
   if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[1].background;
+    return props.theme.colors.interactive.tonal.primary[1];
   }
   return 'transparent';
 };

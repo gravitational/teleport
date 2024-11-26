@@ -20,6 +20,7 @@ package firestore
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -79,6 +79,9 @@ type Config struct {
 	DisableExpiredDocumentPurge bool `json:"disable_expired_document_purge,omitempty"`
 	// EndPoint is used to point the Firestore clients at emulated Firestore storage.
 	EndPoint string `json:"endpoint,omitempty"`
+	// DatabaseID is the identifier of a specific Firestore database to use. If not specified, the
+	// default database for the ProjectID is used.
+	DatabaseID string `json:"database_id,omitempty"`
 }
 
 type backendConfig struct {
@@ -315,14 +318,14 @@ func (t ownerCredentials) GetRequestMetadata(context.Context, ...string) (map[st
 func (t ownerCredentials) RequireTransportSecurity() bool { return false }
 
 // CreateFirestoreClients creates a firestore admin and normal client given the supplied parameters
-func CreateFirestoreClients(ctx context.Context, projectID string, endPoint string, credentialsFile string) (*apiv1.FirestoreAdminClient, *firestore.Client, error) {
+func CreateFirestoreClients(ctx context.Context, projectID, database string, endpoint string, credentialsFile string) (*apiv1.FirestoreAdminClient, *firestore.Client, error) {
 	var args []option.ClientOption
 
-	if endPoint != "" {
+	if endpoint != "" {
 		args = append(args,
 			option.WithTelemetryDisabled(),
 			option.WithoutAuthentication(),
-			option.WithEndpoint(endPoint),
+			option.WithEndpoint(endpoint),
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 			option.WithGRPCDialOption(grpc.WithPerRPCCredentials(ownerCredentials{})),
 		)
@@ -330,11 +333,21 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 		args = append(args, option.WithCredentialsFile(credentialsFile))
 	}
 
-	firestoreClient, err := firestore.NewClient(ctx, projectID, args...)
+	firestoreAdminClient, err := apiv1.NewFirestoreAdminClient(ctx, args...)
 	if err != nil {
 		return nil, nil, ConvertGRPCError(err)
 	}
-	firestoreAdminClient, err := apiv1.NewFirestoreAdminClient(ctx, args...)
+
+	if database == "" {
+		firestoreClient, err := firestore.NewClient(ctx, projectID, args...)
+		if err != nil {
+			return nil, nil, ConvertGRPCError(err)
+		}
+
+		return firestoreAdminClient, firestoreClient, nil
+	}
+
+	firestoreClient, err := firestore.NewClientWithDatabase(ctx, projectID, database, args...)
 	if err != nil {
 		return nil, nil, ConvertGRPCError(err)
 	}
@@ -378,7 +391,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)
-	firestoreAdminClient, firestoreClient, err := CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
+	firestoreAdminClient, firestoreClient, err := CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -423,8 +436,8 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	go func() {
 		migrationInterval := interval.New(interval.Config{
 			Duration:      time.Hour * 12,
-			FirstDuration: utils.FullJitter(time.Minute * 5),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Minute * 5),
+			Jitter:        retryutils.SeventhJitter,
 			Clock:         b.clock,
 		})
 		defer migrationInterval.Stop()
@@ -1107,7 +1120,8 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 }
 
 func (b *Backend) getIndexParent() string {
-	return "projects/" + b.ProjectID + "/databases/(default)/collectionGroups/" + b.CollectionName
+	database := cmp.Or(b.backendConfig.Config.DatabaseID, "(default)")
+	return "projects/" + b.ProjectID + "/databases/" + database + "/collectionGroups/" + b.CollectionName
 }
 
 func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {

@@ -41,12 +41,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -93,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -117,6 +119,8 @@ const (
 	mfaModePlatform = "platform"
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
+	// mfaModeSSO utilizes only SSO devices.
+	mfaModeSSO = "sso"
 )
 
 const (
@@ -243,8 +247,17 @@ type CLIConf struct {
 	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
-	// Interactive, when set to true, launches remote command with the terminal attached
+	// Interactive sessions will allocate a PTY and create interactive "shell"
+	// sessions.
 	Interactive bool
+	// NonInteractive sessions will not allocate a PTY and create
+	// non-interactive "exec" sessions. This variable is needed due to
+	// limitations in kingpin (lack of an inverse short flag) which forces
+	// the registration of both flags.
+	NonInteractive bool
+	// ShowVersion is an OpenSSH compatibility flag that prints out the version
+	// of tsh. Useful for users that alias ssh to "tsh ssh".
+	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
 	// Namespace is used to select cluster namespace
@@ -597,7 +610,7 @@ func Main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
@@ -695,6 +708,10 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -756,7 +773,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
@@ -776,7 +793,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -801,6 +818,19 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
+	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
+	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
+
+	resolve := app.Command("resolve", "Resolves an SSH host.")
+	resolve.Arg("host", "Remote hostname to resolve").Required().StringVar(&cf.UserHost)
+	resolve.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	resolve.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -971,6 +1001,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -996,6 +1027,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	scp.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	scp.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1215,7 +1247,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	var err error
-
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1361,6 +1392,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case resolve.FullCommand():
+		err = onResolve(&cf)
+		// If quiet was specified for this command and
+		// an error occurred, exit with a non-zero exit
+		// code without emitting any other messaging.
+		// In this case, the command was likely invoked
+		// via a Match exec block from an SSH config and
+		// if no matches were found, we should not add
+		// additional spam to stderr.
+		if err != nil && cf.Quiet {
+			err = trace.Wrap(&common.ExitCodeError{Code: 1})
+		}
 	case latencySSH.FullCommand():
 		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
@@ -1442,9 +1485,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
-		if err := refuseArgs(logout.FullCommand(), args); err != nil {
-			return trace.Wrap(err)
-		}
 		err = onLogout(&cf)
 	case show.FullCommand():
 		err = onShow(&cf)
@@ -1832,6 +1872,14 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
+	// The user is not logged in and has typed in `tsh --proxy=... login`, if
+	// the running binary needs to be updated, update and re-exec.
+	if profile == nil {
+		if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(time.Now()) {
 		switch {
@@ -1842,6 +1890,13 @@ func onLogin(cf *CLIConf) error {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1855,6 +1910,13 @@ func onLogin(cf *CLIConf) error {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1925,7 +1987,11 @@ func onLogin(cf *CLIConf) error {
 
 		// otherwise just pass through to standard login
 		default:
-
+			// The user is logged in and has typed in `tsh --proxy=... login`, if
+			// the running binary needs to be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -2213,9 +2279,10 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		fmt.Printf("Logged out all users from all proxies.\n")
-	default:
-		fmt.Printf("Specify --proxy and --user to remove keys for specific user ")
-		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
+	case proxyHost != "" && cf.Username == "":
+		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+	case proxyHost == "" && cf.Username != "":
+		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }
@@ -2625,6 +2692,10 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
+			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
+				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
+				return trace.BadParameter(friendlyMsg)
+			}
 			return trace.Wrap(err)
 		}
 		cf.RequestID = req.GetName()
@@ -3597,8 +3668,122 @@ func runLocalCommand(hostLogin string, command []string) error {
 	return cmd.Run()
 }
 
+// onResolve executes `tsh resolve`, a command that
+// attempts to resolve a single host from a provided
+// hostname. The host information provided may be
+// interpolated by proxy templates and converted
+// from a hostname into a fuzzy search, or predicate query.
+// Errors are returned if unable to connect to the cluster,
+// no matching hosts were found, or multiple matching hosts
+// were found. This is primarily meant to be used as a command
+// for a match exec block in an SSH config.
+func onResolve(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
+		// Limit to 2 so we can check for an ambiguous result
+		Limit: 2,
+	}
+
+	// If no search criteria were explicitly provided, then match exclusively
+	// on the hostname of the server. Otherwise, this would end up listing
+	// the first two servers that the user has access to and yield unexpected results.
+	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
+		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+	}
+
+	// Only enable the re-authentication behavior if not invoked with `-q`. When
+	// in quiet mode, this command is likely being invoked via ssh and
+	// the login prompt will not be able to be presented to users anyway.
+	executor := client.RetryWithRelogin
+	if cf.Quiet {
+		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
+			return f()
+		}
+	}
+
+	var page []*types.EnrichedResource
+	if err := executor(cf.Context, tc, func() error {
+		clt, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		defer clt.Close()
+
+		page, _, err = apiclient.GetUnifiedResourcePage(cf.Context, clt.AuthClient, &req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(page) {
+	case 1:
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	default:
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
+	if cf.Quiet {
+		return nil
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printNodesAsText(cf.Stdout(), []types.Server{page[0].ResourceWithLabels.(types.Server)}, true)
+	case teleport.JSON:
+		utils.WriteJSON(cf.Stdout(), page[0].ResourceWithLabels)
+	case teleport.YAML:
+		utils.WriteYAML(cf.Stdout(), page[0].ResourceWithLabels)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
+	// the version and exit.
+	if cf.ShowVersion {
+		modules.GetModules().PrintVersion()
+		return nil
+	}
+
+	// If "tsh ssh" is invoked with the "-t" or "-T" flag, manually validate
+	// "-t" and "-T" flags for "tsh ssh" due to the lack of inverse short flags
+	// in kingpin.
+	if cf.Interactive && cf.NonInteractive {
+		return trace.BadParameter("either -t or -T can be specified, not both")
+	}
+	if cf.NonInteractive {
+		cf.Interactive = false
+	}
+
+	// If "tsh ssh" is invoked the user must specify some host to connect to.
+	// In the past, this was handled by making "UserHost" required in kingpin.
+	// However, to support "tsh ssh -V" this was no longer possible. This
+	// property is how enforced in this function.
+	if cf.UserHost == "" {
+		return trace.BadParameter("required argument '[user@]host' not provided")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3744,6 +3929,10 @@ func onJoin(cf *CLIConf) error {
 
 // onSCP executes 'tsh scp' command
 func onSCP(cf *CLIConf) error {
+	if len(cf.CopySpec) < 2 {
+		return trace.Errorf("local and remote destinations are required")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3756,13 +3945,27 @@ func onSCP(cf *CLIConf) error {
 	cf.Context = ctx
 	defer cancel()
 
-	opts := sftp.Options{
-		Recursive:     cf.RecursiveCopy,
-		PreserveAttrs: cf.PreserveAttrs,
+	executor := client.RetryWithRelogin
+	if !cf.Relogin {
+		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
+			return f()
+		}
 	}
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
+
+	err = executor(cf.Context, tc, func() error {
+		return trace.Wrap(tc.SFTP(
+			cf.Context,
+			cf.CopySpec[:len(cf.CopySpec)-1],
+			cf.CopySpec[len(cf.CopySpec)-1],
+			sftp.Options{
+				Recursive:      cf.RecursiveCopy,
+				PreserveAttrs:  cf.PreserveAttrs,
+				Quiet:          cf.Quiet,
+				ProgressWriter: cf.Stdout(),
+			},
+		))
 	})
+
 	// don't print context canceled errors to the user
 	if err == nil || errors.Is(err, context.Canceled) {
 		return nil
@@ -3864,14 +4067,20 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	} else if cf.CopySpec != nil {
 		for _, location := range cf.CopySpec {
 			// Extract username and host from "username@host:file/path"
-			parts := strings.Split(location, ":")
-			parts = strings.Split(parts[0], "@")
-			partsLength := len(parts)
-			if partsLength > 1 {
-				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				hostUser = parts[partsLength-1]
-				break
+			userHost, _, found := strings.Cut(location, ":")
+			if !found {
+				continue
 			}
+
+			login, hostname, found := strings.Cut(userHost, "@")
+			if found {
+				hostLogin = login
+				hostUser = hostname
+			} else {
+				hostUser = userHost
+			}
+			break
+
 		}
 	}
 
@@ -4106,6 +4315,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
+	c.PreferSSO = mfaOpts.PreferSSO
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -4287,6 +4497,7 @@ func (c *CLIConf) GetProfile() (*profile.Profile, error) {
 type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
+	PreferSSO               bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -4299,6 +4510,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.AuthenticatorAttachment = wancli.AttachmentPlatform
 	case mfaModeOTP:
 		opts.PreferOTP = true
+	case mfaModeSSO:
+		opts.PreferSSO = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
@@ -4403,19 +4616,6 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 	default:
 		return "", trace.BadParameter("--compat or --cert-format must be specified")
 	}
-}
-
-// refuseArgs helper makes sure that 'args' (list of CLI arguments)
-// does not contain anything other than command
-func refuseArgs(command string, args []string) error {
-	for _, arg := range args {
-		if arg == command || strings.HasPrefix(arg, "-") {
-			continue
-		} else {
-			return trace.BadParameter("unexpected argument: %s", arg)
-		}
-	}
-	return nil
 }
 
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
@@ -4665,7 +4865,18 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	// `tsh status` should run without requiring user interaction.
+	// To achieve this, we avoid remote calls that might prompt for
+	// hardware key touch or require a PIN.
+	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
+
+	var accessListsToReview []*accesslist.AccessList
+	if hardwareKeyInteractionRequired {
+		log.Debug("Skipping fetching access lists to review due to Hardware Key PIN/Touch requirement.")
+	} else {
+		accessListsToReview = cf.getAccessListsToReview(tc)
+	}
+	if err := printLoginInformation(cf, profile, profiles, accessListsToReview); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4678,7 +4889,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	if tc.PrivateKeyPolicy.MFAVerified() {
+	if hardwareKeyInteractionRequired {
 		log.Debug("Skipping cluster alerts due to Hardware Key PIN/Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,

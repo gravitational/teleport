@@ -38,8 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -107,6 +105,8 @@ type GCPClients interface {
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GetGCPProjectsClient returns Projects client.
+	GetGCPProjectsClient(context.Context) (gcp.ProjectsClient, error)
 	// GetGCPInstancesClient returns instances client.
 	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
 }
@@ -133,8 +133,6 @@ type AWSClients interface {
 	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSEC2Client returns AWS EC2 client for the specified region.
-	GetAWSEC2Client(ctx context.Context, region string, opts ...AWSOptionsFn) (ec2iface.EC2API, error)
 	// GetAWSSSMClient returns AWS SSM client for the specified region.
 	GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error)
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
@@ -266,6 +264,7 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 		gcpClients: gcpClients{
 			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
 			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
+			gcpProjects:  newClientCache[gcp.ProjectsClient](gcp.NewProjectsClient),
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
@@ -324,6 +323,8 @@ type gcpClients struct {
 	gcpSQLAdmin *clientCache[gcp.SQLAdminClient]
 	// gcpGKE is the cached GCP Cloud GKE client.
 	gcpGKE *clientCache[gcp.GKEClient]
+	// gcpProjects is the cached GCP Cloud Projects client.
+	gcpProjects *clientCache[gcp.ProjectsClient]
 	// gcpInstances is the cached GCP instances client.
 	gcpInstances *clientCache[gcp.InstancesClient]
 }
@@ -367,7 +368,7 @@ type credentialsSource int
 const (
 	// credentialsSourceAmbient uses the default Cloud SDK method to load the credentials.
 	credentialsSourceAmbient = iota + 1
-	// CredentialsSourceIntegration uses an Integration to load the credentials.
+	// credentialsSourceIntegration uses an Integration to load the credentials.
 	credentialsSourceIntegration
 )
 
@@ -591,15 +592,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 	return sts.New(session), nil
 }
 
-// GetAWSEC2Client returns AWS EC2 client for the specified region.
-func (c *cloudClients) GetAWSEC2Client(ctx context.Context, region string, opts ...AWSOptionsFn) (ec2iface.EC2API, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ec2.New(session), nil
-}
-
 // GetAWSSSMClient returns AWS SSM client for the specified region.
 func (c *cloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -657,6 +649,11 @@ func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Clie
 // GetGCPGKEClient returns GKE client.
 func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.gcpGKE.GetClient(ctx)
+}
+
+// GetGCPProjectsClient returns Project client.
+func (c *cloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.gcpProjects.GetClient(ctx)
 }
 
 // GetGCPInstancesClient returns instances client.
@@ -1022,8 +1019,8 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
+	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
-	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        imds.Client
 	EKS                     eksiface.EKSAPI
@@ -1194,15 +1191,6 @@ func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, o
 	return c.KMS, nil
 }
 
-// GetAWSEC2Client returns AWS EC2 client for the specified region.
-func (c *TestCloudClients) GetAWSEC2Client(ctx context.Context, region string, opts ...AWSOptionsFn) (ec2iface.EC2API, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.EC2, nil
-}
-
 // GetAWSSSMClient returns an AWS SSM client
 func (c *TestCloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
 	_, err := c.GetAWSSession(ctx, region, opts...)
@@ -1232,6 +1220,11 @@ func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.
 // GetGCPGKEClient returns GKE client.
 func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
+}
+
+// GetGCPGKEClient returns GKE client.
+func (c *TestCloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.GCPProjects, nil
 }
 
 // GetGCPInstancesClient returns instances client.

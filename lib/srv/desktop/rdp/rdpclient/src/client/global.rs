@@ -36,8 +36,7 @@
 use super::ClientHandle;
 use crate::CgoHandle;
 use parking_lot::RwLock;
-use static_init::dynamic;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 /// Gets a [`ClientHandle`] from the global [`CLIENT_HANDLES`] map.
 pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
@@ -45,14 +44,13 @@ pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
 }
 
 /// A global, static tokio runtime for use by all clients.
-#[dynamic]
-pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
+pub static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
 
 /// A global, static map of [`ClientHandle`] indexed by [`CgoHandle`].
 ///
 /// See [`ClientHandles`].
-#[dynamic]
-pub static CLIENT_HANDLES: ClientHandles = ClientHandles::new();
+pub static CLIENT_HANDLES: LazyLock<ClientHandles> = LazyLock::new(Default::default);
 
 const _: () = {
     /// References to following types can be shared by multiple
@@ -69,15 +67,14 @@ const _: () = {
 /// A function can be dispatched to the [`Client`] corresponding to a
 /// given [`CgoHandle`] by retrieving it's corresponding [`ClientHandle`]
 /// from this map and sending the desired [`ClientFunction`].
+#[derive(Default)]
 pub struct ClientHandles {
     map: RwLock<HashMap<CgoHandle, ClientHandle>>,
 }
 
 impl ClientHandles {
-    fn new() -> Self {
-        ClientHandles {
-            map: RwLock::new(HashMap::new()),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     pub fn insert(&self, cgo_handle: CgoHandle, client_handle: ClientHandle) {

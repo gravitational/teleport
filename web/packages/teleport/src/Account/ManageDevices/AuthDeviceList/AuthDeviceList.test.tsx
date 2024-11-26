@@ -45,6 +45,18 @@ const devices: MfaDevice[] = [
   },
 ];
 
+const ssoDevice: MfaDevice[] = [
+  {
+    id: '1',
+    description: 'SSO Provider',
+    name: 'okta',
+    registeredDate: new Date(1628799417000),
+    lastUsedDate: new Date(1628799417000),
+    type: 'sso',
+    usage: 'mfa',
+  },
+];
+
 function getTableCellContents() {
   const [header, ...rows] = screen.getAllByRole('row');
   return {
@@ -75,6 +87,32 @@ test('renders devices', () => {
       ['Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
     ],
   });
+
+  const buttons = screen.queryAllByTitle('Delete');
+  expect(buttons).toHaveLength(2);
+  // all buttons should be enabled
+  buttons.forEach(button => {
+    expect(button).toBeEnabled();
+  });
+});
+
+test('delete button is disabled for sso devices', () => {
+  render(
+    <AuthDeviceList
+      header="Header"
+      deviceTypeColumnName="Passkey Type"
+      devices={ssoDevice}
+    />
+  );
+  expect(screen.getByText('Header')).toBeInTheDocument();
+  expect(getTableCellContents()).toEqual({
+    header: ['Passkey Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
+    rows: [['SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
+  });
+
+  const button = screen.getByTitle('SSO device cannot be deleted');
+  expect(button).toBeInTheDocument();
+  expect(button).toBeDisabled();
 });
 
 test('renders no devices', () => {

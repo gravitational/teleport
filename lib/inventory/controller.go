@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -136,7 +137,7 @@ type controllerOptions struct {
 	maxKeepAliveErrs   int
 	authID             string
 	onConnectFunc      func(string)
-	onDisconnectFunc   func(string)
+	onDisconnectFunc   func(string, int)
 	clock              clockwork.Clock
 }
 
@@ -163,11 +164,11 @@ func (options *controllerOptions) SetDefaults() {
 	}
 
 	if options.onConnectFunc == nil {
-		options.onConnectFunc = func(s string) {}
+		options.onConnectFunc = func(string) {}
 	}
 
 	if options.onDisconnectFunc == nil {
-		options.onDisconnectFunc = func(s string) {}
+		options.onDisconnectFunc = func(string, int) {}
 	}
 
 	if options.clock == nil {
@@ -194,12 +195,12 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing
-// instance disconnects from the inventory control stream. The value
-// provided to the callback is the keep alive type of the disconnected
-// resource. The callback should return quickly so as not to prevent
-// processing of heartbeats.
-func WithOnDisconnect(f func(heartbeatKind string)) ControllerOption {
+// WithOnDisconnect sets a function to be called every time an existing instance
+// disconnects from the inventory control stream. The values provided to the
+// callback are the keep alive type of the disconnected resource, as well as a
+// count of how many resources disconnected at once. The callback should return
+// quickly so as not to prevent processing of heartbeats.
+func WithOnDisconnect(f func(heartbeatKind string, amount int)) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.onDisconnectFunc = f
 	}
@@ -254,7 +255,7 @@ type Controller struct {
 	usageReporter              usagereporter.UsageReporter
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
-	onDisconnectFunc           func(string)
+	onDisconnectFunc           func(string, int)
 	clock                      clockwork.Clock
 	closeContext               context.Context
 	cancel                     context.CancelFunc
@@ -320,16 +321,18 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
-	ticker := interval.NewMulti(c.clock, interval.SubInterval[intervalKey]{
-		Key:              instanceHeartbeatKey,
-		VariableDuration: c.instanceHBVariableDuration,
-		FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
-		Jitter:           seventhJitter,
-	}, interval.SubInterval[intervalKey]{
-		Key:      instanceTimeReconciliation,
-		Duration: c.timeReconciliationInterval,
-		Jitter:   seventhJitter,
-	})
+	ticker := interval.NewMulti(
+		c.clock,
+		interval.SubInterval[intervalKey]{
+			Key:              instanceHeartbeatKey,
+			VariableDuration: c.instanceHBVariableDuration,
+			FirstDuration:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
+			Jitter:           retryutils.SeventhJitter,
+		}, interval.SubInterval[intervalKey]{
+			Key:      instanceTimeReconciliation,
+			Duration: c.timeReconciliationInterval,
+			Jitter:   retryutils.SeventhJitter,
+		})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
 	go c.handleControlStream(handle)
@@ -384,9 +387,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
 			log.WithFields(log.Fields{
-				"apps": len(handle.appServers),
-				"dbs":  len(handle.databaseServers),
-				"kube": len(handle.kubernetesServers),
+				"apps":      len(handle.appServers),
+				"dbs":       len(handle.databaseServers),
+				"kube":      len(handle.kubernetesServers),
+				"server_id": handle.Hello().ServerID,
 			}).Debug("Cleaning up resources in response to instance termination")
 			for _, app := range handle.appServers {
 				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
@@ -416,19 +420,19 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		handle.ticker.Stop()
 
 		if handle.sshServer != nil {
-			c.onDisconnectFunc(constants.KeepAliveNode)
+			c.onDisconnectFunc(constants.KeepAliveNode, 1)
 		}
 
-		for range handle.appServers {
-			c.onDisconnectFunc(constants.KeepAliveApp)
+		if len(handle.appServers) > 0 {
+			c.onDisconnectFunc(constants.KeepAliveApp, len(handle.appServers))
 		}
 
-		for range handle.databaseServers {
-			c.onDisconnectFunc(constants.KeepAliveDatabase)
+		if len(handle.databaseServers) > 0 {
+			c.onDisconnectFunc(constants.KeepAliveDatabase, len(handle.databaseServers))
 		}
 
-		for range handle.kubernetesServers {
-			c.onDisconnectFunc(constants.KeepAliveKube)
+		if len(handle.kubernetesServers) > 0 {
+			c.onDisconnectFunc(constants.KeepAliveKube, len(handle.kubernetesServers))
 		}
 
 		clear(handle.appServers)
@@ -462,8 +466,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.ticker.Push(interval.SubInterval[intervalKey]{
 						Key:           serverKeepAliveKey,
 						Duration:      c.serverKeepAlive,
-						FirstDuration: halfJitter(c.serverKeepAlive),
-						Jitter:        seventhJitter,
+						FirstDuration: retryutils.HalfJitter(c.serverKeepAlive),
+						Jitter:        retryutils.SeventhJitter,
 					})
 					keepAliveNeedInit = false
 				}
@@ -896,6 +900,7 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 
 				if shouldRemove {
 					c.testEvent(appKeepAliveDel)
+					c.onDisconnectFunc(constants.KeepAliveApp, 1)
 					delete(handle.appServers, name)
 				}
 			} else {
@@ -938,6 +943,7 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 
 				if shouldRemove {
 					c.testEvent(dbKeepAliveDel)
+					c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
 					delete(handle.databaseServers, name)
 				}
 			} else {
@@ -980,6 +986,7 @@ func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.
 
 				if shouldRemove {
 					c.testEvent(kubeKeepAliveDel)
+					c.onDisconnectFunc(constants.KeepAliveKube, 1)
 					delete(handle.kubernetesServers, name)
 				}
 			} else {

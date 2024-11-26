@@ -21,23 +21,32 @@
     "lint": "pnpm prettier-check && pnpm eslint",
     "lint-fix": "pnpm prettier-write && pnpm eslint --fix",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
+    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "@bundled-es-modules/cookie>cookie": "0.7.1"
+    }
+  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
+    "@storybook/addon-actions": "^8.3.4",
+    "@storybook/addon-controls": "^8.3.4",
     "@storybook/addon-toolbars": "^8.3.4",
     "@storybook/components": "^8.3.4",
+    "@storybook/preview-api": "^8.3.4",
     "@storybook/react": "^8.3.4",
     "@storybook/react-vite": "^8.3.4",
     "@storybook/test-runner": "^0.19.1",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/history": "^4.7.11",
     "@types/jest": "^29.5.13",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.10",
@@ -69,7 +78,6 @@
     "@protobuf-ts/runtime-rpc": "^2.9.4",
     "@uiw/codemirror-themes": "^4.23.3",
     "@uiw/react-codemirror": "^4.23.3",
-    "ace-builds": "1.36.2",
     "d3-scale": "^4.0.2",
     "d3-time-format": "^4.1.0",
     "date-fns": "^2.28.0",

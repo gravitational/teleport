@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_app Terraform resource
+sidebar_label: app
 description: This page describes the supported values of the teleport_app resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_app resour
 # Teleport App
 
 resource "teleport_app" "example" {
+  version = "v3"
   metadata = {
     name        = "example"
     description = "Test app"
@@ -62,6 +64,7 @@ Optional:
 - `cloud` (String) Cloud identifies the cloud instance the app represents.
 - `cors` (Attributes) CORSPolicy defines the Cross-Origin Resource Sharing settings for the app. (see [below for nested schema](#nested-schema-for-speccors))
 - `dynamic_labels` (Attributes Map) DynamicLabels are the app's command labels. (see [below for nested schema](#nested-schema-for-specdynamic_labels))
+- `identity_center` (Attributes) IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps. (see [below for nested schema](#nested-schema-for-specidentity_center))
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
@@ -96,6 +99,22 @@ Optional:
 - `command` (List of String) Command is a command to run
 - `period` (String) Period is a time between command runs
 - `result` (String) Result captures standard output
+
+
+### Nested Schema for `spec.identity_center`
+
+Optional:
+
+- `account_id` (String) Account ID is the AWS-assigned ID of the account
+- `permission_sets` (Attributes List) PermissionSets lists the available permission sets on the given account (see [below for nested schema](#nested-schema-for-specidentity_centerpermission_sets))
+
+### Nested Schema for `spec.identity_center.permission_sets`
+
+Optional:
+
+- `arn` (String) ARN is the fully-formed ARN of the Permission Set.
+- `name` (String) Name is the human-readable name of the Permission Set.
+
 
 
 ### Nested Schema for `spec.rewrite`

@@ -51,10 +51,14 @@ export function RequestList({
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger" details={attempt.statusText}>
+          Could not fetch access requests
+        </Alert>
       )}
       {assumeRoleAttempt.status === 'error' && (
-        <Alert kind="danger" children={assumeRoleAttempt.statusText} />
+        <Alert kind="danger" details={assumeRoleAttempt.statusText}>
+          Could not assume the role
+        </Alert>
       )}
       <Flex justifyContent="end" pb={4}>
         <ButtonPrimary
@@ -163,7 +167,7 @@ const renderActionCell = (
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {flags.isAssumed ? 'assumed' : 'assume roles'}
+          {flags.isAssumed ? 'Assumed' : 'Assume Roles'}
         </ButtonPrimary>
       );
     } else {

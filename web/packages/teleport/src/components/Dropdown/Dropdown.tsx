@@ -50,9 +50,6 @@ export const Dropdown = styled.div<OpenProps>`
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     top: ${p => p.theme.topBarHeight[1]}px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    top: ${p => p.theme.topBarHeight[2]}px;
-  }
 `;
 
 export const DropdownItem = styled.div<{

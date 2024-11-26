@@ -19,6 +19,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -83,9 +84,8 @@ type AccessChecker interface {
 
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
-	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, ...AccessState) error
+	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -182,7 +182,11 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles() []string
+	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
+
+	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+	// that allowed requesting to the requested Kubernetes resource kind.
+	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
@@ -1035,6 +1039,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		createHostUserMode := role.GetOptions().CreateHostUserMode
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		createHostUser := role.GetOptions().CreateHostUser
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
@@ -1059,11 +1064,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
 		if hostUserShell != "" {
-			if shell != "" {
-				shell = hostUserShell
-			}
-
 			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
 		}
 

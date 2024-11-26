@@ -63,6 +63,13 @@ func newMockMailgunServer(concurrency int) *mockMailgunServer {
 
 			id := uuid.New().String()
 
+			// The testmode flag is only used during health check.
+			// Do no create message when in testmode.
+			if r.PostFormValue("o:testmode") == "yes" {
+				fmt.Fprintf(w, `{"id": "%v"}`, id)
+				return
+			}
+
 			message := mockMailgunMessage{
 				ID:         id,
 				Sender:     r.PostFormValue("from"),

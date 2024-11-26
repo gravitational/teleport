@@ -28,7 +28,7 @@ connections.
 
 First create a role on `admin` database with the following privileges:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -49,7 +49,7 @@ To enforce the principle of least privilege, you can limit the `grantRole` to
 only the databases that own the roles to be assigned to the auto-provisioned
 users:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -67,7 +67,7 @@ db.getSiblingDB("admin").runCommand({
 
 Now create the admin user with this role:
 
-```bash
+```code
 db.getSiblingDB("$external").runCommand({
   createUser: "CN=teleport-admin",
   roles: [ { role: 'teleport-admin-role', db: 'admin' } ],
