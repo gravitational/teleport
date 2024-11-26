@@ -84,14 +84,14 @@ func TestUpdater_Disable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case
@@ -172,14 +172,14 @@ func TestUpdater_Unpin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case
@@ -547,14 +547,14 @@ func TestUpdater_Update(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case
@@ -745,14 +745,14 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case
@@ -957,14 +957,14 @@ func TestUpdater_Remove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case
@@ -1288,14 +1288,14 @@ func TestUpdater_Install(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			versionsDir := filepath.Join(dir, versionsDirName)
-			cfgPath := filepath.Join(versionsDir, updateConfigName)
+			cfgPath := filepath.Join(dir, updateConfigName)
 
+			ns := &Namespace{
+				updaterConfigFile: cfgPath,
+			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				VersionsDir:        versionsDir,
 				InsecureSkipVerify: true,
-				DataDir:            dir,
-			})
+			}, ns)
 			require.NoError(t, err)
 
 			// Create config file only if provided in test case

@@ -71,7 +71,7 @@ const (
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
 // will not fill disk to within 10 MB of available capacity.
-func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
+func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,26 +91,16 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
-	ns, err := NewNamespace(cfg.Log, cfg.Namespace, cfg.DataDir, cfg.LinkDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.VersionsDir == "" {
-		cfg.VersionsDir = ns.versionsDir
-	}
 	if cfg.SystemDir == "" {
 		cfg.SystemDir = defaultSystemDir
-	}
-	if err := os.MkdirAll(cfg.VersionsDir, systemDirMode); err != nil {
-		return nil, trace.Errorf("failed to create install directory: %w", err)
 	}
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
+		ConfigPath:         ns.updaterConfigFile,
 		Installer: &LocalInstaller{
-			InstallDir:              cfg.VersionsDir,
+			InstallDir:              ns.versionsDir,
 			LinkBinDir:              ns.linkBinDir,
 			CopyServiceFile:         ns.serviceFile,
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
@@ -161,16 +151,8 @@ type LocalUpdaterConfig struct {
 	// DownloadTimeout is a timeout for file download requests.
 	// Defaults to no timeout.
 	DownloadTimeout time.Duration
-	// DataDir for Teleport (usually /var/lib/teleport).
-	DataDir string
-	// LinkDir for linking Teleport (usually /usr/local/bin).
-	LinkDir string
-	// VersionsDir for installing Teleport (usually /opt/teleport/local/versions).
-	VersionsDir string
 	// SystemDir for package-installed Teleport installations (usually /opt/teleport/system).
 	SystemDir string
-	// Namespace is the cluster-specific namespace for the installation.
-	Namespace string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
 }

@@ -43,6 +43,7 @@ const (
 	systemdPIDFile   = "/run/teleport.pid"
 	defaultNamespace = "default"
 	systemNamespace  = "system"
+	lockFileName     = "update.lock"
 )
 
 const (
@@ -70,22 +71,6 @@ WantedBy={{.TeleportService}}
 `
 )
 
-// CreateNamespaceDir creates the base directory for a namespace.
-func CreateNamespaceDir(name string) (string, error) {
-	dir := namespaceDir(name)
-	if err := os.MkdirAll(dir, systemDirMode); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return dir, nil
-}
-
-func namespaceDir(name string) string {
-	if name == "" {
-		name = defaultNamespace
-	}
-	return filepath.Join(teleportOptDir, name)
-}
-
 // Namespace represents a namespace within various system paths for a isolated installation of Teleport.
 type Namespace struct {
 	log *slog.Logger
@@ -103,6 +88,10 @@ type Namespace struct {
 	configFile string
 	// pidFile for Teleport (ns: /run/teleport_myns.pid)
 	pidFile string
+	// updaterLockFile for locking the updater (ns: /opt/teleport/myns/update.lock)
+	updaterLockFile string
+	// updaterConfigFile for configuring updates (ns: /opt/teleport/myns/update.yaml)
+	updaterConfigFile string
 	// updaterBinFile for the updater when linked (linkBinDir + name)
 	updaterBinFile string
 	// updaterServiceFile is the systemd service path for the updater
@@ -115,7 +104,7 @@ var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 
 // NewNamespace validates and returns a Namespace.
 // Namespaces must be alphanumeric + `-`.
-func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespace, error) {
+func NewNamespace(log *slog.Logger, name, dataDir, linkDir string) (*Namespace, error) {
 	if name == defaultNamespace ||
 		name == systemNamespace {
 		return nil, trace.Errorf("namespace %q is reserved", name)
@@ -127,19 +116,21 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespac
 		if dataDir == "" {
 			dataDir = defaults.DataDir
 		}
-		if linkBinDir == "" {
-			linkBinDir = DefaultLinkDir
+		if linkDir == "" {
+			linkDir = DefaultLinkDir
 		}
 		return &Namespace{
 			log:                log,
 			name:               name,
 			dataDir:            dataDir,
-			linkBinDir:         linkBinDir,
+			linkBinDir:         linkDir,
 			versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
 			serviceFile:        filepath.Join("/", serviceDir, serviceName),
 			configFile:         defaults.ConfigFilePath,
 			pidFile:            systemdPIDFile,
-			updaterBinFile:     filepath.Join(linkBinDir, BinaryName),
+			updaterLockFile:    filepath.Join(namespaceDir(name), lockFileName),
+			updaterConfigFile:  filepath.Join(namespaceDir(name), updateConfigName),
+			updaterBinFile:     filepath.Join(linkDir, BinaryName),
 			updaterServiceFile: filepath.Join(systemdAdminDir, BinaryName+".service"),
 			updaterTimerFile:   filepath.Join(systemdAdminDir, BinaryName+".timer"),
 		}, nil
@@ -149,22 +140,39 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkBinDir string) (*Namespac
 	if dataDir == "" {
 		dataDir = filepath.Join(filepath.Dir(defaults.DataDir), prefix)
 	}
-	if linkBinDir == "" {
-		linkBinDir = filepath.Join(namespaceDir(name), "bin")
+	if linkDir == "" {
+		linkDir = filepath.Join(namespaceDir(name), "bin")
 	}
 	return &Namespace{
 		log:                log,
 		name:               name,
 		dataDir:            dataDir,
-		linkBinDir:         linkBinDir,
+		linkBinDir:         linkDir,
 		versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
 		serviceFile:        filepath.Join(systemdAdminDir, prefix+".service"),
 		configFile:         filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
 		pidFile:            filepath.Join(filepath.Dir(systemdPIDFile), prefix+".pid"),
-		updaterBinFile:     filepath.Join(linkBinDir, BinaryName),
+		updaterLockFile:    filepath.Join(namespaceDir(name), lockFileName),
+		updaterConfigFile:  filepath.Join(namespaceDir(name), updateConfigName),
+		updaterBinFile:     filepath.Join(linkDir, BinaryName),
 		updaterServiceFile: filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
 		updaterTimerFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
 	}, nil
+}
+
+func namespaceDir(name string) string {
+	if name == "" {
+		name = defaultNamespace
+	}
+	return filepath.Join(teleportOptDir, name)
+}
+
+// Init create the initial directory structure and returns the lockfile for a Namespace.
+func (ns *Namespace) Init() (lockFile string, err error) {
+	if err := os.MkdirAll(ns.versionsDir, systemDirMode); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ns.updaterLockFile, nil
 }
 
 // Setup installs service and timer files for the teleport-update binary.

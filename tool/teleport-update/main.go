@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -56,11 +55,6 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
-)
-
-const (
-	// lockFileName specifies the name of the file containing the flock lock preventing concurrent updater execution.
-	lockFileName = "update.lock"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -235,18 +229,31 @@ func setupLogger(debug bool, format string) error {
 }
 
 func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
-	nsDir, err := autoupdate.CreateNamespaceDir(ccfg.Namespace)
+	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	lockFile, err = ns.Init()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		DataDir:   ccfg.DataDir,
-		LinkDir:   ccfg.LinkDir,
-		Namespace: ccfg.Namespace,
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
-	})
-	return updater, filepath.Join(nsDir, lockFileName), trace.Wrap(err)
+	}, ns)
+	return updater, lockFile, trace.Wrap(err)
+}
+
+func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
+	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	}, ns)
+	return updater, trace.Wrap(err)
 }
 
 // cmdDisable disables updates.
@@ -418,7 +425,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdStatus displays auto-update status.
 func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
-	updater, _, err := initConfig(ccfg)
+	updater, err := statusConfig(ccfg)
 	if err != nil {
 		return trace.Errorf("failed to initialize updater: %w", err)
 	}
