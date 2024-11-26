@@ -18,7 +18,7 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType } from 'teleport/services/mfa';
+import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -36,7 +36,6 @@ import {
   UserCredentials,
   ChangePasswordReq,
   CreateNewHardwareDeviceRequest,
-  DeviceUsage,
   CreateAuthenticateChallengeRequest,
 } from './types';
 

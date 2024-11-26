@@ -21,6 +21,7 @@ import { AuthProviderType } from 'shared/services';
 import { EventMeta } from 'teleport/services/userEvent';
 
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
+import { DeviceUsage } from '../mfa';
 
 export type Base64urlString = string;
 
@@ -81,6 +82,3 @@ export type CreateNewHardwareDeviceRequest = {
   tokenId: string;
   deviceUsage?: DeviceUsage;
 };
-
-/** The intended usage of the device (as an MFA method or a passkey). */
-export type DeviceUsage = 'passwordless' | 'mfa';

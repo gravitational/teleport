@@ -24,7 +24,6 @@ import Dialog from 'design/Dialog';
 
 import { http, HttpResponse, delay } from 'msw';
 
-import { DeviceUsage } from 'teleport/services/auth';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 
@@ -36,6 +35,7 @@ import {
   SaveDeviceStep,
 } from './AddAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
+import { DeviceUsage } from 'teleport/services/mfa';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',
