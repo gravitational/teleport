@@ -35,6 +35,9 @@ func NewSet(values ...string) Set {
 }
 
 func (s Set) add(values ...string) Set {
+	if len(s) == 0 {
+		return NewSet(values...)
+	}
 	out := s.clone()
 	for _, value := range values {
 		out[value] = struct{}{}
