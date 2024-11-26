@@ -250,13 +250,6 @@ export interface ListDevicesByUserRequest {
      * @generated from protobuf field: string page_token = 2;
      */
     pageToken: string;
-    /**
-     * Specifies which fields of the resource should be returned in the response.
-     * Defaults to DEVICE_VIEW_LIST.
-     *
-     * @generated from protobuf field: teleport.devicetrust.v1.DeviceView view = 3;
-     */
-    view: DeviceView;
 }
 /**
  * Response for ListDevicesByUser.
@@ -1535,15 +1528,13 @@ class ListDevicesByUserRequest$Type extends MessageType<ListDevicesByUserRequest
     constructor() {
         super("teleport.devicetrust.v1.ListDevicesByUserRequest", [
             { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "view", kind: "enum", T: () => ["teleport.devicetrust.v1.DeviceView", DeviceView, "DEVICE_VIEW_"] }
+            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListDevicesByUserRequest>): ListDevicesByUserRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pageSize = 0;
         message.pageToken = "";
-        message.view = 0;
         if (value !== undefined)
             reflectionMergePartial<ListDevicesByUserRequest>(this, message, value);
         return message;
@@ -1558,9 +1549,6 @@ class ListDevicesByUserRequest$Type extends MessageType<ListDevicesByUserRequest
                     break;
                 case /* string page_token */ 2:
                     message.pageToken = reader.string();
-                    break;
-                case /* teleport.devicetrust.v1.DeviceView view */ 3:
-                    message.view = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1580,9 +1568,6 @@ class ListDevicesByUserRequest$Type extends MessageType<ListDevicesByUserRequest
         /* string page_token = 2; */
         if (message.pageToken !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.pageToken);
-        /* teleport.devicetrust.v1.DeviceView view = 3; */
-        if (message.view !== 0)
-            writer.tag(3, WireType.Varint).int32(message.view);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
