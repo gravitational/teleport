@@ -43,7 +43,7 @@ func TestNewNamespace(t *testing.T) {
 			name: "no namespace",
 			ns: &Namespace{
 				dataDir:            "/var/lib/teleport",
-				linkBinDir:         "/usr/local/bin",
+				linkDir:            "/usr/local/bin",
 				versionsDir:        "/opt/teleport/default/versions",
 				serviceFile:        "/lib/systemd/system/teleport.service",
 				configFile:         "/etc/teleport.yaml",
@@ -61,7 +61,7 @@ func TestNewNamespace(t *testing.T) {
 			dataDir: "/data",
 			ns: &Namespace{
 				dataDir:            "/data",
-				linkBinDir:         "/link",
+				linkDir:            "/link",
 				versionsDir:        "/opt/teleport/default/versions",
 				serviceFile:        "/lib/systemd/system/teleport.service",
 				configFile:         "/etc/teleport.yaml",
@@ -79,7 +79,7 @@ func TestNewNamespace(t *testing.T) {
 			ns: &Namespace{
 				name:               "test",
 				dataDir:            "/var/lib/teleport_test",
-				linkBinDir:         "/opt/teleport/test/bin",
+				linkDir:            "/opt/teleport/test/bin",
 				versionsDir:        "/opt/teleport/test/versions",
 				serviceFile:        "/etc/systemd/system/teleport_test.service",
 				configFile:         "/etc/teleport_test.yaml",
@@ -99,7 +99,7 @@ func TestNewNamespace(t *testing.T) {
 			ns: &Namespace{
 				name:               "test",
 				dataDir:            "/data",
-				linkBinDir:         "/link",
+				linkDir:            "/link",
 				versionsDir:        "/opt/teleport/test/versions",
 				serviceFile:        "/etc/systemd/system/teleport_test.service",
 				configFile:         "/etc/teleport_test.yaml",

@@ -78,8 +78,8 @@ type Namespace struct {
 	name string
 	// dataDir for Teleport
 	dataDir string
-	// linkBinDir for Teleport binaries (ns: /opt/teleport/myns/bin)
-	linkBinDir string
+	// linkDir for Teleport binaries (ns: /opt/teleport/myns/bin)
+	linkDir string
 	// versionsDir for Teleport versions (ns: /opt/teleport/myns/versions)
 	versionsDir string
 	// serviceFile for the Teleport systemd service (ns: /etc/systemd/system/teleport_myns.service)
@@ -92,7 +92,7 @@ type Namespace struct {
 	updaterLockFile string
 	// updaterConfigFile for configuring updates (ns: /opt/teleport/myns/update.yaml)
 	updaterConfigFile string
-	// updaterBinFile for the updater when linked (linkBinDir + name)
+	// updaterBinFile for the updater when linked (linkDir + name)
 	updaterBinFile string
 	// updaterServiceFile is the systemd service path for the updater
 	updaterServiceFile string
@@ -123,7 +123,7 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkDir string) (*Namespace, 
 			log:                log,
 			name:               name,
 			dataDir:            dataDir,
-			linkBinDir:         linkDir,
+			linkDir:            linkDir,
 			versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
 			serviceFile:        filepath.Join("/", serviceDir, serviceName),
 			configFile:         defaults.ConfigFilePath,
@@ -147,7 +147,7 @@ func NewNamespace(log *slog.Logger, name, dataDir, linkDir string) (*Namespace, 
 		log:                log,
 		name:               name,
 		dataDir:            dataDir,
-		linkBinDir:         linkDir,
+		linkDir:            linkDir,
 		versionsDir:        filepath.Join(namespaceDir(name), versionsDirName),
 		serviceFile:        filepath.Join(systemdAdminDir, prefix+".service"),
 		configFile:         filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
@@ -276,7 +276,7 @@ func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
 	}{
 		{
 			old: "/usr/local/bin/",
-			new: ns.linkBinDir + "/",
+			new: ns.linkDir + "/",
 		},
 		{
 			old: "/etc/teleport.yaml",
@@ -295,7 +295,7 @@ func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
 func (ns *Namespace) LogWarning(ctx context.Context) {
 	ns.log.WarnContext(ctx, "Custom namespace specified. Teleport data_dir must be configured in the config file.",
 		"data_dir", ns.dataDir,
-		"path", ns.linkBinDir,
+		"path", ns.linkDir,
 		"config", ns.configFile,
 		"service", filepath.Base(ns.serviceFile),
 		"pid", ns.pidFile,

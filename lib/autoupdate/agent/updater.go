@@ -101,7 +101,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		ConfigPath:         ns.updaterConfigFile,
 		Installer: &LocalInstaller{
 			InstallDir:              ns.versionsDir,
-			LinkBinDir:              ns.linkBinDir,
+			LinkBinDir:              ns.linkDir,
 			CopyServiceFile:         ns.serviceFile,
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
 			SystemServiceFile:       filepath.Join(cfg.SystemDir, serviceDir, serviceName),
@@ -123,7 +123,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			}
 			cmd := exec.CommandContext(ctx, name,
 				"--data-dir", ns.dataDir,
-				"--link-dir", ns.linkBinDir,
+				"--link-dir", ns.linkDir,
 				"--namespace", ns.name,
 				"setup")
 			cmd.Stderr = os.Stderr
