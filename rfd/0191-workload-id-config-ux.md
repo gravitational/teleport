@@ -160,8 +160,10 @@ spec:
 ### Templating
 
 Certain fields, such as `spec.spiffe.id`, will support templating using a
-set of attributes related to the Bot's Join, the Bot resource itself and any
-workload attestation that has been completed by the `tbot` agent.
+set of attributes from the attestation during Bot's Join, the Bot resource
+itself and any workload attestation that has been completed by the `tbot` agent.
+
+To use templating, the name of an attribute is enclosed between `{{` and `}}`.
 
 For example:
 
@@ -207,21 +209,21 @@ spec:
     - conditions:
         # The CI must be running in the "foo" namespace in GitLab
       - attribute: join.gitlab.namespace_path
-        equals_string: foo
+        equals: foo
         # AND
         # The CI must be running against the "special" environment 
       - attribute: join.gitlab.environment
-        equals_string: special
+        equals: special
       # OR
     - conditions:
         # The CI must be running in the "bar" namespace in GitLab
       - attribute: join.gitlab.namespace_path
-        equals_string: bar
+        equals: bar
     deny:
     - conditions:
         # The CI must not be running against the "dev" environment.
       - attribute: join.gitlab.environment
-        equals_string: dev
+        equals: dev
 ```
 
 Each WorkloadIdentity resource has two rulesets - `allow` and `deny`.
@@ -241,14 +243,15 @@ single target attribute, a single operator and a single expected value.
 
 Initially, the following operators will be supported:
 
-- `equals_string`: The target attribute must be a string and equal the given
-  string.
-- `not_equals_string`: The target attribute must be a string and must not equal
-  the given string.
-- `matches_string`: The target attribute must be a string and must match the
+- `equals`: The target attribute must equal the given value. 
+- `not_equals`: The target attribute must not equal the given value 
+- `matches`: The target attribute must be a string and must match the
   given regex pattern.
-- `not_matches_string`: The target attribute must be a string and must not match
+- `not_matches`: The target attribute must be a string and must not match
   the given regex pattern.
+- `in`: The target attribute must equal one of the values in the given list.
+- `not_in`: The target attribute must not equal any of the values in the given
+  list.
 
 Future iterations may introduce additional operators as we better understand the
 types of conditions that will be useful to users.
@@ -287,7 +290,9 @@ three sources:
   performed by `tbot` and which form of attestation has been performed. E.g
   `workload.k8s.namespace`.
 - `user`: From the identity of the user calling the WorkloadIdentity API. E.g
-  `user.bot_name`.
+  `user.bot_name` or `user.traits`. This information does not directly come from
+  attestation but may be useful for referencing administrative or organizational
+  values.
 
 Attributes take a hierarchical form which can be navigated within templates and
 rules using `.`. For example, `join.gitlab.project_path`.
@@ -427,7 +432,7 @@ credentials would have been issued:
 2 WorkloadIdentity resources did not match the given attributes:
 
 - workload_identity_name: gitlab-staging
-  reason: Rule evaluation failed. Allow rule condition `join.gitlab.environment == "production"` returned false.
+  reason: Rule evaluation failed. Allow rule expression `join.gitlab.environment == "production"` returned false.
 - workload_identity_name: github-production
   reason: The `join.github.environment` attribute included in `spec.spiffe.id` template do not exist in the attribute set.
 ```
@@ -713,11 +718,20 @@ Specification:
 ```protobuf
 package teleport.workloadidentity.v1;
 
+// Attributes pertaining to the user that is requesting the WorkloadIdentity. 
 message UserAttributes {
+  // Name of the user requesting the generation of the WorkloadIdentity.
+  // Example: `bot-gitlab-workload-identity`
   string name = 1;
+  // Whether or not the user requesting the generation of the WorkloadIdentity
+  // is a bot.
   bool is_bot = 2;
+  // If the user is a bot, the name of the bot.
+  // Example: `gitlab-workload-identity`
   string bot_name = 3;
-  string traits = 4;
+  // The traits of the user configured within Teleport or determined during
+  // SSO.
+  Traits traits = 4;
 }
 ```
 
@@ -755,9 +769,9 @@ message WorkloadUnix {
   // The PID of the process that connected to the workload API.
   int32 pid = 2;
   // The UID of the process that connected to the workload API.
-  int32 uid = 3;
+  uint32 uid = 3;
   // The GID of the process that connected to the workload API.
-  int32 gid = 4;
+  uint32 gid = 4;
   // -- snipped for conciseness --
 }
 
@@ -937,13 +951,17 @@ message WorkloadIdentityCondition {
   // Example: `join.gitlab.project_path`
   string attribute = 1;
   // The exact string the attribute value must match.
-  string equals_string = 2;
+  string equals = 2;
   // The regex pattern the attribute value must match.
-  string matches_string = 3;
+  string matches = 3;
   // The exact string the attribute value must not match.
-  string not_equals_string = 4;
+  string not_equals = 4;
   // The regex pattern the attribute value must not match.
-  string not_matches_string = 5;
+  string not_matches = 5;
+  // A list of strings that the attribute value must equal at least one of. 
+  repeated string in = 6;
+  // A list of strings that the attribute value must not equal any of.
+  repeated string not_in = 7;
 }
 
 // WorkloadIdentityRule is an individual rule which can be evaluated against
@@ -1057,17 +1075,27 @@ spec:
   rules:
     allow:
     - conditions:
+      - attribute: join.gitlab.user_email
+        in:
+        - admin-bob@example.com
+        - admin-jane@example.com
+    - conditions:
       - attribute: join.gitlab.namespace_path
-        equals_string: my-org
+        equals: my-org
       - attribute: join.gitlab.user_login
-        not_equals_string: noah 
+        not_equals: noah 
       - attribute: join.gitlab.environment
-        not_matches_string: "^abc-.*$"
+        not_matches: "^abc-.*$"
     - expression: join.gitlab.pipeline_id > 100
     deny:
     - conditions:
+      - attribute: join.gitlab.ref_type
+        equals: branch
+      - attribute: join.gitlab.ref
+        not_in: [main, master]
+    - conditions:
       - attribute: join.gitlab.environment
-        matches_string: "^xyz-.*$"
+        matches: "^xyz-.*$"
     - expression: join.gitlab.project_path == "my-org/my-project"
   spiffe:
     id: /gitlab/{{ join.gitlab.project_path }}/{{ join.gitlab.environment }}
