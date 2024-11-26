@@ -124,7 +124,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			cmd := exec.CommandContext(ctx, name,
 				"--data-dir", ns.dataDir,
 				"--link-dir", ns.linkDir,
-				"--namespace", ns.name,
+				"--install-suffix", ns.name,
 				"setup")
 			cmd.Stderr = os.Stderr
 			cmd.Stdout = os.Stdout

@@ -76,8 +76,8 @@ type cliConfig struct {
 	DataDir string
 	// LinkDir for linking binaries and systemd services
 	LinkDir string
-	// Namespace is the cluster-specific namespace for the installation.
-	Namespace string
+	// InstallSuffix is the isolated suffix for the installation.
+	InstallSuffix string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
 }
@@ -98,8 +98,8 @@ func Run(args []string) int {
 		Default(libdefaults.DataDir).IsSetByUser(&userDataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
-	app.Flag("namespace", "Namespace name for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
-		Short('n').StringVar(&ccfg.Namespace)
+	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
+		Short('n').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
@@ -156,7 +156,7 @@ func Run(args []string) int {
 		libutils.FatalError(err)
 	}
 
-	// These have different defaults if --namespace is specified.
+	// These have different defaults if --install-suffix is specified.
 	// If the user did not set them, let autoupdate.NewNamespace set them.
 	if !userDataDir {
 		ccfg.DataDir = ""
@@ -229,7 +229,7 @@ func setupLogger(debug bool, format string) error {
 }
 
 func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -245,7 +245,7 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 }
 
 func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -300,8 +300,8 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
-	if ccfg.Namespace != "" {
-		ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	if ccfg.InstallSuffix != "" {
+		ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -408,7 +408,7 @@ func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.Namespace, ccfg.DataDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}

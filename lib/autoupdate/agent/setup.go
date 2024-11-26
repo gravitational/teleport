@@ -222,7 +222,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 func (ns *Namespace) writeConfigFiles() error {
 	var args string
 	if ns.name != "" {
-		args = " --namespace=" + ns.name
+		args = " --install-suffix=" + ns.name
 	}
 	err := writeTemplate(
 		ns.updaterServiceFile, updateServiceTemplate,
