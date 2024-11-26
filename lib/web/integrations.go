@@ -201,8 +201,8 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 	return uiIg, nil
 }
 
-// integrationDashboard returns the integration summary.
-func (h *Handler) integrationDashboard(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+// integrationStats returns the integration stats.
+func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
 		return nil, trace.BadParameter("an integration name is required")
