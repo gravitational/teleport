@@ -20,13 +20,17 @@ package web
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
-	"github.com/gravitational/trace"
 )
 
+// automaticUpdateSettings184 crafts the automatic updates part of the ping/find response
+// as described in RFD-184 (agents) and RFD-144 (tools).
 // TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
 func (h *Handler) automaticUpdateSettings184(ctx context.Context) webclient.AutoUpdateSettings {
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
