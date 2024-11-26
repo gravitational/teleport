@@ -3236,7 +3236,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, server := range resp.GitServers {
+			for _, server := range resp.Servers {
 				servers = append(servers, server)
 			}
 			if resp.NextPageToken == "" {
@@ -3676,7 +3676,7 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println("git_server has been created")
+	fmt.Println("git server %q has been created", server.GetName())
 	return nil
 }
 func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3692,6 +3692,6 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println("git_server has been updated")
+	fmt.Println("git server %q has been updated", server.GetName())
 	return nil
 }

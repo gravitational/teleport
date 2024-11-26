@@ -96,7 +96,7 @@ func (s *Service) GetGitServer(ctx context.Context, req *pb.GetGitServerRequest)
 	}
 	if err := s.checkAccess(authCtx, server); err != nil {
 		if trace.IsAccessDenied(err) {
-			return nil, trace.NotFound("not found")
+			return nil, trace.NotFound("git server %q not found", req.Name)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -127,7 +127,7 @@ func (s *Service) ListGitServers(ctx context.Context, req *pb.ListGitServersRequ
 		if serverV2, err := toServerV2(server); err != nil {
 			return nil, trace.Wrap(err)
 		} else {
-			resp.GitServers = append(resp.GitServers, serverV2)
+			resp.Servers = append(resp.Servers, serverV2)
 		}
 	}
 	return resp, nil

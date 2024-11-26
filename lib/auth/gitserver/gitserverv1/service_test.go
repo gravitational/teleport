@@ -125,7 +125,7 @@ func TestServiceAccess(t *testing.T) {
 			run: func(t *testing.T, service *Service) {
 				resp, err := service.ListGitServers(ctx, &pb.ListGitServersRequest{})
 				require.NoError(t, err)
-				require.Empty(t, resp.GitServers)
+				require.Empty(t, resp.Servers)
 			},
 		},
 		{
@@ -137,7 +137,7 @@ func TestServiceAccess(t *testing.T) {
 			run: func(t *testing.T, service *Service) {
 				resp, err := service.ListGitServers(ctx, &pb.ListGitServersRequest{})
 				require.NoError(t, err)
-				require.Len(t, resp.GitServers, 2)
+				require.Len(t, resp.Servers, 2)
 			},
 		},
 		{

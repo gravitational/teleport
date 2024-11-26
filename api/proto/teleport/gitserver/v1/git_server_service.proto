@@ -61,7 +61,7 @@ message ListGitServersRequest {
 // ListGitServersResponse is the response to ListGitServers.
 message ListGitServersResponse {
   // The page of Git servers that matched the request.
-  repeated types.ServerV2 git_servers = 1;
+  repeated types.ServerV2 servers = 1;
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
