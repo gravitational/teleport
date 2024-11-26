@@ -293,7 +293,7 @@ func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
 }
 
 func (ns *Namespace) LogWarning(ctx context.Context) {
-	ns.log.WarnContext(ctx, "Custom namespace specified. Teleport data_dir must be configured in the config file.",
+	ns.log.WarnContext(ctx, "Custom install suffix specified. Teleport data_dir must be configured in the config file.",
 		"data_dir", ns.dataDir,
 		"path", ns.linkDir,
 		"config", ns.configFile,
