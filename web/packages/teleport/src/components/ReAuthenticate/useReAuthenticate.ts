@@ -19,7 +19,7 @@
 import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions from 'shared/utils/createMfaOptions';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';

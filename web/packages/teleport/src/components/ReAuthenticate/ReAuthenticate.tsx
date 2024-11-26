@@ -17,14 +17,21 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Flex, Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
+import {
+  Flex,
+  Box,
+  Text,
+  ButtonPrimary,
+  ButtonSecondary,
+  Indicator,
+} from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
-import { Danger } from 'design/Alert';
+import { Alert, Danger } from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
@@ -43,25 +50,41 @@ export default function Container(props: Props) {
 export function ReAuthenticate({
   attempt,
   clearAttempt,
-  getReauthMfaOptions: getMfaOptionsProp,
+  getReauthMfaOptions,
   submitWithMfa,
   onClose,
   actionText,
 }: State) {
   const [mfaOptions, getMfaOptions] = useAsync(async () => {
-    return getMfaOptionsProp();
+    return getReauthMfaOptions();
   });
 
   useEffect(() => {
     getMfaOptions();
   }, []);
 
+  // Handle potential error states first.
+  switch (mfaOptions.status) {
+    case 'processing':
+      return (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      );
+    case 'error':
+      return <Alert children={mfaOptions.statusText} />;
+    case 'success':
+      break;
+    default:
+      return null;
+  }
+
   const [otpCode, setOtpToken] = useState('');
   const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
 
   function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-    submitWithMfa(mfaOption?.value, otpCode);
+    submitWithMfa(mfaOption.value, otpCode);
   }
 
   return (

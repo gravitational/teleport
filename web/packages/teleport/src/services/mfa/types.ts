@@ -95,3 +95,17 @@ export type WebauthnAssertionResponse = {
     userHandle: string;
   };
 };
+
+export type WebauthnAttestationResponse = {
+  id: string;
+  type: string;
+  extensions: {
+    appid: boolean;
+    credProps: CredentialPropertiesOutput;
+  };
+  rawId: string;
+  response: {
+    attestationObject: string;
+    clientDataJSON: string;
+  };
+};

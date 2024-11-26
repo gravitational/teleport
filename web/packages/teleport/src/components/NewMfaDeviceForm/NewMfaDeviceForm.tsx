@@ -24,7 +24,9 @@ import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import createMfaOptions from 'shared/utils/createMfaOptions';
+import createMfaOptions, {
+  createMfaOptionsFromAuth2faType,
+} from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
@@ -79,9 +81,7 @@ export function NewMfaDeviceForm({
   flowLength,
 }: NewMfaDeviceFormProps) {
   const [otp, setOtp] = useState('');
-  const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType as Auth2faType,
-  });
+  const mfaOptions = createMfaOptionsFromAuth2faType(auth2faType);
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
     getDefaultDeviceName(mfaType.value)
