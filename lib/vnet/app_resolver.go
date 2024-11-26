@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -265,7 +266,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, ErrNoTCPHandler
 	}
 	app := resp.Resources[0].GetApp()
-	appHandler, err := r.newTCPAppHandler(ctx, profileName, leafClusterName, app)
+	appHandler, err := r.newTCPAppHandler(ctx, log, profileName, leafClusterName, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,49 +283,88 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 }
 
 type tcpAppHandler struct {
-	profileName     string
-	leafClusterName string
-	lp              *alpnproxy.LocalProxy
+	log              *slog.Logger
+	appProvider      AppProvider
+	clock            clockwork.Clock
+	profileName      string
+	leafClusterName  string
+	app              types.Application
+	portToLocalProxy map[uint16]*alpnproxy.LocalProxy
+	// mu guards access to portToLocalProxy.
+	mu sync.Mutex
 }
 
 func (r *TCPAppResolver) newTCPAppHandler(
 	ctx context.Context,
+	log *slog.Logger,
 	profileName string,
 	leafClusterName string,
 	app types.Application,
 ) (*tcpAppHandler, error) {
-	dialOpts, err := r.appProvider.GetDialOptions(ctx, profileName)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting dial options for profile %q", profileName)
+	return &tcpAppHandler{
+		appProvider:      r.appProvider,
+		clock:            r.clock,
+		profileName:      profileName,
+		leafClusterName:  leafClusterName,
+		app:              app,
+		portToLocalProxy: make(map[uint16]*alpnproxy.LocalProxy),
+		log:              log.With(teleport.ComponentKey, "VNet.AppHandler"),
+	}, nil
+}
+
+// getOrInitializeLocalProxy returns a separate local proxy for each port for multi-port apps. For
+// single-port apps, it returns the same local proxy no matter the port.
+func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort uint16) (*alpnproxy.LocalProxy, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Connections to single-port apps need to go through a local proxy that has a cert with TargetPort
+	// set to 0. This ensures that the old behavior is kept for such apps, where the client can dial
+	// the public address of an app on any port and be routed to the port from the URI.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#vnet-with-single-port-apps
+	if len(h.app.GetTCPPorts()) == 0 {
+		localPort = 0
 	}
-	clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
+
+	lp, ok := h.portToLocalProxy[localPort]
+	if ok {
+		return lp, nil
+	}
+
+	dialOpts, err := h.appProvider.GetDialOptions(ctx, h.profileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting dial options for profile %q", h.profileName)
+	}
+	clusterClient, err := h.appProvider.GetCachedClient(ctx, h.profileName, h.leafClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	routeToApp := proto.RouteToApp{
-		Name:       app.GetName(),
-		PublicAddr: app.GetPublicAddr(),
+		Name:       h.app.GetName(),
+		PublicAddr: h.app.GetPublicAddr(),
 		// ClusterName must not be set to "" when targeting an app from a root cluster. Otherwise the
 		// connection routed through a local proxy will just get lost somewhere in the cluster (with no
 		// clear error being reported) and hang forever.
 		ClusterName: clusterClient.ClusterName(),
-		URI:         app.GetURI(),
+		URI:         h.app.GetURI(),
+		TargetPort:  uint32(localPort),
 	}
 
 	appCertIssuer := &appCertIssuer{
-		appProvider:     r.appProvider,
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
+		appProvider:     h.appProvider,
+		profileName:     h.profileName,
+		leafClusterName: h.leafClusterName,
 		routeToApp:      routeToApp,
 	}
-	certChecker := client.NewCertChecker(appCertIssuer, r.clock)
+	certChecker := client.NewCertChecker(appCertIssuer, h.clock)
 	middleware := &localProxyMiddleware{
 		certChecker:     certChecker,
-		appProvider:     r.appProvider,
+		appProvider:     h.appProvider,
 		routeToApp:      routeToApp,
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
+		profileName:     h.profileName,
+		leafClusterName: h.leafClusterName,
 	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
@@ -336,25 +376,28 @@ func (r *TCPAppResolver) newTCPAppHandler(
 		ALPNConnUpgradeRequired: dialOpts.ALPNConnUpgradeRequired,
 		Middleware:              middleware,
 		InsecureSkipVerify:      dialOpts.InsecureSkipVerify,
-		Clock:                   r.clock,
+		Clock:                   h.clock,
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(localProxyConfig)
+	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort)
+	newLP, err := alpnproxy.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating local proxy")
 	}
 
-	return &tcpAppHandler{
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
-		lp:              lp,
-	}, nil
+	h.portToLocalProxy[localPort] = newLP
+
+	return newLP, nil
 }
 
 // HandleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handler certificate renewal and re-logins.
-func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	return trace.Wrap(h.lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+	lp, err := h.getOrInitializeLocalProxy(ctx, localPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
 }
 
 // appCertIssuer implements [client.CertIssuer].
