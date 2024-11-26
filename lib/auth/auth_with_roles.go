@@ -967,7 +967,8 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 }
 
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	if err := a.actionNamespace(s.GetNamespace(), types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
+	// Note: UpsertNode doesn't allow any namespaces but "default".
+	if err := a.action(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.UpsertNode(ctx, s)
@@ -1874,7 +1875,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
 			// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
-			if err := a.actionNamespace(req.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+			if err := a.action(types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
 				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
@@ -5290,7 +5291,7 @@ func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Co
 	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
-		if err := a.actionNamespace(namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+		if err := a.action(types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
 			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
 			if err != nil {
 				return nil, trace.Wrap(err)
