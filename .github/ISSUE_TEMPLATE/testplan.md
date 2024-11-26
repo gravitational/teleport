@@ -1483,7 +1483,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## Azure Discovery
 
-[Azure Discovery docs](https://goteleport.com/docs/server-access/guides/azure-discovery/)
+[Azure Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/)
 - Verify Azure VM discovery
   - [ ] Only Azure VMs matching given Azure tags have the installer executed on them
   - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation

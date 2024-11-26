@@ -34,6 +34,9 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCert = "-x509.pem"
+	// FileExtTLSCertFuture is the suffix/extension of a file where a TLS cert
+	// is stored in the future (v17+).
+	FileExtTLSCertFuture = ".crt"
 	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
 	fileNameTLSCerts = "certs.pem"
 	// fileExtCert is the suffix/extension of a file where an SSH Cert is stored.
@@ -164,6 +167,14 @@ func UserKeyPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>-x509.pem
 func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtTLSCert)
+}
+
+// TLSCertPathFuture returns the path to where the users's TLS certificate
+// for the given proxy will be store in the future (v17+).
+//
+// <baseDir>/keys/<proxy>/<username>.crt
+func TLSCertPathFuture(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCertFuture)
 }
 
 // PublicKeyPath returns the path to the users's public key

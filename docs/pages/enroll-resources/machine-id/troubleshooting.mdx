@@ -3,6 +3,9 @@ title: Machine ID Troubleshooting Guide
 description: Troubleshooting common issues with Machine ID
 ---
 
+This page provides resolution steps for issues that you may come across when
+setting up Machine ID.
+
 ## A bot failed to renew a certificate due to a "generation mismatch"
 
 ### Symptoms
@@ -320,3 +323,18 @@ outputs:
 
 Failure to add the `disable_exec_plugin` flag will result in a warning being displayed:
 `Destination kubernetes_secret: identity-output must be a directory in exec plugin mode`.
+
+## Configuring `tbot` for split DNS proxies
+
+When you have deployed your Proxy Service in such a way that it is
+accessible via two different DNS names, e.g an internal and external address,
+you may find that a `tbot` that is configured to use one of these addresses may
+attempt to use the other address and that this may cause connections to fail.
+
+This is because `tbot` queries an auto-configuration endpoint exposed by the
+Proxy Service to determine the canonical address to use when connecting.
+
+To fix this, set a variable of `TBOT_USE_PROXY_ADDR=yes` in the environment of the
+`tbot` process. This configures `tbot` to prefer using the address that you have
+explicitly provided. This only functions correctly in cases where TLS
+routing/multiplexing is enabled for the Teleport cluster.

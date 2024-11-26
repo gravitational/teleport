@@ -70,7 +70,11 @@ export function AwsAccount() {
     eventState,
     resourceSpec,
     currentStep,
+    emitErrorEvent,
   } = useDiscover();
+
+  const [selectedAwsIntegration, setSelectedAwsIntegration] =
+    useState<Option>();
 
   // if true, requires an additional step where we fetch for
   // apps matching fetched aws integrations to determine
@@ -97,6 +101,18 @@ export function AwsAccount() {
       }
       return response;
     }, [clusterId, isAddingAwsApp])
+  );
+
+  const [healthCheckAttempt, healthCheckSelectedIntegration] = useAsync(
+    async () => {
+      await integrationService.pingAwsOidcIntegration(
+        {
+          clusterId,
+          integrationName: selectedAwsIntegration.value.name,
+        },
+        { roleArn: '' }
+      );
+    }
   );
 
   const integrationAccess = storeUser.getIntegrationsAccess();
@@ -137,9 +153,6 @@ export function AwsAccount() {
       appAccess.read;
   }
 
-  const [selectedAwsIntegration, setSelectedAwsIntegration] =
-    useState<Option>();
-
   useEffect(() => {
     if (hasAccess && attempt.status === '') {
       fetch();
@@ -152,7 +165,7 @@ export function AwsAccount() {
         <Heading />
         <Box maxWidth="700px">
           <Text mt={4}>
-            You don’t have the required permissions for integrating.
+            You don’t have the permissions required to set up this integration.
             <br />
             Ask your Teleport administrator to update your role with the
             following:
@@ -193,8 +206,14 @@ export function AwsAccount() {
     );
   }
 
-  function proceedWithExistingIntegration(validator: Validator) {
+  async function proceedWithExistingIntegration(validator: Validator) {
     if (!validator.validate()) {
+      return;
+    }
+
+    const [, err] = await healthCheckSelectedIntegration();
+    if (err) {
+      emitErrorEvent(`failed to health check selected aws integration: ${err}`);
       return;
     }
 
@@ -250,6 +269,12 @@ export function AwsAccount() {
   return (
     <Box maxWidth="700px">
       <Heading />
+      {healthCheckAttempt.status === 'error' && (
+        <Alert
+          kind="danger"
+          children={`Health check failed for the selected AWS integration: ${healthCheckAttempt.statusText}`}
+        />
+      )}
       <Box mb={3}>
         <Validation>
           {({ validator }) => (
@@ -291,7 +316,11 @@ export function AwsAccount() {
               <ActionButtons
                 onPrev={prevStep}
                 onProceed={() => proceedWithExistingIntegration(validator)}
-                disableProceed={!hasAwsIntegrations || !selectedAwsIntegration}
+                disableProceed={
+                  !hasAwsIntegrations ||
+                  !selectedAwsIntegration ||
+                  healthCheckAttempt.status === 'processing'
+                }
               />
             </>
           )}

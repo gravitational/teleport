@@ -85,7 +85,7 @@ You can run the Teleport Terraform provider from this shell.
 
 1. Create a `main.tf` file containing this minimal Terraform code:
 
-   ```var
+   ```hcl
    terraform {
      required_providers {
        teleport = {
@@ -159,8 +159,10 @@ Do not forget to obtain new temporary credentials every hour by re-running `eval
 - Follow [the user and role IaC guide](../managing-resources/user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
 - Consult the list of Terraform-supported
-  resources [in the Terraform reference](../../../reference/terraform-provider.mdx).
-- Once you have working Terraform code that configures your Teleport cluster, you might want to run it in the CI or
-  from a bastion instead of running it locally. To do this, please follow the dedicated guides:
+  resources [in the Terraform
+  reference](../../../reference/terraform-provider/terraform-provider.mdx).
+- Once you have working Terraform code that configures your Teleport cluster,
+  you might want to run it in the CI or from a bastion instead of running it
+  locally. To do this, please follow the dedicated guides:
   - [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
   - [Run the Terraform Provider on a dedicated server](./dedicated-server.mdx)

@@ -855,8 +855,9 @@ func TestPluginEntraIDValidation(t *testing.T) {
 		return &PluginSpecV1_EntraId{
 			EntraId: &PluginEntraIDSettings{
 				SyncSettings: &PluginEntraIDSyncSettings{
-					DefaultOwners:  []string{"admin"},
-					SsoConnectorId: "myconnector",
+					DefaultOwners:     []string{"admin"},
+					SsoConnectorId:    "myconnector",
+					CredentialsSource: EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
 				},
 			},
 		}

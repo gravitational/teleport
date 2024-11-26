@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -167,13 +168,13 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 
 // getConfigForClient clones and updates the server's tls config with the
 // appropriate client certificate authorities.
-func getConfigForClient(tlsConfig *tls.Config, ap authclient.CAGetter, log logrus.FieldLogger, clusterName string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(tlsConfig *tls.Config, ap authclient.CAGetter, log *slog.Logger, clusterName string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		tlsCopy := tlsConfig.Clone()
 
 		pool, err := getCertPool(info.Context(), ap, clusterName)
 		if err != nil {
-			log.WithError(err).Error("Failed to retrieve client CA pool.")
+			log.ErrorContext(info.Context(), "Failed to retrieve client CA pool.", "error", err)
 			return tlsCopy, nil
 		}
 

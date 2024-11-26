@@ -39,3 +39,28 @@ export function capitalizeFirstLetter(str: string) {
   }
   return str[0].toUpperCase() + str.slice(1);
 }
+
+/**
+ * Takes a list of words and converts it into a sentence.
+ * eg: given list ["apple", "banana", "carrot"], converts
+ * to string "apple, banana and carrot"
+ *
+ * Does not modify original list.
+ */
+export function listToSentence(listOfWords: string[]) {
+  if (!listOfWords || !listOfWords.length) {
+    return '';
+  }
+
+  if (listOfWords.length == 1) {
+    return listOfWords[0];
+  }
+
+  if (listOfWords.length == 2) {
+    return `${listOfWords[0]} and ${listOfWords[1]}`;
+  }
+
+  const copiedList = [...listOfWords];
+  const lastWord = copiedList.pop();
+  return `${copiedList.join(', ')} and ${lastWord}`;
+}

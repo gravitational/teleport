@@ -152,7 +152,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     <Box mt={4}>
       <Header>Select Resource To Add</Header>
       <HeaderSubtitle>
-        Teleport can integrate into most, if not all of your infrastructure.
+        Teleport can integrate into most, if not all, of your infrastructure.
         Search for what resource you want to add.
       </HeaderSubtitle>
       <Box height="90px" width="600px">

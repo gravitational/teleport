@@ -169,12 +169,14 @@ func Test_renderSSHConfig(t *testing.T) {
 			err := renderSSHConfig(
 				context.Background(),
 				utils.NewSlogLoggerForTests(),
-				&webclient.PingResponse{
-					ClusterName: mockClusterName,
-					Proxy: webclient.ProxySettings{
-						TLSRoutingEnabled: tc.TLSRouting,
-						SSH: webclient.SSHProxySettings{
-							PublicAddr: mockProxyAddr,
+				&proxyPingResponse{
+					PingResponse: &webclient.PingResponse{
+						ClusterName: mockClusterName,
+						Proxy: webclient.ProxySettings{
+							TLSRoutingEnabled: tc.TLSRouting,
+							SSH: webclient.SSHProxySettings{
+								PublicAddr: mockProxyAddr,
+							},
 						},
 					},
 				},

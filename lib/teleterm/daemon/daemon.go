@@ -30,9 +30,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -813,6 +815,41 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	return response, nil
 }
 
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
+	_, tc, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		kubeServiceClient, err := tc.NewKubernetesServiceClient(ctx, tc.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		req := &kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        req.GetResourceType(),
+			Limit:               req.GetLimit(),
+			StartKey:            req.GetNextKey(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
+			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
+			KubernetesCluster:   req.GetKubernetesCluster(),
+			KubernetesNamespace: req.GetKubernetesNamespace(),
+			TeleportCluster:     tc.SiteName,
+		}
+
+		resources, err = apiclient.GetKubernetesResourcesWithFilters(ctx, kubeServiceClient, req)
+		return trace.Wrap(err)
+	})
+
+	return resources, trace.Wrap(err)
+}
+
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -913,7 +950,12 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.Wrap(err)
 	}
 
-	return cluster.TransferFile(ctx, request, sendProgress)
+	clt, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return cluster.TransferFile(ctx, clt, request, sendProgress)
 }
 
 // CreateConnectMyComputerRole creates a role which allows access to nodes with the label

@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -334,6 +335,16 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
 	}
 
+	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.
+	// You can read more about the Authentication Modes here: https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
+	allowedAuthModes := []eksTypes.AuthenticationMode{
+		eksTypes.AuthenticationModeApi,
+		eksTypes.AuthenticationModeApiAndConfigMap,
+	}
+	if !slices.Contains(allowedAuthModes, eksCluster.AccessConfig.AuthenticationMode) {
+		return "", trace.BadParameter("can't enroll %q because its access config's authentication mode is %q, only %v are supported", clusterName, eksCluster.AccessConfig.AuthenticationMode, allowedAuthModes)
+	}
+
 	principalArn, err := getAccessEntryPrincipalArn(ctx, clt.GetCallerIdentity)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -541,12 +552,13 @@ func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Config
 	var err error
 	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
 	// effect, so we could get errors when trying to access cluster right after giving us permissions to do so.
+	// From real scenarios, we've seen this taking as long as 20 seconds.
 	for attempt := 1; attempt <= 3; attempt++ {
 		listCmd := action.NewList(actionConfig)
 		releases, err = listCmd.Run()
 		if err != nil {
 			select {
-			case <-time.After(time.Duration(attempt) * time.Second):
+			case <-time.After(time.Duration(attempt*5) * time.Second):
 			case <-ctx.Done():
 				return false, trace.NewAggregate(err, ctx.Err())
 			}

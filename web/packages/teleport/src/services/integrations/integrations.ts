@@ -57,6 +57,8 @@ import {
   ListAwsSubnetsResponse,
   Subnet,
   AwsDatabaseVpcsResponse,
+  AwsOidcPingResponse,
+  AwsOidcPingRequest,
 } from './types';
 
 export const integrationService = {
@@ -76,6 +78,16 @@ export const integrationService = {
 
   createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
     return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  },
+
+  pingAwsOidcIntegration(
+    urlParams: {
+      integrationName: string;
+      clusterId: string;
+    },
+    req: AwsOidcPingRequest
+  ): Promise<AwsOidcPingResponse> {
+    return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
   updateIntegration(
@@ -439,10 +451,10 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
-    subnets: aws?.rds?.subnets,
+    subnets: aws?.rds?.subnets ?? [],
     resourceId: aws?.rds?.resource_id,
     vpcId: aws?.rds?.vpc_id,
-    securityGroups: aws?.rds?.security_groups,
+    securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
   };

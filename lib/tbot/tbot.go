@@ -154,17 +154,32 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	addr, _ := b.cfg.Address()
-	resolver, err := reversetunnelclient.CachingResolver(
-		ctx,
-		reversetunnelclient.WebClientResolver(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: addr,
-			Insecure:  b.cfg.Insecure,
-		}),
-		nil /* clock */)
-	if err != nil {
-		return trace.Wrap(err)
+	addr, addrKind := b.cfg.Address()
+	var resolver reversetunnelclient.Resolver
+	if shouldUseProxyAddr() {
+		if addrKind != config.AddressKindProxy {
+			return trace.BadParameter("TBOT_USE_PROXY_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
+		}
+		// If the user has indicated they want tbot to prefer using the proxy
+		// address they have configured, we use a static resolver set to this
+		// address. We also assume that they have TLS routing/multiplexing
+		// enabled, since otherwise we'd need them to manually configure an
+		// an entry for each kind of address.
+		resolver = reversetunnelclient.StaticResolver(
+			addr, types.ProxyListenerMode_Multiplex,
+		)
+	} else {
+		resolver, err = reversetunnelclient.CachingResolver(
+			ctx,
+			reversetunnelclient.WebClientResolver(&webclient.Config{
+				Context:   ctx,
+				ProxyAddr: addr,
+				Insecure:  b.cfg.Insecure,
+			}),
+			nil /* clock */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create an error group to manage all the services lifetimes.
@@ -529,10 +544,11 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	switch _, addrKind := b.cfg.Address(); addrKind {
+	_, addrKind := b.cfg.Address()
+	switch addrKind {
 	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy-server, --auth-server or configuration",
 		)
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
@@ -704,10 +720,10 @@ type proxyPingCache struct {
 	log           *slog.Logger
 
 	mu          sync.RWMutex
-	cachedValue *webclient.PingResponse
+	cachedValue *proxyPingResponse
 }
 
-func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, error) {
+func (p *proxyPingCache) ping(ctx context.Context) (*proxyPingResponse, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.cachedValue != nil {
@@ -741,9 +757,48 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 		return nil, trace.Wrap(err)
 	}
 	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)
-	p.cachedValue = res
+	p.cachedValue = &proxyPingResponse{
+		PingResponse:        res,
+		configuredProxyAddr: p.botCfg.ProxyServer,
+	}
 
 	return p.cachedValue, nil
+}
+
+type proxyPingResponse struct {
+	*webclient.PingResponse
+	configuredProxyAddr string
+}
+
+// useProxyAddrEnv is an environment variable which can be set to
+// force `tbot` to prefer using the proxy address explicitly provided by the
+// user over the one fetched from the proxy ping. This is only intended to work
+// in cases where TLS routing is enabled, and is intended to support cases where
+// the Proxy is accessible from multiple addresses, and the one included in the
+// ProxyPing is incorrect.
+const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
+
+// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
+// variable is set to "yes". More generally, this indicates that the user wishes
+// for tbot to prefer using the proxy address that has been explicitly provided
+// by the user rather than the one fetched via a discovery process (e.g ping).
+func shouldUseProxyAddr() bool {
+	return os.Getenv(useProxyAddrEnv) == "yes"
+}
+
+// proxyWebAddr returns the address to use to connect to the proxy web port.
+// In TLS routing mode, this address should be used for most/all connections.
+// This function takes into account the TBOT_USE_PROXY_ADDR environment
+// variable, which can be used to force the use of the proxy address explicitly
+// provided by the user rather than use the one fetched from the proxy ping.
+func (p *proxyPingResponse) proxyWebAddr() (string, error) {
+	if shouldUseProxyAddr() {
+		if p.configuredProxyAddr == "" {
+			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
+		}
+		return p.configuredProxyAddr, nil
+	}
+	return p.Proxy.SSH.PublicAddr, nil
 }
 
 type alpnProxyConnUpgradeRequiredCache struct {

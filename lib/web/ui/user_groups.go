@@ -20,6 +20,7 @@ package ui
 
 import (
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // UserGroup describes a user group.
@@ -29,7 +30,7 @@ type UserGroup struct {
 	// Description is the description of the group.
 	Description string `json:"description"`
 	// Labels is the user group list of labels
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// FriendlyName is a friendly name for the user group.
 	FriendlyName string `json:"friendlyName,omitempty"`
 	// Applications is a list of associated applications.
@@ -48,7 +49,7 @@ type ApplicationAndFriendlyName struct {
 func MakeUserGroups(userGroups []types.UserGroup, userGroupsToApps map[string]types.Apps) ([]UserGroup, error) {
 	uiUserGroups := []UserGroup{}
 	for _, userGroup := range userGroups {
-		uiLabels := makeLabels(userGroup.GetStaticLabels())
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(userGroup.GetStaticLabels())
 
 		apps := userGroupsToApps[userGroup.GetName()]
 		appsAndFriendlyNames := make([]ApplicationAndFriendlyName, len(apps))

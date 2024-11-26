@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -726,7 +727,7 @@ func New(
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
-	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
+	uuid, err := hostid.ReadOrCreateFile(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1454,7 +1455,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	// Create host user.
 	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext)
 	if err != nil {
-		log.Infof("error while creating host users: %s", err)
+		log.Warnf("error while creating host users: %s", err)
 	}
 
 	// Indicate that the user was created by Teleport.
@@ -2346,8 +2347,18 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		return trace.Wrap(err)
 	}
 
-	// Set the src addr again since it may have been updated with a new port.
-	scx.SrcAddr = listener.Addr().String()
+	// If the client didn't request a specific port, the chosen port needs to
+	// be reported back.
+	srcHost, _, err := sshutils.SplitHostPort(scx.SrcAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, listenPort, err := sshutils.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
+
 	event := scx.GetPortForwardEvent()
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
 		s.Logger.WithError(err).Warn("Failed to emit audit event.")
@@ -2443,7 +2454,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 					Time: time.Now(),
 				},
 				UserMetadata:   ctx.Identity.GetUserMetadata(),
-				ServerMetadata: ctx.GetServerMetadata(),
+				ServerMetadata: ctx.GetServer().TargetMetadata(),
 				Error:          err.Error(),
 			})
 			return nil, trace.Wrap(err)

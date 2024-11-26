@@ -296,6 +296,9 @@ type IntegrationConfAzureOIDC struct {
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
 	AccessGraphEnabled bool
+
+	// SkipOIDCConfiguration is a flag indicating that OIDC configuration should be skipped.
+	SkipOIDCConfiguration bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -1162,11 +1165,15 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	if kmsConfig.Account == "" {
 		return trace.BadParameter("must set account in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
 	if kmsConfig.Region == "" {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
+	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+		AWSAccount:  kmsConfig.Account,
+		AWSRegion:   kmsConfig.Region,
+		MultiRegion: kmsConfig.MultiRegion,
+		Tags:        kmsConfig.Tags,
+	}
 	return nil
 }
 
@@ -1744,6 +1751,9 @@ kubernetes matchers are present`)
 				Regions:    regions,
 				AssumeRole: assumeRole,
 			})
+		}
+		if fc.Discovery.AccessGraph.PollInterval > 0 {
+			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}

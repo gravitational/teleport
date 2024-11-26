@@ -124,7 +124,7 @@ export function AutoEnrollment({
         }
       );
 
-      // Abort if there were no rds dbs for the selected region.
+      // Abort if there were no rds dbs for the selected region/vpc.
       if (fetchedDbs.length <= 0) {
         onFetchAttempt({ status: 'success' });
         setTableData({ ...data, fetchStatus: 'disabled' });

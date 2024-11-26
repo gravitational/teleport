@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -60,6 +62,8 @@ type TrustedCluster interface {
 	SetReverseTunnelAddress(string)
 	// CanChangeStateTo checks the TrustedCluster can transform into another.
 	CanChangeStateTo(TrustedCluster) error
+	// Clone returns a deep copy of the TrustedCluster.
+	Clone() TrustedCluster
 }
 
 // NewTrustedCluster is a convenience way to create a TrustedCluster resource.
@@ -257,6 +261,10 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	}
 
 	return nil
+}
+
+func (c *TrustedClusterV2) Clone() TrustedCluster {
+	return utils.CloneProtoMsg(c)
 }
 
 // String represents a human readable version of trusted cluster settings.

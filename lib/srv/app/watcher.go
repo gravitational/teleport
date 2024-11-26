@@ -40,7 +40,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		Log:                 s.legacyLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -50,12 +50,12 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			select {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				} else if s.c.OnReconcile != nil {
 					s.c.OnReconcile(s.getApps())
 				}
 			case <-ctx.Done():
-				s.log.Debug("Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done.")
 				return
 			}
 		}
@@ -67,14 +67,14 @@ func (s *Server) startReconciler(ctx context.Context) error {
 // registers/unregisters the proxied applications accordingly.
 func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
 	if len(s.c.ResourceMatchers) == 0 {
-		s.log.Debug("Not initializing application resource watcher.")
+		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
 		return nil, nil
 	}
-	s.log.Debug("Initializing application resource watcher.")
+	s.log.DebugContext(ctx, "Initializing application resource watcher.")
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			Log:       s.log,
+			Log:       s.legacyLog,
 			Client:    s.c.AccessPoint,
 		},
 	})
@@ -97,7 +97,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 					return
 				}
 			case <-ctx.Done():
-				s.log.Debug("Application resource watcher done.")
+				s.log.DebugContext(ctx, "Application resource watcher done.")
 				return
 			}
 		}
@@ -115,7 +115,10 @@ func (s *Server) guessPublicAddr(app types.Application) types.Application {
 	if err == nil {
 		appCopy.Spec.PublicAddr = pubAddr
 	} else {
-		s.log.WithError(err).Errorf("Unable to find public address for app %q, leaving empty.", app.GetName())
+		s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+			"app_name", app.GetName(),
+			"error", err,
+		)
 	}
 	return appCopy
 }

@@ -168,7 +168,11 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 />
               )}
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
+                const canAccess = hasAccess(ctx.getFeatureFlags());
+                if (!canAccess) {
+                  return;
+                }
                 const link = navigationItem.getLink(clusterId);
                 const currentPath = history.location.pathname;
                 const selected =

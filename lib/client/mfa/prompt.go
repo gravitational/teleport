@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -44,7 +43,8 @@ type WebauthnLoginFunc func(
 	opts *wancli.LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error)
 
-// PromptConfig contains common mfa prompt config options.
+// PromptConfig contains common mfa prompt config options shared by
+// different implementations of [mfa.Prompt].
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
@@ -64,9 +64,6 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-	// StdinFunc allows tests to override prompt.Stdin().
-	// If nil prompt.Stdin() is used.
-	StdinFunc func() prompt.StdinReader
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.

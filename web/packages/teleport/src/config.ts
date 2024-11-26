@@ -309,6 +309,8 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
@@ -938,6 +940,19 @@ const cfg = {
     });
   },
 
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsRdsDbListUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1270,7 +1285,7 @@ export interface UrlKubeResourcesParams {
   searchAsRoles?: 'yes' | '';
   kubeNamespace?: string;
   kubeCluster: string;
-  kind: KubeResourceKind;
+  kind: Omit<KubeResourceKind, '*'>;
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {
