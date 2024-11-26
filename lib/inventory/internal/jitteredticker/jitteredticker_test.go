@@ -53,6 +53,8 @@ func TestFixed(t *testing.T) {
 	defer ticker.Stop()
 
 	clock.BlockUntil(1)
+	// advance by more than the first interval but not enough to reach the
+	// second tick
 	clock.Advance(offset)
 
 	tick := <-ticker.Next()
@@ -63,8 +65,8 @@ func TestFixed(t *testing.T) {
 	clock.Advance(ivl)
 
 	tick = <-ticker.Next()
-	require.Equal(start.Add(first+ivl), tick)
 	ticker.Advance(tick)
+	require.Equal(start.Add(first+ivl), tick)
 
 	// difference in behavior compared to a [time.Ticker], but it's only really
 	// noticeable after lagging behind for at least two ticks and only when
@@ -74,12 +76,15 @@ func TestFixed(t *testing.T) {
 	clock.Advance(3 * ivl)
 
 	tick = <-ticker.Next()
-	require.Equal(start.Add(first+2*ivl), tick)
 	ticker.Advance(tick)
+	// this is the expected tick since the previous one that was received
+	require.Equal(start.Add(first+2*ivl), tick)
 
 	tick = <-ticker.Next()
-	require.Equal(start.Add(offset+4*ivl), tick)
 	ticker.Advance(tick)
+	// this is the tick (received immediately) corresponding to a whole interval
+	// since the wall time at which the ticker was advanced the last time
+	require.Equal(start.Add(offset+4*ivl), tick)
 }
 
 func TestJitter(t *testing.T) {
@@ -92,6 +97,8 @@ func TestJitter(t *testing.T) {
 	const first = time.Second
 	const ivl = time.Minute
 
+	// we test a variable jitter that alternates between the full interval and
+	// half of it, deterministically
 	var applyJitter bool
 	ticker := New(Params{
 		FirstInterval: first,
@@ -152,6 +159,7 @@ func TestVariable(t *testing.T) {
 		Step:        1,
 	})
 
+	// deterministic jitter, always half the actual time
 	ticker := New(Params{
 		FirstInterval:    first,
 		VariableInterval: ivl,
@@ -173,6 +181,8 @@ func TestVariable(t *testing.T) {
 	clock.BlockUntil(1)
 	clock.Advance(time.Minute)
 
+	// this is enough to saturate the VariableDuration, so we are going to hit
+	// the max duration every time
 	ivl.Add(100)
 
 	tick = <-ticker.Next()
