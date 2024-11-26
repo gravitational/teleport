@@ -20,7 +20,7 @@ the ports to the other parts.
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
+- [Teleport Architecture](https://goteleport.com/docs/reference/architecture/)
 - [Admin Guide](https://goteleport.com/docs/management/admin/)
 - [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
 
