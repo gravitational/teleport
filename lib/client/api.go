@@ -4257,8 +4257,17 @@ Future versions of tsh will fail when incompatible versions are detected.
 			versions.MinClient, versions.Client, versions.MinClient), nil
 	}
 
-	if !utils.MeetsMaxVersion(versions.Client, versions.Server) {
-		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(versions.Server)
+	clientMajorVersion, err := utils.MajorSemver(versions.Client)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	serverMajorVersion, err := utils.MajorSemver(versions.Server)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(serverMajorVersion)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
