@@ -3,46 +3,45 @@
 name: Nightly Release Run
 on:
   schedule:
-    - cron: "0 10 * * *" # At 1000 UTC every day (2am/3am PST/PDT)
+    - cron: "0 10 * * *"  # At 1000 UTC every day (2am/3am PST/PDT)
+    - cron: "30 10 * * *" # At 1030 UTC every day
+    - cron: "0 11 * * *"
+    - cron: "30 11 * * *"
 jobs:
   release:
     permissions:
       contents: read
       actions: write # Required to start the release workflow
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        branch:
-          - branch/v15
-          - branch/v16
-          - master
-          # The branch for the next release.
-          # As part of the preflight process this should be uncommented to prepare
-          # nightly builds for prereleases of a new release. Once the new version has
-          # fully released, this should be bumped to the next release and commented out.
-          - branch/v17
+    env:
+      BRANCH: >-
+        ${{
+          github.event.schedule == '0 10 * * *' && 'branch/v17' ||
+          github.event.schedule == '30 10 * * *' && 'branch/v16' ||
+          github.event.schedule == '0 11 * * *' && 'branch/v15' ||
+          'master'
+        }}
     steps:
-      - name: Checkout Teleport
+      - name: Checkout Teleport - ${{ env.BRANCH }}
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
           oss-teleport-repo: "gravitational/teleport"
-          oss-teleport-ref: ${{ matrix.branch }}
+          oss-teleport-ref: ${{ env.BRANCH }}
           edition: "oss"
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       # Get the VERSION defined in Makefile and add nightly prelease suffix
       # .outputs.version: The resulting full version to use for overriding default version.
-      - name: Generate Version
+      - name: Generate Version - ${{ env.BRANCH }}
         id: gen-version
         run: |
           MAKE_VERSION=$(make print-version)
           DATE="$(date '+%Y%m%d')"
           REF="$(git rev-parse --short HEAD)"
           echo "version=$MAKE_VERSION-nightly$DATE-1-$REF" >> "$GITHUB_OUTPUT"
-      - name: Release
+      - name: Release - ${{ env.BRANCH }}
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ matrix.branch }}
           VERSION: ${{ steps.gen-version.outputs.version }}
           SLACK_NOTIFY_CHANNEL: C0DF0TPMY # dev-teleport channel
         run: |
