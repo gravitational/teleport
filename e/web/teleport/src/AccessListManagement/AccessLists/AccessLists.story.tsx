@@ -44,7 +44,7 @@ export const ListUnlimited: StoryObj = {
         http.get(cfg.getAccessManagementListUrl(), () => {
           return new Response(
             JSON.stringify({
-              accessLists: mockAccessLists,
+              accessLists: mockAccessLists(),
             })
           );
         }),
@@ -67,7 +67,9 @@ export const ListLimitedAccessCta: StoryObj = {
     msw: {
       handlers: [
         http.get(cfg.getAccessManagementListUrl(), () => {
-          return new Response(JSON.stringify({ accessLists: mockAccessLists }));
+          return new Response(
+            JSON.stringify({ accessLists: mockAccessLists() })
+          );
         }),
       ],
     },
@@ -191,118 +193,120 @@ const Provider = props => {
   );
 };
 
-const mockAccessLists = [
-  {
-    metadata: { name: 'aaa' },
-    spec: {
-      title: 'Interns',
-      description: 'lorem ipsum description',
-      audit: { frequency: '', next_audit_date: new Date() },
-      grants: { roles: ['access', 'editor'] },
-      ownership_requires: { roles: [] },
-      owners: [],
-    },
-    membersCount: 0,
-  },
-  {
-    metadata: {
-      name: 'bbb',
-      labels: {
-        'okta/org': 'https://some-url',
+const mockAccessLists = () => {
+  return [
+    {
+      metadata: { name: 'aaa' },
+      spec: {
+        title: 'Interns',
+        description: 'lorem ipsum description',
+        audit: { frequency: '', next_audit_date: new Date() },
+        grants: { roles: ['access', 'editor'] },
+        ownership_requires: { roles: [] },
+        owners: [],
       },
     },
-    spec: {
-      title:
-        'Really long title to test ellipsis lorem ipsum dolores george washington',
-      description:
-        'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
-      audit: {},
-      grants: {
-        roles: [
-          'access',
-          'editor',
-          'admin',
-          'auditor',
-          'reviewer',
-          'foo',
-          'bar',
-        ],
+    {
+      metadata: {
+        name: 'bbb',
+        labels: {
+          'okta/org': 'https://some-url',
+        },
       },
-      ownership_requires: { roles: [] },
-      owners: [],
-    },
-    members: Array(243).fill({}),
-    membersCount: 243,
-  },
-  {
-    metadata: { name: 'ccc' },
-    spec: {
-      title: 'All Employees',
-      description: 'lorem ipsum some kind of generic description',
-      audit: { frequency: '', next_audit_date: addWeeks(new Date(), 2) },
-      grants: {
-        roles: ['access'],
-        traits: { drink: ['banana', 'carrot', 'apple'] },
+      spec: {
+        title:
+          'Really long title to test ellipsis lorem ipsum dolores george washington',
+        description:
+          'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
+        audit: {},
+        grants: {
+          roles: [
+            'access',
+            'editor',
+            'admin',
+            'auditor',
+            'reviewer',
+            'foo',
+            'bar',
+          ],
+        },
+        ownership_requires: { roles: [] },
+        owners: [],
       },
-      ownership_requires: { roles: [] },
-      owners: [],
+      members: Array(243).fill({}),
     },
-    members: Array(15).fill({}),
-    membersCount: 15,
-  },
-  {
-    metadata: {
-      name: 'ddd',
-      labels: {
-        'okta/org': 'https://some-url',
+    {
+      metadata: { name: 'ccc' },
+      spec: {
+        title: 'All Employees',
+        description: 'lorem ipsum some kind of generic description',
+        audit: { frequency: '', next_audit_date: addWeeks(new Date(), 2) },
+        grants: {
+          roles: ['access'],
+          traits: { drink: ['banana', 'carrot', 'apple'] },
+        },
+        ownership_requires: { roles: [] },
+        owners: [],
       },
+      members: Array(15).fill({}),
     },
-    spec: {
-      title: 'Design Team',
-      description: 'lorem ipsum some kind of generic description',
-      audit: {},
-      grants: { roles: ['design', 'ux', 'ui', 'llama'] },
-      ownership_requires: { roles: [] },
-      owners: [],
-    },
-    members: Array(1).fill({}),
-    membersCount: 1,
-  },
-  {
-    metadata: { name: 'eee' },
-    spec: {
-      title: 'Test empty description',
-      audit: {},
-      grants: { roles: ['test'] },
-      ownership_requires: { roles: [] },
-      owners: [],
-    },
-    members: Array(1).fill({}),
-    membersCount: 1,
-  },
-  {
-    metadata: {
-      name: 'fff',
-      labels: {
-        'okta/org': 'https://some-url',
+    {
+      metadata: {
+        name: 'ddd',
+        labels: {
+          'okta/org': 'https://some-url',
+        },
       },
-    },
-    spec: {
-      title: 'Kubernetes Access With a Long Name',
-      description:
-        'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
-      audit: { frequency: '', next_audit_date: addWeeks(new Date(), 1) },
-      grants: {
-        roles: [
-          'reallyreallyobnoxiouslonglabeltesting',
-          'reallyreallyobnoxiouslonglabeltesting',
-          'reallyreallyobnoxiouslonglabeltesting',
-        ],
+      spec: {
+        title: 'Design Team',
+        description: 'lorem ipsum some kind of generic description',
+        audit: {},
+        grants: { roles: ['design', 'ux', 'ui', 'llama'] },
+        ownership_requires: { roles: [] },
+        owners: [],
       },
-      ownership_requires: { roles: [] },
-      owners: [],
+      members: Array(1).fill({}),
     },
-    members: Array(20000).fill({}),
-    membersCount: 20000,
-  },
-];
+    {
+      metadata: { name: 'eee' },
+      spec: {
+        title: 'Test empty description',
+        audit: {},
+        grants: { roles: ['test'] },
+        ownership_requires: { roles: [] },
+        owners: [],
+      },
+      members: Array(1).fill({}),
+    },
+    {
+      metadata: {
+        name: 'fff',
+        labels: {
+          'okta/org': 'https://some-url',
+        },
+      },
+      spec: {
+        title: 'Kubernetes Access With a Long Name',
+        description:
+          'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
+        audit: { frequency: '', next_audit_date: addWeeks(new Date(), 1) },
+        grants: {
+          roles: [
+            'reallyreallyobnoxiouslonglabeltesting',
+            'reallyreallyobnoxiouslonglabeltesting',
+            'reallyreallyobnoxiouslonglabeltesting',
+          ],
+        },
+        ownership_requires: { roles: [] },
+        owners: [],
+      },
+      members: Array(20000).fill({}),
+    },
+  ].map((list, i) => {
+    return {
+      ...list,
+      membersCount: Math.max(list.members?.length || 0 - i + 1, 0),
+      memberListCount: i + 1,
+    };
+  });
+};

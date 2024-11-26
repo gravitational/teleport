@@ -10,6 +10,11 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
 
+import {
+  AccessListFilters,
+  AccessListSort,
+} from 'e-teleport/AccessListManagement/AccessListManagementContext';
+
 import type { Option } from 'shared/components/Select';
 import type { AllUserTraits, User } from 'teleport/services/user';
 import type { GroupBase, OptionProps, MultiValueProps } from 'react-select';
@@ -19,6 +24,7 @@ import type { useHistory } from 'react-router-dom';
 import type { Theme } from 'design/theme/themes/types';
 import type useAttempt from 'shared/hooks/useAttemptNext';
 import type { Role } from 'teleport/services/resources';
+import type { SortDir } from 'design/DataTable/types';
 
 // HybridUserOption
 //
@@ -99,6 +105,132 @@ export const updateAccessListsCache = <
   });
 
   return currentLists;
+};
+
+// Sorts Access Lists by the given field and direction.
+export const sortAccessLists = (
+  accessLists: AccessListWithModifiedGrants[],
+  sort: AccessListSort
+) => {
+  // JS sorts lists in-place; slicing seems to be required for React to re-render predictably.
+  return accessLists.slice().sort(sortAccessList(sort.fieldName, sort.dir));
+};
+
+// Returns a sort function for Access Lists based on the given field and direction.
+const sortAccessList =
+  (field: AccessListSort['fieldName'], dir: SortDir) =>
+  (a: AccessListWithModifiedGrants, b: AccessListWithModifiedGrants) => {
+    const aVal = a[field],
+      bVal = b[field];
+
+    // If fields are nullish, return either 1 or -1 based on direction so nullish values are always at the end.
+    if (aVal === undefined || aVal === null) {
+      return dir === 'ASC' ? 1 : -1;
+    }
+    if (bVal === undefined || bVal === null) {
+      return dir === 'ASC' ? -1 : 1;
+    }
+
+    // If fields match, use title as a tiebreaker.
+    return aVal === bVal && field !== 'title'
+      ? compareValues(a.title, b.title, dir)
+      : compareValues(aVal, bVal, dir);
+  };
+
+// Compares two values of any type, in ASC or DESC order, returning -1, 0, or 1.
+function compareValues<T>(a: T, b: T, dir: SortDir) {
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a.localeCompare(b) * (dir === 'ASC' ? 1 : -1);
+  }
+  return a === b ? 0 : dir === 'ASC' ? (a > b ? 1 : -1) : a < b ? 1 : -1;
+}
+
+// Filters Access Lists based on search and filter values.
+export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
+  accessLists,
+  searchValue,
+  filterValue,
+}: {
+  accessLists: T[];
+  searchValue?: string;
+  filterValue: AccessListFilters;
+}) => {
+  // Skip if no filters are set.
+  if (
+    !accessLists.length ||
+    (!searchValue?.trim() &&
+      !filterValue.source?.length &&
+      !filterValue.owners?.length &&
+      !filterValue.roles?.length)
+  ) {
+    return accessLists;
+  }
+
+  let filtered = accessLists;
+
+  if (searchValue?.trim()) {
+    // Split the search string into separate words
+    // so we can search for each category regardless of order.
+    const split = searchValue.split(' ').map(s => s.toLowerCase());
+
+    filtered = filtered.filter(r => {
+      const title = r.title.toLowerCase();
+      const titleMatch = split.every(s => title.includes(s));
+      if (titleMatch) {
+        return true;
+      }
+
+      const owners = r.owners
+        .map(o => o.name)
+        .join('')
+        .toLowerCase();
+      const ownerMatch = split.every(s => owners.includes(s));
+      if (ownerMatch) {
+        return true;
+      }
+
+      const description = r.description.toLowerCase();
+      const descriptionMatch = split.every(s => description.includes(s));
+      if (descriptionMatch) {
+        return true;
+      }
+
+      const strRoles = r.grants.roles.join('').toLowerCase();
+      const rolesMatch = split.every(s => strRoles.includes(s));
+      if (rolesMatch) {
+        return true;
+      }
+
+      if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
+        return true;
+      }
+    });
+  }
+
+  if (filterValue.source?.length) {
+    filtered = filtered.filter(acl => {
+      if (filterValue.source.includes('teleport') && !acl.isOkta) {
+        return true;
+      }
+      return filterValue.source.includes('okta') && acl.isOkta;
+    });
+  }
+
+  if (filterValue.owners?.length) {
+    filtered = filtered.filter(acl =>
+      filterValue.owners.some(ownerName =>
+        acl.owners.some(owner => owner.name === ownerName)
+      )
+    );
+  }
+
+  if (filterValue.roles?.length) {
+    filtered = filtered.filter(acl =>
+      filterValue.roles.some(role => acl.grants.roles.includes(role))
+    );
+  }
+
+  return filtered;
 };
 
 const ReactSelectAccessListOptionBadge = styled.span`

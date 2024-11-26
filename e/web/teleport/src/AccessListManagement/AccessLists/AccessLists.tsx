@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useHistory, useLocation } from 'react-router';
 import styled from 'styled-components';
@@ -7,12 +7,8 @@ import {
   Box,
   Button,
   ButtonBorder,
-  ButtonPrimary,
-  ButtonSecondary,
   Flex,
   Indicator,
-  Menu,
-  MenuItem,
   Text,
 } from 'design';
 import { Notification } from 'shared/components/Notification';
@@ -26,15 +22,10 @@ import {
   encodeUrlQueryParams,
 } from 'teleport/components/hooks/useUrlFiltering';
 import {
-  ArrowDown,
   ArrowRight,
-  ArrowUp,
-  ChevronDown,
   Magnifier,
   Refresh,
-  Rows,
   ShieldCheck,
-  SquaresFour,
   User,
   UserList,
 } from 'design/Icon';
@@ -42,17 +33,22 @@ import {
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import Table, { Cell } from 'design/DataTable';
 import { HoverTooltip } from 'shared/components/ToolTip';
-import { CheckboxInput } from 'design/Checkbox';
 import { format } from 'date-fns';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
+import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
 import cfg from 'e-teleport/config';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
-  AccessListFilters,
   AccessListSort,
   useAccessListManagementContext,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import { updateAccessListsCache } from 'e-teleport/AccessListManagement/Shared/Shared';
+import {
+  filterAccessLists,
+  sortAccessLists,
+  updateAccessListsCache,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import {
   AccessList,
   AccessListGrant,
@@ -67,8 +63,8 @@ import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/Featur
 import { EmptyState } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/EmptyState';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 
-import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import type { SortDir, TableColumn } from 'design/DataTable/types';
+import type { Dispatch, SetStateAction } from 'react';
+import type { TableColumn } from 'design/DataTable/types';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
@@ -195,31 +191,49 @@ function MainContent({
     setSort: setCurrentSort,
   } = useAccessListManagementContext();
 
-  // TODO(kiosion) The code around these filters really should be rewritten / abstracted out
-  const allOwnersParsed = useMemo(
-    () =>
-      allOwners
-        .filter(o => o.name !== ctx.storeUser.getUsername())
-        .map(o =>
-          o.membershipKind === AccessListMemberKind.List
-            ? {
-                ...o,
-                title: accessLists.find(l => l.id === o.name)?.title || o.name,
-              }
-            : {
-                ...o,
-                title: o.name,
-              }
-        ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allOwners, accessLists]
-  );
+  const currentUsername = ctx.storeUser.getUsername();
 
   const hasOktaLists = useMemo(
     () => accessLists.some(a => a.isOkta),
     [accessLists]
   );
-  const currentUsername = ctx.storeUser.getUsername();
+
+  const ownerFilterOptions = useMemo(
+    () =>
+      allOwners
+        .slice()
+        .sort((a, b) => {
+          if (a.membershipKind === b.membershipKind) {
+            return a.name.localeCompare(b.name);
+          }
+          return a.membershipKind === AccessListMemberKind.List ? 1 : -1;
+        })
+        .reduce<{ value: string; label: ReactNode }[]>((acc, owner, idx) => {
+          // Always include the current user as the first option.
+          if (idx === 0) {
+            acc.push({
+              value: currentUsername,
+              label: renderFilterOwner(`Me (${currentUsername})`),
+            });
+          }
+          // Skip if the owner == the current user.
+          if (owner.name === currentUsername) {
+            return acc;
+          }
+          acc.push({
+            value: owner.name,
+            label: renderFilterOwner(
+              owner.membershipKind === AccessListMemberKind.List
+                ? accessLists.find(l => l.id === owner.name)?.title ||
+                    owner.name
+                : owner.name,
+              owner.membershipKind
+            ),
+          });
+          return acc;
+        }, []),
+    [allOwners, accessLists, currentUsername]
+  );
 
   const filteredAccessLists = useMemo(
     () =>
@@ -227,10 +241,7 @@ function MainContent({
         accessLists,
         searchValue,
         filterValue,
-      }).map(a => ({
-        ...a,
-        auditNextDate: a.audit.nextDate,
-      })),
+      }).map(a => ({ ...a, auditNextDate: a.audit.nextDate })),
     [accessLists, searchValue, filterValue]
   );
 
@@ -280,6 +291,7 @@ function MainContent({
             setSearchValue(value);
           }}
           placeholder="Search by title, owner, or description"
+          initialValue={searchValue}
         />
       </Box>
       <Flex justifyContent="space-between" alignItems="center" mb={3}>
@@ -297,16 +309,7 @@ function MainContent({
             />
           )}
           <MultiselectMenu
-            options={[
-              {
-                value: currentUsername,
-                label: renderFilterOwner(`Me (${currentUsername})`),
-              },
-              ...allOwnersParsed.map(owner => ({
-                value: owner.name,
-                label: renderFilterOwner(owner.title, owner.membershipKind),
-              })),
-            ]}
+            options={ownerFilterOptions}
             onChange={owners => setFilterValue({ owners })}
             selected={filterValue.owners || []}
             label="Owner"
@@ -330,9 +333,9 @@ function MainContent({
             setCurrentViewMode={setViewMode}
           />
           <SortMenu
-            currentSort={currentSort}
+            current={currentSort}
             onChange={setCurrentSort}
-            sortFields={[
+            fields={[
               { value: 'title', label: 'Name' },
               { value: 'membersCount', label: 'Member Users' },
               { value: 'memberListCount', label: 'Member Access Lists' },
@@ -605,214 +608,6 @@ const renderFilterOwner = (
   );
 };
 
-const sortAccessLists = (
-  accessLists: AccessListWithModifiedGrants[],
-  sort: { fieldName: keyof AccessListWithModifiedGrants; dir: SortDir }
-) => {
-  // TODO(kiosion): JS sorts lists in-place; this seems to be required for React to re-render predictably.
-  return [...accessLists].sort((a, b) => {
-    const aVal = a[sort.fieldName];
-    const bVal = b[sort.fieldName];
-
-    if (aVal === bVal) {
-      // Fall back to sorting by title if the values are equal.
-      if (sort.fieldName !== 'title') {
-        return sort.dir === 'ASC'
-          ? a.title > b.title
-            ? 1
-            : -1
-          : a.title < b.title
-            ? 1
-            : -1;
-      }
-      return 0;
-    }
-
-    return sort.dir === 'ASC' ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
-  });
-};
-
-// filterAccessLists currently only searches through access lists
-// "title" and "description".
-const filterAccessLists = <T extends AccessListWithModifiedGrants>({
-  accessLists,
-  searchValue,
-  filterValue,
-}: {
-  accessLists: T[];
-  searchValue: string;
-  filterValue: AccessListFilters;
-}) => {
-  // Skip if no filters are set.
-  if (
-    !accessLists?.length ||
-    (!searchValue?.trim() &&
-      !filterValue.source?.length &&
-      !filterValue.owners?.length &&
-      !filterValue.roles?.length)
-  ) {
-    return accessLists;
-  }
-
-  let filtered = accessLists;
-
-  if (searchValue?.trim()) {
-    // Split the search string into separate words
-    // so we can search for each category regardless of order.
-    const split = searchValue.split(' ').map(s => s.toLowerCase());
-
-    filtered = filtered.filter(r => {
-      const title = r.title.toLowerCase();
-      const titleMatch = split.every(s => title.includes(s));
-      if (titleMatch) {
-        return true;
-      }
-
-      const owners = r.owners
-        .map(o => o.name)
-        .join('')
-        .toLowerCase();
-      const ownerMatch = split.every(s => owners.includes(s));
-      if (ownerMatch) {
-        return true;
-      }
-
-      const description = r.description.toLowerCase();
-      const descriptionMatch = split.every(s => description.includes(s));
-      if (descriptionMatch) {
-        return true;
-      }
-
-      const strRoles = r.grants.roles.join('').toLowerCase();
-      const rolesMatch = split.every(s => strRoles.includes(s));
-      if (rolesMatch) {
-        return true;
-      }
-
-      if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
-        return true;
-      }
-    });
-  }
-
-  if (filterValue.source?.length) {
-    filtered = filtered.filter(acl => {
-      if (filterValue.source.includes('teleport') && !acl.isOkta) {
-        return true;
-      }
-      return filterValue.source.includes('okta') && acl.isOkta;
-    });
-  }
-
-  if (filterValue.owners?.length) {
-    filtered = filtered.filter(acl =>
-      filterValue.owners.some(ownerName =>
-        acl.owners.some(owner => owner.name === ownerName)
-      )
-    );
-  }
-
-  if (filterValue.roles?.length) {
-    filtered = filtered.filter(acl =>
-      filterValue.roles.some(role => acl.grants.roles.includes(role))
-    );
-  }
-
-  return filtered;
-};
-
-// TODO(kiosion): Should be unified with the similar sort controls for UnifiedResources view.
-// Likewise for 'MultiselectMenu'. Both of these may be useful in other places and should be
-// moved to a shared location.
-const SortMenu = ({
-  currentSort,
-  sortFields,
-  onChange,
-}: {
-  currentSort: AccessListSort;
-  sortFields: { value: keyof AccessListWithModifiedGrants; label: string }[];
-  onChange: (value: AccessListSort) => void;
-}) => {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
-
-  const handleOpen = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) =>
-    setAnchorEl(event.currentTarget);
-
-  const handleClose = () => setAnchorEl(null);
-
-  const handleSelect = (value: (typeof sortFields)[number]['value']) => {
-    handleClose();
-    onChange({
-      fieldName: value,
-      dir: currentSort.dir,
-    });
-  };
-
-  return (
-    <Flex textAlign="center">
-      <HoverTooltip tipContent={'Sort by'}>
-        <ButtonBorder
-          css={`
-            border-right: none;
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[2]};
-          `}
-          textTransform="none"
-          size="small"
-          px={2}
-          onClick={handleOpen}
-        >
-          {sortFields.find(f => f.value === currentSort.fieldName)?.label}
-        </ButtonBorder>
-      </HoverTooltip>
-      <Menu
-        popoverCss={() => `margin-top: 36px; margin-left: 28px;`}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-      >
-        {sortFields.map(({ value, label }) => (
-          <MenuItem key={value} onClick={() => handleSelect(value)}>
-            {label}
-          </MenuItem>
-        ))}
-      </Menu>
-      <HoverTooltip tipContent={'Sort direction'}>
-        <ButtonBorder
-          onClick={() =>
-            onChange({
-              fieldName: currentSort.fieldName,
-              dir: currentSort.dir === 'ASC' ? 'DESC' : 'ASC',
-            })
-          }
-          textTransform="none"
-          css={`
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[2]};
-          `}
-          size="small"
-        >
-          {currentSort.dir === 'ASC' ? (
-            <ArrowUp size={12} />
-          ) : (
-            <ArrowDown size={12} />
-          )}
-        </ButtonBorder>
-      </HoverTooltip>
-    </Flex>
-  );
-};
-
 const NotificationContainer = styled.div`
   position: absolute;
   top: ${props => props.theme.space[2]}px;
@@ -891,11 +686,13 @@ const StyledInput = styled.input`
 const DebouncedSearchInput = ({
   onSearch,
   placeholder = '',
+  initialValue = '',
 }: {
   onSearch: (searchValue: string) => void;
   placeholder?: string;
+  initialValue?: string;
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialValue);
   const [debouncedTerm, setDebouncedTerm] = useState('');
   const isFirstRender = useRef(true);
 
@@ -961,292 +758,6 @@ const ReviewedNotifciationItem = ({
     />
   </NotificationContainer>
 );
-
-type MultiselectMenuProps<T> = {
-  options: {
-    value: T;
-    label: string | ReactNode;
-    disabled?: boolean;
-    disabledTooltip?: string;
-  }[];
-  selected: T[];
-  onChange: (selected: T[]) => void;
-  label: string | ReactNode;
-  tooltip: string;
-  buffered?: boolean;
-  showIndicator?: boolean;
-};
-
-const MultiselectMenuOptionsContainer = styled(Flex)`
-  position: sticky;
-  top: 0;
-  background-color: ${p => p.theme.colors.levels.elevated};
-  z-index: 1;
-`;
-
-export const MultiselectMenu = <T extends string>({
-  onChange,
-  options,
-  selected,
-  label,
-  tooltip,
-  buffered = false,
-  showIndicator = true,
-}: MultiselectMenuProps<T>) => {
-  // we have a separate state in the filter so we can select a few different things and then click "apply"
-  const [intSelected, setIntSelected] = useState<T[]>([]);
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
-  const handleOpen = (
-    event: React.MouseEvent<HTMLButtonElement, MouseEvent>
-  ) => {
-    setIntSelected(selected || []);
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  // if we cancel, we reset the options to what is already selected in the params
-  const cancelUpdate = () => {
-    setIntSelected(selected || []);
-    handleClose();
-  };
-
-  const handleSelect = (value: T) => {
-    let newSelected = [...(buffered ? intSelected : selected)];
-
-    if (newSelected.includes(value)) {
-      newSelected = newSelected.filter(v => v !== value);
-    } else {
-      newSelected.push(value);
-    }
-
-    (buffered ? setIntSelected : onChange)(newSelected);
-  };
-
-  const handleSelectAll = () => {
-    (buffered ? setIntSelected : onChange)(
-      options.filter(o => !o.disabled).map(o => o.value)
-    );
-  };
-
-  const handleClearAll = () => {
-    (buffered ? setIntSelected : onChange)([]);
-  };
-
-  const applyFilters = () => {
-    onChange(intSelected);
-    handleClose();
-  };
-
-  return (
-    <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={tooltip}>
-        <ButtonSecondary size="small" onClick={handleOpen}>
-          {label} {selected?.length > 0 ? `(${selected?.length})` : ''}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-          {selected?.length > 0 && showIndicator && <FiltersExistIndicator />}
-        </ButtonSecondary>
-      </HoverTooltip>
-      <Menu
-        popoverCss={() => `margin-top: 36px;`}
-        menuListCss={() => `overflow-y: scroll;`}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={cancelUpdate}
-      >
-        <MultiselectMenuOptionsContainer gap={2} p={2}>
-          <ButtonSecondary
-            size="small"
-            onClick={handleSelectAll}
-            textTransform="none"
-            css={`
-              background-color: transparent;
-            `}
-            px={2}
-          >
-            Select All
-          </ButtonSecondary>
-          <ButtonSecondary
-            size="small"
-            onClick={handleClearAll}
-            textTransform="none"
-            css={`
-              background-color: transparent;
-            `}
-            px={2}
-          >
-            Clear All
-          </ButtonSecondary>
-        </MultiselectMenuOptionsContainer>
-        {options.map(opt => {
-          const $checkbox = (
-            <>
-              <CheckboxInput
-                type="checkbox"
-                // @ts-expect-error assigning ReactNode to checkbox name field
-                name={opt.label}
-                disabled={opt.disabled}
-                onChange={() => {
-                  handleSelect(opt.value);
-                }}
-                id={opt.value}
-                checked={(buffered ? intSelected : selected)?.includes(
-                  opt.value
-                )}
-              />
-              <Text ml={2} fontWeight={300} fontSize={2}>
-                {opt.label}
-              </Text>
-            </>
-          );
-          return (
-            <MenuItem
-              disabled={opt.disabled}
-              px={2}
-              key={opt.value}
-              onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
-            >
-              {opt.disabled && opt.disabledTooltip ? (
-                <HoverTooltip tipContent={opt.disabledTooltip}>
-                  {$checkbox}
-                </HoverTooltip>
-              ) : (
-                $checkbox
-              )}
-            </MenuItem>
-          );
-        })}
-        {buffered && (
-          <Flex justifyContent="space-between" p={2} gap={2}>
-            <ButtonPrimary size="small" onClick={applyFilters}>
-              Apply Filters
-            </ButtonPrimary>
-            <ButtonSecondary
-              size="small"
-              css={`
-                background-color: transparent;
-              `}
-              onClick={cancelUpdate}
-            >
-              Cancel
-            </ButtonSecondary>
-          </Flex>
-        )}
-      </Menu>
-    </Flex>
-  );
-};
-
-const FiltersExistIndicator = styled.div`
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  height: 12px;
-  width: 12px;
-  background-color: ${p => p.theme.colors.brand};
-  border-radius: 50%;
-  display: inline-block;
-`;
-
-const ViewModeSwitch = ({
-  currentViewMode,
-  setCurrentViewMode,
-}: {
-  currentViewMode: ViewMode;
-  setCurrentViewMode: (viewMode: ViewMode) => void;
-}) => {
-  return (
-    <ViewModeSwitchContainer
-      aria-label="View Mode Switch"
-      aria-orientation="horizontal"
-      role="radiogroup"
-    >
-      <HoverTooltip tipContent="Card View">
-        <ViewModeSwitchButton
-          className={currentViewMode === ViewMode.CARD ? 'selected' : ''}
-          onClick={() => setCurrentViewMode(ViewMode.CARD)}
-          css={`
-            border-right: 1px solid
-              ${props => props.theme.colors.spotBackground[2]};
-            border-top-left-radius: 4px;
-            border-bottom-left-radius: 4px;
-          `}
-          role="radio"
-          aria-label="Card View"
-          aria-checked={currentViewMode === ViewMode.CARD}
-        >
-          <SquaresFour size="small" color="text.main" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-      <HoverTooltip tipContent="List View">
-        <ViewModeSwitchButton
-          className={currentViewMode === ViewMode.LIST ? 'selected' : ''}
-          onClick={() => setCurrentViewMode(ViewMode.LIST)}
-          css={`
-            border-top-right-radius: 4px;
-            border-bottom-right-radius: 4px;
-          `}
-          role="radio"
-          aria-label="List View"
-          aria-checked={currentViewMode === ViewMode.LIST}
-        >
-          <Rows size="small" color="text.main" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-    </ViewModeSwitchContainer>
-  );
-};
-
-const ViewModeSwitchContainer = styled.div`
-  height: 22px;
-  width: 48px;
-  border: ${p => p.theme.borders[1]} ${p => p.theme.colors.spotBackground[2]};
-  border-radius: ${p => p.theme.radii[2]}px;
-  display: flex;
-
-  .selected {
-    background-color: ${p => p.theme.colors.spotBackground[1]};
-
-    &:focus-visible,
-    &:hover {
-      background-color: ${p => p.theme.colors.spotBackground[1]};
-    }
-  }
-`;
-
-const ViewModeSwitchButton = styled.button`
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background-color: transparent;
-  outline: none;
-  transition: outline-width 150ms ease;
-
-  &:focus-visible {
-    outline: ${p => p.theme.borders[1]}
-      ${p => p.theme.colors.text.slightlyMuted};
-  }
-
-  &:focus-visible,
-  &:hover {
-    background-color: ${p => p.theme.colors.spotBackground[0]};
-  }
-`;
 
 const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
   <HoverTooltip tipContent="Refresh">
