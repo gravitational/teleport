@@ -3073,7 +3073,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
+	authMethods := slices.Clone(tc.Config.AuthMethods)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
@@ -3122,6 +3122,39 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	if len(authMethods) == 0 {
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
+
+	// KeyboardInteractive is supported to enable interactive pam authentication.
+	authMethods = append(authMethods, ssh.KeyboardInteractive(func(name, instruction string, questions []string, echos []bool) ([]string, error) {
+		if _, err := fmt.Fprintln(tc.Stdout, instruction); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var answers []string
+		for i, question := range questions {
+			// The prompt package appends a semicolon, and there is no way
+			// to disable it. To reduce duplicate characters, the question
+			// needs to be manually altered.
+			question = strings.TrimRight(question, ": ")
+
+			// The ssh package requires and enforces that questions and echos
+			// have the same length, so blindly indexing here is safe.
+			if echos[i] {
+				answer, err := prompt.Input(context.Background(), tc.Stdout, tc.stdin(), question)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				answers = append(answers, answer)
+			} else {
+				answer, err := prompt.Password(context.Background(), tc.Stdout, tc.stdin(), question)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				answers = append(answers, answer)
+			}
+		}
+
+		return answers, nil
+	}))
 
 	return &clientConfig{
 		ClientConfig: &ssh.ClientConfig{
