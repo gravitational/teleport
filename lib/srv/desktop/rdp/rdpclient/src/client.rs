@@ -528,7 +528,7 @@ impl Client {
         debug!("DisplayControlClient channel opened");
         // We've been notified that the DisplayControl dvc channel has been opened:
         let mut pending_resize =
-            Self::resize_manager_lock(pending_resize).map_err(|e| ClientError::from(e))?;
+            Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
         if let Some((width, height)) = pending_resize {
             // If there was a resize pending, perform it now.

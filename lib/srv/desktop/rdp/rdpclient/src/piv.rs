@@ -165,7 +165,7 @@ impl<const S: usize> Card<S> {
             return Ok(Response::new(Status::NotFound));
         }
         match request_tlv.value() {
-            Value::Primitive(tag) => match to_hex(&tag).as_str() {
+            Value::Primitive(tag) => match to_hex(tag).as_str() {
                 // Card Holder Unique Identifier.
                 "5FC102" => Ok(Response::with_data(Status::Success, self.chuid.clone())),
                 // X.509 Certificate for PIV Authentication

@@ -25,7 +25,7 @@ use crate::{
     cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
     client::ClientHandle, CGOErrCode, CgoHandle,
 };
-use ironrdp_core::{cast_length, function, EncodeError};
+use ironrdp_core::{cast_length, EncodeError};
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_rdpdr::pdu::{
