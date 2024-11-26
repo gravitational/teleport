@@ -24,6 +24,7 @@ module.exports = {
       jsx: true,
       experimentalObjectRestSpread: true,
     },
+    project: './tsconfig.json',
   },
   env: {
     es6: true,
@@ -34,7 +35,7 @@ module.exports = {
     expect: true,
     jest: true,
   },
-  ignorePatterns: ['**/dist/**'],
+  ignorePatterns: ['**/dist/**', '**/*.mts'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
@@ -65,7 +66,7 @@ module.exports = {
         'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
       },
     },
-    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot of
+    // Allow `require` imports in .js files, as migrating our project to ESM modules requires a lot of
     // changes.
     {
       files: ['**/*.js'],
@@ -73,7 +74,26 @@ module.exports = {
         '@typescript-eslint/no-require-imports': 'warn',
       },
     },
+    {
+      files: [
+        './web/packages/design/src/**/*.{ts,js,tsx,jsx}',
+        './web/packages/design/@types/**/*.{ts,js}',
+      ],
+      parserOptions: {
+        project: './web/packages/design/tsconfig.json',
+      },
+    },
+    {
+      files: ['./web/packages/build/**/*.{ts,js}'],
+      parserOptions: {
+        project: undefined,
+      },
+    },
   ],
+  // Severity should be one of the following:
+  // "off" or 0 - turn the rule off
+  // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
+  // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
   rules: {
     'import/order': [
       'error',
@@ -107,10 +127,13 @@ module.exports = {
       { allowInterfaces: 'with-single-extends' },
     ],
 
-    // Severity should be one of the following:
-    // "off" or 0 - turn the rule off
-    // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
-    // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
+    '@typescript-eslint/no-non-null-asserted-optional-chain': 2,
+    '@typescript-eslint/no-import-type-side-effects': 2, // Disallow type imports that transpile to side-effect imports
+    '@typescript-eslint/prefer-find': 2, // Prefer Array.prototype.find() over Array.prototype.filter()[0]
+    '@typescript-eslint/no-array-delete': 2, // Disallow delete op on array elements
+    '@typescript-eslint/no-implied-eval': 2, // Disallow implied evals (e.g. passing strings to setTimeout)
+    '@typescript-eslint/restrict-plus-operands': 2, // Require operands of the + operator to be numbers or strings
+    '@typescript-eslint/no-wrapper-object-types': 2, // Prefer using literal types over built-in primitive class wrappers
 
     // <TODO> Enable these rules after fixing all existing issues
     '@typescript-eslint/no-use-before-define': 0,

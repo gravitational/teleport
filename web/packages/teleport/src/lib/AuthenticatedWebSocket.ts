@@ -130,7 +130,8 @@ export class AuthenticatedWebSocket extends WebSocket {
     if (!this.authenticated) {
       // This should be unreachable, but just in case.
       this.triggerError(
-        'Cannot send data before authentication is complete. Data: ' + data
+        'Cannot send data before authentication is complete. Data: ' +
+          String(data)
       );
       return;
     }

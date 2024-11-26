@@ -56,7 +56,7 @@ export function getFirstRouteForCategory(
 ) {
   const firstRoute = features
     .filter(feature => feature.category === category)
-    .filter(feature => Boolean(feature.route))[0];
+    .find(feature => Boolean(feature.route));
 
   return (
     firstRoute?.navigationItem?.getLink(cfg.proxyCluster) || cfg.routes.support
