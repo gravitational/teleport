@@ -253,7 +253,7 @@ func collectAWSOIDCAutoDiscoverStats(
 				continue
 			}
 
-			if matchers := matchersWithIntegration(dc, types.AWSMatcherEC2, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, integration.GetName()); matchers != 0 {
 				ret.AWSEC2.RulesCount = ret.AWSEC2.RulesCount + matchers
 				ret.AWSEC2.DiscoverLastSync = lastSync(ret.AWSEC2.DiscoverLastSync, dc.Status.LastSyncTime)
 				ret.AWSEC2.ResourcesFound = ret.AWSEC2.ResourcesFound + int(discoveredResources.AwsEc2.Found)
@@ -261,7 +261,7 @@ func collectAWSOIDCAutoDiscoverStats(
 				ret.AWSEC2.ResourcesEnrollmentFailed = ret.AWSEC2.ResourcesEnrollmentFailed + int(discoveredResources.AwsEc2.Failed)
 			}
 
-			if matchers := matchersWithIntegration(dc, types.AWSMatcherRDS, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, integration.GetName()); matchers != 0 {
 				ret.AWSRDS.RulesCount = ret.AWSRDS.RulesCount + matchers
 				ret.AWSRDS.DiscoverLastSync = lastSync(ret.AWSRDS.DiscoverLastSync, dc.Status.LastSyncTime)
 				ret.AWSRDS.ResourcesFound = ret.AWSRDS.ResourcesFound + int(discoveredResources.AwsRds.Found)
@@ -269,7 +269,7 @@ func collectAWSOIDCAutoDiscoverStats(
 				ret.AWSRDS.ResourcesEnrollmentFailed = ret.AWSRDS.ResourcesEnrollmentFailed + int(discoveredResources.AwsRds.Failed)
 			}
 
-			if matchers := matchersWithIntegration(dc, types.AWSMatcherEKS, integration.GetName()); matchers != 0 {
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, integration.GetName()); matchers != 0 {
 				ret.AWSEKS.RulesCount = ret.AWSEKS.RulesCount + matchers
 				ret.AWSEKS.DiscoverLastSync = lastSync(ret.AWSEKS.DiscoverLastSync, dc.Status.LastSyncTime)
 				ret.AWSEKS.ResourcesFound = ret.AWSEKS.ResourcesFound + int(discoveredResources.AwsEks.Found)
@@ -302,7 +302,10 @@ func lastSync(current *time.Time, new time.Time) *time.Time {
 	return current
 }
 
-func matchersWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType string, integration string) int {
+// rulesWithIntegration returns the number of Rules for a given integration and matcher type in the DiscoveryConfig.
+// A Rule is similar to a DiscoveryConfig's Matcher, eg DiscoveryConfig.Spec.AWS.[<Matcher>], however, a Rule has a single region.
+// This means that the number of Rules for a given Matcher is equal to the number of regions on that Matcher.
+func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType string, integration string) int {
 	ret := 0
 
 	for _, matcher := range dc.Spec.AWS {
