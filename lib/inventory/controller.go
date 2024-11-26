@@ -132,7 +132,6 @@ const instanceHBStepSize = 1024
 type controllerOptions struct {
 	serverKeepAlive    time.Duration
 	instanceHBInterval time.Duration
-	timeReconciliation time.Duration
 	testEvents         chan testEvent
 	maxKeepAliveErrs   int
 	authID             string
@@ -151,10 +150,6 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.instanceHBInterval == 0 {
 		options.instanceHBInterval = apidefaults.MinInstanceHeartbeatInterval()
-	}
-
-	if options.timeReconciliation == 0 {
-		options.timeReconciliation = baseKeepAlive
 	}
 
 	if options.maxKeepAliveErrs == 0 {
@@ -218,12 +213,6 @@ func withInstanceHBInterval(d time.Duration) ControllerOption {
 	}
 }
 
-func withTimeReconciliationInterval(d time.Duration) ControllerOption {
-	return func(opts *controllerOptions) {
-		opts.timeReconciliation = d
-	}
-}
-
 func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.testEvents = ch
@@ -248,7 +237,6 @@ type Controller struct {
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
-	timeReconciliationInterval time.Duration
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
 	maxKeepAliveErrs           int
@@ -295,7 +283,6 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
-		timeReconciliationInterval: options.timeReconciliation,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
 		maxKeepAliveErrs:           options.maxKeepAliveErrs,
@@ -321,17 +308,19 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
+	firstDuration := retryutils.FullJitter(c.instanceHBVariableDuration.Duration())
 	ticker := interval.NewMulti(
 		c.clock,
 		interval.SubInterval[intervalKey]{
 			Key:              instanceHeartbeatKey,
 			VariableDuration: c.instanceHBVariableDuration,
-			FirstDuration:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
+			FirstDuration:    firstDuration,
 			Jitter:           retryutils.SeventhJitter,
 		}, interval.SubInterval[intervalKey]{
-			Key:      instanceTimeReconciliation,
-			Duration: c.timeReconciliationInterval,
-			Jitter:   retryutils.SeventhJitter,
+			Key:              instanceTimeReconciliation,
+			VariableDuration: c.instanceHBVariableDuration,
+			FirstDuration:    firstDuration / 2,
+			Jitter:           retryutils.SeventhJitter,
 		})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)

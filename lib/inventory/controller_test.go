@@ -846,6 +846,17 @@ func TestInstanceHeartbeat(t *testing.T) {
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
 
+	// Launch goroutine to consume downstream request and don't block control steam handler.
+	go func() {
+		for {
+			select {
+			case <-downstream.Recv():
+			case <-downstream.Done():
+				return
+			}
+		}
+	}()
+
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
@@ -1456,7 +1467,6 @@ func TestTimeReconciliation(t *testing.T) {
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withInstanceHBInterval(time.Millisecond*200),
-		withTimeReconciliationInterval(time.Millisecond*300),
 		withTestEventsChannel(events),
 		WithClock(clock),
 	)
@@ -1488,7 +1498,9 @@ func TestTimeReconciliation(t *testing.T) {
 				})
 				return
 			case <-downstream.Done():
+				return
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()
