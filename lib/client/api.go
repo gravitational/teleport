@@ -4273,20 +4273,6 @@ Future versions of tsh will fail when incompatible versions are detected.
 			serverVersionWithWildcards, versions.Client, serverVersionWithWildcards), nil
 	}
 
-	// Recent `tsh mfa` changes require at least Teleport v15.
-	const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-	if !utils.MeetsMinVersion(versions.Server, minServerVersion) {
-		return fmt.Sprintf(`
-WARNING
-Detected incompatible client and server versions.
-Minimum server version supported by tsh is %v but your server is using %v.
-Please use a tsh version that matches your server.
-You may use the --skip-version-check flag to bypass this check.
-
-`,
-			minServerVersion, versions.Server), nil
-	}
-
 	return "", nil
 }
 
