@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -254,27 +255,18 @@ func collectAWSOIDCAutoDiscoverStats(
 			}
 
 			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, integration.GetName()); matchers != 0 {
-				ret.AWSEC2.RulesCount = ret.AWSEC2.RulesCount + matchers
-				ret.AWSEC2.DiscoverLastSync = lastSync(ret.AWSEC2.DiscoverLastSync, dc.Status.LastSyncTime)
-				ret.AWSEC2.ResourcesFound = ret.AWSEC2.ResourcesFound + int(discoveredResources.AwsEc2.Found)
-				ret.AWSEC2.ResourcesEnrollmentSuccess = ret.AWSEC2.ResourcesEnrollmentSuccess + int(discoveredResources.AwsEc2.Enrolled)
-				ret.AWSEC2.ResourcesEnrollmentFailed = ret.AWSEC2.ResourcesEnrollmentFailed + int(discoveredResources.AwsEc2.Failed)
+				ret.AWSEC2.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSEC2, dc.Status.LastSyncTime, discoveredResources.AwsEc2)
 			}
 
 			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, integration.GetName()); matchers != 0 {
-				ret.AWSRDS.RulesCount = ret.AWSRDS.RulesCount + matchers
-				ret.AWSRDS.DiscoverLastSync = lastSync(ret.AWSRDS.DiscoverLastSync, dc.Status.LastSyncTime)
-				ret.AWSRDS.ResourcesFound = ret.AWSRDS.ResourcesFound + int(discoveredResources.AwsRds.Found)
-				ret.AWSRDS.ResourcesEnrollmentSuccess = ret.AWSRDS.ResourcesEnrollmentSuccess + int(discoveredResources.AwsRds.Enrolled)
-				ret.AWSRDS.ResourcesEnrollmentFailed = ret.AWSRDS.ResourcesEnrollmentFailed + int(discoveredResources.AwsRds.Failed)
+				ret.AWSRDS.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSRDS, dc.Status.LastSyncTime, discoveredResources.AwsRds)
 			}
 
 			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, integration.GetName()); matchers != 0 {
-				ret.AWSEKS.RulesCount = ret.AWSEKS.RulesCount + matchers
-				ret.AWSEKS.DiscoverLastSync = lastSync(ret.AWSEKS.DiscoverLastSync, dc.Status.LastSyncTime)
-				ret.AWSEKS.ResourcesFound = ret.AWSEKS.ResourcesFound + int(discoveredResources.AwsEks.Found)
-				ret.AWSEKS.ResourcesEnrollmentSuccess = ret.AWSEKS.ResourcesEnrollmentSuccess + int(discoveredResources.AwsEks.Enrolled)
-				ret.AWSEKS.ResourcesEnrollmentFailed = ret.AWSEKS.ResourcesEnrollmentFailed + int(discoveredResources.AwsEks.Failed)
+				ret.AWSEKS.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSEKS, dc.Status.LastSyncTime, discoveredResources.AwsEks)
 			}
 		}
 
@@ -288,6 +280,13 @@ func collectAWSOIDCAutoDiscoverStats(
 	ret.AWSRDS.ECSDatabaseServiceCount = 0
 
 	return ret, nil
+}
+
+func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
+	in.ResourcesFound += int(new.Found)
+	in.ResourcesEnrollmentSuccess += int(new.Enrolled)
+	in.ResourcesEnrollmentFailed += int(new.Failed)
 }
 
 func lastSync(current *time.Time, new time.Time) *time.Time {
