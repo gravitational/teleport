@@ -19,8 +19,9 @@ package cache
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (c *Cache) GetPluginStaticCredentials(ctx context.Context, name string) (types.PluginStaticCredentials, error) {
