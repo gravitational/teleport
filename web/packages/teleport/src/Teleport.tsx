@@ -46,6 +46,7 @@ import { Player } from './Player';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 
 import { HeadlessRequest } from './HeadlessRequest';
+import { MFAContextProvider } from './MFAContext/MFAContext';
 
 import { Main } from './Main';
 
@@ -92,13 +93,15 @@ const Teleport: React.FC<Props> = props => {
                   <Authenticated>
                     <UserContextProvider>
                       <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
+                        <MFAContextProvider>
+                          <Switch>
+                            <Route
+                              path={cfg.routes.appLauncher}
+                              component={AppLauncher}
+                            />
+                            <Route>{createPrivateRoutes()}</Route>
+                          </Switch>
+                        </MFAContextProvider>
                       </TeleportContextProvider>
                     </UserContextProvider>
                   </Authenticated>

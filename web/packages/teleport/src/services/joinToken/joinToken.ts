@@ -18,6 +18,7 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import { MFAContextValue } from 'teleport/MFAContext/MFAContext';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
 
@@ -70,8 +71,11 @@ class JoinTokenService {
     return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
   }
 
-  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
-    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
+  fetchJoinTokens(
+    api2: MFAContextValue,
+    signal: AbortSignal = null
+  ): Promise<{ items: JoinToken[] }> {
+    return api2.get(cfg.getJoinTokensUrl(), signal).then(resp => {
       return {
         items: resp.items?.map(makeJoinToken) || [],
       };
