@@ -6092,7 +6092,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -6140,7 +6140,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -6188,7 +6188,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -9708,7 +9708,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] received a [200] from a [GET /api/v1/namespaces/teletest/pods/test-pod] request to kubernetes cluster [gke_teleport-a]
+          User [alex] received a [200] from a [GET /api/v1/namespaces/teletest/pods/test-pod] request to Kubernetes cluster [gke_teleport-a]
         </td>
         <td
           style="min-width: 120px;"
@@ -9864,7 +9864,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] executed a command on kubernetes cluster [clusterOne]
+          User [alex] executed a command on Kubernetes cluster [clusterOne]
         </td>
         <td
           style="min-width: 120px;"
