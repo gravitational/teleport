@@ -489,10 +489,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					return
 				}
 			case instanceTimeReconciliation:
-				if err := c.timeReconciliation(handle, tick.Time); err != nil {
+				if err := c.handlePingRequest(handle, pingRequest{
+					id:   rand.Uint64(),
+					rspC: make(chan pingResponse, 1),
+				}); err != nil {
 					handle.CloseWithError(err)
 					return
 				}
+				c.testEvent(timeReconciliationOk)
 			default:
 				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
 			}
@@ -509,33 +513,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
-}
-
-func (c *Controller) timeReconciliation(handle *upstreamHandle, now time.Time) error {
-	id := rand.Uint64()
-	if err := handle.Send(c.closeContext, proto.DownstreamInventoryPing{ID: id}); err != nil {
-		return trace.Wrap(err)
-	}
-	rspC := make(chan pingResponse, 1)
-	handle.pings[id] = pendingPing{
-		start: now,
-		rspC:  rspC,
-	}
-	tracker := &handle.stateTracker
-	go func() {
-		select {
-		case <-c.closeContext.Done():
-			return
-		case pong := <-rspC:
-			tracker.mu.Lock()
-			pong.controllerClock = now
-			tracker.pingResponse = pong
-			tracker.mu.Unlock()
-		}
-		c.testEvent(timeReconciliationOk)
-	}()
-
-	return nil
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -598,10 +575,17 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		log.Warnf("Unexpected upstream pong from server %q (id=%d).", handle.Hello().ServerID, msg.ID)
 		return
 	}
-	pending.rspC <- pingResponse{
-		reqDuration: c.clock.Since(pending.start),
-		systemClock: msg.SystemClock,
+	pong := pingResponse{
+		reqDuration:     c.clock.Since(pending.start),
+		systemClock:     msg.SystemClock,
+		controllerClock: c.clock.Now(),
 	}
+
+	handle.stateTracker.mu.Lock()
+	handle.stateTracker.pingResponse = pong
+	handle.stateTracker.mu.Unlock()
+
+	pending.rspC <- pong
 	delete(handle.pings, msg.ID)
 }
 
