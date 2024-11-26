@@ -161,6 +161,11 @@ spec:
                     description: State could be one of "init" or "in_progress".
                     type: string
                 type: object
+              use_pam_auth:
+                description: UsePAMAuth specifies if this server is configured to
+                  use interactive PAM authentication modules. Only applies to OpenSSH
+                  servers.
+                type: boolean
               use_tunnel:
                 description: UseTunnel indicates that connections to this server should
                   occur over a reverse tunnel.

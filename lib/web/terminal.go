@@ -49,6 +49,8 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -514,6 +516,31 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	clientConfig.Tracer = t.tracer
 	clientConfig.SSHDialTimeout = t.sshDialTimeout
 
+	clientConfig.AuthMethods = append(clientConfig.AuthMethods,
+		// KeyboardInteractive is supported to enable interactive pam authentication.
+		ssh.KeyboardInteractive(func(name, instruction string, questions []string, echos []bool) ([]string, error) {
+			replacer := strings.NewReplacer("\n", "\r\n")
+			if _, err := fmt.Fprintln(stream, replacer.Replace(instruction)); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			r := keyboardInteractiveReader{r: stream}
+			var answers []string
+			for _, question := range questions {
+				question = strings.TrimRight(question, ": ") + "\n"
+				// TODO(tross) honor the echo associated with the question.
+				// [prompt.Password] only works with TTYs and will return
+				// [prompt.ErrNotTerminal] if used here.
+				answer, err := prompt.Input(context.Background(), stream, prompt.NewContextReader(r), replacer.Replace(question))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				answers = append(answers, answer)
+			}
+
+			return answers, nil
+		}))
+
 	if len(t.interactiveCommand) > 0 {
 		clientConfig.InteractiveCommand = true
 	}
@@ -544,6 +571,31 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	}
 
 	return tc, nil
+}
+
+// keyboardInteractiveReader is an [io.Reader] that reads an
+// entire line from [terminal.Stream]. This is meant to be used
+// for prompts in an [ssh.KeyboardInteractiveCallback] that
+// expect users to enter input terminated by a carriage return.
+type keyboardInteractiveReader struct {
+	r *terminal.Stream
+}
+
+func (s keyboardInteractiveReader) Read(p []byte) (int, error) {
+	read := 0
+	for {
+		n, err := s.r.Read(p[read:])
+		read += n
+		if err != nil {
+			return read, err
+		}
+
+		if p[read-1] == '\r' {
+			break
+		}
+	}
+
+	return read, nil
 }
 
 // issueSessionMFACerts performs the mfa ceremony to retrieve new certs that can be

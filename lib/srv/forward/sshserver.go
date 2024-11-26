@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -543,28 +544,53 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 }
 
 func (s *Server) Serve() {
-	var (
-		succeeded bool
-		config    = &ssh.ServerConfig{}
-	)
-
-	// Configure callback for user certificate authentication.
-	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
-
-	// Set host certificate the in-memory server will present to clients.
-	config.AddHostKey(s.hostCertificate)
-
-	// Set the ciphers, KEX, and MACs that the client will send to the target
-	// server in its SSH_MSG_KEXINIT.
-	config.Ciphers = s.ciphers
-	config.KeyExchanges = s.kexAlgorithms
-	config.MACs = s.macAlgorithms
+	var succeeded bool
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.log.Errorf("Unable to fetch cluster config: %v.", err)
 		return
 	}
+
+	ctx := context.Background()
+
+	var remoteClient atomic.Pointer[tracessh.Client]
+	config := &ssh.ServerConfig{
+		Config: ssh.Config{
+			// Set the ciphers, KEX, and MACs that the client will send to the target
+			// server in its SSH_MSG_KEXINIT.
+			Ciphers:      s.ciphers,
+			KeyExchanges: s.kexAlgorithms,
+			MACs:         s.macAlgorithms,
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			perms, err := s.authHandlers.UserKeyAuth(conn, key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if s.targetServer == nil || !s.targetServer.UsePAMAuth() {
+				return perms, nil
+			}
+
+			return nil, &ssh.PartialSuccessError{
+				Next: ssh.ServerAuthCallbacks{
+					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+						rc, err := s.newRemoteClient(ctx, conn.User(), netConfig, client)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+
+						remoteClient.CompareAndSwap(nil, rc)
+						return perms, nil
+					},
+				},
+			}
+		},
+	}
+
+	// Set host certificate the in-memory server will present to clients.
+	config.AddHostKey(s.hostCertificate)
 
 	s.log.Debugf("Supported ciphers: %q.", s.ciphers)
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
@@ -591,7 +617,25 @@ func (s *Server) Serve() {
 	}
 	s.sconn = sconn
 
-	ctx := context.Background()
+	if s.targetServer != nil && !s.targetServer.UsePAMAuth() {
+		rc, err := s.newRemoteClient(ctx, sconn.User(), netConfig, func(name, instruction string, questions []string, echos []bool) (answers []string, err error) {
+			return nil, nil
+		})
+		if err != nil {
+			// Reject the connection with an error so the client doesn't hang then
+			// close the connection.
+			s.rejectChannel(chans, err.Error())
+			sconn.Close()
+
+			s.log.Errorf("Unable to create remote connection: %v", err)
+			return
+		}
+
+		remoteClient.CompareAndSwap(nil, rc)
+	}
+
+	s.remoteClient = remoteClient.Load()
+
 	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn, sshutils.SetConnectionContextClock(s.clock))
 
 	// Take connection and extract identity information for the user from it.
@@ -623,19 +667,6 @@ func (s *Server) Serve() {
 
 			s.agentlessSigner = sshSigner
 		}
-	}
-
-	// Connect and authenticate to the remote node.
-	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
-	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User(), netConfig)
-	if err != nil {
-		// Reject the connection with an error so the client doesn't hang then
-		// close the connection.
-		s.rejectChannel(chans, err.Error())
-		sconn.Close()
-
-		s.log.Errorf("Unable to create remote connection: %v", err)
-		return
 	}
 
 	// Once the client and server connections are established, ensure we forward
@@ -744,7 +775,9 @@ func (s *Server) Close() error {
 
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig, kbdCB ssh.KeyboardInteractiveChallenge) (*tracessh.Client, error) {
+	s.log.Debugf("Creating remote connection to %s@%s", systemLogin, s.clientConn.RemoteAddr())
+
 	// the proxy will use the agentless signer as the auth method when
 	// connecting to the remote host if it is available, otherwise the
 	// forwarded agent is used
@@ -758,13 +791,15 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 			return nil, trace.Wrap(err)
 		}
 	}
-	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
+
+	authMethods := []ssh.AuthMethod{
+		ssh.PublicKeysCallback(signersWithSHA1Fallback(signers)),
+		ssh.KeyboardInteractive(kbdCB),
+	}
 
 	clientConfig := &ssh.ClientConfig{
-		User: systemLogin,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
+		User:            systemLogin,
+		Auth:            authMethods,
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
