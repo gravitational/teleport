@@ -259,7 +259,7 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		Logger:              a.logger,
+		Logger:              a.logger.With("kind", types.KindAccessRequest),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

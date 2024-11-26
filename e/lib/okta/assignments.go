@@ -92,7 +92,7 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		Logger:              a.logger,
+		Logger:              a.logger.With("kind", types.KindOktaAssignment),
 	})
 	if err != nil {
 		return trace.Wrap(err)

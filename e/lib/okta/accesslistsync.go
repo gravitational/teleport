@@ -299,7 +299,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 			return a.onUpsertAccessList(ctx, accessList)
 		},
 		OnDelete: a.onDeleteAccessList,
-		Logger:   a.logger,
+		Logger:   a.logger.With("kind", types.KindAccessList),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -326,7 +326,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 			return a.onUpsertRole(ctx, role)
 		},
 		OnDelete: a.onDeleteRole,
-		Logger:   a.logger,
+		Logger:   a.logger.With("kind", types.KindRole),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -261,7 +261,7 @@ func newUserReconciler(cfg userReconcilerConfig) (*userReconciler, error) {
 			OnCreate:            userReconciler.createTeleportUser,
 			OnUpdate:            userReconciler.updateTeleportUser,
 			OnDelete:            userReconciler.deleteTeleportUser,
-			Logger:              cfg.logger,
+			Logger:              cfg.logger.With("kind", types.KindUser),
 		})
 
 	if err != nil {

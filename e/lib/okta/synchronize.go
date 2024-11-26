@@ -349,7 +349,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateGroup,
 		OnUpdate:            s.onUpdateGroup,
 		OnDelete:            s.onDeleteGroup,
-		Logger:              s.logger,
+		Logger:              s.logger.With("kind", types.KindUserGroup),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -362,7 +362,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateApp,
 		OnUpdate:            s.onUpdateApp,
 		OnDelete:            s.onDeleteApp,
-		Logger:              s.logger,
+		Logger:              s.logger.With("kind", types.KindAppServer),
 	})
 
 	return trace.Wrap(err)
