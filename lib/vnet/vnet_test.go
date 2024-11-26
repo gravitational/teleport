@@ -52,6 +52,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -210,7 +211,12 @@ func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error
 	return resolver.LookupHost(ctx, host)
 }
 
-func (p *testPack) dialHost(ctx context.Context, host string) (net.Conn, error) {
+// dialHost dials port 123 if port is zero. port matters only for multi-port tests.
+func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
+	const defaultPort = 123
+	if port == 0 {
+		port = defaultPort
+	}
 	addrs, err := p.lookupHost(ctx, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -219,7 +225,7 @@ func (p *testPack) dialHost(ctx context.Context, host string) (net.Conn, error) 
 	for _, addr := range addrs {
 		netIP := net.ParseIP(addr)
 		ip := tcpip.AddrFromSlice(netIP)
-		conn, err := p.dialIPPort(ctx, ip, 123)
+		conn, err := p.dialIPPort(ctx, ip, uint16(port))
 		if err != nil {
 			allErrs = append(allErrs, trace.Wrap(err, "dialing %s", addr))
 			continue
@@ -238,6 +244,7 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 type appSpec struct {
 	// publicAddr is used bothas the name of the app and its public address in the final spec.
 	publicAddr string
+	tcpPorts   []*types.PortRange
 }
 
 type testClusterSpec struct {
@@ -252,14 +259,18 @@ type echoAppProvider struct {
 	dialOpts                 DialOptions
 	reissueAppCert           func() tls.Certificate
 	onNewConnectionCallCount atomic.Uint32
+	// requestedRouteToApps indexed by public address.
+	requestedRouteToApps   map[string][]proto.RouteToApp
+	requestedRouteToAppsMu sync.RWMutex
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
 func newEchoAppProvider(clusterSpecs map[string]testClusterSpec, dialOpts DialOptions, reissueAppCert func() tls.Certificate) *echoAppProvider {
 	return &echoAppProvider{
-		clusters:       clusterSpecs,
-		dialOpts:       dialOpts,
-		reissueAppCert: reissueAppCert,
+		clusters:             clusterSpecs,
+		dialOpts:             dialOpts,
+		reissueAppCert:       reissueAppCert,
+		requestedRouteToApps: make(map[string][]proto.RouteToApp),
 	}
 }
 
@@ -297,7 +308,23 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 }
 
 func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+	p.requestedRouteToAppsMu.Lock()
+	defer p.requestedRouteToAppsMu.Unlock()
+
+	p.requestedRouteToApps[routeToApp.PublicAddr] = append(p.requestedRouteToApps[routeToApp.PublicAddr], routeToApp)
+
 	return p.reissueAppCert(), nil
+}
+
+func (p *echoAppProvider) AreAllRequestedRouteToAppsForPort(publicAddr string, port int) bool {
+	p.requestedRouteToAppsMu.RLock()
+	defer p.requestedRouteToAppsMu.RUnlock()
+
+	routes := p.requestedRouteToApps[publicAddr]
+
+	return apiutils.All(routes, func(route proto.RouteToApp) bool {
+		return route.TargetPort == uint32(port)
+	})
 }
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
@@ -387,6 +414,19 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 		if !strings.Contains(req.PredicateExpression, app.publicAddr) {
 			continue
 		}
+		spec := &types.AppV3{
+			Metadata: types.Metadata{
+				Name: app.publicAddr,
+			},
+			Spec: types.AppSpecV3{
+				PublicAddr: app.publicAddr,
+			},
+		}
+
+		if len(app.tcpPorts) != 0 {
+			spec.SetTCPPorts(app.tcpPorts)
+		}
+
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
 				AppServer: &types.AppServerV3{
@@ -395,14 +435,7 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 						Name: app.publicAddr,
 					},
 					Spec: types.AppServerSpecV3{
-						App: &types.AppV3{
-							Metadata: types.Metadata{
-								Name: app.publicAddr,
-							},
-							Spec: types.AppSpecV3{
-								PublicAddr: app.publicAddr,
-							},
-						},
+						App: spec,
 					},
 				},
 			},
@@ -477,6 +510,17 @@ func TestDialFakeApp(t *testing.T) {
 				appSpec{
 					publicAddr: "not.in.a.custom.zone",
 				},
+				appSpec{
+					publicAddr: "multi-port.root1.example.com",
+					tcpPorts: []*types.PortRange{
+						&types.PortRange{
+							Port: 1337,
+						},
+						&types.PortRange{
+							Port: 4242,
+						},
+					},
+				},
 			},
 			customDNSZones: []string{
 				"myzone.example.com",
@@ -487,6 +531,17 @@ func TestDialFakeApp(t *testing.T) {
 					apps: []appSpec{
 						appSpec{
 							publicAddr: "echo1.leaf1.example.com",
+						},
+						appSpec{
+							publicAddr: "multi-port.leaf1.example.com",
+							tcpPorts: []*types.PortRange{
+								&types.PortRange{
+									Port: 1337,
+								},
+								&types.PortRange{
+									Port: 4242,
+								},
+							},
 						},
 					},
 				},
@@ -527,6 +582,7 @@ func TestDialFakeApp(t *testing.T) {
 
 	validTestCases := []struct {
 		app        string
+		port       int
 		expectCIDR string
 	}{
 		{
@@ -565,6 +621,16 @@ func TestDialFakeApp(t *testing.T) {
 			app:        "echo1.leaf3.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
+		{
+			app:        "multi-port.root1.example.com",
+			port:       1337,
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "multi-port.leaf1.example.com",
+			port:       1337,
+			expectCIDR: defaultIPv4CIDRRange,
+		},
 	}
 
 	t.Run("valid", func(t *testing.T) {
@@ -584,7 +650,7 @@ func TestDialFakeApp(t *testing.T) {
 						_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
 						require.NoError(t, err)
 
-						conn, err := p.dialHost(ctx, tc.app)
+						conn, err := p.dialHost(ctx, tc.app, tc.port)
 						require.NoError(t, err)
 						t.Cleanup(func() { assert.NoError(t, conn.Close()) })
 
@@ -599,6 +665,14 @@ func TestDialFakeApp(t *testing.T) {
 						require.True(t, expectNet.Contains(remoteIPSuffix), "expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
 
 						testEchoConnection(t, conn)
+
+						// For multi-port apps, certs should have RouteToApp.TargetPort set to the specified
+						// cert.
+						//
+						// Single-port apps are going to be dialed on defaultPort in tests, but certs for them
+						// need to have RouteToApp.TargetPort set to 0.
+						require.True(t, appProvider.AreAllRequestedRouteToAppsForPort(tc.app, tc.port),
+							"not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
 					})
 				}
 			})
@@ -688,7 +762,7 @@ func TestOnNewConnection(t *testing.T) {
 	require.Equal(t, uint32(0), appProvider.onNewConnectionCallCount.Load())
 
 	// Establish a connection to a valid app and verify that OnNewConnection was called.
-	conn, err := p.dialHost(ctx, validAppName)
+	conn, err := p.dialHost(ctx, validAppName, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), appProvider.onNewConnectionCallCount.Load())
