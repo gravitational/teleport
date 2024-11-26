@@ -224,7 +224,7 @@ func (a *App) checkPorts() error {
 	}
 
 	for _, portRange := range a.TCPPorts {
-		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+		if err := netutils.ValidatePortRange(portRange.Port, portRange.EndPort); err != nil {
 			return trace.Wrap(err, "validating a port range of a TCP app")
 		}
 	}
