@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -222,7 +223,7 @@ func TestUpdater_Update(t *testing.T) {
 		setupErr   error
 		reloadErr  error
 
-		removedVersion    string
+		removedVersions   []string
 		installedVersion  string
 		installedTemplate string
 		linkedVersion     string
@@ -248,6 +249,7 @@ func TestUpdater_Update(t *testing.T) {
 			},
 			inWindow: true,
 
+			removedVersions:   []string{"unknown-version"},
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
@@ -380,7 +382,7 @@ func TestUpdater_Update(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
-			removedVersion:    "backup-version",
+			removedVersions:   []string{"backup-version", "unknown-version"},
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -423,7 +425,7 @@ func TestUpdater_Update(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
-			removedVersion:    "backup-version",
+			removedVersions:   []string{"backup-version", "unknown-version"},
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -452,7 +454,7 @@ func TestUpdater_Update(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
-			removedVersion:    "backup-version",
+			removedVersions:   []string{"backup-version"},
 			reloadCalls:       0,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -478,7 +480,7 @@ func TestUpdater_Update(t *testing.T) {
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			linkedVersion:     "16.3.0",
-			removedVersion:    "backup-version",
+			removedVersions:   []string{"backup-version"},
 			reloadCalls:       2,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -562,7 +564,7 @@ func TestUpdater_Update(t *testing.T) {
 				installedVersion  string
 				installedTemplate string
 				linkedVersion     string
-				removedVersion    string
+				removedVersions   []string
 				installedFlags    InstallFlags
 				revertFuncCalls   int
 				setupCalls        int
@@ -584,10 +586,14 @@ func TestUpdater_Update(t *testing.T) {
 					}, nil
 				},
 				FuncList: func(_ context.Context) (versions []string, err error) {
-					return []string{"old"}, nil
+					return slices.Compact([]string{
+						installedVersion,
+						tt.cfg.Status.ActiveVersion,
+						"unknown-version",
+					}), nil
 				},
 				FuncRemove: func(_ context.Context, version string) error {
-					removedVersion = version
+					removedVersions = append(removedVersions, version)
 					return nil
 				},
 			}
@@ -617,7 +623,7 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
 			require.Equal(t, tt.linkedVersion, linkedVersion)
-			require.Equal(t, tt.removedVersion, removedVersion)
+			require.Equal(t, tt.removedVersions, removedVersions)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
@@ -650,6 +656,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		name             string
 		cfg              *UpdateConfig // nil -> file not present
 		tryLinkSystemErr error
+		syncErr          error
 
 		syncCalls          int
 		tryLinkSystemCalls int
@@ -728,6 +735,25 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			tryLinkSystemCalls: 1,
 			syncCalls:          1,
 		},
+		{
+			name:               "systemd is not installed",
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+			syncErr:            ErrNotSupported,
+		},
+		{
+			name: "systemd is not installed, already linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemCalls: 1,
+			syncCalls:          1,
+			syncErr:            ErrNotSupported,
+		},
 	}
 
 	for _, tt := range tests {
@@ -760,7 +786,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			updater.Process = &testProcess{
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
-					return nil
+					return tt.syncErr
 				},
 			}
 
@@ -1335,7 +1361,7 @@ func TestUpdater_Install(t *testing.T) {
 					}, nil
 				},
 				FuncList: func(_ context.Context) (versions []string, err error) {
-					return []string{"old"}, nil
+					return []string{}, nil
 				},
 				FuncRemove: func(_ context.Context, version string) error {
 					removedVersion = version
