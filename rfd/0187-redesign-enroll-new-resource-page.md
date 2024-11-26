@@ -66,12 +66,10 @@ The [FigJam board](https://www.figma.com/board/65tcBiTgE9B9j05NVO669b/Untitled?n
 #### User Interface Changes
 * Implement “pinned” enrollment guides. Guides that are good for getting started will be pinned by default for all new clusters.
   * Users can unpin when they don’t want those at the top anymore.
-* Have tags added to cards that provide more context, like “getting started”
+  * Users can pin/unpin additional cards as desired
 * Add filters
   * Hosting method/platform (AWS/GCP/Azure/Self-Hosted)
   * Resource type (DB/Server/Kubernetes/Desktop/Application)
-  * Complexity (Single Resource/Auto-Enrollment)
-  * Guided (Yes/No)
 * Improve search to capture more relevant terms (i.e. “SSH”, “k8s”, linux distros)
 * Collapse Linux options into a unified category, simplifying the selection process for users who may not need to distinguish between distributions at the initial stage
   * Make searchable by distro (ubuntu, redhat, centos, debian, etc)
@@ -90,7 +88,15 @@ We know that the shorter a PoV process the higher our win rate. Improving the re
 ## Implementation
 
 ### Design
-To be added to by design team.
+* [Link to page design](https://www.figma.com/design/uLevdNsEnIvvLDSZ9sQqXM/Discover-Access?node-id=2730-11748&t=xsYYolkkJeUJAhGi-4)
+* [Link to resource card states](https://www.figma.com/design/Gpjs9vjhzUKF1GDbeG9JGE/Application-Design-System?node-id=18913-20082&t=teeY2YmoBg0jphJi-4)
+
+Some notes:
+* The resource cards that will be pinned by default are still TBD—what’s shown in the design is placeholder for now.
+* **Every** resource card should have a second line with additional contextual info—precise details to come.
+* We cut filtering by scale/complexity and by guided/docs during design phase (and they're now deleted from the filters list above).
+* Pinned items appear both at the top of the page as a different-style card AND in the flow of the page.
+* Not necessarily included in this scope of work, but I also updated and expanded our AWS service icons in the design library and exported to Google Drive.
 
 ### Engineering
 To be added to by engineering team.
