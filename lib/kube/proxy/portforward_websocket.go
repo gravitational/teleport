@@ -88,7 +88,8 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 			Channels: channels,
 		},
 	})
-	conn.SetIdleTimeout(IdleTimeout)
+
+	conn.SetIdleTimeout(req.idleTimeout)
 
 	// Upgrade the request and create the virtual streams.
 	_, streams, err := conn.Open(
