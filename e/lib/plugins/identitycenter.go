@@ -59,7 +59,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err)
 		}
 
-		awsConfig, err := credprovider.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+		awsConfig, err := identitycenter.CreateAWSConfigForIntegration(ctx, credprovider.Config{
 			Region:                settings.Region,
 			IntegrationName:       settings.IntegrationName,
 			IntegrationGetter:     authServer.Services,

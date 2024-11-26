@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -368,7 +369,7 @@ func (a awsICPluginDescriptor) getHTTPClient() (*http.Client, error) {
 
 // awsICPluginIdentityCenterClient creates a new Identity Center SDK client.
 func awsICPluginIdentityCenterClient(ctx context.Context, req awsicui.FetchICResourceRequest, authClient authclient.ClientI) (icsdk.Client, error) {
-	awsConfig, err := credprovider.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+	awsConfig, err := identitycenter.CreateAWSConfigForIntegration(ctx, credprovider.Config{
 		Region:                req.Region,
 		IntegrationName:       req.IntegrationName,
 		IntegrationGetter:     authClient,

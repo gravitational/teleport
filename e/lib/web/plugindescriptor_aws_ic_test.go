@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -447,4 +448,59 @@ func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, t
 	resp, err := clt.PostForm(ctx, installPluginEndPoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
+}
+
+func TestAWSICRegionValidation(t *testing.T) {
+	hasRegionValidationError := func(t *testing.T, region string, err error) {
+		t.Helper()
+		require.Error(t, err)
+		want := fmt.Sprintf("region %q is invalid", region)
+		require.Equal(t, want, err.Error())
+	}
+	tests := []struct {
+		name string
+		path string
+		req  awsicui.FetchICResourceRequest
+	}{
+		{
+			name: "empty region",
+			path: "enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets",
+			req:  awsicui.FetchICResourceRequest{},
+		},
+		{
+			name: "invalid region with domain",
+			path: "enterprise/pluginconfig/aws-ic/preview/groups-with-assignments",
+			req: awsicui.FetchICResourceRequest{
+				Region: "us-west-2.example.com",
+			},
+		},
+		{
+			name: "invalid aws region",
+			path: "enterprise/pluginconfig/aws-ic/preview/permission-sets",
+			req: awsicui.FetchICResourceRequest{
+				Region: "u-a-2",
+			},
+		},
+	}
+
+	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
+	awsIg, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: icOIDCIntegrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
+			IssuerS3URI: "s3://my-bucket/my-prefix",
+		},
+	)
+	require.NoError(t, err)
+	_, err = authClient.CreateIntegration(wSuite.ctx, awsIg)
+	require.NoError(t, err)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := aPack.clt.PostJSON(wSuite.ctx, aPack.clt.Endpoint(tc.path), tc.req)
+			hasRegionValidationError(t, tc.req.Region, err)
+		})
+	}
 }
