@@ -78,6 +78,7 @@ const (
 
 var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
+	JoinMethodBitbucket,
 	JoinMethodCircleCI,
 	JoinMethodEC2,
 	JoinMethodGCP,
