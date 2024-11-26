@@ -178,7 +178,10 @@ export function ReauthenticateStep({
             m === 'passwordless' ? 'required' : 'discouraged',
         });
 
-        const response = await auth.getMfaChallengeResponse(challenge);
+        const response = await auth.getMfaChallengeResponse(
+          challenge,
+          'webauthn'
+        );
 
         // TODO(Joerger): handle non-webauthn response.
         onAuthenticated(response.webauthn_response);

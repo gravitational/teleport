@@ -241,7 +241,7 @@ const auth = {
   headlessSSOAccept(transactionId: string) {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(auth.getMfaChallengeResponse)
+      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
       .then(res => {
         const request = {
           action: 'accept',
@@ -286,19 +286,43 @@ const auth = {
 
   // getChallengeResponse gets an MFA challenge response for the provided parameters.
   // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
-  async getMfaChallengeResponse(challenge: MfaAuthenticateChallenge) {
-    // TODO(Joerger): Handle sso and otp. We need to provide some global context which we
-    // can use to display the MFA component currently found in useMFA.
-    return auth.getWebAuthnChallengeResponse(challenge);
+  async getMfaChallengeResponse(
+    challenge: MfaAuthenticateChallenge,
+    mfaType?: DeviceType,
+    totpCode?: string
+  ): Promise<MfaChallengeResponse> {
+    // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
+    // to display a component, similar to the one used in useMfa. For now we just default to
+    // whichever method we can succeed with first.
+    if (!mfaType) {
+      if (totpCode) {
+        mfaType == 'totp';
+      } else if (challenge.webauthnPublicKey) {
+        mfaType == 'webauthn';
+      }
+    }
+
+    if (mfaType === 'webauthn') {
+      return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
+    }
+
+    if (mfaType === 'totp') {
+      return {
+        totp_code: totpCode,
+      };
+    }
+
+    // No viable challenge, return empty response.
+    return null;
   },
 
   async getWebAuthnChallengeResponse(
-    challenge: MfaAuthenticateChallenge
+    webauthnPublicKey: PublicKeyCredentialRequestOptions
   ): Promise<MfaChallengeResponse> {
     return auth.checkWebauthnSupport().then(() =>
       navigator.credentials
         .get({
-          publicKey: challenge.webauthnPublicKey,
+          publicKey: webauthnPublicKey,
         })
         .then(cred => {
           return makeWebauthnAssertionResponse(cred);
@@ -365,7 +389,7 @@ const auth = {
 
     return auth
       .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(challenge => auth.getMfaChallengeResponse(challenge))
+      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
       .then(res => makeWebauthnAssertionResponse(res.webauthn_response));
   },
 
