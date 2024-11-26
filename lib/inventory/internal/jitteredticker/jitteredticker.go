@@ -105,7 +105,9 @@ func (i *JitteredTicker) interval() time.Duration {
 // Advance sets up the next tick of the ticker. Must be called after receiving
 // from the [*JitteredTicker.Next] channel; specifically, to maintain
 // compatibility with [clockwork.Clock], it must only be called with a drained
-// timer channel.
+// timer channel. For consistency, the value passed to Advance should be the
+// value received from the Next channel (passing the current time will also
+// work, but will not compensate for the time that passed since the last tick).
 func (i *JitteredTicker) Advance(now time.Time) {
 	i.timer.Reset(i.interval() - i.clock.Since(now))
 }
