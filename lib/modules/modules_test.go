@@ -131,6 +131,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.SessionLocks):           {Enabled: true},
 			string(entitlements.UpsellAlert):            {Enabled: true},
 			string(entitlements.UsageReporting):         {Enabled: true},
+			string(entitlements.LicenseAutoUpdate):      {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -205,6 +206,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.SessionLocks:           {Enabled: true, Limit: 0},
 			entitlements.UpsellAlert:            {Enabled: true, Limit: 0},
 			entitlements.UsageReporting:         {Enabled: true, Limit: 0},
+			entitlements.LicenseAutoUpdate:      {Enabled: true, Limit: 0},
 		},
 	}
 
