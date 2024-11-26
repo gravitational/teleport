@@ -317,14 +317,15 @@ repositories.
    </TabItem>
    </Tabs>
 
-### TAR archives (self-hosted only)
+### Downloading packages and TAR archives (self-hosted only)
 
-For self-hosted deployments, Teleport maintains TAR archives for
+Teleport maintains TAR archives as well as DEB and RPM packages for
 Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
-the Teleport TAR archives and how to use them.
+how to install Teleport by manually downloading a release.
 
-It is not possible to install the automatic agent updater using TAR archives.
-Teleport Cloud customers must use the [one-line installation
+It is not possible to install the automatic agent updater using this method, so
+using packages and TAR archives is only available for users who self-hosted
+Teleport. Teleport Cloud customers must use the [one-line installation
 script](#one-line-installation-script) or manually install Teleport from a
 [package repository](#package-repositories) in order to install the updater.
 
@@ -354,38 +355,98 @@ script](#one-line-installation-script) or manually install Teleport from a
 
    The following architecture values are available:
 
-   - `amd64`
+   - `amd64` (`x86_84` if downloading an RPM package)
    - `arm64`
    - `arm`
-   - `386`
+   - `386` (`i386` if downloading a DEB or RPM package)
 
-1. Run the following commands to download the Teleport archive, unpack it, and
-   install binaries:
+1. Run the following commands to download a Teleport package or archive, unpack
+   it, and install binaries:
+
+   <Tabs>
+   <TabItem label="TAR">
 
    ```code
    $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
    # <checksum> <filename>
    $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   $ shasum -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   # Verify that the checksums match
+   $ shasum --check -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ tar -xvf ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ cd ${TELEPORT_PKG?}
    $ sudo ./install
    ```
+   </TabItem>
+   <TabItem label="DEB">
+
+   ```code
+   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   $ shasum --check -a 256 ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   $ sudo dpkg -i ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   ```code
+   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   $ shasum --check -a 256 https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   # Or use yum localinstall, dnf localinstall etc.
+   $ sudo rpm -i https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   ```
+
+   </TabItem>
+   </Tabs>
 
    For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
    are slightly different:
+
+   <Tabs>
+   <TabItem label="TAR">
 
    ```code
    $ curl https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
    # <checksum> <filename>
    $ curl -O https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   $ shasum -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   # Verify that the checksums match
+   $ shasum --check -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ tar -xvf teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ cd teleport-ent
    $ sudo ./install
    ```
+   </TabItem>
+   <TabItem label="DEB">
+
+   FIPS builds are only available for the `arm64` and `amd64` system
+   architectures.
+
+   ```code
+   $ curl https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   $ shasum --check -a 256 teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   $ sudo dpkg -i teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   FIPS builds are only available for the `arm64` and `x86_64` system
+   architectures.
+
+   ```code
+   $ curl https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   $ shasum --check -a 256 https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   # Or use yum localinstall, dnf localinstall etc.
+   $ sudo rpm -i https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   ```
+
+   </TabItem>
+   </Tabs>
 
 ### From your browser
 
