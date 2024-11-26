@@ -103,7 +103,13 @@ export function makeWebauthnCreationResponse(
     throw new Error('error creating credential, please try again');
   }
 
-  const clientExtentions = publicKey.getClientExtensionResults();
+  let clientExtentions;
+  try {
+    clientExtentions = publicKey.getClientExtensionResults();
+  } catch (err) {
+    console.log(err);
+  }
+
   const attestationResponse =
     publicKey.response as AuthenticatorAttestationResponse;
 
@@ -144,7 +150,13 @@ export function makeWebauthnAssertionResponse(
     );
   }
 
-  const clientExtentions = publicKey.getClientExtensionResults();
+  let clientExtentions;
+  try {
+    clientExtentions = publicKey.getClientExtensionResults();
+  } catch (err) {
+    console.log(err);
+  }
+
   const assertionResponse =
     publicKey.response as AuthenticatorAssertionResponse;
 

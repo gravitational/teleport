@@ -23,7 +23,7 @@ import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -39,10 +39,10 @@ import Box from 'design/Box';
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
+import { MfaOption } from 'shared/utils/createMfaOptions';
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 export interface ChangePasswordWizardProps {
-  /** MFA type setting, as configured in the cluster's configuration. */
-  auth2faType: Auth2faType;
   /** Determines whether the cluster allows passwordless login. */
   passwordlessEnabled: boolean;
   /** A list of available authentication devices. */
@@ -52,17 +52,35 @@ export interface ChangePasswordWizardProps {
 }
 
 export function ChangePasswordWizard({
-  auth2faType,
   passwordlessEnabled,
   devices,
   onClose,
   onSuccess,
 }: ChangePasswordWizardProps) {
-  const reauthOptions = createReauthOptions(
-    auth2faType,
-    passwordlessEnabled,
-    devices
-  );
+  const { attempt, clearAttempt, getReauthMfaOptions, submitWithMfa } =
+    useReAuthenticate({
+      onAuthenticated: setPrivilegeToken,
+    });
+
+  // Attempt to get an MFA challenge for an existing device. If the challenge is
+  // empty, the user has no existing device (e.g. SSO user) and can register their
+  // first device without re-authentication.
+  const [reauthMfaOptions, getMfaOptions] = useAsync(async () => {
+    return getReauthMfaOptions();
+  });
+
+  useEffect(() => {
+    getMfaOptions();
+  }, []);
+
+  const reauthOptions: ReauthenticationOption[] = reauthMfaOptions.data;
+  if (
+    passwordlessEnabled &&
+    devices.some(dev => dev.usage === 'passwordless')
+  ) {
+    reauthOptions.push({ value: 'passwordless', label: 'Passkey' });
+  }
+
   const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>(
     reauthOptions[0]?.value
   );
@@ -82,6 +100,8 @@ export function ChangePasswordWizard({
           reauthRequired ? 'withReauthentication' : 'withoutReauthentication'
         }
         // Step properties
+        attempt={attempt}
+        clearAttempt={clearAttempt}
         reauthOptions={reauthOptions}
         reauthMethod={reauthMethod}
         credential={credential}
@@ -94,52 +114,11 @@ export function ChangePasswordWizard({
   );
 }
 
-type ReauthenticationMethod = 'passwordless' | 'mfaDevice' | 'otp';
+type ReauthenticationMethod = 'passwordless' | Auth2faType;
 type ReauthenticationOption = {
   value: ReauthenticationMethod;
   label: string;
 };
-
-export function createReauthOptions(
-  auth2faType: Auth2faType,
-  passwordlessEnabled: boolean,
-  devices: MfaDevice[]
-) {
-  const options: ReauthenticationOption[] = [];
-
-  const methodsAllowedByDevices = {};
-  for (const d of devices) {
-    methodsAllowedByDevices[reauthMethodForDevice(d)] = true;
-  }
-
-  if (passwordlessEnabled && 'passwordless' in methodsAllowedByDevices) {
-    options.push({ value: 'passwordless', label: 'Passkey' });
-  }
-
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-
-  if (
-    (auth2faType === 'webauthn' || mfaEnabled) &&
-    'mfaDevice' in methodsAllowedByDevices
-  ) {
-    options.push({ value: 'mfaDevice', label: 'MFA Device' });
-  }
-
-  if (
-    (auth2faType === 'otp' || mfaEnabled) &&
-    'otp' in methodsAllowedByDevices
-  ) {
-    options.push({ value: 'otp', label: 'Authenticator App' });
-  }
-
-  return options;
-}
-
-/** Returns the reauthentication method supported by a given device. */
-function reauthMethodForDevice(d: MfaDevice): ReauthenticationMethod {
-  if (d.usage === 'passwordless') return 'passwordless';
-  return d.type === 'totp' ? 'otp' : 'mfaDevice';
-}
 
 const wizardFlows = {
   withReauthentication: [ReauthenticateStep, ChangePasswordStep],
