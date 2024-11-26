@@ -2548,6 +2548,20 @@ func TestDefaultImplicitRules(t *testing.T) {
 				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
+		{
+			name: "KindGitServer with empty rules",
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Allow = types.RoleConditions{}
+				r.Spec.Deny = types.RoleConditions{}
+			}),
+			checks: []check{
+				{rule: types.KindGitServer, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		roleSet := NewRoleSet(tc.role)
