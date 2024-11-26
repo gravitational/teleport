@@ -24,8 +24,9 @@ import { NewFlow, StepComponentProps } from 'design/StepSlider';
 
 import { ReactElement } from 'react';
 
-import { DeviceUsage, RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
+import { DeviceUsage } from 'teleport/services/mfa';
 
 export type UseTokenState = {
   auth2faType: Auth2faType;

@@ -17,8 +17,13 @@
  */
 
 import { AuthProviderType } from 'shared/services';
-import { Base64urlString, DeviceUsage } from '../auth/types';
+import { Base64urlString } from '../auth/types';
 import { CreateNewHardwareDeviceRequest } from '../auth/types';
+
+export type DeviceType = 'totp' | 'webauthn' | 'sso';
+
+/** The intended usage of the device (as an MFA method or a passkey). */
+export type DeviceUsage = 'passwordless' | 'mfa';
 
 export interface MfaDevice {
   id: string;
@@ -44,8 +49,6 @@ export type SaveNewHardwareDeviceRequest = {
   addRequest: AddNewHardwareDeviceRequest;
   credential: Credential;
 };
-
-export type DeviceType = 'totp' | 'webauthn' | 'sso';
 
 export type MfaAuthenticateChallenge = {
   ssoChallenge: SSOChallenge;
