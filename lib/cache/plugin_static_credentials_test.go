@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestPluginStaticCredentials(t *testing.T) {
