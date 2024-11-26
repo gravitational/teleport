@@ -136,9 +136,9 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // connectors. It first checks if you have access to the specific connector.
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
-func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb); err != nil {
+func (a *ServerWithRoles) authConnectorAction(resource string, verb string) error {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, apidefaults.Namespace, resource, verb); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, apidefaults.Namespace, types.KindAuthConnector, verb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3443,10 +3443,10 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
@@ -3467,7 +3467,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
@@ -3487,7 +3487,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
@@ -3507,11 +3507,11 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 }
 
 func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3519,14 +3519,14 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 }
 
 func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbList); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindOIDC, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3551,7 +3551,7 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
+		if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3595,7 +3595,7 @@ func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Va
 }
 
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbDelete); err != nil {
+	if err := a.authConnectorAction(types.KindOIDC, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3612,11 +3612,11 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3635,7 +3635,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3653,7 +3653,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3666,12 +3666,12 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 }
 
 func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3680,14 +3680,14 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 }
 
 func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbList); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3709,7 +3709,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
+		if err := a.authConnectorAction(types.KindSAML, types.VerbCreate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3782,7 +3782,7 @@ func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind str
 
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbDelete); err != nil {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3814,11 +3814,11 @@ func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) 
 
 // UpsertGithubConnector creates or updates a Github connector.
 func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3837,7 +3837,7 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 
 // CreateGithubConnector creates a new Github connector.
 func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3856,7 +3856,7 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 
 // UpdateGithubConnector updates an existing Github connector.
 func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3873,11 +3873,11 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 }
 
 func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3885,14 +3885,14 @@ func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, wit
 }
 
 func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbList); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbReadNoSecrets); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbRead); err != nil {
+		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3901,7 +3901,7 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 
 // DeleteGithubConnector deletes a Github connector by name.
 func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID string) error {
-	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbDelete); err != nil {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3923,7 +3923,7 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 
 	// require additional permissions for executing SSO test flow.
 	if req.SSOTestFlow {
-		if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
+		if err := a.authConnectorAction(types.KindGithub, types.VerbCreate); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
