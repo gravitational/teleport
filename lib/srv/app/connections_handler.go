@@ -788,7 +788,7 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCac
 
 		// Fetch list of CAs that could have signed this certificate. If clusterName
 		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
+		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
 		if err != nil {
 			// If this request fails, return nil and fallback to the default ClientCAs.
 
