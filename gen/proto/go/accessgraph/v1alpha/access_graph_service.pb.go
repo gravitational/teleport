@@ -1424,14 +1424,18 @@ type isAzureEventsStreamRequest_Operation interface {
 }
 
 type AzureEventsStreamRequest_Sync struct {
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
 	Sync *AzureSyncOperation `protobuf:"bytes,1,opt,name=sync,proto3,oneof"`
 }
 
 type AzureEventsStreamRequest_Upsert struct {
+	// upsert is a command to put a resource into the access graph or update it.
 	Upsert *AzureResourceList `protobuf:"bytes,2,opt,name=upsert,proto3,oneof"`
 }
 
 type AzureEventsStreamRequest_Delete struct {
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
 	Delete *AzureResourceList `protobuf:"bytes,3,opt,name=delete,proto3,oneof"`
 }
 

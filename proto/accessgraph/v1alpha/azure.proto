@@ -81,6 +81,8 @@ message AzurePrincipal {
   repeated string member_of = 5;
   // identities lists the identities that can be used to sign in to the account
   repeated AzureIdentity identities = 6;
+  // object_type defines the type of principal, e.g. "user" or "group"
+  string object_type = 7;
 }
 
 // AzureRoleAssignment links an Azure principal to a role definition with a scope
