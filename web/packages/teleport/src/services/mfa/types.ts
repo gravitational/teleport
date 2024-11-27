@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthProviderType } from 'shared/services';
+import { Auth2faType, AuthProviderType } from 'shared/services';
 import { Base64urlString } from '../auth/types';
 import { CreateNewHardwareDeviceRequest } from '../auth/types';
 
@@ -51,9 +51,9 @@ export type SaveNewHardwareDeviceRequest = {
 };
 
 export type MfaAuthenticateChallenge = {
-  ssoChallenge: SSOChallenge;
-  totpChallenge: boolean;
-  webauthnPublicKey: PublicKeyCredentialRequestOptions;
+  ssoChallenge?: SSOChallenge;
+  totpChallenge?: boolean;
+  webauthnPublicKey?: PublicKeyCredentialRequestOptions;
 };
 
 export type SSOChallenge = {
