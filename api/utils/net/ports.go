@@ -30,12 +30,8 @@ func ValidatePortRange(port, endPort int) error {
 	}
 
 	if endPort != 0 {
-		if endPort < minPort+1 || endPort > maxPort {
-			return trace.BadParameter("end port must be between %d and %d, but got %d", minPort+1, maxPort, endPort)
-		}
-
-		if endPort <= port {
-			return trace.BadParameter("end port must be greater than port (%d vs %d)", endPort, port)
+		if endPort <= port || endPort > maxPort {
+			return trace.BadParameter("end port must be between %d and %d, but got %d", port+1, maxPort, endPort)
 		}
 	}
 

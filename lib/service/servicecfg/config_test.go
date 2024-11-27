@@ -234,14 +234,14 @@ func TestCheckAppTCPPorts(t *testing.T) {
 			tcpPorts: []PortRange{
 				PortRange{Port: 5, EndPort: 1},
 			},
-			check: hasErrTypeBadParameterAndContains("end port must be between"),
+			check: hasErrTypeBadParameterAndContains("end port must be between 6 and 65535"),
 		},
 		{
 			name: "end port smaller than port",
 			tcpPorts: []PortRange{
 				PortRange{Port: 10, EndPort: 5},
 			},
-			check: hasErrTypeBadParameterAndContains("end port must be greater than port"),
+			check: hasErrTypeBadParameterAndContains("end port must be between 11 and 65535"),
 		},
 		{
 			name: "uri specifies port",

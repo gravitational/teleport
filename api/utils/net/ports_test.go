@@ -56,19 +56,19 @@ func TestValidatePortRange(t *testing.T) {
 			name:    "end port smaller than 2",
 			port:    5,
 			endPort: 1,
-			check:   badParameterErrorAndContains("end port must be between"),
+			check:   badParameterErrorAndContains("end port must be between 6 and 65535"),
 		},
 		{
 			name:    "end port bigger than max port",
 			port:    5,
 			endPort: 98765,
-			check:   badParameterErrorAndContains("end port must be between"),
+			check:   badParameterErrorAndContains("end port must be between 6 and 65535"),
 		},
 		{
 			name:    "end port smaller than port",
 			port:    10,
 			endPort: 5,
-			check:   badParameterErrorAndContains("end port must be greater than port"),
+			check:   badParameterErrorAndContains("end port must be between 11 and 65535"),
 		},
 	}
 
