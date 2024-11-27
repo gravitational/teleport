@@ -92,6 +92,9 @@ type Role interface {
 	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
 	GetRoleConditions(rct RoleConditionType) RoleConditions
 
+	// GetRequestReasonMode gets the RequestReasonMode for the RoleConditionType.
+	GetRequestReasonMode(RoleConditionType) RequestReasonMode
+
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -1715,10 +1718,7 @@ func (r *RoleV6) SetSearchAsRoles(rct RoleConditionType, roles []string) {
 // purposes of viewing details such as the hostname and labels of requested
 // resources.
 func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
-	roleConditions := &r.Spec.Allow
-	if rct == Deny {
-		roleConditions = &r.Spec.Deny
-	}
+	roleConditions := r.GetRoleConditions(rct)
 	if roleConditions.ReviewRequests == nil {
 		return nil
 	}
@@ -1733,6 +1733,15 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	}
 
 	return roleConditions
+}
+
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
+	roleConditions := r.GetRoleConditions(rct)
+	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {
+		return ""
+	}
+	return roleConditions.Request.Reason.Mode
 }
 
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
