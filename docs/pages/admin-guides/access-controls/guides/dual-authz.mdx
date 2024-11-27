@@ -183,7 +183,7 @@ Bob does not have a role `elevated-access` assigned to him, but can create an Ac
 
 The Web UI will notify the admin:
 
-![Mattermost-Request](../../../../img/access-controls/dual-authz/pending-access-reqs.png)
+![Mattermost-Request](../../../../img/access-controls/dual-authz/pending-access-request.png)
 
 The request can then be reviewed and approved through the Web UI or CLI:
 
@@ -196,9 +196,9 @@ The request can then be reviewed and approved through the Web UI or CLI:
     ```code
     $ tsh request list
 
-    # ID                                   User             Roles   Created (UTC)       Status
-    # ------------------------------------ ---------------  ------- ------------------- -------
-    # 0193496f-268c-727e-b696-600a868429ff test (Bob)  elevated-access 21 Nov 24 18:50 UTC PENDING
+    # ID                                   User        Roles            Created  (UTC)       Status
+    # ------------------------------------ ----------  ---------------  -------------------  ------
+    # 0193496f-268c-727e-b696-600a868429ff test (Bob)  elevated-access  21 Nov 24 18:50 UTC  PENDING
 
     $ tsh request review --approve --reason="Need to gain elevated-access for investigation" 0193496f-268c-727e-b696-600a868429ff
     # Successfully submitted review.  Request state: APPROVED
