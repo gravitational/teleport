@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -35,10 +35,10 @@ import (
 
 const defaultChannelTimeout = 5 * time.Second
 
-// automaticUpgrades implements a version server in the Teleport Proxy.
+// automaticUpgrades implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
-func (h *Handler) automaticUpgrades(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if h.cfg.AutomaticUpgradesChannels == nil {
 		return nil, trace.AccessDenied("This proxy is not configured to serve automatic upgrades channels.")
 	}
@@ -69,17 +69,17 @@ func (h *Handler) automaticUpgrades(w http.ResponseWriter, r *http.Request, p ht
 	switch requestType {
 	case "version":
 		h.log.Debugf("Agent requesting version for channel %s", channelName)
-		return h.automaticUpgradesVersion(w, r, channel)
+		return h.automaticUpgradesVersion109(w, r, channel)
 	case "critical":
 		h.log.Debugf("Agent requesting criticality for channel %s", channelName)
-		return h.automaticUpgradesCritical(w, r, channel)
+		return h.automaticUpgradesCritical109(w, r, channel)
 	default:
 		return nil, trace.BadParameter("requestType path must end with 'version' or 'critical'")
 	}
 }
 
-// automaticUpgradesVersion handles version requests from upgraders
-func (h *Handler) automaticUpgradesVersion(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+// automaticUpgradesVersion109 handles version requests from upgraders
+func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
@@ -100,8 +100,8 @@ func (h *Handler) automaticUpgradesVersion(w http.ResponseWriter, r *http.Reques
 	return nil, trace.Wrap(err)
 }
 
-// automaticUpgradesCritical handles criticality requests from upgraders
-func (h *Handler) automaticUpgradesCritical(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+// automaticUpgradesCritical109 handles criticality requests from upgraders
+func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
