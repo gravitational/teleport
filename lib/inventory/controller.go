@@ -568,10 +568,11 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		log.Warnf("Unexpected upstream pong from server %q (id=%d).", handle.Hello().ServerID, msg.ID)
 		return
 	}
+	now := c.clock.Now()
 	pong := pingResponse{
-		reqDuration:     c.clock.Since(pending.start),
+		reqDuration:     now.Sub(pending.start),
 		systemClock:     msg.SystemClock,
-		controllerClock: c.clock.Now(),
+		controllerClock: now,
 	}
 
 	handle.stateTracker.mu.Lock()

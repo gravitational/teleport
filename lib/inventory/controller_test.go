@@ -841,10 +841,14 @@ func TestInstanceHeartbeat(t *testing.T) {
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
-	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
 
 	// Launch goroutine to consume downstream request and don't block control steam handler.
 	go func() {

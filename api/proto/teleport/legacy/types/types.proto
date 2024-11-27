@@ -731,9 +731,10 @@ message SystemClockMeasurement {
     (gogoproto.jsontag) = "system_clock,omitempty"
   ];
   // RequestDuration stores information about the request duration between auth and remote service.
-  int64 RequestDuration = 3 [
+  google.protobuf.Duration RequestDuration = 3 [
     (gogoproto.jsontag) = "request_duration",
-    (gogoproto.casttype) = "time.Duration"
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
   ];
 }
 
