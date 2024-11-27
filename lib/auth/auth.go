@@ -403,6 +403,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -501,6 +507,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		IdentityCenter:            cfg.IdentityCenter,
 		WorkloadIdentities:        cfg.WorkloadIdentity,
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
+		GitServers:                cfg.GitServers,
 	}
 
 	as := Server{
@@ -720,6 +727,7 @@ type Services struct {
 	services.IdentityCenter
 	services.WorkloadIdentities
 	services.PluginStaticCredentials
+	services.GitServers
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1013,7 +1021,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated

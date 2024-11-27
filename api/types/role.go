@@ -293,6 +293,11 @@ type Role interface {
 	// GetIdentityCenterAccountAssignments sets the allow or deny Account
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
+
+	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
+	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
+	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
 }
 
 // NewRole constructs new standard V7 role.
@@ -988,6 +993,23 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 		r.Spec.Allow.SPIFFE = cond
 	} else {
 		r.Spec.Deny.SPIFFE = cond
+	}
+}
+
+// GetGitHubPermissions returns the allow or deny GitHubPermission.
+func (r *RoleV6) GetGitHubPermissions(rct RoleConditionType) []GitHubPermission {
+	if rct == Allow {
+		return r.Spec.Allow.GitHubPermissions
+	}
+	return r.Spec.Deny.GitHubPermissions
+}
+
+// SetGitHubPermissions sets the allow or deny GitHubPermission.
+func (r *RoleV6) SetGitHubPermissions(rct RoleConditionType, perms []GitHubPermission) {
+	if rct == Allow {
+		r.Spec.Allow.GitHubPermissions = perms
+	} else {
+		r.Spec.Deny.GitHubPermissions = perms
 	}
 }
 
@@ -1955,6 +1977,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindGitServer:
+		return r.makeGitServerLabelMatchers(cond), nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2079,6 +2103,18 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 		cond = &r.Spec.Allow
 	}
 	cond.AccountAssignments = assignments
+}
+
+func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
+	var all []string
+	for _, perm := range cond.GitHubPermissions {
+		all = append(all, perm.Organizations...)
+	}
+	return LabelMatchers{
+		Labels: Labels{
+			GitHubOrgLabel: all,
+		},
+	}
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label

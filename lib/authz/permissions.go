@@ -796,6 +796,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{types.Wildcard},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -815,6 +818,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
+					types.NewRule(types.KindGitServer, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -868,6 +872,9 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GitHubPermissions: []types.GitHubPermission{{
+				Organizations: []string{types.Wildcard},
+			}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -921,6 +928,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSecurityReport, services.RO()),
 				types.NewRule(types.KindSecurityReportState, services.RO()),
 				types.NewRule(types.KindUserTask, services.RO()),
+				types.NewRule(types.KindGitServer, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1114,6 +1122,9 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GitHubPermissions: []types.GitHubPermission{{
+						Organizations: []string{types.Wildcard},
+					}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),

@@ -80,6 +80,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSPIFFEFederation, RO()),
 	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
 	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
