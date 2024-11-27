@@ -103,28 +103,13 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, resource stri
 	return nil
 }
 
-type actionConfig struct {
-	context authz.Context
-}
-
-type actionOption func(*actionConfig)
-
-func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
-	cfg := actionConfig{context: a.context}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	return cfg
-}
-
-// action will determine if a user has access to the given resource kind. This does not respect where clauses.
-func (c actionConfig) action(namespace, resource string, verbs ...string) error {
+func (a *ServerWithRoles) actionNamespace(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -132,12 +117,8 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	return nil
 }
 
-func (a *ServerWithRoles) actionNamespace(namespace, resource string, verbs ...string) error {
-	return a.withOptions().action(namespace, resource, verbs...)
-}
-
 func (a *ServerWithRoles) action(resource string, verbs ...string) error {
-	return a.withOptions().action(apidefaults.Namespace, resource, verbs...)
+	return a.actionNamespace(apidefaults.Namespace, resource, verbs...)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
