@@ -273,8 +273,12 @@ message EntraEventsStreamResponse {}
 // AzureEventsStreamRequest is a request to send commands to the Azure importer
 message AzureEventsStreamRequest {
   oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
     AzureSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
     AzureResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
     AzureResourceList delete = 3;
   }
 }
