@@ -50,6 +50,7 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
+	string(types.JoinMethodBitbucket),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGCP),
 	string(types.JoinMethodGitHub),
