@@ -1262,11 +1262,16 @@ Where the client has provided label selectors:
 4d. Issue workload identity credential, emit audit log.
 5. Return issued credentials to client. 
 
-If, after evaluation of labels and rules, more than 10 WorkloadIdentity
+If, after evaluation of labels and rules, more than 20 WorkloadIdentity
 resources remain, the client should receive an error encouraging the user to
 leverage labels so that the set of returned WorkloadIdentity falls below this
 threshold. This limits the runaway resource consumption if there is a 
 misconfiguration.
+
+For the initial release, this limit should be configurable via an environment
+variable, allowing this to be tuned without requiring a new release of Teleport
+should we discover a use-case that legitimately requires the issuance of a 
+larger number of identities.
 
 ### Predicate Language
 
