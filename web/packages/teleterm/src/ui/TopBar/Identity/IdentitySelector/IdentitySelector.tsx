@@ -22,6 +22,8 @@ import { Box } from 'design';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
@@ -30,9 +32,9 @@ interface IdentitySelectorProps {
   isOpened: boolean;
   userName: string;
   clusterName: string;
-
   onClick(): void;
   makeTitle: (userWithClusterName: string | undefined) => string;
+  deviceTrustStatus: DeviceTrustStatus;
 }
 
 export const IdentitySelector = forwardRef<
@@ -49,10 +51,23 @@ export const IdentitySelector = forwardRef<
       ref={ref}
       onClick={props.onClick}
       title={title}
+      css={`
+        position: relative;
+      `}
     >
       {isSelected ? (
         <Box>
           <UserIcon letter={props.userName[0]} />
+          {props.deviceTrustStatus === 'requires-enrollment' && (
+            <ConnectionStatusIndicator
+              status={'warning'}
+              css={`
+                position: absolute;
+                top: 1.5px;
+                right: 1.5px;
+              `}
+            />
+          )}
         </Box>
       ) : (
         <PamIcon />

@@ -17,10 +17,13 @@
  */
 
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
+import { Box, Flex, Text, Label, P3 } from 'design';
+import { ShieldCheck, ShieldWarning } from 'design/Icon';
+import Link from 'design/Link';
 
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 
 import { IdentityRootCluster } from '../useIdentity';
 
@@ -33,13 +36,14 @@ export function IdentityList(props: {
   onSelectCluster(clusterUri: string): void;
   onAddCluster(): void;
   onLogout(clusterUri: string): void;
+  deviceTrustStatus: DeviceTrustStatus;
 }) {
   return (
     <Box minWidth="200px">
       {props.loggedInUser && (
         <>
           <Flex px={3} pt={2} pb={2} justifyContent="space-between">
-            <Box>
+            <Flex flexDirection="column" gap={2}>
               <Text bold>{props.loggedInUser.name}</Text>
               <Flex flexWrap="wrap" gap={1}>
                 {props.loggedInUser.roles.map(role => (
@@ -48,7 +52,29 @@ export function IdentityList(props: {
                   </Label>
                 ))}
               </Flex>
-            </Box>
+              {props.deviceTrustStatus === 'enrolled' && (
+                <Flex gap={1} color="text.slightlyMuted">
+                  <ShieldCheck size="small" mb="2px" />
+                  <P3>Access secured with device trust.</P3>
+                </Flex>
+              )}
+              {props.deviceTrustStatus === 'requires-enrollment' && (
+                <Flex gap={1} color="text.slightlyMuted">
+                  <ShieldWarning size="small" mb="2px" />
+                  <Flex flexDirection="column">
+                    <P3>
+                      Full access requires a trusted device.{' '}
+                      <Link
+                        href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+                        target="_blank"
+                      >
+                        Learn how to enroll your device.
+                      </Link>
+                    </P3>
+                  </Flex>
+                </Flex>
+              )}
+            </Flex>
           </Flex>
           <Separator />
         </>
