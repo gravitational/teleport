@@ -501,6 +501,9 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	remoteCA.SetRoles(nil)
 
 	remoteClusterName := remoteCA.GetName()
+	if remoteClusterName != remoteCA.GetClusterName() {
+		return nil, trace.AccessDenied("CA name does not match its cluster name")
+	}
 	if remoteClusterName == domainName {
 		return nil, trace.AccessDenied("remote cluster has same name as this cluster: %v", domainName)
 	}
@@ -509,6 +512,22 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 		return nil, trace.AccessDenied("remote cluster has same name as trusted cluster: %v", remoteClusterName)
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
+	}
+
+	// ensure the subjects of the CA certs match what the
+	// cluster name of this CA is supposed to be
+	for _, keyPair := range remoteCA.GetTrustedTLSKeyPairs() {
+		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certClusterName, err := tlsca.ClusterName(cert.Subject)
+		if err != nil {
+			return nil, trace.AccessDenied("CA certificate subject organization is invalid")
+		}
+		if certClusterName != remoteClusterName {
+			return nil, trace.AccessDenied("the subject organization of a CA certificate does not match the cluster name of the CA")
+		}
 	}
 
 	remoteCluster, err := types.NewRemoteCluster(remoteClusterName)
