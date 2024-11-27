@@ -334,15 +334,14 @@ reason` in any of the roles.
 The IGS section of the test plan needs to be extended with these items:
 
 - [ ] Access Requests
-    - [ ] Verify when `role.spec.allow.request.reason.mode: "rquired"`:
-        - [ ] Web UI displays user-friendly error when reason is not provided
-        - [ ] CLI fails to create an access request when reason is not provided
-        - [ ] Other roles allowing requesting the same resources/roles without
-          `reason.required` set or with `reason.required: false` don't affect
-          the behaviour.
-        - [ ] Non-affected resources/roles don't require reason.
-        - [ ] When there is a role with `spec.options.request_access: always`
-          it effectively becomes `role.spec.options.request_access: reason`
+  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+    - [ ] CLI fails to create Access Request displaying a message that reason is required.
+    - [ ] Web UI fails to create Access Request displaying a message that reason is required.
+    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Non-affected resources/roles don't require reason.
+    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
+      - [ ] For CLI.
+      - [ ] For Web UI.
 
 
 ### References
