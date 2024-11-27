@@ -19,14 +19,19 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -195,6 +200,123 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return uiIg, nil
+}
+
+// integrationStats returns the integration stats.
+func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	summary, err := collectAWSOIDCAutoDiscoverStats(r.Context(), ig, clt.DiscoveryConfigClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return summary, nil
+}
+
+func collectAWSOIDCAutoDiscoverStats(
+	ctx context.Context,
+	integration types.Integration,
+	clt interface {
+		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	},
+) (ui.IntegrationWithSummary, error) {
+	var ret ui.IntegrationWithSummary
+
+	uiIg, err := ui.MakeIntegration(integration)
+	if err != nil {
+		return ret, err
+	}
+	ret.Integration = uiIg
+
+	var nextPage string
+	for {
+		discoveryConfigs, nextToken, err := clt.ListDiscoveryConfigs(ctx, 0, nextPage)
+		if err != nil {
+			return ret, trace.Wrap(err)
+		}
+		for _, dc := range discoveryConfigs {
+			discoveredResources, ok := dc.Status.IntegrationDiscoveredResources[integration.GetName()]
+			if !ok {
+				continue
+			}
+
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEC2, integration.GetName()); matchers != 0 {
+				ret.AWSEC2.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSEC2, dc.Status.LastSyncTime, discoveredResources.AwsEc2)
+			}
+
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherRDS, integration.GetName()); matchers != 0 {
+				ret.AWSRDS.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSRDS, dc.Status.LastSyncTime, discoveredResources.AwsRds)
+			}
+
+			if matchers := rulesWithIntegration(dc, types.AWSMatcherEKS, integration.GetName()); matchers != 0 {
+				ret.AWSEKS.RulesCount += matchers
+				mergeResourceTypeSummary(&ret.AWSEKS, dc.Status.LastSyncTime, discoveredResources.AwsEks)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+		nextPage = nextToken
+	}
+
+	// TODO(marco): add total number of ECS Database Services.
+	ret.AWSRDS.ECSDatabaseServiceCount = 0
+
+	return ret, nil
+}
+
+func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
+	in.ResourcesFound += int(new.Found)
+	in.ResourcesEnrollmentSuccess += int(new.Enrolled)
+	in.ResourcesEnrollmentFailed += int(new.Failed)
+}
+
+func lastSync(current *time.Time, new time.Time) *time.Time {
+	if current == nil {
+		return &new
+	}
+
+	if current.Before(new) {
+		return &new
+	}
+
+	return current
+}
+
+// rulesWithIntegration returns the number of Rules for a given integration and matcher type in the DiscoveryConfig.
+// A Rule is similar to a DiscoveryConfig's Matcher, eg DiscoveryConfig.Spec.AWS.[<Matcher>], however, a Rule has a single region.
+// This means that the number of Rules for a given Matcher is equal to the number of regions on that Matcher.
+func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType string, integration string) int {
+	ret := 0
+
+	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integration {
+			continue
+		}
+		if !slices.Contains(matcher.Types, matcherType) {
+			continue
+		}
+		ret += len(matcher.Regions)
+	}
+	return ret
 }
 
 // integrationsList returns a page of Integrations
