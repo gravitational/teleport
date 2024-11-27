@@ -33,7 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/inventory/internal/jitteredticker"
+	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -322,26 +322,26 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	// mitigate load spikes on auth restart, and is reasonably safe to do since
 	// the instance resource is not directly relied upon for use of any
 	// particular Teleport service.
-	instanceHeartbeatTicker := jitteredticker.New(jitteredticker.Params{
+	instanceHeartbeatDelay := delay.New(delay.Params{
 		FirstInterval:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
 		VariableInterval: c.instanceHBVariableDuration,
 		Jitter:           retryutils.SeventhJitter,
 	})
-	defer instanceHeartbeatTicker.Stop()
+	defer instanceHeartbeatDelay.Stop()
 
-	// these tickers are lazily initialized upon receipt of the first heartbeat
+	// these delays are lazily initialized upon receipt of the first heartbeat
 	// since not all servers send all heartbeats
-	var sshKeepAliveTicker *jitteredticker.JitteredTicker
-	var appKeepAliveTicker *jitteredticker.JitteredTicker
-	var dbKeepAliveTicker *jitteredticker.JitteredTicker
-	var kubeKeepAliveTicker *jitteredticker.JitteredTicker
+	var sshKeepAliveDelay *delay.Delay
+	var appKeepAliveDelay *delay.Delay
+	var dbKeepAliveDelay *delay.Delay
+	var kubeKeepAliveDelay *delay.Delay
 	defer func() {
 		// this is a function expression because the variables are initialized
 		// later and we want to call Stop on the initialized value (if any)
-		sshKeepAliveTicker.Stop()
-		appKeepAliveTicker.Stop()
-		dbKeepAliveTicker.Stop()
-		kubeKeepAliveTicker.Stop()
+		sshKeepAliveDelay.Stop()
+		appKeepAliveDelay.Stop()
+		dbKeepAliveDelay.Stop()
+		kubeKeepAliveDelay.Stop()
 	}()
 
 	for _, service := range handle.hello.Services {
@@ -419,30 +419,30 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					return
 				}
 
-				// we initialize tickers lazily here, depending on the protocol
-				if sshKeepAliveTicker == nil && m.SSHServer != nil {
-					sshKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+				// we initialize delays lazily here, depending on the protocol
+				if sshKeepAliveDelay == nil && m.SSHServer != nil {
+					sshKeepAliveDelay = delay.New(delay.Params{
 						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
 						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
 					})
 				}
-				if appKeepAliveTicker == nil && m.AppServer != nil {
-					appKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+				if appKeepAliveDelay == nil && m.AppServer != nil {
+					appKeepAliveDelay = delay.New(delay.Params{
 						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
 						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
 					})
 				}
-				if dbKeepAliveTicker == nil && m.DatabaseServer != nil {
-					dbKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+				if dbKeepAliveDelay == nil && m.DatabaseServer != nil {
+					dbKeepAliveDelay = delay.New(delay.Params{
 						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
 						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
 					})
 				}
-				if kubeKeepAliveTicker == nil && m.KubernetesServer != nil {
-					kubeKeepAliveTicker = jitteredticker.New(jitteredticker.Params{
+				if kubeKeepAliveDelay == nil && m.KubernetesServer != nil {
+					kubeKeepAliveDelay = delay.New(delay.Params{
 						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
 						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
@@ -457,16 +457,16 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
 				return
 			}
-		case now := <-instanceHeartbeatTicker.Next():
-			instanceHeartbeatTicker.Advance(now)
+		case now := <-instanceHeartbeatDelay.Elapsed():
+			instanceHeartbeatDelay.Advance(now)
 
 			if err := c.heartbeatInstanceState(handle, now); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
 
-		case now := <-sshKeepAliveTicker.Next():
-			sshKeepAliveTicker.Advance(now)
+		case now := <-sshKeepAliveDelay.Elapsed():
+			sshKeepAliveDelay.Advance(now)
 
 			if err := c.keepAliveSSHServer(handle, now); err != nil {
 				handle.CloseWithError(err)
@@ -474,8 +474,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveSSHTick)
 
-		case now := <-appKeepAliveTicker.Next():
-			appKeepAliveTicker.Advance(now)
+		case now := <-appKeepAliveDelay.Elapsed():
+			appKeepAliveDelay.Advance(now)
 
 			if err := c.keepAliveAppServer(handle, now); err != nil {
 				handle.CloseWithError(err)
@@ -483,8 +483,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveAppTick)
 
-		case now := <-dbKeepAliveTicker.Next():
-			dbKeepAliveTicker.Advance(now)
+		case now := <-dbKeepAliveDelay.Elapsed():
+			dbKeepAliveDelay.Advance(now)
 
 			if err := c.keepAliveDatabaseServer(handle, now); err != nil {
 				handle.CloseWithError(err)
@@ -492,8 +492,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveDatabaseTick)
 
-		case now := <-kubeKeepAliveTicker.Next():
-			kubeKeepAliveTicker.Advance(now)
+		case now := <-kubeKeepAliveDelay.Elapsed():
+			kubeKeepAliveDelay.Advance(now)
 
 			if err := c.keepAliveKubernetesServer(handle, now); err != nil {
 				handle.CloseWithError(err)

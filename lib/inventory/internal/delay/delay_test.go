@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package jitteredticker
+package delay
 
 import (
 	"os"
@@ -57,14 +57,14 @@ func TestFixed(t *testing.T) {
 	// second tick
 	clock.Advance(offset)
 
-	tick := <-ticker.Next()
+	tick := <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first), tick)
 
 	clock.BlockUntil(1)
 	clock.Advance(ivl)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+ivl), tick)
 
@@ -75,12 +75,12 @@ func TestFixed(t *testing.T) {
 	clock.BlockUntil(1)
 	clock.Advance(3 * ivl)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	// this is the expected tick since the previous one that was received
 	require.Equal(start.Add(first+2*ivl), tick)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	// this is the tick (received immediately) corresponding to a whole interval
 	// since the wall time at which the ticker was advanced the last time
@@ -119,28 +119,28 @@ func TestJitter(t *testing.T) {
 	clock.BlockUntil(1)
 	clock.Advance(first)
 
-	tick := <-ticker.Next()
+	tick := <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first), tick)
 
 	clock.BlockUntil(1)
 	clock.Advance(ivl)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+ivl), tick)
 
 	clock.BlockUntil(1)
 	clock.Advance(ivl / 2)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+ivl+ivl/2), tick)
 
 	clock.BlockUntil(1)
 	clock.Advance(ivl)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+ivl+ivl/2+ivl), tick)
 }
@@ -174,7 +174,7 @@ func TestVariable(t *testing.T) {
 	clock.BlockUntil(1)
 	clock.Advance(first)
 
-	tick := <-ticker.Next()
+	tick := <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first), tick)
 
@@ -185,14 +185,14 @@ func TestVariable(t *testing.T) {
 	// the max duration every time
 	ivl.Add(100)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+time.Minute), tick)
 
 	clock.BlockUntil(1)
 	clock.Advance(2 * time.Minute)
 
-	tick = <-ticker.Next()
+	tick = <-ticker.Elapsed()
 	ticker.Advance(tick)
 	require.Equal(start.Add(first+3*time.Minute), tick)
 }
