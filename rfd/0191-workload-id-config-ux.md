@@ -437,8 +437,13 @@ credentials would have been issued:
   reason: The `join.github.environment` attribute included in `spec.spiffe.id` template do not exist in the attribute set.
 ```
 
-It stands to reason that this functionality could eventually be integrated into 
-the Teleport Web UI.
+Similar functionality should be built into the Teleport Web UI. This should
+initially be built into the WorkloadIdentity resource view, and allow the
+resource to be tested against a set of attributes derived from an existing
+Bot Instance resource.
+
+Later, this functionality can be built into the "Create or Edit" flow for a 
+WorkloadIdentity resource.
 
 ### X509 SVIDs and DNS SANs
 
