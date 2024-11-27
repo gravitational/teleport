@@ -20,7 +20,10 @@ import (
 type inventorySyncer struct {
 	storage *storage.S
 
-	createCallback, updateCallback, noopCallback, deleteCallback func(dev *devicepb.Device, err error)
+	createCallback,
+	updateCallback,
+	noopCallback,
+	deleteCallback func(source *devicepb.DeviceSource, dev *devicepb.Device, err error)
 }
 
 // SyncInventory executes its namesake stream.
@@ -257,16 +260,16 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 				// Notify noops separately from updates, they are needless noise for
 				// audit but interesting for metrics.
 				if err == nil && proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
-					s.noopCallback(stored, err)
+					s.noopCallback(source, stored, err)
 				} else {
-					s.updateCallback(stored, err)
+					s.updateCallback(source, stored, err)
 				}
 			}
 			// Attempt Create if either GetDeviceIDByOSTag or UpdateDevice failed with
 			// not found.
 			if trace.IsNotFound(err) {
 				stored, err = s.storage.CreateDevice(ctx, dev, createAsResource)
-				s.createCallback(stored, err)
+				s.createCallback(source, stored, err)
 				// err handled below.
 			}
 
@@ -327,7 +330,7 @@ func (s *inventorySyncer) deleteDevices(ctx context.Context, source *devicepb.De
 				return nil
 			}
 		})
-		s.deleteCallback(dev, err)
+		s.deleteCallback(source, dev, err)
 		if err == nil {
 			st.Id = dev.Id
 			st.Deleted = true

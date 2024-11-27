@@ -3,6 +3,7 @@ package devicetrustv1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -1091,11 +1092,32 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 			"this Teleport cluster is not licensed for MDM integrations, please contact the cluster administrator")
 	}
 
-	userMeta := getUserMetadata(ctx)
-	auditCB := func(eventType, eventCode string, dev *devicepb.Device, err error) {
+	makeUserMetadata := func() func(source *devicepb.DeviceSource) apievents.UserMetadata {
+		var once sync.Once
+		var userMeta apievents.UserMetadata
+
+		// We'll attribute events to Jamf Service if:
+		// * The caller has types.RoleMDM is found; and
+		// * source.origin == JAMF
+		return func(source *devicepb.DeviceSource) apievents.UserMetadata {
+			once.Do(func() {
+				userMeta = getUserMetadata(ctx) // from RPC context
+
+				isMDMService := authz.HasBuiltinRole(*authCtx, string(types.RoleMDM))
+				isJamfService := isMDMService && source.GetOrigin() == devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF
+				if isJamfService {
+					userMeta.User = fmt.Sprintf("Jamf Service (%s)", userMeta.User)
+				}
+			})
+			return userMeta
+		}
+	}()
+
+	auditCB := func(eventType, eventCode string, source *devicepb.DeviceSource, dev *devicepb.Device, err error) {
 		if err != nil {
 			return // Don't issue failures for create/update/delete.
 		}
+
 		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
 				Type: eventType,
@@ -1105,7 +1127,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 				Success: true,
 			},
 			Device:       getDeviceMetadata(dev),
-			UserMetadata: userMeta,
+			UserMetadata: makeUserMetadata(source),
 		})
 	}
 
@@ -1119,20 +1141,20 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 
 	syncer := &inventorySyncer{
 		storage: s.storage,
-		createCallback: func(dev *devicepb.Device, err error) {
+		createCallback: func(source *devicepb.DeviceSource, dev *devicepb.Device, err error) {
 			incCounter("create", err)
-			auditCB(events.DeviceCreateEvent, events.DeviceCreateCode, dev, err)
+			auditCB(events.DeviceCreateEvent, events.DeviceCreateCode, source, dev, err)
 		},
-		updateCallback: func(dev *devicepb.Device, err error) {
+		updateCallback: func(source *devicepb.DeviceSource, dev *devicepb.Device, err error) {
 			incCounter("update", err)
-			auditCB(events.DeviceUpdateEvent, events.DeviceUpdateCode, dev, err)
+			auditCB(events.DeviceUpdateEvent, events.DeviceUpdateCode, source, dev, err)
 		},
-		noopCallback: func(_ *devicepb.Device, err error) {
+		noopCallback: func(_ *devicepb.DeviceSource, _ *devicepb.Device, err error) {
 			incCounter("noop", err)
 		},
-		deleteCallback: func(dev *devicepb.Device, err error) {
+		deleteCallback: func(source *devicepb.DeviceSource, dev *devicepb.Device, err error) {
 			incCounter("delete", err)
-			auditCB(events.DeviceDeleteEvent, events.DeviceDeleteCode, dev, err)
+			auditCB(events.DeviceDeleteEvent, events.DeviceDeleteCode, source, dev, err)
 		},
 	}
 	return trace.Wrap(syncer.SyncInventory(stream))

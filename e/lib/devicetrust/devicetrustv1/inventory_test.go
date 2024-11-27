@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -18,9 +19,11 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -764,6 +767,102 @@ func TestService_SyncInventory_audit(t *testing.T) {
 		deleteEvent,
 		updateEvent,
 	})
+
+	// Assert that audit user was not modified to "Jamf Service" (calling identity
+	// here doesn't match the prerequisites).
+	if len(got) > 0 {
+		deviceEvent := got[0].(*apievents.DeviceEvent2) // guaranteed by assertEvents.
+		const prefix = "Jamf Service"
+		if strings.HasPrefix(deviceEvent.User, prefix) {
+			t.Errorf(`event.User=%q, want != "%s*"`, deviceEvent.User, prefix)
+		}
+	}
+}
+
+// TestService_SyncInventory_jamfServiceAudit tests that events from Jamf
+// Service are attributed to the "Jamf Service" user.
+func TestService_SyncInventory_jamfServiceUser(t *testing.T) {
+	// Made-up but real-looking service serviceUser.
+	const serviceUser = "5cb94254-ee92-4a99-b898-0dfa8d3be8aa.example.teleport.sh"
+
+	authorizer := &jamfServiceAuthorizer{
+		User: serviceUser,
+	}
+	emitter := &eventstest.MockRecorderEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithEmitter(emitter),
+	)
+
+	devicesClient := env.DevicesClient
+	ctx := context.Background()
+
+	// Sync a device so an event is issued.
+	// We only care about the audit event, not the action taken to cause it.
+	start := &devicepb.SyncInventoryStart{
+		Source: &devicepb.DeviceSource{
+			Name:   "jamf",
+			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+		},
+	}
+	dev1 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev1"}
+	if _, err := syncInventoryPages(
+		ctx,
+		devicesClient,
+		start,
+		[][]*devicepb.Device{{dev1}},
+	); err != nil {
+		t.Fatalf("SyncInventory failed: %v", err)
+	}
+
+	// Assert emitted events. This guarantees length/type/etc on success.
+	gotEvents := emitter.Events()
+	assertEvents(t, gotEvents, []wantEvent{
+		{Type: events.DeviceCreateEvent, Code: events.DeviceCreateCode},
+	})
+
+	if len(gotEvents) > 0 {
+		// We cannot override the "context user" returned by authz.UserFromContext/
+		// authz.ClientUserMetadata, so the best we can do here is match by regex.
+		wantRE := regexp.MustCompile(`^Jamf Service \(.+\)$`)
+		for i, event := range gotEvents {
+			deviceEvent := event.(*apievents.DeviceEvent2) // guaranteed by assertEvents.
+			if got := deviceEvent.User; !wantRE.MatchString(got) {
+				t.Errorf("gotEvents[%d].User=%q, want match against `%s`", i, got, wantRE.String())
+			}
+		}
+	}
+}
+
+// jamfServiceAuthorizer mimics Jamf Service access by creating an authz.Context
+// that passes an `authz.HasBuiltinRole(ctx, types.RoleMDM)` check.
+type jamfServiceAuthorizer struct {
+	User string
+}
+
+func (a *jamfServiceAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	u, err := types.NewUser(a.User)
+	if err != nil {
+		return nil, fmt.Errorf("new user: %w", err)
+	}
+	return &authz.Context{
+		User:    u,
+		Checker: &jamfServiceChecker{},
+		Identity: authz.BuiltinRole{
+			Role:     types.RoleMDM,
+			Username: u.GetName(),
+		},
+		AdminActionAuthState: authz.AdminActionAuthNotRequired,
+	}, nil
+}
+
+// jamfServiceChecker accompanies jamfServiceAuthorizer.
+type jamfServiceChecker struct {
+	testenv.NoopChecker
+}
+
+func (c *jamfServiceChecker) HasRole(role string) bool {
+	return role == string(types.RoleMDM)
 }
 
 func TestService_SyncInventory_devicesToRemove(t *testing.T) {
