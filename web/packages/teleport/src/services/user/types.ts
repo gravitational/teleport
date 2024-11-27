@@ -28,6 +28,7 @@ export interface AccessStrategy {
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
+  requireReason: boolean;
 }
 
 export interface UserContext {

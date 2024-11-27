@@ -120,6 +120,7 @@ Optional:
 - `db_users` (List of String) DatabaseUsers is a list of databases users this role is allowed to connect as.
 - `desktop_groups` (List of String) DesktopGroups is a list of groups for created desktop users to be added to
 - `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+- `github_permissions` (Attributes List) GitHubPermissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-specallowgithub_permissions))
 - `group_labels` (Map of List of String) GroupLabels is a map of labels used as part of the RBAC system.
 - `group_labels_expression` (String) GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.
 - `host_groups` (List of String) HostGroups is a list of groups for created users to be added to
@@ -157,6 +158,13 @@ Optional:
 
 - `match` (Map of List of String) Match is a list of object labels that must be matched for the permission to be granted.
 - `permissions` (List of String) Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+
+
+### Nested Schema for `spec.allow.github_permissions`
+
+Optional:
+
+- `orgs` (List of String)
 
 
 ### Nested Schema for `spec.allow.impersonate`
@@ -308,6 +316,7 @@ Optional:
 - `db_users` (List of String) DatabaseUsers is a list of databases users this role is allowed to connect as.
 - `desktop_groups` (List of String) DesktopGroups is a list of groups for created desktop users to be added to
 - `gcp_service_accounts` (List of String) GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
+- `github_permissions` (Attributes List) GitHubPermissions defines GitHub integration related permissions. (see [below for nested schema](#nested-schema-for-specdenygithub_permissions))
 - `group_labels` (Map of List of String) GroupLabels is a map of labels used as part of the RBAC system.
 - `group_labels_expression` (String) GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.
 - `host_groups` (List of String) HostGroups is a list of groups for created users to be added to
@@ -345,6 +354,13 @@ Optional:
 
 - `match` (Map of List of String) Match is a list of object labels that must be matched for the permission to be granted.
 - `permissions` (List of String) Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+
+
+### Nested Schema for `spec.deny.github_permissions`
+
+Optional:
+
+- `orgs` (List of String)
 
 
 ### Nested Schema for `spec.deny.impersonate`

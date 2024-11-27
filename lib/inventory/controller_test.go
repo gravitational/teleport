@@ -466,7 +466,7 @@ func TestAppServerBasics(t *testing.T) {
 	// ensure that local app keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveAppTick, keepAliveAppTick),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -491,7 +491,7 @@ func TestAppServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// apps (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveAppTick, keepAliveAppTick, keepAliveAppTick),
 		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
 	)
 
@@ -685,7 +685,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// ensure that local db keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveDatabaseTick, keepAliveDatabaseTick),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -710,7 +710,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// dbs (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveDatabaseTick, keepAliveDatabaseTick, keepAliveDatabaseTick),
 		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
 	)
 
@@ -812,18 +812,6 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 	defer controller.Close()
 
 	require.False(t, controller.instanceHBEnabled)
-}
-
-func TestServerKeepaliveDisabledEnv(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE", "yes")
-
-	controller := NewController(
-		&fakeAuth{},
-		usagereporter.DiscardUsageReporter{},
-	)
-	defer controller.Close()
-
-	require.False(t, controller.serverKeepAliveEnabled)
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
@@ -1312,7 +1300,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// ensure that local app keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveKubeTick, keepAliveKubeTick),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
 
@@ -1337,7 +1325,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// verify that further keepalive ticks to not result in attempts to keepalive
 	// apps (successful or not).
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		expect(keepAliveKubeTick, keepAliveKubeTick, keepAliveKubeTick),
 		deny(kubeKeepAliveOk, kubeKeepAliveErr, handlerClose),
 	)
 
