@@ -491,21 +491,11 @@ func TestDialFakeApp(t *testing.T) {
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
 			apps: []appSpec{
-				appSpec{
-					publicAddr: "echo1.root1.example.com",
-				},
-				appSpec{
-					publicAddr: "echo2.root1.example.com",
-				},
-				appSpec{
-					publicAddr: "echo.myzone.example.com",
-				},
-				appSpec{
-					publicAddr: "echo.nested.myzone.example.com",
-				},
-				appSpec{
-					publicAddr: "not.in.a.custom.zone",
-				},
+				appSpec{publicAddr: "echo1.root1.example.com"},
+				appSpec{publicAddr: "echo2.root1.example.com"},
+				appSpec{publicAddr: "echo.myzone.example.com"},
+				appSpec{publicAddr: "echo.nested.myzone.example.com"},
+				appSpec{publicAddr: "not.in.a.custom.zone"},
 				appSpec{
 					publicAddr: "multi-port.root1.example.com",
 					tcpPorts: []*types.PortRange{
@@ -525,9 +515,7 @@ func TestDialFakeApp(t *testing.T) {
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
 					apps: []appSpec{
-						appSpec{
-							publicAddr: "echo1.leaf1.example.com",
-						},
+						appSpec{publicAddr: "echo1.leaf1.example.com"},
 						appSpec{
 							publicAddr: "multi-port.leaf1.example.com",
 							tcpPorts: []*types.PortRange{
@@ -543,28 +531,20 @@ func TestDialFakeApp(t *testing.T) {
 				},
 				"leaf2.example.com": {
 					apps: []appSpec{
-						appSpec{
-							publicAddr: "echo1.leaf2.example.com",
-						},
+						appSpec{publicAddr: "echo1.leaf2.example.com"},
 					},
 				},
 			},
 		},
 		"root2.example.com": {
 			apps: []appSpec{
-				appSpec{
-					publicAddr: "echo1.root2.example.com",
-				},
-				appSpec{
-					publicAddr: "echo2.root2.example.com",
-				},
+				appSpec{publicAddr: "echo1.root2.example.com"},
+				appSpec{publicAddr: "echo2.root2.example.com"},
 			},
 			leafClusters: map[string]testClusterSpec{
 				"leaf3.example.com": {
 					apps: []appSpec{
-						appSpec{
-							publicAddr: "echo1.leaf3.example.com",
-						},
+						appSpec{publicAddr: "echo1.leaf3.example.com"},
 					},
 				},
 			},
@@ -733,9 +713,7 @@ func TestOnNewConnection(t *testing.T) {
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
 			apps: []appSpec{
-				appSpec{
-					publicAddr: "echo1",
-				},
+				appSpec{publicAddr: "echo1"},
 			},
 			cidrRange:    "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{},
