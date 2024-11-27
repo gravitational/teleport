@@ -1,4 +1,5 @@
 import { Auth2faType } from 'shared/services';
+
 import { DeviceType, MfaAuthenticateChallenge } from './types';
 
 export type MfaOption = {

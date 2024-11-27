@@ -29,13 +29,14 @@ import { ContextProvider } from 'teleport/index';
 
 import cfg from 'teleport/config';
 
+import { DeviceUsage } from 'teleport/services/mfa';
+
 import {
   AddAuthDeviceWizardStepProps,
   CreateDeviceStep,
   SaveDeviceStep,
 } from './AddAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
-import { DeviceUsage } from 'teleport/services/mfa';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',

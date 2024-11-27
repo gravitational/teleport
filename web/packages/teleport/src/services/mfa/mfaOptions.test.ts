@@ -17,9 +17,11 @@
  */
 
 import { Auth2faType } from 'shared/services';
+
+import { SSOChallenge } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
 import { getMfaChallengeOptions, getMfaRegisterOptions } from './mfaOptions';
 import { DeviceType, MfaAuthenticateChallenge } from './types';
-import { SSOChallenge } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 describe('test retrieving mfa options from Auth2faType', () => {
   const testCases: {

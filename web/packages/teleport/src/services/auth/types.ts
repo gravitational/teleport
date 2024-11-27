@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthProviderType } from 'shared/services';
-
 import { EventMeta } from 'teleport/services/userEvent';
 
-import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 import { DeviceUsage } from '../mfa';
+
+import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 
 export type Base64urlString = string;
 

@@ -22,14 +22,15 @@ import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import makePasswordToken from './makePasswordToken';
-import { makeChangedUserAuthn } from './make';
 import {
   makeMfaChallenge,
   makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from '../mfa/makeMfa';
+
+import makePasswordToken from './makePasswordToken';
+import { makeChangedUserAuthn } from './make';
 import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,

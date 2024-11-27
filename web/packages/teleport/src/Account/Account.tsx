@@ -40,6 +40,8 @@ import cfg from 'teleport/config';
 
 import { PasswordState } from 'teleport/services/user';
 
+import { DeviceUsage } from 'teleport/services/mfa';
+
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
@@ -51,7 +53,6 @@ import {
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
 import { StatePill } from './StatePill';
-import { DeviceUsage } from 'teleport/services/mfa';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
