@@ -20,6 +20,8 @@ package web
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -37,14 +39,16 @@ import (
 // Version returned follows semver without the leading "v".
 func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID string) (string, error) {
 	rollout, err := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
-	switch {
-	case err == nil:
-		return getVersionFromRollout(rollout, group, updaterUUID)
-	case trace.IsNotFound(err):
-		return getVersionFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
-	default:
-		return "", trace.Wrap(err, "Failed to get auto-update rollout")
+	if err != nil {
+		// Fallback to channels if there is no autoupdate_agent_rollout.
+		if trace.IsNotFound(err) {
+			return getVersionFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
+		}
+		// Something is broken, we don't want to fallback to channels, this would be harmful.
+		return "", trace.Wrap(err, "getting autoupdate_agent_rollout")
 	}
+
+	return getVersionFromRollout(rollout, group, updaterUUID)
 }
 
 // autoUpdateAgentShouldUpdate returns if the agent should update now to based on its group
@@ -54,20 +58,22 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 // and maintenance window derived from the cluster_maintenance_config resource.
 func (h *Handler) autoUpdateAgentShouldUpdate(ctx context.Context, group, updaterUUID string, windowLookup bool) (bool, error) {
 	rollout, err := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
-	switch {
-	case err == nil:
-		return getTriggerFromRollout(rollout, group, updaterUUID)
-	case trace.IsNotFound(err):
-		// Updaters using the RFD184 API are not aware of maintenance windows
-		// like RFD109 updaters are. To have both updaters adopt the same behavior
-		// we must do the CMC window lookup for them.
-		if windowLookup {
-			return h.getTriggerFromWindowThenChannel(ctx, group)
+	if err != nil {
+		// Fallback to channels if there is no autoupdate_agent_rollout.
+		if trace.IsNotFound(err) {
+			// Updaters using the RFD184 API are not aware of maintenance windows
+			// like RFD109 updaters are. To have both updaters adopt the same behavior
+			// we must do the CMC window lookup for them.
+			if windowLookup {
+				return h.getTriggerFromWindowThenChannel(ctx, group)
+			}
+			return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
 		}
-		return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
-	default:
+		// Something is broken, we don't want to fallback to channels, this would be harmful.
 		return false, trace.Wrap(err, "Failed to get auto-update rollout")
 	}
+
+	return getTriggerFromRollout(rollout, group, updaterUUID)
 }
 
 // getVersionFromRollout returns the version we should serve to the agent based
@@ -195,8 +201,13 @@ func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Chann
 
 // getTriggerFromWindowThenChannel gets the target version from the RFD109 maintenance window and channels.
 func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
-	// TODO: cache the CMC
-	cmc, err := h.cfg.ProxyClient.GetClusterMaintenanceConfig(ctx)
+	// Caching the CMC for 10 seconds because this resource is cached neither by the auth nor the proxy.
+	// And this function can be accessed via unauthenticated endpoints.
+	cmc, err := utils.FnCacheGet[types.ClusterMaintenanceConfig](ctx, h.clusterMaintenanceConfigCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+		return h.cfg.ProxyClient.GetClusterMaintenanceConfig(ctx)
+	})
+
+	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
 	if err == nil {
 		if cmc.WithinUpgradeWindow(h.clock.Now()) {
 			return true, nil
@@ -204,7 +215,6 @@ func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName
 	}
 
 	return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
-
 }
 
 // getTriggerFromWindowThenChannel gets the target version from the RFD109 channels.

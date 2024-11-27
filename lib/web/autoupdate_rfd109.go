@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -91,7 +92,7 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 
 	// RFD 109 specifies that version from channels must have the leading "v".
 	// As h.autoUpdateAgentVersion doesn't, we must add it.
-	_, err = w.Write([]byte("v" + targetVersion))
+	_, err = fmt.Fprintf(w, "v%s", targetVersion)
 	return nil, trace.Wrap(err)
 }
 

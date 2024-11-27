@@ -184,6 +184,9 @@ type Handler struct {
 	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
+
+	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
+	clusterMaintenanceConfigCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -499,6 +502,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err, "creating /find cache")
 	}
 	h.findEndpointCache = findCache
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.clusterMaintenanceConfigCache = cmcCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {

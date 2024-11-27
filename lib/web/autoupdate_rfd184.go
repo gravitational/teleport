@@ -33,7 +33,7 @@ import (
 // automaticUpdateSettings184 crafts the automatic updates part of the ping/find response
 // as described in RFD-184 (agents) and RFD-144 (tools).
 func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updaterUUID string) webclient.AutoUpdateSettings {
-	// Tools auto updates
+	// Tools auto updates section.
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
@@ -46,7 +46,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
 	}
 
-	// Agent auto updates
+	// Agent auto updates section.
 	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to resolve AgentVersion", "error", err)
