@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package rolloutcontroller
+package rollout
 
 import (
 	"context"
@@ -307,7 +307,7 @@ func TestTryReconcile(t *testing.T) {
 
 			// Test execution: Running the reconciliation
 
-			reconciler := &Reconciler{
+			reconciler := &reconciler{
 				clt: client,
 				log: log,
 			}
@@ -375,13 +375,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.NoError(t, reconciler.Reconcile(ctx))
+		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -397,13 +397,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.NoError(t, reconciler.Reconcile(ctx))
+		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -421,13 +421,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.NoError(t, reconciler.Reconcile(ctx))
+		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -461,13 +461,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.NoError(t, reconciler.Reconcile(ctx))
+		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -499,13 +499,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.NoError(t, reconciler.Reconcile(ctx))
+		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -523,13 +523,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.ErrorContains(t, reconciler.Reconcile(ctx), "the DB fell on the floor")
+		require.ErrorContains(t, reconciler.reconcile(ctx), "the DB fell on the floor")
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
@@ -553,13 +553,13 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := &Reconciler{
+		reconciler := &reconciler{
 			clt: client,
 			log: log,
 		}
 
 		// Test execution: run the reconciliation loop
-		require.ErrorContains(t, reconciler.Reconcile(cancelableCtx), "canceled")
+		require.ErrorIs(t, reconciler.reconcile(cancelableCtx), context.Canceled)
 
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)

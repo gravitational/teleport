@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package rolloutcontroller
+package rollout
 
 import (
 	"context"
@@ -37,11 +37,11 @@ const (
 	maxConflictRetry      = 3
 )
 
-// Reconciler reconciles the AutoUpdateAgentRollout singleton based on the content of the AutoUpdateVersion and
+// reconciler reconciles the AutoUpdateAgentRollout singleton based on the content of the AutoUpdateVersion and
 // AutoUpdateConfig singletons. This reconciler is not based on the services.GenericReconciler because:
 // - we reconcile 2 resources with one
 // - both input and output are singletons, we don't need the multi resource logic nor stream/paginated APIs
-type Reconciler struct {
+type reconciler struct {
 	clt Client
 	log *slog.Logger
 
@@ -49,9 +49,9 @@ type Reconciler struct {
 	mutex sync.Mutex
 }
 
-// Reconcile the AutoUpdateAgentRollout singleton. The reconciliation can fail because of a conflict (multiple auths
+// reconcile the AutoUpdateAgentRollout singleton. The reconciliation can fail because of a conflict (multiple auths
 // are racing), in this case we retry the reconciliation immediately.
-func (r *Reconciler) Reconcile(ctx context.Context) error {
+func (r *reconciler) reconcile(ctx context.Context) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 // The creation/update/deletion can fail with a trace.CompareFailedError or trace.NotFoundError
 // if the resource change while we were computing it.
 // The caller must handle those error and retry the reconciliation.
-func (r *Reconciler) tryReconcile(ctx context.Context) error {
+func (r *reconciler) tryReconcile(ctx context.Context) error {
 	// get autoupdate_config
 	var config *autoupdate.AutoUpdateConfig
 	if c, err := r.clt.GetAutoUpdateConfig(ctx); err == nil {
@@ -171,7 +171,7 @@ func (r *Reconciler) tryReconcile(ctx context.Context) error {
 	return trace.Wrap(err, "updating rollout")
 }
 
-func (r *Reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAgents, version *autoupdate.AutoUpdateVersionSpecAgents) (*autoupdate.AutoUpdateAgentRolloutSpec, error) {
+func (r *reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAgents, version *autoupdate.AutoUpdateVersionSpecAgents) (*autoupdate.AutoUpdateAgentRolloutSpec, error) {
 	// reconcile mode
 	mode, err := getMode(config.GetMode(), version.GetMode())
 	if err != nil {
