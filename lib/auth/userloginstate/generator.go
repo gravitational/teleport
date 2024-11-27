@@ -169,8 +169,6 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	return uls, nil
 }
 
-// addAccessListsToState will add the user's applicable access lists to the user login state,
-// returning any inherited roles and traits.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
 	accessLists, err := g.accessLists.GetAccessLists(ctx)
 	if err != nil {
@@ -181,6 +179,36 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	allInheritedTraits := make(map[string][]string)
 
 	for _, accessList := range accessLists {
+		// Validate that all roles granted by the access list exist, if any don't, skip this access list entirely.
+		rolesExist := true
+		for _, role := range accessList.Spec.Grants.Roles {
+			_, err := g.access.GetRole(ctx, role)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					g.log.Warnf("Skipping access list %s for user %s due to non-existent role %s", accessList.Spec.Title, user.GetName(), role)
+					rolesExist = false
+					break
+				}
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+
+		for _, role := range accessList.Spec.OwnerGrants.Roles {
+			_, err := g.access.GetRole(ctx, role)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					g.log.Warnf("Skipping access list %s for user %s due to non-existent role %s", accessList.Spec.Title, user.GetName(), role)
+					rolesExist = false
+					break
+				}
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+
+		if !rolesExist {
+			continue
+		}
+
 		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
 		membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 		if err != nil {
@@ -188,13 +216,12 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		}
 		if err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.Grants, state)
-			if membershipKind == accesslists.MembershipOrOwnershipTypeInherited {
-				allInheritedRoles = append(allInheritedRoles, accessList.Spec.Grants.Roles...)
-				for k, values := range accessList.Spec.Grants.Traits {
-					allInheritedTraits[k] = append(allInheritedTraits[k], values...)
-				}
+			allInheritedRoles = append(allInheritedRoles, accessList.Spec.Grants.Roles...)
+			for k, values := range accessList.Spec.Grants.Traits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
 		}
+
 		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
 		ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 		if err != nil {
@@ -202,11 +229,9 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		}
 		if err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
-			if ownershipType == accesslists.MembershipOrOwnershipTypeInherited {
-				allInheritedRoles = append(allInheritedRoles, accessList.Spec.OwnerGrants.Roles...)
-				for k, values := range accessList.Spec.OwnerGrants.Traits {
-					allInheritedTraits[k] = append(allInheritedTraits[k], values...)
-				}
+			allInheritedRoles = append(allInheritedRoles, accessList.Spec.OwnerGrants.Roles...)
+			for k, values := range accessList.Spec.OwnerGrants.Traits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
 		}
 	}
@@ -242,7 +267,6 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	}
 
 	// Make sure all the roles exist. If they don't, error out.
-	// Since InheritedRoles are always a subset of Roles, we don't need to check them.
 	var existingRoles []string
 	for _, role := range state.Spec.Roles {
 		_, err := g.access.GetRole(ctx, role)
