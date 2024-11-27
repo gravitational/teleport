@@ -11,12 +11,10 @@ description: Configure automatic user provisioning for MongoDB.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
   the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
-  <Admonition type="warning" title="MongoDB Role-Based Access Control">
   Your MongoDB database must have Role-Based Access Control (RBAC) enabled by
   setting
   [`security.authorization`](https://www.mongodb.com/docs/manual/reference/configuration-options/#mongodb-setting-security.authorization)
   to `enabled` in the configuration file.
-  </Admonition>
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
