@@ -258,3 +258,60 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 		})
 	}
 }
+
+func TestCalculateTrustedDeviceRequirement(t *testing.T) {
+	deviceTrustOptionalRole, err := types.NewRole("editor", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeOptional}})
+	assert.NoError(t, err)
+	deviceTrustRequiredRole, err := types.NewRole("editor", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired}})
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		dt                *types.DeviceTrust
+		roles             []types.Role
+		expectRequirement types.TrustedDeviceRequirement
+	}{
+		{
+			name: "not required by cluster or by roles",
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeOff,
+			},
+			roles:             []types.Role{deviceTrustOptionalRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
+		},
+		{
+			name: "not required by cluster or by roles",
+			dt: &types.DeviceTrust{
+				Mode: "",
+			},
+			roles:             []types.Role{deviceTrustOptionalRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
+		},
+		{
+			name: "required by cluster but not by roles",
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			roles:             []types.Role{deviceTrustOptionalRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+		},
+		{
+			name: "required by role but not by cluster",
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			roles:             []types.Role{deviceTrustRequiredRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requirement := authz.CalculateTrustedDeviceRequirement(test.dt, func() []types.Role {
+				return test.roles
+			})
+
+			assert.Equal(t, test.expectRequirement, requirement)
+		})
+	}
+}

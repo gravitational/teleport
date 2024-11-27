@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -40,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
@@ -168,7 +167,7 @@ func (a *Server) augmentSessionForDeviceTrust(
 
 func (a *Server) calculateTrustedDeviceMode(
 	ctx context.Context,
-	getRoles func() ([]types.Role, error),
+	getRoles func() []types.Role,
 ) (types.TrustedDeviceRequirement, error) {
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
@@ -177,27 +176,13 @@ func (a *Server) calculateTrustedDeviceMode(
 		return unspecified, nil
 	}
 
-	// Required by cluster mode?
 	ap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return unspecified, trace.Wrap(err)
 	}
-	if dtconfig.GetEffectiveMode(ap.GetDeviceTrust()) == constants.DeviceTrustModeRequired {
-		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-	}
 
-	// Required by roles?
-	roles, err := getRoles()
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	for _, role := range roles {
-		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-		}
-	}
-
-	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED, nil
+	requirement := dtauthz.CalculateTrustedDeviceRequirement(ap.GetDeviceTrust(), getRoles)
+	return requirement, nil
 }
 
 // newWebSessionOpts are WebSession creation options exclusive to Auth.
@@ -360,8 +345,8 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		return checker.Roles(), nil
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() []types.Role {
+		return checker.Roles()
 	}); err != nil {
 		log.
 			WithError(err).
