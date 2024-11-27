@@ -42,7 +42,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -9591,6 +9594,142 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
 			err := accessChecker.CheckSPIFFESVID(tt.spiffeIDPath, tt.dnsSANs, tt.ipSANs)
 			tt.requireErr(t, err)
+		})
+	}
+}
+
+func TestLabelAccountAssignmentMatch(t *testing.T) {
+
+	testCases := []struct {
+		name                 string
+		assignmentLabel      string
+		roleAllowAssignments []types.IdentityCenterAccountAssignment
+		expectMatch          require.BoolAssertionFunc
+	}{
+		{
+			name:            "literal",
+			assignmentLabel: "11111111--some:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "some:permission:set:arn",
+				},
+			},
+			expectMatch: require.True,
+		},
+		{
+			name:            "multi-literal",
+			assignmentLabel: "22222222--some:other:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "some:permission:set:arn",
+				},
+				{
+					Account:       "22222222",
+					PermissionSet: "some:other:permission:set:arn",
+				},
+			},
+			expectMatch: require.True,
+		},
+		{
+			name:            "globbed account",
+			assignmentLabel: "11111111--some:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "*",
+					PermissionSet: "some:permission:set:arn",
+				},
+			},
+			expectMatch: require.True,
+		},
+		{
+			name:            "globbed permission set",
+			assignmentLabel: "11111111--some:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "*",
+				},
+			},
+			expectMatch: require.True,
+		},
+		{
+			name:            "globbed",
+			assignmentLabel: "11111111--some:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "*",
+					PermissionSet: "*",
+				},
+			},
+			expectMatch: require.True,
+		},
+		{
+			name:            "invalid account",
+			assignmentLabel: "11111111--some:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "22222222",
+					PermissionSet: "some:permission:set:arn",
+				},
+			},
+			expectMatch: require.False,
+		},
+		{
+			name:            "invalid permission set",
+			assignmentLabel: "11111111--some:other:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "some:permission:set:arn",
+				},
+			},
+			expectMatch: require.False,
+		},
+		{
+			name:            "invalid combination",
+			assignmentLabel: "11111111--some:other:permission:set:arn",
+			roleAllowAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "11111111",
+					PermissionSet: "some:permission:set:arn",
+				},
+				{
+					Account:       "22222222",
+					PermissionSet: "some:other:permission:set:arn",
+				},
+			},
+			expectMatch: require.False,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			role, err := types.NewRole(t.Name(), types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AccountAssignments: test.roleAllowAssignments,
+				},
+			})
+			require.NoError(t, err)
+
+			accountAssignment := WrapUnifiedResource153(IdentityCenterAccountAssignment{
+				AccountAssignment: &identitycenterv1.AccountAssignment{
+					Kind:    types.KindIdentityCenterAccountAssignment,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test",
+						Labels: map[string]string{
+							types.OriginLabel:                   common.OriginAWSIdentityCenter,
+							types.IdentityCenterAssignmentLabel: test.assignmentLabel,
+						},
+					},
+				},
+			})
+
+			matched, _, err := checkRoleLabelsMatch(types.Allow, role, nil, accountAssignment, false)
+			require.NoError(t, err)
+			test.expectMatch(t, matched)
 		})
 	}
 }

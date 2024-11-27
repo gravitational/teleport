@@ -413,6 +413,13 @@ func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
 	return a.Spec.IdentityCenter
 }
 
+func (a *AppV3) GetDisplayName() string {
+	if a.Spec.IdentityCenter == nil {
+		return ""
+	}
+	return a.GetName()
+}
+
 // IsEqual determines if two application resources are equivalent to one another.
 func (a *AppV3) IsEqual(i Application) bool {
 	if other, ok := i.(*AppV3); ok {

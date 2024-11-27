@@ -840,6 +840,10 @@ const (
 	// AWS account it applies to
 	IdentityCenterAccountLabel = TeleportNamespace + "/aws-ic-account"
 
+	// IdentityCenterAssignmentLabel annotates an Identity Center Account
+	// Assignment with the account and permission set it allows
+	IdentityCenterAssignmentLabel = TeleportNamespace + "/aws-ic-account-assignment"
+
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
 	// CloudAzure identifies that a resource was discovered in Azure.
@@ -1292,6 +1296,7 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccountAssignment,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`

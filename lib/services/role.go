@@ -1185,12 +1185,17 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 
 	// Perform full match.
 	for key, selectorValues := range selector {
+		slog.Warn("checking label selector",
+			"key", key,
+			"selector_values", selectorValues)
 		targetVal, hasKey := labelGetter.GetLabel(key)
 		if !hasKey {
+			slog.Warn("no such key")
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
 		if slices.Contains(selectorValues, types.Wildcard) {
+			slog.Warn("slice contains wildcard")
 			continue
 		}
 
@@ -1198,6 +1203,7 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 		if err != nil {
 			return false, "", trace.Wrap(err)
 		} else if !result {
+			slog.Warn("no value matches")
 			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 		}
 	}

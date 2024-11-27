@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -3476,8 +3477,16 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
+	slog.Warn("Listing resources",
+		"resource_type", req.ResourceType,
+		"namespace", req.Namespace,
+		"use_search_as_roles", req.UseSearchAsRoles,
+		"use_preview_as_roles", req.UsePreviewAsRoles,
+	)
+
 	rg, err := readListResourcesCache(c, req.ResourceType)
 	if err != nil {
+		slog.Error("Read resource cache failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
@@ -3485,6 +3494,8 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	// Cache is not healthy, but right now, only `Node` kind has an
 	// implementation that falls back to TTL cache.
 	if !rg.IsCacheRead() {
+		slog.Error("Unhealthy cache read")
+
 		switch req.ResourceType {
 		case types.KindNode:
 			cachedNodes, err := c.getNodesWithTTLCache(ctx, c.Config.Presence, req.Namespace)
@@ -3518,6 +3529,8 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 			return local.FakePaginate(servers.AsResources(), params)
 		}
 	}
+
+	slog.Error(fmt.Sprintf("***** Reader type: %T", rg.reader))
 
 	return rg.reader.ListResources(ctx, req)
 }
@@ -3558,6 +3571,19 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	defer rg.Release()
 
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
 }
 
 // ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments

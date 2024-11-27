@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -74,6 +75,7 @@ func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	startKey := backend.ExactKey(namespacesPrefix)
 	endKey := backend.RangeEnd(startKey)
 	result, err := s.GetRange(context.TODO(), startKey, endKey, backend.NoLimit)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1373,6 +1375,12 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
+	case types.KindIdentityCenterAccount:
+		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterAccount
+	case types.KindIdentityCenterAccountAssignment:
+		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1384,6 +1392,13 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 	}
+
+	slog.Info("Filter",
+		slog.Group("request",
+			slog.Any("kind", req.ResourceType),
+			slog.Any("labels", req.Labels),
+			slog.Any("keywords", req.SearchKeywords),
+			slog.Any("predicate", req.PredicateExpression)))
 
 	if req.PredicateExpression != "" {
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
@@ -1398,21 +1413,35 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	maxLimit := reqLimit + 1
 	var resources []types.ResourceWithLabels
 	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
+		slog.Info("Iterating over resource range", "items", len(items))
+
 		for _, item := range items {
 			if len(resources) == maxLimit {
 				break
 			}
 
+			slog.Info("Unmarshaling resource", "key", item.Key)
+
 			resource, err := unmarshalItemFunc(item)
 			if err != nil {
+				slog.Error("Unmarshaling failed", "error", err)
 				return false, trace.Wrap(err)
 			}
+
+			slog.Info("Unmarshaled resource",
+				"kind", resource.GetKind(),
+				"name", resource.GetName())
 
 			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
+
 			case match:
+				slog.Info("Matched")
 				resources = append(resources, resource)
+
+			default:
+				slog.Info("Did not match")
 			}
 		}
 
@@ -1759,6 +1788,34 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.WrapUnifiedResource153(
+		services.IdentityCenterAccount{Account: assignment},
+	), nil
+}
+
+func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.WrapUnifiedResource153(
+		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
+	), nil
 }
 
 const (

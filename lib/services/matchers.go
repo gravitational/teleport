@@ -19,6 +19,7 @@
 package services
 
 import (
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -157,8 +158,11 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindUserGroup:
+		types.KindUserGroup,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		specResource = resource
+
 	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
@@ -185,8 +189,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		default:
 			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
 		}
-	case types.KindIdentityCenterAccount:
-		specResource = resource
+
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
@@ -200,6 +203,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	var match bool
 
 	if filter.IsSimple() {
+		slog.Info("Is simple filter")
 		match = true
 	}
 
@@ -223,17 +227,33 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
+	slog.Info("matching resource by filters")
+
+	slog.Info("Checking kinds",
+		"resource_kind", resource.GetKind(),
+		"filter_kinds", filter.Kinds)
+
 	if !types.MatchKinds(resource, filter.Kinds) {
 		return false, nil
 	}
+
+	slog.Info("Checking labels",
+		"resource_labels", resource.GetAllLabels(),
+		"filter_labels", filter.Labels)
 
 	if !types.MatchLabels(resource, filter.Labels) {
 		return false, nil
 	}
 
+	slog.Info("Checking search keyword",
+		"search_keywords", filter.SearchKeywords)
+
 	if len(filter.SearchKeywords) > 0 && !resource.MatchSearch(filter.SearchKeywords) {
 		return false, nil
 	}
+
+	slog.Info("Checking predicate",
+		"expression", filter.PredicateExpression)
 
 	if filter.PredicateExpression != nil {
 		match, err := filter.PredicateExpression.Evaluate(resource)

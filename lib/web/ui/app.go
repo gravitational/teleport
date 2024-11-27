@@ -25,7 +25,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -86,8 +85,11 @@ type UserGroupAndDescription struct {
 // IdentityCenterPermissionSet holds information about Identity Center
 // Permission Sets for transmission to the UI
 type IdentityCenterPermissionSet struct {
-	Name            string `json:"name"`
-	ARN             string `json:"arn"`
+	Name string `json:"name"`
+	ARN  string `json:"arn"`
+	// AssignmentName is the assignment resource that will provision an Account
+	// Assignment for this Permission Set on the enclosing account
+	AssignmentName  string `json:"accountAssignment,omitempty"`
 	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
@@ -144,6 +146,8 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		description = oktaDescription
 	}
 
+	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
+
 	resultApp := App{
 		Kind:            types.KindApp,
 		Subkind:         app.GetSubKind(),
@@ -160,7 +164,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
 		Integration:     app.GetIntegration(),
-		PermissionSets:  apiutils.Transform(app.GetIdentityCenter().GetPermissionSets(), mapPermissionSet),
+		PermissionSets:  permissionSets,
 	}
 
 	if app.IsAWSConsole() {
@@ -172,11 +176,19 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	return resultApp
 }
 
-func mapPermissionSet(ps *types.IdentityCenterPermissionSet) IdentityCenterPermissionSet {
-	return IdentityCenterPermissionSet{
-		Name: ps.Name,
-		ARN:  ps.ARN,
+func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCenterPermissionSet {
+	if src == nil {
+		return nil
 	}
+	dst := make([]IdentityCenterPermissionSet, len(src))
+	for i, srcPS := range src {
+		dst[i] = IdentityCenterPermissionSet{
+			Name:           srcPS.Name,
+			ARN:            srcPS.ARN,
+			AssignmentName: srcPS.AssignmentName,
+		}
+	}
+	return dst
 }
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.

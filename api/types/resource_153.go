@@ -115,6 +115,10 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 	return r.inner.GetVersion()
 }
 
+func (r *legacyToResource153Adapter) CloneResource() Resource153 {
+	panic("legacyToResource153Adapter does not implement CloneResource")
+}
+
 // Resource153ToLegacy transforms an RFD 153 style resource into a legacy
 // [Resource] type.
 //

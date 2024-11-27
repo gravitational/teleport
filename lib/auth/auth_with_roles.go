@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"slices"
@@ -158,6 +159,20 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 		}
 	}
 	return nil
+}
+
+// identityCenterAction is a special checker that grants access to Identity Center
+// resources. In order to simplify the writing of role condition statements, the
+// various Identity Center resources are bundled up under an umbrella
+// `KindIdentityCenter` resource kind. This means that if access to the target
+// resource is not explicitly denied, then the user has a second chance to get
+// access via the generic resource kind.
+func (a *ServerWithRoles) identityCenterAction(namespace string, resource string, verbs ...string) error {
+	err := a.action(namespace, resource, verbs...)
+	if err == nil || services.IsAccessExplicitlyDenied(err) {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.action(namespace, types.KindIdentityCenter, verbs...))
 }
 
 // actionForListWithCondition extracts a restrictive filter condition to be
@@ -1255,7 +1270,13 @@ type resourceAccess struct {
 func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
 	resourceKind := resource.GetKind()
 
+	slog.Warn("Checking access to resource",
+		"kind", resource.GetKind(),
+		"name", resource.GetName())
+
 	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
+		slog.Error("Access denied via access map", "error", canAccessErr)
+
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
 		// of resources they have access to
@@ -1352,17 +1373,13 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		// IdentityCenter resources are bundled under the umbrella KindIdentityCenter
-		// so we need to check that as well as the actual concrete kind
-		if kind == types.KindIdentityCenterAccount {
-			err := a.action(apidefaults.Namespace, types.KindIdentityCenter, actionVerbs...)
-			if err != nil {
-				resourceAccess.kindAccessMap[kind] = err
-				continue
-			}
+		actionChecker := a.action
+		if kind == types.KindIdentityCenterAccount ||
+			kind == types.KindIdentityCenterAccountAssignment {
+			actionChecker = a.identityCenterAction
 		}
 
-		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccess.kindAccessMap[kind] = actionChecker(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1699,13 +1716,21 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
+	actionChecker := a.action
+	if req.ResourceType == types.KindIdentityCenterAccount ||
+		req.ResourceType == types.KindIdentityCenterAccountAssignment {
+		actionChecker = a.identityCenterAction
+	}
+
+	if err := actionChecker(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1742,6 +1767,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 
 	var resp types.ListResourcesResponse
 	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
+		slog.Info("Checking resource", "resource", resource.GetName())
+
 		if len(resp.Resources) == limit {
 			resp.NextKey = backend.GetPaginationKey(resource)
 			return ErrDone
@@ -1833,8 +1860,12 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
 
-	case services.UnifiedResource153Adapter[services.IdentityCenterAccount]:
-		return r.CheckAccess(rr, state)
+	case services.UnifiedResource153Adapter:
+		switch rr.Unwrap().(type) {
+		case services.IdentityCenterAccount,
+			services.IdentityCenterAccountAssignment:
+			return r.CheckAccess(rr, state)
+		}
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)
@@ -1853,7 +1884,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindUserGroup,
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount:
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -2684,6 +2716,9 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	if req.User == "" {
 		req.User = a.context.User.GetName()
 	}
+
+	slog.Warn("ServerWithRoles.GetAccessCapabilities()",
+		"user", req.User)
 
 	// all users can check their own capabilities
 	if a.currentUserAction(req.User) != nil {

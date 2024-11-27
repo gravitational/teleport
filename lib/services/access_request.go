@@ -237,6 +237,8 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
 func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, identity tlsca.Identity, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	slog.Warn("CalculateAccessCapabilities")
+
 	shouldFilter, err := shouldFilterRequestableRolesByResource(clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,6 +246,8 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	if !shouldFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
 	}
+
+	slog.Warn("Creating request validator")
 
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
@@ -254,6 +258,8 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 
 	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
+		slog.Warn("Searching fpr applicable roles")
+
 		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -303,11 +309,14 @@ func (m *RequestValidator) allowedSearchAsRoles() ([]string, error) {
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
 // applicable for the given list of resourceIDs.
 func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	slog.Warn("Gathering roles")
+
 	rolesToRequest, err := m.allowedSearchAsRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	slog.Warn("Pruning roles")
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
 	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
@@ -1477,6 +1486,8 @@ func (m *RequestValidator) getResourceViewingRoles() []string {
 // are provided, roles will be filtered to only include those that would
 // allow access to the given resource with the given login.
 func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	m.logger.WarnContext(ctx, ">>> GetRequestableRoles()")
+	defer m.logger.WarnContext(ctx, "<<< GetRequestableRoles()")
 	allRoles, err := m.getter.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2096,18 +2107,27 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
+	slog.Warn("fetching roles...")
+
 	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	slog.Warn("fetching resources...")
+
 	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
 	if err != nil {
+		slog.Error("fetching resources failed",
+			"error", err)
 		return nil, trace.Wrap(err)
 	}
 
+	slog.Warn("fetched resources", "count", len(resources))
+
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
+		m.logger.WarnContext(ctx, "validating resource", "resource", resource.GetName())
 		var (
 			rolesForResource []types.Role
 			resourceMatcher  *KubeResourcesMatcher
@@ -2121,6 +2141,10 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		for _, role := range allRoles {
+			m.logger.WarnContext(ctx, "checking role access",
+				"resource", resource.GetName(),
+				"role", role.GetName())
+
 			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2234,6 +2258,9 @@ func (m *RequestValidator) roleAllowsResource(
 	loginHint string,
 	extraMatchers ...RoleMatcher,
 ) (bool, error) {
+	m.logger.WarnContext(ctx, "checking role allows resource",
+		"role", role.GetName(),
+		"resource", resource.GetName())
 	roleSet := RoleSet{role}
 	var matchers []RoleMatcher
 	if len(loginHint) > 0 {
@@ -2269,6 +2296,7 @@ func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []Role
 // is a Kubernetes resource, we return the underlying Kubernetes cluster.
 func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Context, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
 	if len(resourceIDs) == 0 {
+		slog.Error("Mo requested resources")
 		return []types.ResourceWithLabels{}, nil
 	}
 	// When searching for Kube Resources, we change the resource Kind to the Kubernetes

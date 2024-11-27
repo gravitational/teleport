@@ -1913,15 +1913,18 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindIdentityCenterAccount:
-		var matchers LabelMatchers
-		accounts := utils.Transform(cond.AccountAssignments, IdentityCenterAccountAssignment.GetAccount)
-		if len(accounts) > 0 {
-			matchers.Labels = Labels{IdentityCenterAccountLabel: utils.Deduplicate(accounts)}
-		}
-		return matchers, nil
+	case KindIdentityCenter,
+		KindIdentityCenterAccount,
+		KindIdentityCenterAccountAssignment:
+		return LabelMatchers{cond.AccountAssignmentLabels, cond.AccountAssignmentLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
+}
+
+// MakeIdentityCenterAssignmentLabel generates an IdentityCenter Account Assignment
+// label
+func MakeIdentityCenterAssignmentLabel(account, permissionSetARN string) string {
+	return fmt.Sprintf("%s--%s", account, permissionSetARN)
 }
 
 // SetLabelMatchers sets the LabelMatchers that match labels of resources of

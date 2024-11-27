@@ -22,8 +22,22 @@ import { ResourceLabel } from 'teleport/services/agents';
 
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+// PermissionSet defines an AWS IdentityCenter permission set that is available
+// to an App
+export interface PermissionSet {
+  name: string;
+  arn: string;
+  accountAssignment: string;
+};
+
+/** AppKind is an indicator of the type of app we are dealing with. */
+export type AppKind  = 'aws_ic_account';
+
 export interface App {
   kind: 'app';
+  // appKind is an optional value used to determine the kind of app we
+  // have.
+  appKind?: AppKind;
   id: string;
   name: string;
   description: string;
@@ -51,6 +65,10 @@ export interface App {
   // Integration is the integration name that must be used to access this Application.
   // Only applicable to AWS App Access.
   integration?: string;
+
+  // permission_sets is the collection of IdentityCenter permission sets available
+  // to the app. Only valid for Apps that represent 
+  permission_sets?: PermissionSet[];
 }
 
 export type UserGroupAndDescription = {
