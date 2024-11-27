@@ -135,7 +135,7 @@ func listTeleportUsers(ctx context.Context, service UsersService) (map[string]st
 }
 
 // ListICOriginatedAccessLists lists all Identity Center originated access lists.
-func ListICOriginatedAccessLists(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+func ListICOriginatedAccessLists(ctx context.Context, service AccessListsService) (map[string]*accesslist.AccessList, error) {
 	outList := map[string]*accesslist.AccessList{}
 
 	var accessLists []*accesslist.AccessList
@@ -190,7 +190,7 @@ func ListICOriginatedRoles(ctx context.Context, service RolesService) ([]*types.
 }
 
 // accessListMembersFromTeleport returns all existing members for each accessListNames.
-func accessListMembersFromTeleport(ctx context.Context, accessListNames []string, service services.AccessLists) (map[string]*accesslist.AccessListMember, error) {
+func accessListMembersFromTeleport(ctx context.Context, accessListNames []string, service AccessListsService) (map[string]*accesslist.AccessListMember, error) {
 	out := map[string]*accesslist.AccessListMember{}
 
 	var members []*accesslist.AccessListMember

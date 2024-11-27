@@ -521,10 +521,11 @@ func newTEnv(t *testing.T, statusSink *integration.FakeStatusSink) (*tEnv, error
 
 	return &tEnv{
 		service: &Service{
-			accessListSvc: newAccessListService,
-			usersSvc:      usersService,
-			rolesSvc:      roleService,
-			log:           slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			accessListSvc:      newAccessListService,
+			accessListSvcCache: newAccessListService,
+			usersSvc:           usersService,
+			rolesSvc:           roleService,
+			log:                slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			importConfig: ImportConfig{
 				AccessListDefaultOwners: accessListDefaultOwners,
 			},

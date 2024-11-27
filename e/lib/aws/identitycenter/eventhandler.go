@@ -215,7 +215,7 @@ func (svc *Service) refreshAllPrincipalAssignments(ctx context.Context) error {
 
 	// walk the list of access lists, also recalculating their permission sets
 	// and re-provisioning their assignments as necessary
-	for acl, err := range icIter.AllAccessLists(ctx, svc.accessListSvc) {
+	for acl, err := range icIter.AllAccessLists(ctx, svc.accessListSvcCache) {
 		if err != nil {
 			return trace.Wrap(err)
 		}

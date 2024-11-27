@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // IntegrationsLister is an abstraction over a Integration (e.g. OIDC) data
@@ -56,4 +57,13 @@ type UsersService interface {
 // pluginsService is used to interface with Plugins service.
 type pluginsService interface {
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+}
+
+// AccessListsService defines the subset of services.AccessListsService that the
+// provisioning system actually uses.
+type AccessListsService interface {
+	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
