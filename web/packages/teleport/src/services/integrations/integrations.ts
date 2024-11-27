@@ -59,6 +59,7 @@ import {
   AwsDatabaseVpcsResponse,
   AwsOidcPingResponse,
   AwsOidcPingRequest,
+  IntegrationWithSummary,
 } from './types';
 
 export const integrationService = {
@@ -412,6 +413,12 @@ export const integrationService = {
           nextToken: json?.nextToken,
         };
       });
+  },
+
+  fetchIntegrationStats(name: string): Promise<IntegrationWithSummary> {
+    return api.get(cfg.getIntegrationStatsUrl(name)).then(resp => {
+      return resp;
+    });
   },
 };
 
