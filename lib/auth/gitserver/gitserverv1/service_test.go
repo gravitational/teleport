@@ -102,7 +102,7 @@ func TestServiceAccess(t *testing.T) {
 			},
 			run: func(t *testing.T, service *Service) {
 				server, err := service.GetGitServer(ctx, &pb.GetGitServerRequest{Name: org1.GetName()})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "org1", server.GetGitHub().Organization)
 			},
 		},
