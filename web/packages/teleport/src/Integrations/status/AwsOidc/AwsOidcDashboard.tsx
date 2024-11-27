@@ -28,7 +28,7 @@ export function AwsOidcDashboard() {
 
   return (
     <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
-      <AwsOidcHeader integration={attempt.data} />
+      {attempt.data && <AwsOidcHeader integration={attempt.data} />}
       Status for integration type aws-oidc is not supported
     </FeatureBox>
   );
