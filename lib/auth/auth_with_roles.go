@@ -85,17 +85,17 @@ func (a *ServerWithRoles) actionForResource(resource types.Resource, kind string
 	if resource != nil {
 		sctx.Resource = resource
 	}
-	return trace.Wrap(a.actionWithContext(sctx, apidefaults.Namespace, kind, verbs...))
+	return trace.Wrap(a.actionWithContext(sctx, kind, verbs...))
 }
 
 // actionWithContext will determine if a user has access given a services.Context. This call respects where clauses.
-func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, resource string, verbs ...string) error {
+func (a *ServerWithRoles) actionWithContext(ctx *services.Context, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -178,9 +178,9 @@ func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identi
 
 // actionWithExtendedContext performs an additional RBAC check with extended
 // rule context after a simple resource check fails.
-func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
+func (a *ServerWithRoles) actionWithExtendedContext(kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
@@ -189,13 +189,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb))
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, kind, verb))
 }
 
 // actionForKindSession is a special checker that grants access to session
 // recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(ctx context.Context, namespace string, sid session.ID) (types.SessionKind, error) {
+func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) (types.SessionKind, error) {
 	sessionEnd, err := a.findSessionEndEvent(ctx, sid)
 
 	extendContext := func(ctx *services.Context) error {
@@ -218,7 +218,7 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, namespace st
 		sessionKind = types.WindowsDesktopSessionKind
 	}
 
-	return sessionKind, trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
+	return sessionKind, trace.Wrap(a.actionWithExtendedContext(types.KindSession, types.VerbRead, extendContext))
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
@@ -5958,7 +5958,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	var sessionType types.SessionKind
 	if !isTeleportServer {
 		var err error
-		sessionType, err = a.actionForKindSession(ctx, apidefaults.Namespace, sessionID)
+		sessionType, err = a.actionForKindSession(ctx, sessionID)
 		if err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)
