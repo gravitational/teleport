@@ -59,6 +59,26 @@ func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
 		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
 }
 
+// HasDeviceTrustExtensions returns true if the profile extensions contain
+// all required device extensions.
+func HasDeviceTrustExtensions(extensions []string) bool {
+	hasCertExtensionDeviceID := false
+	hasCertExtensionDeviceAssetTag := false
+	hasCertExtensionDeviceCredentialID := false
+	for _, extension := range extensions {
+		switch extension {
+		case teleport.CertExtensionDeviceID:
+			hasCertExtensionDeviceID = true
+		case teleport.CertExtensionDeviceAssetTag:
+			hasCertExtensionDeviceAssetTag = true
+		case teleport.CertExtensionDeviceCredentialID:
+			hasCertExtensionDeviceCredentialID = true
+		}
+	}
+
+	return hasCertExtensionDeviceAssetTag && hasCertExtensionDeviceID && hasCertExtensionDeviceCredentialID
+}
+
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
 func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {

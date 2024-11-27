@@ -182,6 +182,12 @@ export interface LoggedInUser {
      * @generated from protobuf field: teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8;
      */
     userType: LoggedInUser_UserType;
+    /**
+     * Indicates if the profile contains all required device extensions.
+     *
+     * @generated from protobuf field: bool is_device_trusted = 9;
+     */
+    isDeviceTrusted: boolean;
 }
 /**
  * UserType indicates whether the user was created through an SSO provider or in Teleport itself.
@@ -513,7 +519,8 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
             { no: 5, name: "active_requests", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "requestable_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] }
+            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] },
+            { no: 9, name: "is_device_trusted", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<LoggedInUser>): LoggedInUser {
@@ -525,6 +532,7 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         message.suggestedReviewers = [];
         message.requestableRoles = [];
         message.userType = 0;
+        message.isDeviceTrusted = false;
         if (value !== undefined)
             reflectionMergePartial<LoggedInUser>(this, message, value);
         return message;
@@ -557,6 +565,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                     break;
                 case /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type */ 8:
                     message.userType = reader.int32();
+                    break;
+                case /* bool is_device_trusted */ 9:
+                    message.isDeviceTrusted = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -594,6 +605,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8; */
         if (message.userType !== 0)
             writer.tag(8, WireType.Varint).int32(message.userType);
+        /* bool is_device_trusted = 9; */
+        if (message.isDeviceTrusted !== false)
+            writer.tag(9, WireType.Varint).bool(message.isDeviceTrusted);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

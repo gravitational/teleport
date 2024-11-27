@@ -35,6 +35,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
@@ -303,6 +304,12 @@ func (c *Cluster) GetProfileStatusError() error {
 // Cluster that represents a leaf cluster.
 func (c *Cluster) GetProxyHost() string {
 	return c.status.ProxyURL.Host
+}
+
+// HasDeviceTrustExtensions indicates if the profile contains all required
+// device extensions.
+func (c *Cluster) HasDeviceTrustExtensions() bool {
+	return dtauthz.HasDeviceTrustExtensions(c.status.Extensions)
 }
 
 // GetProxyHostname returns just the hostname part of the proxy address of the root cluster (without

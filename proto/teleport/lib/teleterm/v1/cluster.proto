@@ -102,6 +102,8 @@ message LoggedInUser {
     USER_TYPE_SSO = 2;
   }
   UserType user_type = 8;
+  // Indicates if the profile contains all required device extensions.
+  bool is_device_trusted = 9;
 }
 
 // ACL is the access control list of the user
