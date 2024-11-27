@@ -45,6 +45,8 @@ import {
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
+
 import { NavTitle } from './types';
 
 import { AuditContainer as Audit } from './Audit';
@@ -632,6 +634,22 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 }
 
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -706,6 +724,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureIntegrationStatus(),
 
     // - Identity
     new AccessRequests(),
