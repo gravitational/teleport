@@ -234,6 +234,12 @@ type RouteToApp struct {
 	URI string
 }
 
+func (r *RouteToApp) IsZero() bool {
+	return r.SessionID == "" && r.PublicAddr == "" && r.ClusterName == "" &&
+		r.Name == "" && r.AWSRoleARN == "" && r.AzureIdentity == "" &&
+		r.GCPServiceAccount == "" && r.URI == ""
+}
+
 // RouteToDatabase contains routing information for databases.
 type RouteToDatabase struct {
 	// ServiceName is the name of the Teleport database proxy service
@@ -282,6 +288,10 @@ type DeviceExtensions struct {
 	// CredentialID is the identifier for the credential used by the device to
 	// authenticate itself.
 	CredentialID string
+}
+
+func (e *DeviceExtensions) IsZero() bool {
+	return e.DeviceID == "" && e.AssetTag == "" && e.CredentialID == ""
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
