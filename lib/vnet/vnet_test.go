@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -211,12 +212,7 @@ func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error
 	return resolver.LookupHost(ctx, host)
 }
 
-// dialHost dials port 123 if port is zero. port matters only for multi-port tests.
 func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
-	const defaultPort = 123
-	if port == 0 {
-		port = defaultPort
-	}
 	addrs, err := p.lookupHost(ctx, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -650,7 +646,8 @@ func TestDialFakeApp(t *testing.T) {
 						_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
 						require.NoError(t, err)
 
-						conn, err := p.dialHost(ctx, tc.app, tc.port)
+						const defaultPort = 80
+						conn, err := p.dialHost(ctx, tc.app, cmp.Or(tc.port, defaultPort))
 						require.NoError(t, err)
 						t.Cleanup(func() { assert.NoError(t, conn.Close()) })
 
@@ -762,7 +759,7 @@ func TestOnNewConnection(t *testing.T) {
 	require.Equal(t, uint32(0), appProvider.onNewConnectionCallCount.Load())
 
 	// Establish a connection to a valid app and verify that OnNewConnection was called.
-	conn, err := p.dialHost(ctx, validAppName, 0)
+	conn, err := p.dialHost(ctx, validAppName, 80 /* bogus port */)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), appProvider.onNewConnectionCallCount.Load())
