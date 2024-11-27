@@ -242,7 +242,7 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type appSpec struct {
-	// publicAddr is used bothas the name of the app and its public address in the final spec.
+	// publicAddr is used both as the name of the app and its public address in the final spec.
 	publicAddr string
 	tcpPorts   []*types.PortRange
 }
