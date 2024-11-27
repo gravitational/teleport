@@ -26,7 +26,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -555,7 +554,6 @@ func (s *Server) Serve() {
 
 	ctx := context.Background()
 
-	var remoteClient atomic.Pointer[tracessh.Client]
 	config := &ssh.ServerConfig{
 		Config: ssh.Config{
 			// Set the ciphers, KEX, and MACs that the client will send to the target
@@ -582,7 +580,7 @@ func (s *Server) Serve() {
 							return nil, trace.Wrap(err)
 						}
 
-						remoteClient.CompareAndSwap(nil, rc)
+						s.remoteClient = rc
 						return perms, nil
 					},
 				},
@@ -618,10 +616,10 @@ func (s *Server) Serve() {
 	}
 	s.sconn = sconn
 
-	if s.targetServer != nil && !s.targetServer.UsePAMAuth() {
-		rc, err := s.newRemoteClient(ctx, sconn.User(), netConfig, func(name, instruction string, questions []string, echos []bool) (answers []string, err error) {
-			return nil, nil
-		})
+	// The remote client may have already been constructed during the SSH
+	// handshake if using keyboard-interactive auth.
+	if s.remoteClient == nil {
+		rc, err := s.newRemoteClient(ctx, sconn.User(), netConfig, nil)
 		if err != nil {
 			// Reject the connection with an error so the client doesn't hang then
 			// close the connection.
@@ -632,10 +630,8 @@ func (s *Server) Serve() {
 			return
 		}
 
-		remoteClient.CompareAndSwap(nil, rc)
+		s.remoteClient = rc
 	}
-
-	s.remoteClient = remoteClient.Load()
 
 	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn, sshutils.SetConnectionContextClock(s.clock))
 
@@ -805,7 +801,10 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 
 	authMethods := []ssh.AuthMethod{
 		ssh.PublicKeysCallback(signersWithSHA1Fallback(signers)),
-		ssh.KeyboardInteractive(kbdCB),
+	}
+
+	if kbdCB != nil {
+		authMethods = append(authMethods, ssh.KeyboardInteractive(kbdCB))
 	}
 
 	clientConfig := &ssh.ClientConfig{
