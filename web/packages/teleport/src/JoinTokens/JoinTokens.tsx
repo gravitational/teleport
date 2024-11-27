@@ -71,12 +71,17 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
-  const api = useMfaContext();
+  const mfa = useMfaContext();
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
-    useAsync(async () => await ctx.joinTokenService.fetchJoinTokens(api));
+    useAsync(
+      async () =>
+        await mfa.withMfaRetry(mfaResponse => {
+          return ctx.joinTokenService.fetchJoinTokens(null, mfaResponse);
+        })
+    );
 
   const resources = useResources(
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],

@@ -18,12 +18,12 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { MFAContextValue } from 'teleport/MFAContext/MFAContext';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
 
 import makeJoinToken from './makeJoinToken';
 import { JoinToken, JoinRule, JoinTokenRequest } from './types';
+import { MfaChallengeResponse } from '../mfa';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
@@ -72,10 +72,10 @@ class JoinTokenService {
   }
 
   fetchJoinTokens(
-    api2: MFAContextValue,
-    signal: AbortSignal = null
+    signal: AbortSignal = null,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<{ items: JoinToken[] }> {
-    return api2.get(cfg.getJoinTokensUrl(), signal).then(resp => {
+    return api.get(cfg.getJoinTokensUrl(), signal, mfaResponse).then(resp => {
       return {
         items: resp.items?.map(makeJoinToken) || [],
       };

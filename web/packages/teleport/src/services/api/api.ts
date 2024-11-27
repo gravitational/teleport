@@ -28,8 +28,16 @@ import parseError, { ApiError } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url: string, abortSignal?: AbortSignal) {
-    return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
+  get(
+    url: string,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      { signal: abortSignal },
+      mfaResponse
+    );
   },
 
   post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
@@ -174,7 +182,8 @@ const api = {
     const isAdminActionMfaError = isAdminActionRequiresMfaError(
       parseError(json)
     );
-    const shouldRetry = isAdminActionMfaError && !mfaResponse;
+    let shouldRetry = isAdminActionMfaError && !mfaResponse;
+    shouldRetry = false;
     if (!shouldRetry) {
       throw new ApiError(parseError(json), response, undefined, json.messages);
     }
@@ -312,7 +321,7 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-function isAdminActionRequiresMfaError(errMessage) {
+export function isAdminActionRequiresMfaError(errMessage) {
   return errMessage.includes(
     'admin-level API request requires MFA verification'
   );
