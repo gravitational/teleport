@@ -47,6 +47,9 @@ import {
 } from 'teleport/Navigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
+
+import type { FeatureFlags, TeleportFeature } from './types';
 import { NavTitle } from './types';
 
 import { AuditContainer as Audit } from './Audit';
@@ -69,8 +72,6 @@ import { Integrations } from './Integrations';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { JoinTokens } from './JoinTokens/JoinTokens';
-
-import type { FeatureFlags, TeleportFeature } from './types';
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -566,6 +567,22 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 }
 
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -630,6 +647,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureJoinTokens(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+    new FeatureIntegrationStatus(),
 
     // - Permissions
     new FeatureRoles(),
