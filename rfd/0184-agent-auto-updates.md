@@ -1686,7 +1686,7 @@ status:
   version_history: ["15.1.3", "15.0.4"]
   # rollback specifies whether the most recent version was deployed by an automated rollback.
   rollback: true
-  # error specifies the last error encounted
+  # error specifies the last error encountered
   error: "" 
 ```
 

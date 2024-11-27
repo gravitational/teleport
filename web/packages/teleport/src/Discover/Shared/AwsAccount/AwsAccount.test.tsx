@@ -129,7 +129,7 @@ test('missing permissions for integrations', async () => {
   renderAwsAccount(ctx, discoverCtx);
 
   expect(
-    screen.getByText(/required permissions for integrating/i)
+    screen.getByText(/permissions required to set up this integration/i)
   ).toBeInTheDocument();
   expect(screen.queryByText(/aws integrations/i)).not.toBeInTheDocument();
 

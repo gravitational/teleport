@@ -545,6 +545,16 @@ const DeployHints = ({
               </AlternateInstructionButton>
             </li>
           </ul>
+          <Text>
+            Refer to the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/#troubleshooting"
+            >
+              troubleshooting documentation
+            </Link>{' '}
+            for more details.
+          </Text>
         </Flex>
       </HintBox>
     );

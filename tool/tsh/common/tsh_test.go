@@ -407,6 +407,36 @@ func TestAlias(t *testing.T) {
 	}
 }
 
+// TestNoEnvVars checks if tsh is able to work without any env vars provided.
+// This is important for VNet on macOS. When launchd starts VNet's launch daemon, it executes "tsh
+// vnet-daemon" with only the following env vars available:
+//
+// XPC_SERVICE_NAME=com.goteleport.tshdev.vnetd
+// PATH=/usr/bin:/bin:/usr/sbin:/sbin
+// XPC_FLAGS=1
+//
+// …plus whatever is set in the launch daemon plist under the EnvironmentVariables key.
+func TestNoEnvVars(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+	// Execute an actual command and not just `tsh help` which goes through a different code path.
+	cmd := exec.CommandContext(ctx, testExecutable, "version", "--client")
+	// Run the command with no env vars except tshBinMainTestEnv, otherwise the test would hang.
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
+
+	t.Logf("running command %v", cmd)
+	output, err := cmd.CombinedOutput()
+	t.Logf("executable output: %v", string(output))
+	// By checking the ctx error together with err, the error report will include "context deadline
+	// exceeded" if the command doesn't complete within the timeout. Otherwise the error would be just
+	// "signal: killed".
+	require.NoError(t, trace.NewAggregate(err, ctx.Err()))
+}
+
 func TestFailedLogin(t *testing.T) {
 	t.Parallel()
 	tmpHomePath := t.TempDir()
