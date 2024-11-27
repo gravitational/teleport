@@ -296,9 +296,9 @@ const auth = {
     // whichever method we can succeed with first.
     if (!mfaType) {
       if (totpCode) {
-        mfaType == 'totp';
+        mfaType = 'totp';
       } else if (challenge.webauthnPublicKey) {
-        mfaType == 'webauthn';
+        mfaType = 'webauthn';
       }
     }
 
