@@ -165,7 +165,7 @@ export function AwsAccount() {
         <Heading />
         <Box maxWidth="700px">
           <Text mt={4}>
-            You don’t have the required permissions for integrating.
+            You don’t have the permissions required to set up this integration.
             <br />
             Ask your Teleport administrator to update your role with the
             following:
