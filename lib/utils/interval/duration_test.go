@@ -92,40 +92,57 @@ func TestVariableDurationIncDec(t *testing.T) {
 	vd := NewVariableDuration(VariableDurationConfig{})
 
 	var wg sync.WaitGroup
+	start := make(chan struct{})
+	wg.Add(100)
 	for i := 0; i < 100; i++ {
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vd.Inc()
+			<-start
+			if i%2 == 0 {
+				vd.Inc()
+			} else {
+				vd.Add(i)
+			}
 		}()
 	}
 
+	close(start)
 	wg.Wait()
-	require.Equal(t, int64(100), vd.Count())
+	require.Equal(t, int64(50+50*49+50), vd.Count())
 
-	wg = sync.WaitGroup{}
-
+	start = make(chan struct{})
+	wg.Add(50)
 	for i := 0; i < 50; i++ {
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			vd.Dec()
+			<-start
+			if i%2 == 0 {
+				vd.Dec()
+			} else {
+				vd.Add(-i)
+			}
 		}()
 	}
 
+	close(start)
 	wg.Wait()
-	require.Equal(t, int64(50), vd.Count())
+	require.Equal(t, int64(50+50*49+50-(25+25*24+25)), vd.Count())
 
-	wg = sync.WaitGroup{}
-
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
+	start = make(chan struct{})
+	wg.Add(50)
+	for i := 50; i < 100; i++ {
 		go func() {
 			defer wg.Done()
-			vd.Dec()
+			<-start
+			if i%2 == 0 {
+				vd.Dec()
+			} else {
+				vd.Add(-i)
+			}
 		}()
 	}
 
+	close(start)
 	wg.Wait()
 	require.Equal(t, int64(0), vd.Count())
 }

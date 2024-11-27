@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -34,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -107,16 +107,10 @@ const (
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
 
-	keepAliveTick = "keep-alive-tick"
-)
-
-// intervalKey is used to uniquely identify the subintervals registered with the interval.MultiInterval
-// instance that we use for managing periodics associated with upstream handles.
-type intervalKey int
-
-const (
-	instanceHeartbeatKey intervalKey = 1 + iota
-	serverKeepAliveKey
+	keepAliveSSHTick      = "keep-alive-ssh-tick"
+	keepAliveAppTick      = "keep-alive-app-tick"
+	keepAliveDatabaseTick = "keep-alive-db-tick"
+	keepAliveKubeTick     = "keep-alive-kube-tick"
 )
 
 // instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
@@ -217,7 +211,6 @@ type Controller struct {
 	serviceCounter             *serviceCounter
 	auth                       Auth
 	authID                     string
-	serverKeepAliveEnabled     bool
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
@@ -230,18 +223,6 @@ type Controller struct {
 	onDisconnectFunc           func(string, int)
 	closeContext               context.Context
 	cancel                     context.CancelFunc
-}
-
-// serverKeepAliveDisabledEnv checks if the periodic server keepalive has been
-// explicitly disabled via environment variable.
-func serverKeepAliveDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE") == "yes"
-}
-
-// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
-// via environment variable.
-func instanceHeartbeatsDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 // NewController sets up a new controller instance.
@@ -262,7 +243,6 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	return &Controller{
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
-		serverKeepAliveEnabled:     !serverKeepAliveDisabledEnv(),
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
@@ -282,25 +262,17 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
-	// increment the concurrent connection counter that we use to calculate the variable
-	// instance heartbeat duration.
-	c.instanceHBVariableDuration.Inc()
-	// set up ticker with instance HB sub-interval. additional sub-intervals are added as needed.
-	// note that we are using fullJitter on the first duration to spread out initial instance heartbeats
-	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
-	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
-	// service.
-	ticker := interval.NewMulti(
-		clockwork.NewRealClock(),
-		interval.SubInterval[intervalKey]{
-			Key:              instanceHeartbeatKey,
-			VariableDuration: c.instanceHBVariableDuration,
-			FirstDuration:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
-			Jitter:           retryutils.SeventhJitter,
-		})
-	handle := newUpstreamHandle(stream, hello, ticker)
+	handle := newUpstreamHandle(stream, hello)
 	c.store.Insert(handle)
-	go c.handleControlStream(handle)
+
+	// Increment the concurrent connection counter that we use to calculate the
+	// variable instance heartbeat duration. It's done here synchronously rather
+	// than in handleControlStream for the sake of tests.
+	c.instanceHBVariableDuration.Inc()
+	go func() {
+		defer c.instanceHBVariableDuration.Dec()
+		c.handleControlStream(handle)
+	}()
 }
 
 // GetControlStream gets a control stream for the given server ID if one exists (if multiple control streams
@@ -345,6 +317,33 @@ func (c *Controller) testEvent(event testEvent) {
 func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	c.testEvent(handlerStart)
 
+	// Note that we are using fullJitter on the first duration to spread out
+	// initial instance heartbeats as much as possible. This is intended to
+	// mitigate load spikes on auth restart, and is reasonably safe to do since
+	// the instance resource is not directly relied upon for use of any
+	// particular Teleport service.
+	instanceHeartbeatDelay := delay.New(delay.Params{
+		FirstInterval:    retryutils.FullJitter(c.instanceHBVariableDuration.Duration()),
+		VariableInterval: c.instanceHBVariableDuration,
+		Jitter:           retryutils.SeventhJitter,
+	})
+	defer instanceHeartbeatDelay.Stop()
+
+	// these delays are lazily initialized upon receipt of the first heartbeat
+	// since not all servers send all heartbeats
+	var sshKeepAliveDelay *delay.Delay
+	var appKeepAliveDelay *delay.Delay
+	var dbKeepAliveDelay *delay.Delay
+	var kubeKeepAliveDelay *delay.Delay
+	defer func() {
+		// this is a function expression because the variables are initialized
+		// later and we want to call Stop on the initialized value (if any)
+		sshKeepAliveDelay.Stop()
+		appKeepAliveDelay.Stop()
+		dbKeepAliveDelay.Stop()
+		kubeKeepAliveDelay.Stop()
+	}()
+
 	for _, service := range handle.hello.Services {
 		c.serviceCounter.increment(service)
 	}
@@ -376,13 +375,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 		}
 
-		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
 		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
-		handle.ticker.Stop()
 
 		if handle.sshServer != nil {
 			c.onDisconnectFunc(constants.KeepAliveNode, 1)
@@ -406,11 +403,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.testEvent(handlerClose)
 	}()
 
-	// keepAliveNeedInit tracks wether or not we should initialize the server
-	// keepalive sub-interval upon receiving a heartbeat. We do this lazily upon
-	// receipt of the first heartbeat since not all servers send heartbeats.
-	keepAliveNeedInit := c.serverKeepAliveEnabled
-
 	for {
 		select {
 		case msg := <-handle.Recv():
@@ -426,15 +418,35 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
-				if keepAliveNeedInit {
-					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
-					handle.ticker.Push(interval.SubInterval[intervalKey]{
-						Key:           serverKeepAliveKey,
-						Duration:      c.serverKeepAlive,
-						FirstDuration: retryutils.HalfJitter(c.serverKeepAlive),
+
+				// we initialize delays lazily here, depending on the protocol
+				if sshKeepAliveDelay == nil && m.SSHServer != nil {
+					sshKeepAliveDelay = delay.New(delay.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
 						Jitter:        retryutils.SeventhJitter,
 					})
-					keepAliveNeedInit = false
+				}
+				if appKeepAliveDelay == nil && m.AppServer != nil {
+					appKeepAliveDelay = delay.New(delay.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
+				}
+				if dbKeepAliveDelay == nil && m.DatabaseServer != nil {
+					dbKeepAliveDelay = delay.New(delay.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
+				}
+				if kubeKeepAliveDelay == nil && m.KubernetesServer != nil {
+					kubeKeepAliveDelay = delay.New(delay.Params{
+						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+						FixedInterval: c.serverKeepAlive,
+						Jitter:        retryutils.SeventhJitter,
+					})
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
@@ -445,21 +457,50 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
 				return
 			}
-		case tick := <-handle.ticker.Next():
-			switch tick.Key {
-			case instanceHeartbeatKey:
-				if err := c.heartbeatInstanceState(handle, tick.Time); err != nil {
-					handle.CloseWithError(err)
-					return
-				}
-			case serverKeepAliveKey:
-				if err := c.keepAliveServer(handle, tick.Time); err != nil {
-					handle.CloseWithError(err)
-					return
-				}
-			default:
-				log.Warnf("Unexpected sub-interval key '%v' in control stream handler of server %q (this is a bug).", tick.Key, handle.Hello().ServerID)
+		case now := <-instanceHeartbeatDelay.Elapsed():
+			instanceHeartbeatDelay.Advance(now)
+
+			if err := c.heartbeatInstanceState(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
 			}
+
+		case now := <-sshKeepAliveDelay.Elapsed():
+			sshKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveSSHServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveSSHTick)
+
+		case now := <-appKeepAliveDelay.Elapsed():
+			appKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveAppServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveAppTick)
+
+		case now := <-dbKeepAliveDelay.Elapsed():
+			dbKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveDatabaseServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveDatabaseTick)
+
+		case now := <-kubeKeepAliveDelay.Elapsed():
+			kubeKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveKubernetesServer(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+			c.testEvent(keepAliveKubeTick)
+
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
@@ -473,6 +514,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
+}
+
+// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
+// via environment variable.
+func instanceHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -804,35 +851,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 	})
 }
 
-func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {
-	// always fire off 'tick' event after keepalive processing to ensure
-	// that waiting for N ticks maps intuitively to waiting for N keepalive
-	// processing steps.
-	defer c.testEvent(keepAliveTick)
-	if err := c.keepAliveSSHServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveAppServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveDatabaseServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.keepAliveKubernetesServer(handle, now); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) error {
-	if handle.appServers == nil {
-		return nil
-	}
-
 	for name, srv := range handle.appServers {
 		if srv.lease != nil {
 			lease := *srv.lease

@@ -2553,10 +2553,10 @@ message InventoryPingRequest {
   // ServerID is the ID of the instance to ping.
   string ServerID = 1;
 
-  // ControlLog forces the ping to use the standard "commit then act" model of control log synchronization
-  // for the ping. This significantly increases the amount of time it takes for the ping request to
-  // complete, but is useful for testing/debugging control log issues.
-  bool ControlLog = 2;
+  // ControlLog used to signal that the ping should use the control log synchronization.
+  //
+  // Deprecated: the control log is unsupported and unsound to use.
+  bool ControlLog = 2 [deprecated = true];
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an
