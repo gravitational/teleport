@@ -70,7 +70,7 @@ export const WaitingRoomComponent: React.FC<
     return <>{children}</>;
   }
 
-  if (strategy.type === 'reason') {
+  if (strategy.type === 'reason' || strategy.type === 'always') {
     return (
       <RequestReason onCreateRequest={createRequest} prompt={strategy.prompt} />
     );

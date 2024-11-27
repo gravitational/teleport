@@ -112,7 +112,19 @@ describe('access strategy behavioral testing', () => {
     await expect(screen.findByText(/some error/i)).resolves.toBeInTheDocument();
   });
 
-  test('strategy "always" renders pending dialog, with request state empty', async () => {
+  test('strategy "always" renders pending dialog, with request state empty and reason required', async () => {
+    const userContext = makeUserContext(sampleContext('always'));
+    userContext.accessCapabilities.requireReason = true;
+
+    jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(userContext);
+
+    render(<>{Component}</>);
+    await expect(
+      screen.findByText(/send request/i)
+    ).resolves.toBeInTheDocument();
+  });
+
+  test('strategy "always" renders pending dialog, with request state empty and reason not required', async () => {
     const request = makeAccessRequest({ ...sampleRequest, state: 'PENDING' });
     const userContext = makeUserContext(sampleContext('always'));
 
