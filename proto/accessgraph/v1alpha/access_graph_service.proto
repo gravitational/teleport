@@ -89,7 +89,7 @@ service AccessGraphService {
   rpc EntraEventsStream(stream EntraEventsStreamRequest) returns (stream EntraEventsStreamResponse);
 
   // AzureEventsStream is a stream of commands to the Azure importer
-  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (AzureEventsStreamResponse);
+  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (stream AzureEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
