@@ -94,7 +94,7 @@ type AccessGraphServiceClient interface {
 	// EntraEventsStream is a stream of commands to the Entra ID SSO importer.
 	EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error)
 	// AzureEventsStream is a stream of commands to the Azure importer
-	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
+	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
 }
 
 type accessGraphServiceClient struct {
@@ -210,7 +210,7 @@ func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts .
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_EntraEventsStreamClient = grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse]
 
-func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error) {
+func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
 	if err != nil {
@@ -221,7 +221,7 @@ func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts .
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AccessGraphService_AzureEventsStreamClient = grpc.ClientStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse]
+type AccessGraphService_AzureEventsStreamClient = grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse]
 
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
@@ -269,7 +269,7 @@ type AccessGraphServiceServer interface {
 	// EntraEventsStream is a stream of commands to the Entra ID SSO importer.
 	EntraEventsStream(grpc.BidiStreamingServer[EntraEventsStreamRequest, EntraEventsStreamResponse]) error
 	// AzureEventsStream is a stream of commands to the Azure importer
-	AzureEventsStream(grpc.ClientStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
+	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -307,7 +307,7 @@ func (UnimplementedAccessGraphServiceServer) GitlabEventsStream(grpc.BidiStreami
 func (UnimplementedAccessGraphServiceServer) EntraEventsStream(grpc.BidiStreamingServer[EntraEventsStreamRequest, EntraEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method EntraEventsStream not implemented")
 }
-func (UnimplementedAccessGraphServiceServer) AzureEventsStream(grpc.ClientStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error {
+func (UnimplementedAccessGraphServiceServer) AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AzureEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
@@ -443,7 +443,7 @@ func _AccessGraphService_AzureEventsStream_Handler(srv interface{}, stream grpc.
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AccessGraphService_AzureEventsStreamServer = grpc.ClientStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]
+type AccessGraphService_AzureEventsStreamServer = grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]
 
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -501,6 +501,7 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AzureEventsStream",
 			Handler:       _AccessGraphService_AzureEventsStream_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

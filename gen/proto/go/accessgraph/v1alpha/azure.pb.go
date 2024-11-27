@@ -169,18 +169,22 @@ type isAzureResource_Resource interface {
 }
 
 type AzureResource_Principal struct {
+	// principal  is an Azure principal
 	Principal *AzurePrincipal `protobuf:"bytes,1,opt,name=principal,proto3,oneof"`
 }
 
 type AzureResource_RoleDefinition struct {
+	// role_definition is an Azure role definition
 	RoleDefinition *AzureRoleDefinition `protobuf:"bytes,2,opt,name=role_definition,json=roleDefinition,proto3,oneof"`
 }
 
 type AzureResource_RoleAssignment struct {
+	// role_assignment is an Azure role assignment, which assigns a role definition to a principal
 	RoleAssignment *AzureRoleAssignment `protobuf:"bytes,3,opt,name=role_assignment,json=roleAssignment,proto3,oneof"`
 }
 
 type AzureResource_VirtualMachine struct {
+	// virtual_machine is an Azure virtual machine, an instance of a compute resource
 	VirtualMachine *AzureVirtualMachine `protobuf:"bytes,4,opt,name=virtual_machine,json=virtualMachine,proto3,oneof"`
 }
 
@@ -198,12 +202,18 @@ type AzureVirtualMachine struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SubscriptionId string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	LastSyncTime   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	Name           string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	ResourceGroup  string                 `protobuf:"bytes,5,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
-	Tags           map[string]string      `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// id is the ID of the virtual machine
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// subscription_id is the ID of the subscription to which the virtual machine belongs
+	SubscriptionId string `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	// last_sync_time is when the virtual machine was last fetched from Azure
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// name is the given name of the virtual machine
+	Name string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	// resource_group is the name of the resource group to which the virtual machine belongs
+	ResourceGroup string `protobuf:"bytes,5,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
+	// tags are a collection of arbitrary key-values applied to the virtual machine
+	Tags map[string]string `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *AzureVirtualMachine) Reset() {
@@ -284,8 +294,11 @@ type AzureIdentity struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	SignInType       string `protobuf:"bytes,1,opt,name=sign_in_type,json=signInType,proto3" json:"sign_in_type,omitempty"`
-	Issuer           string `protobuf:"bytes,2,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// sign_in_type is the type of identity used when signing in, e.g. "emailAddress" or "userName"
+	SignInType string `protobuf:"bytes,1,opt,name=sign_in_type,json=signInType,proto3" json:"sign_in_type,omitempty"`
+	// issuer is the issuer of the identity, such as a domain name like "goteleport.com"
+	Issuer string `protobuf:"bytes,2,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// issuer_assigned_id unique identifier assigned to the user by the issuer
 	IssuerAssignedId string `protobuf:"bytes,3,opt,name=issuer_assigned_id,json=issuerAssignedId,proto3" json:"issuer_assigned_id,omitempty"`
 }
 
@@ -346,12 +359,18 @@ type AzurePrincipal struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SubscriptionId string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	LastSyncTime   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	DisplayName    string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	MemberOf       []string               `protobuf:"bytes,5,rep,name=member_of,json=memberOf,proto3" json:"member_of,omitempty"`
-	Identities     []*AzureIdentity       `protobuf:"bytes,6,rep,name=identities,proto3" json:"identities,omitempty"`
+	// id is the ID of the principal
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// subscription_id is the ID of the subscription to which the principal belongs
+	SubscriptionId string `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	// last_sync_time is when the principal was last fetched from Azure
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// display_name is the given name for the principal, e.g. a user's first+last name
+	DisplayName string `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// member_of lists the groups and directories the principal is assigned to
+	MemberOf []string `protobuf:"bytes,5,rep,name=member_of,json=memberOf,proto3" json:"member_of,omitempty"`
+	// identities lists the identities that can be used to sign in to the account
+	Identities []*AzureIdentity `protobuf:"bytes,6,rep,name=identities,proto3" json:"identities,omitempty"`
 }
 
 func (x *AzurePrincipal) Reset() {
@@ -432,13 +451,20 @@ type AzureRoleAssignment struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SubscriptionId   string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	LastSyncTime     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	PrincipalId      string                 `protobuf:"bytes,4,opt,name=principal_id,json=principalId,proto3" json:"principal_id,omitempty"`
-	RoleDefinitionId string                 `protobuf:"bytes,5,opt,name=role_definition_id,json=roleDefinitionId,proto3" json:"role_definition_id,omitempty"`
-	Scope            string                 `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
-	Condition        string                 `protobuf:"bytes,7,opt,name=condition,proto3" json:"condition,omitempty"`
+	// id is the ID of the role assignment
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// subscription_id is the ID of the subscription to which the role assignment belongs
+	SubscriptionId string `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	// last_sync_time is when the role assignment was last fetched from Azure
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// principal_id is the ID of the principal being assigned a role
+	PrincipalId string `protobuf:"bytes,4,opt,name=principal_id,json=principalId,proto3" json:"principal_id,omitempty"`
+	// role_definition_id is the ID of the role definition assigned to the principal
+	RoleDefinitionId string `protobuf:"bytes,5,opt,name=role_definition_id,json=roleDefinitionId,proto3" json:"role_definition_id,omitempty"`
+	// scope constrains which resources the assignment applies to
+	Scope string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
+	// condition further which resources the assignment applies to
+	Condition string `protobuf:"bytes,7,opt,name=condition,proto3" json:"condition,omitempty"`
 }
 
 func (x *AzureRoleAssignment) Reset() {
@@ -526,14 +552,24 @@ type AzureRoleDefinition struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SubscriptionId   string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	LastSyncTime     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	Name             string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Description      string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
-	AssignableScopes []string               `protobuf:"bytes,6,rep,name=assignable_scopes,json=assignableScopes,proto3" json:"assignable_scopes,omitempty"`
-	Permissions      []*AzureRBACPermission `protobuf:"bytes,7,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	RoleName         string                 `protobuf:"bytes,8,opt,name=role_name,json=roleName,proto3" json:"role_name,omitempty"`
+	// id is the ID of the role definition
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// subscription_id is the ID of the subscription to which the role definition belongs
+	SubscriptionId string `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	// last_sync_time is when the role definition was last fetched from Azure
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// name is the given name for the role definition
+	Name string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	// description provides additional detail about the role definition
+	Description string `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	// assignable_scopes limits the scopes defined in corresponding role assignments
+	AssignableScopes []string `protobuf:"bytes,6,rep,name=assignable_scopes,json=assignableScopes,proto3" json:"assignable_scopes,omitempty"`
+	// permissions define the actions and not (disallowed) actions
+	Permissions []*AzureRBACPermission `protobuf:"bytes,7,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	// role_name is the given name for the role itself
+	RoleName string `protobuf:"bytes,8,opt,name=role_name,json=roleName,proto3" json:"role_name,omitempty"`
+	// type defines the type of role
+	Type string `protobuf:"bytes,9,opt,name=type,proto3" json:"type,omitempty"`
 }
 
 func (x *AzureRoleDefinition) Reset() {
@@ -622,15 +658,26 @@ func (x *AzureRoleDefinition) GetRoleName() string {
 	return ""
 }
 
+func (x *AzureRoleDefinition) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
 // AzurePermission defines the actions and not (disallowed) actions for a role definition
 type AzureRBACPermission struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Actions        []string `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
-	NotActions     []string `protobuf:"bytes,2,rep,name=not_actions,json=notActions,proto3" json:"not_actions,omitempty"`
-	DataActions    []string `protobuf:"bytes,3,rep,name=data_actions,json=dataActions,proto3" json:"data_actions,omitempty"`
+	// actions define the resources and verbs allowed on the resources
+	Actions []string `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
+	// not_actions define the resources and verbs disallowed on the resources
+	NotActions []string `protobuf:"bytes,2,rep,name=not_actions,json=notActions,proto3" json:"not_actions,omitempty"`
+	// data_actions define fine-grained resources and verbs allowed within the resource
+	DataActions []string `protobuf:"bytes,3,rep,name=data_actions,json=dataActions,proto3" json:"data_actions,omitempty"`
+	// not_data_actions define fine-grained resources and verbs disallowed within the resource
 	NotDataActions []string `protobuf:"bytes,4,rep,name=not_data_actions,json=notDataActions,proto3" json:"not_data_actions,omitempty"`
 }
 
@@ -791,7 +838,7 @@ var file_accessgraph_v1alpha_azure_proto_rawDesc = []byte{
 	0x0a, 0x05, 0x73, 0x63, 0x6f, 0x70, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x73,
 	0x63, 0x6f, 0x70, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f,
 	0x6e, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69,
-	0x6f, 0x6e, 0x22, 0xdc, 0x02, 0x0a, 0x13, 0x41, 0x7a, 0x75, 0x72, 0x65, 0x52, 0x6f, 0x6c, 0x65,
+	0x6f, 0x6e, 0x22, 0xf0, 0x02, 0x0a, 0x13, 0x41, 0x7a, 0x75, 0x72, 0x65, 0x52, 0x6f, 0x6c, 0x65,
 	0x44, 0x65, 0x66, 0x69, 0x6e, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x27, 0x0a, 0x0f, 0x73, 0x75,
 	0x62, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20,
@@ -813,23 +860,24 @@ var file_accessgraph_v1alpha_azure_proto_rawDesc = []byte{
 	0x6d, 0x69, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x0b, 0x70, 0x65, 0x72, 0x6d, 0x69, 0x73, 0x73,
 	0x69, 0x6f, 0x6e, 0x73, 0x12, 0x1b, 0x0a, 0x09, 0x72, 0x6f, 0x6c, 0x65, 0x5f, 0x6e, 0x61, 0x6d,
 	0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x72, 0x6f, 0x6c, 0x65, 0x4e, 0x61, 0x6d,
-	0x65, 0x22, 0x9d, 0x01, 0x0a, 0x13, 0x41, 0x7a, 0x75, 0x72, 0x65, 0x52, 0x42, 0x41, 0x43, 0x50,
-	0x65, 0x72, 0x6d, 0x69, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x18, 0x0a, 0x07, 0x61, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07, 0x61, 0x63, 0x74, 0x69,
-	0x6f, 0x6e, 0x73, 0x12, 0x1f, 0x0a, 0x0b, 0x6e, 0x6f, 0x74, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0a, 0x6e, 0x6f, 0x74, 0x41, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x73, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x61, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x61, 0x74, 0x61,
-	0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x28, 0x0a, 0x10, 0x6e, 0x6f, 0x74, 0x5f, 0x64,
-	0x61, 0x74, 0x61, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28,
-	0x09, 0x52, 0x0e, 0x6e, 0x6f, 0x74, 0x44, 0x61, 0x74, 0x61, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e,
-	0x73, 0x42, 0x57, 0x5a, 0x55, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f,
-	0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65,
-	0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x2f, 0x67, 0x6f, 0x2f, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x67, 0x72, 0x61, 0x70, 0x68, 0x2f,
-	0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x3b, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x67, 0x72,
-	0x61, 0x70, 0x68, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x65, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x74, 0x79, 0x70, 0x65, 0x22, 0x9d, 0x01, 0x0a, 0x13, 0x41, 0x7a, 0x75, 0x72, 0x65, 0x52,
+	0x42, 0x41, 0x43, 0x50, 0x65, 0x72, 0x6d, 0x69, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x18, 0x0a,
+	0x07, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07,
+	0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x1f, 0x0a, 0x0b, 0x6e, 0x6f, 0x74, 0x5f, 0x61,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0a, 0x6e, 0x6f,
+	0x74, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x61, 0x74, 0x61,
+	0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b,
+	0x64, 0x61, 0x74, 0x61, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x28, 0x0a, 0x10, 0x6e,
+	0x6f, 0x74, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18,
+	0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0e, 0x6e, 0x6f, 0x74, 0x44, 0x61, 0x74, 0x61, 0x41, 0x63,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x42, 0x57, 0x5a, 0x55, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61,
+	0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x67, 0x72,
+	0x61, 0x70, 0x68, 0x2f, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x3b, 0x61, 0x63, 0x63, 0x65,
+	0x73, 0x73, 0x67, 0x72, 0x61, 0x70, 0x68, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
