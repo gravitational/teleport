@@ -291,7 +291,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}, nil
 }
 
-func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	return p.reissueAppCert(), nil
 }
 
@@ -350,7 +350,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 	return cfg, nil
 }
 
-func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	p.onNewConnectionCallCount.Add(1)
 	return nil
 }
