@@ -24,6 +24,7 @@ export type TrustedDevice = {
   osType: TrustedDeviceOSType;
   enrollStatus: 'enrolled' | 'not enrolled';
   owner: string;
+  createTime?: Date;
 };
 
 export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';

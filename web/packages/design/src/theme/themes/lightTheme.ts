@@ -265,6 +265,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.primary.picton,
     brightMagenta: dataVisualisationColors.primary.purple,
     brightCyan: dataVisualisationColors.primary.cyan,
+    searchMatch: '#FFD98C',
+    activeSearchMatch: '#FFAB00',
   },
 
   accessGraph: {

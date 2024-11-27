@@ -18,7 +18,7 @@
 
 import { EventEmitter } from 'events';
 
-import React, {
+import {
   createContext,
   FC,
   PropsWithChildren,
@@ -27,20 +27,28 @@ import React, {
   useRef,
 } from 'react';
 
+import { RootClusterUri } from 'teleterm/ui/uri';
+
 export interface ResourcesContext {
   /**
-   * requestResourcesRefresh makes all DocumentCluster instances within the workspace refresh the
-   * resource list with current filters.
+   * requestResourcesRefresh makes all DocumentCluster instances within the workspace
+   * (specified by `rootClusterUri`) refresh the resource list with current filters.
    *
-   * Its main purpose is to refresh the resource list in existing DocumentCluster tabs after a
-   * Connect My Computer node is set up.
+   * Its purpose is to refresh the resource list in existing DocumentCluster tabs after a
+   * Connect My Computer node is set up, or after assuming/dropping an access request.
    */
-  requestResourcesRefresh: () => void;
+  requestResourcesRefresh: (rootClusterUri: RootClusterUri) => void;
   /**
    * onResourcesRefreshRequest registers a listener that will be called any time a refresh is
-   * requested. Typically called from useEffect, for this purpose it returns a cleanup function.
+   * requested for a particular rootClusterUri. Typically called from useEffect, for this purpose it
+   * returns a cleanup function.
    */
-  onResourcesRefreshRequest: (listener: () => void) => { cleanup: () => void };
+  onResourcesRefreshRequest: (
+    rootClusterUri: RootClusterUri,
+    listener: () => void
+  ) => {
+    cleanup: () => void;
+  };
 }
 
 const ResourcesContext = createContext<ResourcesContext>(null);
@@ -51,24 +59,32 @@ export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
     emitterRef.current = new EventEmitter();
   }
 
-  // This function could be expanded to emit a cluster URI so that a request refresh for a root
-  // cluster doesn't trigger refreshes of leaf DocumentCluster instances and vice versa.
-  // However, the implementation should be good enough for now since it's used only in Connect My
-  // Computer setup anyway.
   const requestResourcesRefresh = useCallback(
-    () => emitterRef.current.emit('refresh'),
+    (rootClusterUri: RootClusterUri) =>
+      emitterRef.current.emit('refresh', rootClusterUri),
     []
   );
 
-  const onResourcesRefreshRequest = useCallback(listener => {
-    emitterRef.current.addListener('refresh', listener);
+  const onResourcesRefreshRequest = useCallback(
+    (
+      targetRootClusterUri: RootClusterUri,
+      listenerWithoutRootClusterUri: () => void
+    ) => {
+      const listener = (rootClusterUri: RootClusterUri) => {
+        if (rootClusterUri === targetRootClusterUri) {
+          listenerWithoutRootClusterUri();
+        }
+      };
+      emitterRef.current.addListener('refresh', listener);
 
-    return {
-      cleanup: () => {
-        emitterRef.current.removeListener('refresh', listener);
-      },
-    };
-  }, []);
+      return {
+        cleanup: () => {
+          emitterRef.current.removeListener('refresh', listener);
+        },
+      };
+    },
+    []
+  );
 
   return (
     <ResourcesContext.Provider
@@ -78,7 +94,7 @@ export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
   );
 };
 
-export const useResourcesContext = () => {
+export const useResourcesContext = (rootClusterUri: RootClusterUri) => {
   const context = useContext(ResourcesContext);
 
   if (!context) {
@@ -87,5 +103,20 @@ export const useResourcesContext = () => {
     );
   }
 
-  return context;
+  const {
+    requestResourcesRefresh: requestResourcesRefreshContext,
+    onResourcesRefreshRequest: onResourcesRefreshRequestContext,
+  } = context;
+
+  return {
+    requestResourcesRefresh: useCallback(
+      () => requestResourcesRefreshContext(rootClusterUri),
+      [requestResourcesRefreshContext, rootClusterUri]
+    ),
+    onResourcesRefreshRequest: useCallback(
+      (listener: () => void) =>
+        onResourcesRefreshRequestContext(rootClusterUri, listener),
+      [onResourcesRefreshRequestContext, rootClusterUri]
+    ),
+  };
 };

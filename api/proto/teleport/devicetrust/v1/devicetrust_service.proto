@@ -274,16 +274,14 @@ message ListDevicesResponse {
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list.
 message ListDevicesByUserRequest {
+  reserved 3;
+  reserved "view";
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
   int32 page_size = 1;
 
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
-
-  // Specifies which fields of the resource should be returned in the response.
-  // Defaults to DEVICE_VIEW_LIST.
-  DeviceView view = 3;
 }
 
 // Response for ListDevicesByUser.
