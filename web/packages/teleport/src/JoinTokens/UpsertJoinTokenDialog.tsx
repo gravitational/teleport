@@ -42,12 +42,15 @@ import { useTeleport } from 'teleport';
 import {
   AWSRules,
   CreateJoinTokenRequest,
+  GCPRules,
+  GithubJoinToken,
+  GithubRules,
   JoinMethod,
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
 
-import { JoinTokenGCPForm, JoinTokenIAMForm } from './JoinTokenForms';
+import { JoinTokenGCPForm, JoinTokenGithubForm, JoinTokenIAMForm } from './JoinTokenForms';
 
 const maxWidth = '550px';
 
@@ -61,7 +64,7 @@ const joinRoleOptions: OptionJoinRole[] = [
   'Discovery',
 ].map(role => ({ value: role as JoinRole, label: role as JoinRole }));
 
-const availableJoinMethods: OptionJoinMethod[] = ['iam', 'gcp'].map(method => ({
+const availableJoinMethods: OptionJoinMethod[] = ['iam', 'gcp', 'github'].map(method => ({
   value: method as JoinMethod,
   label: method as JoinMethod,
 }));
@@ -83,6 +86,7 @@ export type NewJoinTokenState = {
   roles: OptionJoinRole[];
   iam: AWSRules[];
   gcp: NewJoinTokenGCPState[];
+  github: GithubJoinToken;
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -92,6 +96,7 @@ export const defaultNewTokenState: NewJoinTokenState = {
   roles: [],
   iam: [{ aws_account: '', aws_arn: '' }],
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
+  github: { enterprise_server_host: '', enterprise_slug: '', allow: [{} as GithubRules] },
 };
 
 function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
@@ -109,6 +114,7 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
       service_accounts: r.service_accounts?.map(i => ({ value: i, label: i })),
       locations: r.locations?.map(i => ({ value: i, label: i })),
     })),
+    github: token.github,
   };
 }
 
@@ -171,6 +177,15 @@ export const UpsertJoinTokenDialog = ({
         })),
       };
       request.gcp = gcp;
+    }
+
+    if (newTokenState.method.value === 'github'){
+      const github: GithubJoinToken = {
+        enterprise_server_host: '',
+        enterprise_slug: '',
+        allow: []
+      };
+      request.github = github;
     }
 
     runCreateTokenAttempt(request);
@@ -310,6 +325,12 @@ export const UpsertJoinTokenDialog = ({
                   onUpdateState={newState => setNewTokenState(newState)}
                 />
               )}
+              {newTokenState.method.value === 'github' && (
+                <JoinTokenGithubForm
+                  tokenState={newTokenState}
+                  onUpdateState={newState => setNewTokenState(newState)}
+                />
+              )}              
               <Flex
                 mt={4}
                 py={4}

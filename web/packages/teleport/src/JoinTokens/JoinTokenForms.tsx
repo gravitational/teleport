@@ -24,6 +24,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 
 import { NewJoinTokenState, OptionGCP, RuleBox } from './UpsertJoinTokenDialog';
+import { GithubRules } from 'teleport/services/joinToken';
 
 export const JoinTokenIAMForm = ({
   tokenState,
@@ -225,6 +226,107 @@ export const JoinTokenGCPForm = ({
         <Plus size={16} mr={2} />
         Add another GCP Rule
       </ButtonText>
+    </>
+  );
+};
+
+export const JoinTokenGithubForm = ({
+  tokenState,
+  onUpdateState,
+}: {
+  tokenState: NewJoinTokenState;
+  onUpdateState: (newToken: NewJoinTokenState) => void;
+}) => {
+  const rules = tokenState.github;
+  function removeRule(index: number) {
+    const newRules = rules.allow.filter((_, i) => index !== i);
+    const newState = {
+      ...tokenState,
+      github: {
+        ...rules,
+        allow: newRules,
+      },
+    };
+    onUpdateState(newState);
+  }
+
+  function addNewRule() {
+    const newState: NewJoinTokenState = {
+      ...tokenState,
+      github: {
+        ...tokenState.github,
+        allow: [
+          ...tokenState.github.allow,
+          {} as GithubRules
+        ]
+      },
+    };
+    onUpdateState(newState);
+  }
+
+  function updateRuleField(
+    index: number,
+    fieldName: string,
+    opts: { value: string; label: string }[]
+  ) {
+    const newState = {
+      ...tokenState,
+      gcp: tokenState.gcp.map((rule, i) => {
+        if (i === index) {
+          return { ...rule, [fieldName]: opts };
+        }
+        return rule;
+      }),
+    };
+    onUpdateState(newState);
+  }
+
+  return (
+    <>
+      <RuleBox>
+      <FieldInput
+        placeholder="ghes.example.com"
+        value={rules.enterprise_server_host}
+        label="Enterprise Server Host"
+        rule={requiredField('Enterprise Server Host required')}
+      />
+      <FieldInput
+        placeholder="slug"
+        value={rules.enterprise_slug}
+        label="Enterprise Slug"
+        rule={requiredField('Enterprise Slug required')}
+      />    
+      {rules.allow.map((rule, index) => (
+        <RuleBox
+          key={index} // order doesn't change without updating the referrenced array
+        >
+          <Flex alignItems="center" justifyContent="space-between">
+            <Text fontWeight={700} mb={2}>
+              Github Rule
+            </Text>
+
+            {rules.allow.length > 1 && ( // at least one rule is required, so lets not allow the user to remove it
+              <ButtonIcon
+                data-testid="delete_rule"
+                onClick={() => removeRule(index)}
+              >
+                <Trash size={16} color="text.muted" />
+              </ButtonIcon>
+            )}
+          </Flex>
+          <FieldInput
+            placeholder="Type a repository"
+            value={rule.repository}
+            label="Repository"
+            rule={requiredField('Repository required')}
+          />
+        </RuleBox>
+      ))}
+      <ButtonText onClick={addNewRule} compact>
+        <Plus size={16} mr={2} />
+        Add another Github rule
+      </ButtonText>
+      </RuleBox>
     </>
   );
 };

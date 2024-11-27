@@ -47,6 +47,7 @@ export type JoinToken = {
   gcp?: {
     allow: GCPRules[];
   };
+  github?: GithubJoinToken,
 };
 
 // JoinRole defines built-in system roles and are roles associated with
@@ -104,6 +105,23 @@ export type GCPRules = {
   service_accounts: string[];
 };
 
+export type GithubJoinToken = {
+  enterprise_server_host: string,
+  enterprise_slug: string,
+  allow: GithubRules[]
+}
+
+export type GithubRules = {
+  repository: string;
+  repository_owner: string;
+  workflow: string;
+  environment?: string;
+  actor: string;
+  ref: string;
+  ref_type: string;
+  sub: string;
+}
+
 export type JoinTokenRulesObject = AWSRules | GCPRules;
 
 export type CreateJoinTokenRequest = {
@@ -121,6 +139,7 @@ export type CreateJoinTokenRequest = {
   gcp?: {
     allow: GCPRules[];
   };
+  github?: GithubJoinToken
 };
 
 export type JoinTokenRequest = {
