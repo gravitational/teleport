@@ -3676,7 +3676,7 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println("git server %q has been created", server.GetName())
+	fmt.Printf("git server %q has been created\n", server.GetName())
 	return nil
 }
 func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3692,6 +3692,6 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println("git server %q has been updated", server.GetName())
+	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }
