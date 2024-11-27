@@ -125,8 +125,9 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+- `example.teleport.sh:443` with the address of your Teleport Proxy. If
+  connecting directly to an Auth Service, replace `proxy_server:` with
+  `auth_server:`.
 - `example-bot` with the name of the token you created in the second step
 
 Next, define a Pipelines workflow that downloads the `tbot` binary and starts
