@@ -71,9 +71,12 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // a test certificate authority
 type TestCAConfig struct {
 	Type        types.CertAuthType
-	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
 }
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
@@ -81,6 +84,13 @@ type TestCAConfig struct {
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
 // TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
 		// db client CA gets its own private key to distinguish its pub key
@@ -108,7 +118,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		Signer: rsaKey.(*rsa.PrivateKey),
 		Entity: pkix.Name{
 			CommonName:   config.ClusterName,
-			Organization: []string{config.ClusterName},
+			Organization: []string{config.SubjectOrganization},
 		},
 		TTL:   defaults.CATTL,
 		Clock: config.Clock,
@@ -122,7 +132,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		SubKind: string(config.Type),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      config.ClusterName,
+			Name:      config.ResourceName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
