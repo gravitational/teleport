@@ -46,7 +46,16 @@ type Controller struct {
 }
 
 // NewController creates a new Controller for the autoupdate_agent_rollout kind.
-func NewController(client Client, log *slog.Logger, clock clockwork.Clock) *Controller {
+func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Controller, error) {
+	if client == nil {
+		return nil, trace.BadParameter("missing client")
+	}
+	if log == nil {
+		return nil, trace.BadParameter("missing log")
+	}
+	if clock == nil {
+		return nil, trace.BadParameter("missing clock")
+	}
 	return &Controller{
 		clock: clock,
 		log:   log,
@@ -54,7 +63,7 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) *Cont
 			clt: client,
 			log: log,
 		},
-	}
+	}, nil
 }
 
 // Run the autoupdate_agent_rollout controller. This function returns only when its context is canceled.
@@ -75,8 +84,7 @@ func (c *Controller) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.Next():
 			c.log.DebugContext(ctx, "Reconciling autoupdate_agent_rollout")
-			err := c.tryAndCatch(ctx)
-			if err != nil {
+			if err := c.tryAndCatch(ctx); err != nil {
 				c.log.ErrorContext(ctx, "Failed to reconcile autoudpate_agent_controller", "error", err)
 			}
 		}

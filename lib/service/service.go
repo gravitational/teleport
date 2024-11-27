@@ -2431,7 +2431,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
 	})
 
-	agentRolloutController := rollout.NewController(authServer, logger, process.Clock)
+	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock)
+	if err != nil {
+		return trace.Wrap(err, "creating the rollout controller")
+	}
 	process.RegisterFunc("auth.autoupdate_agent_rollout_controller", func() error {
 		return trace.Wrap(agentRolloutController.Run(process.GracefulExitContext()), "running autoupdate_agent_rollout controller")
 	})
