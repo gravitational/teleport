@@ -132,6 +132,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 		return nil, trace.Wrap(err)
 	}
 	apiCluster.LoggedInUser.UserType = userType
+	apiCluster.LoggedInUser.TrustedDeviceRequirement = cluster.TrustedDeviceRequirement
 	apiCluster.ProxyVersion = cluster.ProxyVersion
 
 	switch cluster.ShowResources {

@@ -86,6 +86,8 @@ type ClusterWithDetails struct {
 	ProxyVersion string
 	// ShowResources tells if the cluster can show requestable resources on the resources page.
 	ShowResources constants.ShowResources
+	// Indicates whether access may be hindered by the lack of a trusted device.
+	TrustedDeviceRequirement types.TrustedDeviceRequirement
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -101,6 +103,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		clusterPingResponse *webclient.PingResponse
 		webConfig           *webclient.WebConfig
 		authPingResponse    proto.PingResponse
+		authPreferences     types.AuthPreference
 		caps                *types.AccessCapabilities
 		authClusterID       string
 		acl                 *api.ACL
@@ -126,6 +129,15 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.Ping(groupCtx)
 			authPingResponse = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.GetAuthPreference(groupCtx)
+			authPreferences = res
 			return trace.Wrap(err)
 		})
 		return trace.Wrap(err)
@@ -180,6 +192,9 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
+	trustedDeviceRequirement := dtauthz.CalculateTrustedDeviceRequirement(authPreferences.GetDeviceTrust(), func() []types.Role {
+		return roles
+	})
 
 	acl = &api.ACL{
 		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
@@ -198,15 +213,16 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	}
 
 	withDetails := &ClusterWithDetails{
-		Cluster:            c,
-		SuggestedReviewers: caps.SuggestedReviewers,
-		RequestableRoles:   caps.RequestableRoles,
-		Features:           authPingResponse.ServerFeatures,
-		AuthClusterID:      authClusterID,
-		ACL:                acl,
-		UserType:           user.GetUserType(),
-		ProxyVersion:       clusterPingResponse.ServerVersion,
-		ShowResources:      webConfig.UI.ShowResources,
+		Cluster:                  c,
+		SuggestedReviewers:       caps.SuggestedReviewers,
+		RequestableRoles:         caps.RequestableRoles,
+		Features:                 authPingResponse.ServerFeatures,
+		AuthClusterID:            authClusterID,
+		ACL:                      acl,
+		UserType:                 user.GetUserType(),
+		ProxyVersion:             clusterPingResponse.ServerVersion,
+		ShowResources:            webConfig.UI.ShowResources,
+		TrustedDeviceRequirement: trustedDeviceRequirement,
 	}
 
 	return withDetails, nil
