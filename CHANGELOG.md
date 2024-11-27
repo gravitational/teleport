@@ -627,7 +627,7 @@ outputs:
 is recommended that you migrate to v2 as soon as possible to benefit from new
 Machine ID features.
 
-For more details and guidance on how to upgrade to v2, see [docs](docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
+For more details and guidance on how to upgrade to v2, see [docs](https://github.com/gravitational/teleport/blob/branch/v14/docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
 
 ## 13.0.1 (05/xx/23)
 

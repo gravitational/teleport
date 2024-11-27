@@ -842,6 +842,9 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -873,6 +876,15 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// GitHubServerMetadata contains info about GitHub proxies where each server
+// represents a GitHub organization.
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -1344,6 +1356,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
   // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
+  // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
+  ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1687,6 +1701,49 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
   // and provide standard JWKS endpoints.
   string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
+message ProvisionTokenSpecV2Bitbucket {
+  // Rule is a set of properties the Bitbucket-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // WorkspaceUUID is the UUID of the workspace for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
+
+    // RepositoryUUID is the UUID of the repository for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
+
+    // DeploymentEnvironmentUUID is the UUID of the deployment environment
+    // targeted by this pipelines run, if any. These values may be found in the
+    // "Pipelines -> OpenID Connect -> Deployment environments" section of the
+    // repository settings.
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
+
+    // BranchName is the name of the branch on which this pipeline executed.
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is a Bitbucket-specified audience value for this token. It is
+  // unique to each Bitbucket repository, and must be set to the value as
+  // written in the Pipelines -> OpenID Connect section of the repository
+  // settings.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC
+  // tokens. It is unique to each Bitbucket repository, and must be set to the
+  // value as written in the Pipelines -> OpenID Connect section of the
+  // repository settings.
+  string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2878,6 +2935,38 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding.
+  SSHLocalPortForwarding Local = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "local,omitempty"
+  ];
+  // Allow remote port forwarding.
+  SSHRemotePortForwarding Remote = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "remote,omitempty"
+  ];
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2892,11 +2981,9 @@ message RoleOptions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // PortForwarding defines if the certificate will have
-  // "permit-port-forwarding"
-  // in the certificate. PortForwarding is "yes" if not set,
-  // that's why this is a pointer
+  // Deprecated: Use SSHPortForwarding instead
   BoolValue PortForwarding = 3 [
+    deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
     (gogoproto.customtype) = "BoolOption"
@@ -3063,6 +3150,12 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  SSHPortForwarding SSHPortForwarding = 32 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
+  ];
 }
 
 message RecordSession {
@@ -3291,6 +3384,12 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
+
+  // GitHubPermissions defines GitHub integration related permissions.
+  repeated GitHubPermission git_hub_permissions = 43 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "github_permissions,omitempty"
+  ];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -3298,6 +3397,11 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+}
+
+// GitHubPermission defines GitHub integration related permissions.
+message GitHubPermission {
+  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3462,6 +3566,22 @@ message AccessRequestConditions {
   repeated RequestKubernetesResource kubernetes_resources = 8 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+
+  // Reason defines settings for the reason for the access provided by the user.
+  AccessRequestConditionsReason Reason = 9 [(gogoproto.jsontag) = "reason,omitempty"];
+}
+
+// AccessRequestConditionsReason defines settings for the reason for the access provided by the
+// user.
+message AccessRequestConditionsReason {
+  // Mode can be either "required" or "optional". Empty string is treated as "optional". If a role
+  // has the request reason mode set to "required", then reason is required for all Access Requests
+  // requesting roles or resources allowed by this role. It applies only to users who have this
+  // role assigned.
+  string Mode = 1 [
+    (gogoproto.jsontag) = "mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
   ];
 }
 
@@ -7022,6 +7142,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7041,6 +7162,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7390,7 +7519,12 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7433,6 +7567,12 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

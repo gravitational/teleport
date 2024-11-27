@@ -9191,3 +9191,114 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 		})
 	}
 }
+
+func TestRoleRequestReasonModeValidation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	testCases := []struct {
+		desc          string
+		allow         types.AccessRequestConditions
+		deny          types.AccessRequestConditions
+		expectedError error
+	}{
+		{
+			desc: "Reason mode can be omitted",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be required in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeRequired,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be optional in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode cannot be set to any other value",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "other-value",
+				},
+			},
+			expectedError: trace.BadParameter(`unrecognized request reason mode "other-value", must be one of: [required optional]`),
+		},
+		{
+			desc: "Reason mode cannot be set deny condition",
+			deny: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: trace.BadParameter("request reason mode can be provided only for allow rules"),
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			var err error
+
+			createRole := newRole(t, fmt.Sprintf("test-create-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			updateRole := newRole(t, fmt.Sprintf("test-update-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			upsertRole := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+
+			createRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			createRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.CreateRole(ctx, createRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			updateRole, err = s.CreateRole(ctx, updateRole)
+			require.NoError(t, err)
+			updateRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			updateRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpdateRole(ctx, updateRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			upsertRole, err = s.CreateRole(ctx, upsertRole)
+			require.NoError(t, err)
+			upsertRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			upsertRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpsertRole(ctx, upsertRole)
+			require.ErrorIs(t, err, tt.expectedError)
+		})
+	}
+}

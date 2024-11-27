@@ -92,6 +92,9 @@ type Role interface {
 	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
 	GetRoleConditions(rct RoleConditionType) RoleConditions
 
+	// GetRequestReasonMode gets the RequestReasonMode for the RoleConditionType.
+	GetRequestReasonMode(RoleConditionType) RequestReasonMode
+
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -276,6 +279,11 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+
+	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
+	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
+	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
 }
 
 // NewRole constructs new standard V7 role.
@@ -952,6 +960,23 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 		r.Spec.Allow.SPIFFE = cond
 	} else {
 		r.Spec.Deny.SPIFFE = cond
+	}
+}
+
+// GetGitHubPermissions returns the allow or deny GitHubPermission.
+func (r *RoleV6) GetGitHubPermissions(rct RoleConditionType) []GitHubPermission {
+	if rct == Allow {
+		return r.Spec.Allow.GitHubPermissions
+	}
+	return r.Spec.Deny.GitHubPermissions
+}
+
+// SetGitHubPermissions sets the allow or deny GitHubPermission.
+func (r *RoleV6) SetGitHubPermissions(rct RoleConditionType, perms []GitHubPermission) {
+	if rct == Allow {
+		r.Spec.Allow.GitHubPermissions = perms
+	} else {
+		r.Spec.Deny.GitHubPermissions = perms
 	}
 }
 
@@ -1715,10 +1740,7 @@ func (r *RoleV6) SetSearchAsRoles(rct RoleConditionType, roles []string) {
 // purposes of viewing details such as the hostname and labels of requested
 // resources.
 func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
-	roleConditions := &r.Spec.Allow
-	if rct == Deny {
-		roleConditions = &r.Spec.Deny
-	}
+	roleConditions := r.GetRoleConditions(rct)
 	if roleConditions.ReviewRequests == nil {
 		return nil
 	}
@@ -1733,6 +1755,15 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	}
 
 	return roleConditions
+}
+
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
+	roleConditions := r.GetRoleConditions(rct)
+	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {
+		return ""
+	}
+	return roleConditions.Request.Reason.Mode
 }
 
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
@@ -1913,6 +1944,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindGitServer:
+		return r.makeGitServerLabelMatchers(cond), nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2014,6 +2047,18 @@ func (r *RoleV6) SetOrigin(origin string) {
 func (r *RoleV6) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
+	var all []string
+	for _, perm := range cond.GitHubPermissions {
+		all = append(all, perm.Organizations...)
+	}
+	return LabelMatchers{
+		Labels: Labels{
+			GitHubOrgLabel: all,
+		},
+	}
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label
