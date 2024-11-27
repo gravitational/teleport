@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package rolloutcontroller
+package rollout
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 )
 
 // mockClient is a mock implementation if the Client interface for testing purposes.
-// This is used to precisely check which calls are made by the Reconciler during tests.
+// This is used to precisely check which calls are made by the reconciler during tests.
 // Use newMockClient to create one from stubs. Once the test is over, you must call
 // mockClient.checkIfEmpty to validate all expected calls were made.
 type mockClient struct {
