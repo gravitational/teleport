@@ -134,7 +134,7 @@ function LicenseAcknowledgement({
           <Text>
             By clicking continue, you agree to our{' '}
             <Link
-              href="https://github.com/gravitational/teleport/blob/master/LICENSE-community"
+              href="https://github.com/gravitational/teleport/blob/master/build.assets/LICENSE-community"
               target="_blank"
             >
               Terms and Conditions
