@@ -265,7 +265,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, ErrNoTCPHandler
 	}
 	app := resp.Resources[0].GetApp()
-	appHandler, err := r.newTCPAppHandler(ctx, log, profileName, leafClusterName, app)
+	appHandler, err := r.newTCPAppHandler(ctx, profileName, leafClusterName, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,7 +295,6 @@ type tcpAppHandler struct {
 
 func (r *TCPAppResolver) newTCPAppHandler(
 	ctx context.Context,
-	log *slog.Logger,
 	profileName string,
 	leafClusterName string,
 	app types.Application,
@@ -307,7 +306,8 @@ func (r *TCPAppResolver) newTCPAppHandler(
 		leafClusterName:  leafClusterName,
 		app:              app,
 		portToLocalProxy: make(map[uint16]*alpnproxy.LocalProxy),
-		log:              log.With(teleport.ComponentKey, "VNet.AppHandler"),
+		log: r.log.With(teleport.ComponentKey, "VNet.AppHandler",
+			"profile", profileName, "leaf_cluster", leafClusterName, "fqdn", app.GetPublicAddr()),
 	}, nil
 }
 
