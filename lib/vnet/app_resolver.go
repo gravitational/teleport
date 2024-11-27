@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AppProvider is an interface providing the necessary methods to log in to apps and get clients able to list
@@ -111,7 +110,7 @@ type TCPAppResolver struct {
 func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
 	r := &TCPAppResolver{
 		appProvider: appProvider,
-		log:         logutils.NewPackageLogger(teleport.ComponentKey, "VNet.AppResolver"),
+		log:         log.With(teleport.ComponentKey, "VNet.AppResolver"),
 	}
 	for _, opt := range opts {
 		opt(r)
