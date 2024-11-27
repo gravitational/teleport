@@ -60,6 +60,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+	string(types.JoinMethodBitbucket),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
