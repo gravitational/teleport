@@ -150,9 +150,6 @@ pipelines:
 
             # Run `tbot` in identity mode for SSH access
             - ./teleport/tbot start -c tbot.yaml
-
-            # Make use of the generated SSH credentials
-            - ssh -F ./tbot-user/ssh_config user@node.example.teleport.sh echo "hello world"
 ```
 
 Once run, tbot will start and authenticate to Teleport. Note that at this point,
