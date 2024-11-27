@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
+const testClusterName = "teleport.example.com"
+
 var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:namespace", "system:authenticated"}
 
 var boundTokenKubernetesVersion = version.Info{
@@ -65,6 +67,7 @@ func tokenReviewMock(t *testing.T, reviewResult *v1.TokenReview) func(ctest.Acti
 		require.True(t, ok)
 
 		require.Equal(t, reviewResult.Spec.Token, reviewRequest.Spec.Token)
+		require.ElementsMatch(t, reviewRequest.Spec.Audiences, []string{kubernetesAudience, testClusterName})
 		return true, reviewResult, nil
 	}
 }
@@ -238,7 +241,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			v := TokenReviewValidator{
 				client: client,
 			}
-			result, err := v.Validate(context.Background(), tt.token)
+			result, err := v.Validate(context.Background(), tt.token, testClusterName)
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
 				return
