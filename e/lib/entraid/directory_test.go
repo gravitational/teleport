@@ -175,6 +175,9 @@ func TestEntraIDService(t *testing.T) {
 	aliceEntra := &msgraph.User{}
 	aliceEntra.ID = &aliceID
 	aliceEntra.UserPrincipalName = &aliceUPN
+	aliceEntra.DisplayName = to.Ptr("Alice Smith")
+	aliceEntra.GivenName = to.Ptr("Alice")
+	aliceEntra.Surname = to.Ptr("Smith")
 	aliceSAMAccountName := "alice-on-prem"
 	aliceEntra.OnPremisesSAMAccountName = &aliceSAMAccountName
 	graphClient.users = append(graphClient.users, aliceEntra)
@@ -335,7 +338,12 @@ func TestEntraIDService(t *testing.T) {
 			"http://schemas.microsoft.com/ws/2008/06/identity/claims/groups": {
 				teamAID,
 			},
-			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name": {"alice@example.com"},
+			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name":      {"alice@example.com"},
+			"http://schemas.microsoft.com/identity/claims/tenantid":           {tenantID},
+			"http://schemas.microsoft.com/identity/claims/objectidentifier":   {aliceID},
+			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": {"Alice"},
+			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname":   {"Smith"},
+			"http://schemas.microsoft.com/identity/claims/displayname":        {"Alice Smith"},
 		}, aliceTeleport.GetTraits())
 
 		teamATeleportExpected, err := convertGroup(teamAEntra, tenantID, defaultOwners)

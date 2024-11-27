@@ -197,14 +197,35 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 	})
 
 	const (
-		entraIDSAMLClaimName   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
-		entraIDSAMLClaimEmail  = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-		entraIDSAMLClaimGroups = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
-		entraIDSAMLClaimRoles  = "http://schemas.microsoft.com/ws/2008/06/identity/claims/roles"
+		entraIDSAMLClaimName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+		entraIDSAMLClaimEmail   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+		entraIDSAMLClaimGroups  = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+		entraIDSAMLClaimRoles   = "http://schemas.microsoft.com/ws/2008/06/identity/claims/roles"
+		entraIDSAMLGivenName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+		entraIDSAMLSurname      = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
+		defaultSchemasNamespace = "http://schemas.microsoft.com/identity/claims/"
+		tenantIDClaim           = defaultSchemasNamespace + "tenantid"
+		objectIdentifierClaim   = defaultSchemasNamespace + "objectidentifier"
+		displayNameClaim        = defaultSchemasNamespace + "displayname"
 	)
 	traits := map[string][]string{
-		entraIDSAMLClaimName: {*username},
+		entraIDSAMLClaimName:  {*username},
+		tenantIDClaim:         {tenantID},
+		objectIdentifierClaim: {*in.ID},
 	}
+
+	if in.DisplayName != nil {
+		traits[displayNameClaim] = []string{*in.DisplayName}
+	}
+
+	if in.GivenName != nil {
+		traits[entraIDSAMLGivenName] = []string{*in.GivenName}
+	}
+
+	if in.Surname != nil {
+		traits[entraIDSAMLSurname] = []string{*in.Surname}
+	}
+
 	if in.Mail != nil {
 		traits[entraIDSAMLClaimEmail] = []string{*in.Mail}
 	}
