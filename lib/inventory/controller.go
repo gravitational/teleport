@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
+	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -448,40 +449,72 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			case proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
 			case proto.InventoryHeartbeat:
-				if err := c.handleHeartbeatMsg(handle, m); err != nil {
-					handle.CloseWithError(err)
-					return
+				// XXX: when adding new services to the heartbeat logic, make
+				// sure to also update the 'icsServiceToMetricName' mapping in
+				// auth/grpcserver.go in order to ensure that metrics start
+				// counting the control stream as a registered keepalive stream
+				// for that service.
+
+				if m.SSHServer != nil {
+					if sshKeepAliveDelay == nil {
+						sshKeepAliveDelay = delay.New(delay.Params{
+							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval: c.serverKeepAlive,
+							Jitter:        retryutils.SeventhJitter,
+						})
+					}
+
+					if err := c.handleSSHServerHB(handle, m.SSHServer, sshKeepAliveDelay); err != nil {
+						handle.CloseWithError(trace.Wrap(err))
+						return
+					}
 				}
 
-				// we initialize delays lazily here, depending on the protocol
-				if sshKeepAliveDelay == nil && m.SSHServer != nil {
-					sshKeepAliveDelay = delay.New(delay.Params{
-						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-						FixedInterval: c.serverKeepAlive,
-						Jitter:        retryutils.SeventhJitter,
-					})
+				if m.AppServer != nil {
+					if err := c.handleAppServerHB(handle, m.AppServer); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+
+					if appKeepAliveDelay == nil {
+						appKeepAliveDelay = delay.New(delay.Params{
+							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval: c.serverKeepAlive,
+							Jitter:        retryutils.SeventhJitter,
+						})
+					}
 				}
-				if appKeepAliveDelay == nil && m.AppServer != nil {
-					appKeepAliveDelay = delay.New(delay.Params{
-						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-						FixedInterval: c.serverKeepAlive,
-						Jitter:        retryutils.SeventhJitter,
-					})
+
+				if m.DatabaseServer != nil {
+					if err := c.handleDatabaseServerHB(handle, m.DatabaseServer); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+
+					if dbKeepAliveDelay == nil {
+						dbKeepAliveDelay = delay.New(delay.Params{
+							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval: c.serverKeepAlive,
+							Jitter:        retryutils.SeventhJitter,
+						})
+					}
 				}
-				if dbKeepAliveDelay == nil && m.DatabaseServer != nil {
-					dbKeepAliveDelay = delay.New(delay.Params{
-						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-						FixedInterval: c.serverKeepAlive,
-						Jitter:        retryutils.SeventhJitter,
-					})
+
+				if m.KubernetesServer != nil {
+					if err := c.handleKubernetesServerHB(handle, m.KubernetesServer); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+
+					if kubeKeepAliveDelay == nil {
+						kubeKeepAliveDelay = delay.New(delay.Params{
+							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval: c.serverKeepAlive,
+							Jitter:        retryutils.SeventhJitter,
+						})
+					}
 				}
-				if kubeKeepAliveDelay == nil && m.KubernetesServer != nil {
-					kubeKeepAliveDelay = delay.New(delay.Params{
-						FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-						FixedInterval: c.serverKeepAlive,
-						Jitter:        retryutils.SeventhJitter,
-					})
-				}
+
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case proto.UpstreamInventoryGoodbye:
@@ -673,39 +706,7 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 	return nil
 }
 
-func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.InventoryHeartbeat) error {
-	// XXX: when adding new services to the heartbeat logic, make sure to also update the
-	// 'icsServiceToMetricName' mapping in auth/grpcserver.go in order to ensure that metrics
-	// start counting the control stream as a registered keepalive stream for that service.
-
-	if hb.SSHServer != nil {
-		if err := c.handleSSHServerHB(handle, hb.SSHServer); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if hb.AppServer != nil {
-		if err := c.handleAppServerHB(handle, hb.AppServer); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if hb.DatabaseServer != nil {
-		if err := c.handleDatabaseServerHB(handle, hb.DatabaseServer); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if hb.KubernetesServer != nil {
-		if err := c.handleKubernetesServerHB(handle, hb.KubernetesServer); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.ServerV2) error {
+func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.ServerV2, sshDelay *delay.Delay) error {
 	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
 	// client cert. after that point it is our responsibility to ensure that heartbeated information is
 	// consistent with the identity and capabilities claimed in the initial hello.
@@ -722,31 +723,45 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
+	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+
 	if handle.sshServer == nil {
 		c.onConnectFunc(constants.KeepAliveNode)
-		handle.sshServer = &heartBeatInfo[*types.ServerV2]{}
+		handle.sshServer = &heartBeatInfo[*types.ServerV2]{
+			resource: sshServer,
+		}
+	} else if handle.sshServer.keepAliveErrs == 0 && services.CompareServers(handle.sshServer.resource, sshServer) < services.Different {
+		// if we have successfully upserted this exact server the last time
+		// (except for the expiry), we don't need to upsert it again right now
+		return nil
+	} else {
+		handle.sshServer.resource = sshServer
 	}
 
-	now := c.clock.Now()
-
-	sshServer.SetExpiry(now.Add(c.serverTTL).UTC())
-
-	lease, err := c.auth.UpsertNode(c.closeContext, sshServer)
-	if err == nil {
+	if _, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource); err == nil {
 		c.testEvent(sshUpsertOk)
-		// store the new lease and reset retry state
-		handle.sshServer.lease = lease
+		// reset the error status
+		handle.sshServer.keepAliveErrs = 0
 		handle.sshServer.retryUpsert = false
+
+		sshDelay.Reset()
 	} else {
 		c.testEvent(sshUpsertErr)
-		slog.WarnContext(c.closeContext, "Failed to upsert ssh server on heartbeat",
+		slog.WarnContext(c.closeContext, "Failed to announce SSH server",
 			"server_id", handle.Hello().ServerID,
 			"error", err,
 		)
 
-		// blank old lease if any and set retry state. next time handleKeepAlive is called
-		// we will attempt to upsert the server again.
-		handle.sshServer.lease = nil
+		// we use keepAliveErrs as a general upsert error count for SSH,
+		// retryUpsert as a flag to signify that we MUST succeed the very next
+		// upsert: if we're here it means that we have a new resource to upsert
+		// and we have failed to do so once, so if we fail again we are going to
+		// fall too far behind and we should let the instance go and connect to
+		// a healthier auth server
+		handle.sshServer.keepAliveErrs++
+		if handle.sshServer.retryUpsert || handle.sshServer.keepAliveErrs > c.maxKeepAliveErrs {
+			return trace.Wrap(err, "failed to announce SSH server")
+		}
 		handle.sshServer.retryUpsert = true
 	}
 	handle.sshServer.resource = sshServer
@@ -1088,45 +1103,40 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 		return nil
 	}
 
-	if handle.sshServer.lease != nil {
-		lease := *handle.sshServer.lease
-		lease.Expires = now.Add(c.serverTTL).UTC()
-		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-			c.testEvent(sshKeepAliveErr)
-			handle.sshServer.keepAliveErrs++
-			shouldClose := handle.sshServer.keepAliveErrs > c.maxKeepAliveErrs
-
-			slog.WarnContext(c.closeContext, "Failed to keep alive ssh server",
-				"server_id", handle.Hello().ServerID,
-				"error", err,
-				"error_count", handle.sshServer.keepAliveErrs,
-				"should_remove", shouldClose,
-			)
-
-			if shouldClose {
-				return trace.Errorf("failed to keep alive ssh server: %v", err)
-			}
+	if _, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource); err == nil {
+		if handle.sshServer.retryUpsert {
+			c.testEvent(sshUpsertRetryOk)
 		} else {
-			handle.sshServer.keepAliveErrs = 0
 			c.testEvent(sshKeepAliveOk)
 		}
-	} else if handle.sshServer.retryUpsert {
-		handle.sshServer.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
-		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource)
-		if err != nil {
+		handle.sshServer.keepAliveErrs = 0
+		handle.sshServer.retryUpsert = false
+	} else {
+		if handle.sshServer.retryUpsert {
 			c.testEvent(sshUpsertRetryErr)
-			slog.WarnContext(c.closeContext, "Failed to upsert ssh server on retry",
+			slog.WarnContext(c.closeContext, "Failed to upsert SSH server on retry",
 				"server_id", handle.Hello().ServerID,
 				"error", err,
 			)
-			// since this is retry-specific logic, an error here means that upsert failed twice in
-			// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
-			// attempting a third time.
-			return trace.Errorf("failed to upsert ssh server on retry: %v", err)
+			// retryUpsert is set when we get a new resource and we fail to
+			// upsert it; if we're here it means that we have failed to upsert
+			// it _again_, so we have fallen quite far behind
+			return trace.Wrap(err, "failed to upsert SSH server on retry")
 		}
-		c.testEvent(sshUpsertRetryOk)
-		handle.sshServer.lease = lease
-		handle.sshServer.retryUpsert = false
+
+		c.testEvent(sshKeepAliveErr)
+		handle.sshServer.keepAliveErrs++
+		closing := handle.sshServer.keepAliveErrs > c.maxKeepAliveErrs
+		slog.WarnContext(c.closeContext, "Failed to upsert SSH server on keepalive",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+			"count", handle.sshServer.keepAliveErrs,
+			"closing", closing,
+		)
+
+		if closing {
+			return trace.Wrap(err, "failed to keep alive SSH server")
+		}
 	}
 
 	return nil
