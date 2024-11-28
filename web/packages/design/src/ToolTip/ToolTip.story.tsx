@@ -25,11 +25,11 @@ import { P } from 'design/Text/Text';
 import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
 
-import { ToolTipInfo } from './ToolTip';
+import { TooltipInfo } from './Tooltip';
 import { HoverTooltip } from './HoverTooltip';
 
 export default {
-  title: 'Shared/ToolTip',
+  title: 'Design/Tooltip',
 };
 
 export const ShortContent = () => (
@@ -38,25 +38,25 @@ export const ShortContent = () => (
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="bottom">"some popover content"</ToolTipInfo>
+      <TooltipInfo position="bottom">"some popover content"</TooltipInfo>
     </div>
     <div style={{ gridColumn: '1/2' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="right">"some popover content"</ToolTipInfo>
+      <TooltipInfo position="right">"some popover content"</TooltipInfo>
     </div>
     <div style={{ gridColumn: '3/4' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="left">"some popover content"</ToolTipInfo>
+      <TooltipInfo position="left">"some popover content"</TooltipInfo>
     </div>
     <div style={{ gridColumn: '2/3' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="top">"some popover content"</ToolTipInfo>
+      <TooltipInfo position="top">"some popover content"</TooltipInfo>
     </div>
   </Grid>
 );
@@ -78,7 +78,7 @@ export const LongContent = () => {
     <>
       <Flex alignItems="center" mb={3}>
         <Text mr={1}>Hover the icon</Text>
-        <ToolTipInfo>
+        <TooltipInfo>
           <P>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
             eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
@@ -91,7 +91,7 @@ export const LongContent = () => {
             cupidatat non proident, sunt in culpa qui officia deserunt mollit
             anim id est laborum.
           </P>
-        </ToolTipInfo>
+        </TooltipInfo>
       </Flex>
       <P>
         Here's some content that shouldn't interfere with the semi-transparent
@@ -120,7 +120,7 @@ export const WithMutedIconColor = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo muteIconColor>"some popover content"</ToolTipInfo>
+    <TooltipInfo muteIconColor>"some popover content"</TooltipInfo>
   </>
 );
 
@@ -129,7 +129,7 @@ export const WithKindWarning = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo kind="warning">"some popover content"</ToolTipInfo>
+    <TooltipInfo kind="warning">"some popover content"</TooltipInfo>
   </>
 );
 
@@ -138,7 +138,7 @@ export const WithKindError = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo kind="error">"some popover content"</ToolTipInfo>
+    <TooltipInfo kind="error">"some popover content"</TooltipInfo>
   </>
 );
 
