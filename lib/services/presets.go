@@ -19,6 +19,7 @@
 package services
 
 import (
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -561,6 +563,109 @@ func NewSystemOktaRequesterRole() types.Role {
 	return role
 }
 
+// NewSystemIdentityCenterAccessRole creates a role that allows access to AWS
+// IdentityCenter resources via Access Requests
+func NewSystemIdentityCenterAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access AWS IdentityCenter resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignmentLabels: types.Labels{
+					types.OriginLabel: []string{common.OriginAWSIdentityCenter},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindIdentityCenter, RO()),
+				},
+			},
+		},
+	}
+}
+
+// NewSystemIdentityCenterRequesterRole creates a role that allows a user to
+// request access to AWS IdentityCenter resources via Access Requests
+func NewSystemIdentityCenterRequesterRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterRequesterRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Request AWS IdentityCenter resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{
+						teleport.SystemIdentityCenterAccessRoleName,
+					},
+					SearchAsRoles: []string{
+						teleport.SystemIdentityCenterAccessRoleName,
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewSystemIdentityCenterReviewerRole creates a role that allows a user to
+// review Access Requests for AWS IdentityCenter resources via Access Requests
+func NewSystemIdentityCenterReviewerRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		slog.Error("Build is not Enterprise. Not creating IC reviewer role")
+		return nil
+	}
+
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterReviewerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Request AWS IdentityCenter resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						teleport.SystemIdentityCenterAccessRoleName,
+					},
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{
+						teleport.SystemIdentityCenterAccessRoleName,
+					},
+					PreviewAsRoles: []string{
+						teleport.SystemIdentityCenterAccessRoleName,
+					},
+				},
+			},
+		},
+	}
+}
+
 // NewPresetTerraformProviderRole returns a new pre-defined role for the Teleport Terraform provider.
 // This role can edit any Terraform-supported resource.
 func NewPresetTerraformProviderRole() types.Role {
@@ -617,6 +722,64 @@ func NewPresetTerraformProviderRole() types.Role {
 						Verbs: RW(),
 					},
 				},
+			},
+		},
+	}
+	return role
+}
+
+// NewSystemIdentityCenterAccessRole
+func NewSystemIdentityCenterAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access Identity Center resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       "*",
+						PermissionSet: "*",
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+func NewSystemIdentityCenterRequesterRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemOktaRequesterRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Request Identity Center resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
 			},
 		},
 	}
@@ -704,6 +867,12 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 			teleport.SystemOktaRequesterRoleName: {
 				SearchAsRoles: []string{
 					teleport.SystemOktaAccessRoleName,
+				},
+				MaxDuration: types.NewDuration(MaxAccessDuration),
+			},
+			teleport.SystemIdentityCenterRequesterRoleName: {
+				SearchAsRoles: []string{
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 				MaxDuration: types.NewDuration(MaxAccessDuration),
 			},

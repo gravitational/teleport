@@ -1296,6 +1296,7 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
 }
 
