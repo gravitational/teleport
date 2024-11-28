@@ -542,6 +542,15 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
+	var lastMeasurement *types.SystemClockMeasurement
+	if !i.pingResponse.systemClock.IsZero() {
+		lastMeasurement = &types.SystemClockMeasurement{
+			ControllerSystemClock: i.pingResponse.controllerClock,
+			SystemClock:           i.pingResponse.systemClock,
+			RequestDuration:       i.pingResponse.reqDuration,
+		}
+	}
+
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
 		Version:                 vc.Normalize(hello.Version),
 		Services:                hello.Services,
@@ -550,11 +559,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
-		LastMeasurement: &types.SystemClockMeasurement{
-			ControllerSystemClock: i.pingResponse.controllerClock,
-			SystemClock:           i.pingResponse.systemClock,
-			RequestDuration:       i.pingResponse.reqDuration,
-		},
+		LastMeasurement:         lastMeasurement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
