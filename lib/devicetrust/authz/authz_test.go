@@ -259,9 +259,9 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 }
 
 func TestCalculateTrustedDeviceRequirement(t *testing.T) {
-	deviceTrustOptionalRole, err := types.NewRole("editor", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeOptional}})
+	deviceTrustOptionalRole, err := types.NewRole("device-trust-optional", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeOptional}})
 	assert.NoError(t, err)
-	deviceTrustRequiredRole, err := types.NewRole("editor", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired}})
+	deviceTrustRequiredRole, err := types.NewRole("device-trust-required", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired}})
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -273,15 +273,7 @@ func TestCalculateTrustedDeviceRequirement(t *testing.T) {
 		{
 			name: "not required by cluster or by roles",
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeOff,
-			},
-			roles:             []types.Role{deviceTrustOptionalRole},
-			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
-		},
-		{
-			name: "not required by cluster or by roles",
-			dt: &types.DeviceTrust{
-				Mode: "",
+				Mode: constants.DeviceTrustModeOptional,
 			},
 			roles:             []types.Role{deviceTrustOptionalRole},
 			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED,
@@ -297,9 +289,9 @@ func TestCalculateTrustedDeviceRequirement(t *testing.T) {
 		{
 			name: "required by role but not by cluster",
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired,
+				Mode: constants.DeviceTrustModeOptional,
 			},
-			roles:             []types.Role{deviceTrustRequiredRole},
+			roles:             []types.Role{deviceTrustRequiredRole, deviceTrustOptionalRole},
 			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
 		},
 	}
