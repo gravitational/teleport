@@ -30,7 +30,7 @@ import {
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
 import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 import FieldInput from 'shared/components/FieldInput';
 import { Rule } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';

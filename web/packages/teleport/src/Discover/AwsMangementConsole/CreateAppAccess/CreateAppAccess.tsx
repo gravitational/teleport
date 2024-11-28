@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Mark, H3 } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { P } from 'design/Text/Text';

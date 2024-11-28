@@ -25,7 +25,7 @@ import { Danger } from 'design/Alert';
 import { OutlineInfo } from 'design/Alert/Alert';
 
 import { getErrMessage } from 'shared/utils/errorType';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';

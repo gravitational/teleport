@@ -24,11 +24,12 @@ import { ClickableLabelCell, Cell } from 'design/DataTable';
 
 import { App } from 'teleport/services/apps';
 
+import { ToolTipInfo } from 'design/ToolTip';
+
 import Select, {
   Option as BaseOption,
   CustomSelectComponentProps,
 } from 'shared/components/Select';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { ResourceMap, RequestableResourceKind } from '../resource';
 

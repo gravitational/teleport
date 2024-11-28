@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import { Flex, Link, Box, H3 } from 'design';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 import { P } from 'design/Text/Text';
 

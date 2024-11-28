@@ -17,7 +17,7 @@
  */
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
 

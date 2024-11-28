@@ -46,15 +46,15 @@ export const ToolTipInfo: React.FC<
   kind = 'info',
 }) => {
   const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState();
+  const [anchorEl, setAnchorEl] = useState<Element>();
   const open = Boolean(anchorEl);
 
-  function handlePopoverOpen(event) {
+  function handlePopoverOpen(event: React.MouseEvent) {
     setAnchorEl(event.currentTarget);
   }
 
   function handlePopoverClose() {
-    setAnchorEl(null);
+    setAnchorEl(undefined);
   }
 
   const triggerOnHoverProps = {
@@ -121,8 +121,6 @@ const ToolTipIcon = ({
       return <WarningIcon $muteIconColor={muteIconColor} size="medium" />;
     case 'error':
       return <ErrorIcon $muteIconColor={muteIconColor} size="medium" />;
-    default:
-      kind satisfies never;
   }
 };
 

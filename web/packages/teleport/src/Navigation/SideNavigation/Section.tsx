@@ -23,7 +23,7 @@ import styled, { css, useTheme } from 'styled-components';
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
 import { Theme } from 'design/theme';
 import { ArrowLineLeft } from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, ToolTipInfo } from 'design/ToolTip';
 
 import cfg from 'teleport/config';
 

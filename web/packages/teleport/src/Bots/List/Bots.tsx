@@ -19,7 +19,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/ToolTip';
 import { Alert, Box, Button, Indicator } from 'design';
 
 import {

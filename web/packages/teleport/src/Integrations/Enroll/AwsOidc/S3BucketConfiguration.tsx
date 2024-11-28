@@ -19,7 +19,7 @@
 import React from 'react';
 import { Text, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 export function S3BucketConfiguration({
   s3Bucket,

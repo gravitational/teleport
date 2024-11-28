@@ -18,7 +18,7 @@
 import { Box, Flex, Input, Text, Mark, H3, Subtitle3 } from 'design';
 import styled from 'styled-components';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 import React from 'react';
 

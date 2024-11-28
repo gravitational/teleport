@@ -27,9 +27,10 @@ import { TextAreaSize } from 'design/TextArea';
 
 import { BoxProps } from 'design/Box';
 
+import { ToolTipInfo } from 'design/ToolTip';
+
 import { useRule } from 'shared/components/Validation';
 
-import { ToolTipInfo } from '../ToolTip';
 import { HelperTextLine } from '../FieldInput/FieldInput';
 
 export type FieldTextAreaProps = BoxProps & {

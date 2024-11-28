@@ -17,11 +17,13 @@
  */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
 
 import styled, { useTheme } from 'styled-components';
+
+import { Text, Flex, ButtonPrimary } from 'design';
 import { P } from 'design/Text/Text';
-import { logos } from 'teleport/components/LogoHero/LogoHero';
+import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
 
 import { ToolTipInfo } from './ToolTip';
 import { HoverTooltip } from './HoverTooltip';
@@ -65,6 +67,11 @@ const Grid = styled.div`
   grid-template-rows: repeat(3, 100px);
 `;
 
+const logos = {
+  light: AGPLLogoLight,
+  dark: AGPLLogoDark,
+};
+
 export const LongContent = () => {
   const theme = useTheme();
   return (
@@ -92,7 +99,7 @@ export const LongContent = () => {
       </P>
       <P>
         <div style={{ float: 'left', margin: '0 10px 10px 0' }}>
-          <img src={logos.oss[theme.type]} style={{ float: 'left' }} />
+          <img src={logos[theme.type]} style={{ float: 'left' }} />
         </div>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim

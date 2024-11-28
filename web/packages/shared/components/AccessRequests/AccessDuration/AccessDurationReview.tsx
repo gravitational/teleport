@@ -19,7 +19,7 @@
 import React from 'react';
 import { Flex, Text } from 'design';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 

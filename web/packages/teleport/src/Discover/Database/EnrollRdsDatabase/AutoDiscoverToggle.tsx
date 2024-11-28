@@ -19,7 +19,7 @@
 import React from 'react';
 import { Box, Toggle } from 'design';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 
 export function AutoDiscoverToggle({
   wantAutoDiscover,

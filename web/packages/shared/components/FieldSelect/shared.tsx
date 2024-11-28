@@ -25,13 +25,14 @@ import LabelInput from 'design/LabelInput';
 
 import Flex from 'design/Flex';
 
+import { ToolTipInfo } from 'design/ToolTip';
+
 import { HelperTextLine } from '../FieldInput/FieldInput';
 import { useRule } from '../Validation';
 import {
   AsyncProps as AsyncSelectProps,
   Props as SelectProps,
 } from '../Select';
-import { ToolTipInfo } from '../ToolTip';
 
 export const defaultRule = () => () => ({ valid: true });
 

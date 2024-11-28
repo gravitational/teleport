@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { Flex, ButtonText, H2 } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/ToolTip';
 import { Trash } from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';

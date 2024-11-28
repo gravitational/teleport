@@ -24,7 +24,7 @@ import { Link as InternalRouteLink } from 'react-router-dom';
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { ToolTipInfo } from 'design/ToolTip';
 import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';

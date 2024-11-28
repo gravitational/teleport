@@ -16,10 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  /** @deprecated Use `design/Tooltip` */
-  ToolTipInfo,
-
-  /** @deprecated Use `design/Tooltip` */
-  HoverTooltip,
-} from 'design/ToolTip';
+export { ToolTipInfo } from './ToolTip';
+export { HoverTooltip } from './HoverTooltip';

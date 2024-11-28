@@ -21,7 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, ToolTipInfo } from 'design/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
