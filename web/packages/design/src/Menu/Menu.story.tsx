@@ -22,10 +22,15 @@ import { ButtonPrimary } from '../Button';
 import Box from '../Box';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
+import { H3 } from '../Text';
 
 import MenuItemIcon from './MenuItemIcon';
-import MenuItem from './MenuItem';
+import MenuItem, {
+  MenuItemSectionLabel,
+  MenuItemSectionSeparator,
+} from './MenuItem';
 import Menu from './Menu';
+import MenuList from './MenuList';
 
 export default {
   title: 'Design/Menu',
@@ -34,8 +39,11 @@ export default {
 export const PlacementExample = () => (
   <Flex m={3} gap={8} flexWrap="wrap">
     <SimpleMenu text="Menu to right">
-      <MenuItem>Test</MenuItem>
-      <MenuItem>Test2</MenuItem>
+      <MenuItem>Lorem</MenuItem>
+      <MenuItem>Ipsum</MenuItem>
+      <MenuItem>Dolor</MenuItem>
+      <MenuItem>Sit</MenuItem>
+      <MenuItem>Amet</MenuItem>
     </SimpleMenu>
     <SimpleMenu
       text="Menu in center"
@@ -70,6 +78,35 @@ export const PlacementExample = () => (
       <MenuItem>Test</MenuItem>
       <MenuItem>Test2</MenuItem>
     </SimpleMenu>
+  </Flex>
+);
+
+export const MenuItems = () => (
+  <Flex m={3} gap={8}>
+    <Flex gap={3} flexDirection="column">
+      <H3>Label after separator</H3>
+      <OpenMenu>
+        <MenuItem>Lorem ipsum</MenuItem>
+        <MenuItem>Dolor sit amet</MenuItem>
+        <MenuItemSectionSeparator />
+        <MenuItemSectionLabel>Leo vitae arcu</MenuItemSectionLabel>
+        <MenuItem>Donec volutpat</MenuItem>
+        <MenuItem>Mauris sit</MenuItem>
+        <MenuItem>Amet nisi tempor</MenuItem>
+      </OpenMenu>
+    </Flex>
+    <Flex gap={3} flexDirection="column">
+      <H3>Menu item after separator</H3>
+      <OpenMenu>
+        <MenuItem>Lorem ipsum</MenuItem>
+        <MenuItem>Dolor sit amet</MenuItem>
+        <MenuItemSectionSeparator />
+        <MenuItem>Leo vitae arcu</MenuItem>
+        <MenuItem>Donec volutpat</MenuItem>
+        <MenuItem>Mauris sit</MenuItem>
+        <MenuItem>Amet nisi tempor</MenuItem>
+      </OpenMenu>
+    </Flex>
   </Flex>
 );
 
@@ -133,6 +170,18 @@ const SimpleMenu = (
       >
         {children}
       </Menu>
+    </Box>
+  );
+};
+
+const OpenMenu = (props: PropsWithChildren) => {
+  // MenuList uses a percent value in max-height combined with overflow: hidden, so we have
+  // to wrap it twice here to avoid issues with the menu being cut off.
+  return (
+    <Box>
+      <Box>
+        <MenuList>{props.children}</MenuList>
+      </Box>
     </Box>
   );
 };
