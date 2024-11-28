@@ -593,6 +593,11 @@ const (
 	// pair that can be requested by a Teleport User.
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
+	// KindGitServer represents a Git server that can proxy git commands.
+	KindGitServer = "git_server"
+	// SubKindGitHub specifies the GitHub subkind of a Git server.
+	SubKindGitHub = "github"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -1114,6 +1119,9 @@ const (
 
 	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
 	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+
+	// GitHubOrgLabel is the label for GitHub organization.
+	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
 )
 
 const (
@@ -1469,4 +1477,10 @@ const (
 	// DatadogCredentialApplicationKey indicates that the credential is used as
 	// a Datadog Application key.
 	DatadogCredentialApplicationKey = "datadog-application-key"
+)
+
+const (
+	// GitHubOrgServerDomain is the sub domain used in the hostname of a
+	// types.Server to indicate the GitHub organization of a Git server.
+	GitHubOrgServerDomain = "github-org"
 )

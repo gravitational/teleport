@@ -2548,6 +2548,20 @@ func TestDefaultImplicitRules(t *testing.T) {
 				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
+		{
+			name: "KindGitServer with empty rules",
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Allow = types.RoleConditions{}
+				r.Spec.Deny = types.RoleConditions{}
+			}),
+			checks: []check{
+				{rule: types.KindGitServer, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		roleSet := NewRoleSet(tc.role)
@@ -9591,6 +9605,78 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
 			err := accessChecker.CheckSPIFFESVID(tt.spiffeIDPath, tt.dnsSANs, tt.ipSANs)
 			tt.requireErr(t, err)
+		})
+	}
+}
+
+func TestCheckAccessToGitServer(t *testing.T) {
+	githubOrgServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "my-org",
+		Organization: "my-org",
+	})
+	require.NoError(t, err)
+
+	makeRole := func(t *testing.T, allowOrg, denyOrg string) types.Role {
+		spec := types.RoleSpecV6{}
+		if allowOrg != "" {
+			spec.Allow.GitHubPermissions = append(spec.Allow.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{allowOrg},
+			})
+		}
+		if denyOrg != "" {
+			spec.Deny.GitHubPermissions = append(spec.Deny.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{denyOrg},
+			})
+		}
+		role, err := types.NewRole(uuid.NewString(), spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	tests := []struct {
+		name       string
+		roles      []types.Role
+		requireErr require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no roles",
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit allow",
+			roles: []types.Role{
+				makeRole(t, "my-org", ""),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "wildcard allow",
+			roles: []types.Role{
+				makeRole(t, "*", "some-other-org"),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "explicit deny",
+			roles: []types.Role{
+				makeRole(t, "*", "my-org"),
+			},
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "wildcard deny",
+			roles: []types.Role{
+				makeRole(t, "my-org", "*"),
+			},
+			requireErr: requireAccessDenied,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			accessChecker := makeAccessCheckerWithRoleSet(test.roles)
+			err := accessChecker.CheckAccess(githubOrgServer, AccessState{})
+			test.requireErr(t, err)
 		})
 	}
 }

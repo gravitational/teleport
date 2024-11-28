@@ -49,6 +49,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -175,6 +176,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindUserTask:                 rc.createUserTask,
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
+		types.KindGitServer:                rc.createGitServer,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -195,6 +197,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
+		types.KindGitServer:               rc.updateGitServer,
 	}
 	rc.config = config
 
@@ -1974,6 +1977,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	case types.KindGitServer:
+		if _, err := client.GitServerClient().DeleteGitServer(ctx, &gitserverv1.DeleteGitServerRequest{Name: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3211,6 +3219,33 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			nextToken = token
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
+	case types.KindGitServer:
+		var servers []types.Server
+
+		// TODO(greedy52) use unified resource request once available.
+		if rc.ref.Name != "" {
+			server, err := client.GitServerClient().GetGitServer(ctx, &gitserverv1.GetGitServerRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &serverCollection{servers: append(servers, server)}, nil
+		}
+		req := &gitserverv1.ListGitServersRequest{}
+		for {
+			resp, err := client.GitServerClient().ListGitServers(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, server := range resp.Servers {
+				servers = append(servers, server)
+			}
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		// TODO(greedy52) consider making dedicated git server collection.
+		return &serverCollection{servers: servers}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3621,5 +3656,42 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serverV2, ok := server.(*types.ServerV2)
+	if !ok {
+		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
+	}
+	if rc.IsForced() {
+		_, err = client.GitServerClient().UpsertGitServer(ctx, &gitserverv1.UpsertGitServerRequest{Server: serverV2})
+	} else {
+		_, err = client.GitServerClient().CreateGitServer(ctx, &gitserverv1.CreateGitServerRequest{Server: serverV2})
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been created\n", server.GetName())
+	return nil
+}
+func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serverV2, ok := server.(*types.ServerV2)
+	if !ok {
+		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
+	}
+	_, err = client.GitServerClient().UpdateGitServer(ctx, &gitserverv1.UpdateGitServerRequest{Server: serverV2})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }
