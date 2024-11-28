@@ -59,8 +59,10 @@ func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
 		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
 }
 
-// HasDeviceTrustExtensions returns true if the profile extensions contain
-// all required device extensions.
+// HasDeviceTrustExtensions returns true if the certificate's extension names
+// include all the required device-related extensions.
+// Unlike IsSSHDeviceVerified, this function operates on a list of extensions,
+// such as those in [ProfileStatus.Extensions].
 func HasDeviceTrustExtensions(extensions []string) bool {
 	hasCertExtensionDeviceID := false
 	hasCertExtensionDeviceAssetTag := false

@@ -86,7 +86,7 @@ type ClusterWithDetails struct {
 	ProxyVersion string
 	// ShowResources tells if the cluster can show requestable resources on the resources page.
 	ShowResources constants.ShowResources
-	// Indicates whether access may be hindered by the lack of a trusted device.
+	// TrustedDeviceRequirement indicates whether access may be hindered by the lack of a trusted device.
 	TrustedDeviceRequirement types.TrustedDeviceRequirement
 }
 
@@ -322,8 +322,8 @@ func (c *Cluster) GetProxyHost() string {
 	return c.status.ProxyURL.Host
 }
 
-// HasDeviceTrustExtensions indicates if the profile contains all required
-// device extensions.
+// HasDeviceTrustExtensions indicates if the cert contains all required
+// device trust extensions.
 func (c *Cluster) HasDeviceTrustExtensions() bool {
 	return dtauthz.HasDeviceTrustExtensions(c.status.Extensions)
 }
