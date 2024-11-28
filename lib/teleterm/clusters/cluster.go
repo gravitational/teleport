@@ -192,9 +192,14 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
-	trustedDeviceRequirement := dtauthz.CalculateTrustedDeviceRequirement(authPreferences.GetDeviceTrust(), func() []types.Role {
-		return roles
+	trustedDeviceRequirement, err := dtauthz.CalculateTrustedDeviceRequirement(authPreferences.GetDeviceTrust(), func() ([]types.Role, error) {
+		return roles, nil
 	})
+	if err != nil {
+		c.Log.
+			WithError(err).
+			Warn("Failed to calculate trusted device requirement")
+	}
 
 	acl = &api.ACL{
 		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),

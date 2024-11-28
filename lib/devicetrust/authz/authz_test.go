@@ -307,9 +307,10 @@ func TestCalculateTrustedDeviceRequirement(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			requirement := authz.CalculateTrustedDeviceRequirement(test.dt, func() []types.Role {
-				return test.roles
+			requirement, err := authz.CalculateTrustedDeviceRequirement(test.dt, func() ([]types.Role, error) {
+				return test.roles, nil
 			})
+			assert.NoError(t, err)
 
 			assert.Equal(t, test.expectRequirement, requirement)
 		})

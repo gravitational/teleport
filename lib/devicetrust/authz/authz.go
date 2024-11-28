@@ -109,21 +109,27 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified boo
 
 // CalculateTrustedDeviceRequirement calculates the requirement based on
 // the cluster config and user roles.
+// It checks the cluster requirement using the enforcement mode, disregarding the
+// provenance of the binary if the mode is set.
 func CalculateTrustedDeviceRequirement(
-	clusterDeviceTrust *types.DeviceTrust,
-	getRoles func() []types.Role,
-) types.TrustedDeviceRequirement {
+	dt *types.DeviceTrust,
+	getRoles func() ([]types.Role, error),
+) (types.TrustedDeviceRequirement, error) {
 	// Required by cluster mode?
-	if dtconfig.GetEnforcementMode(clusterDeviceTrust) == constants.DeviceTrustModeRequired {
-		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED
+	if dtconfig.GetEnforcementMode(dt) == constants.DeviceTrustModeRequired {
+		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
 	}
 
 	// Required by roles?
-	for _, role := range getRoles() {
+	roles, err := getRoles()
+	if err != nil {
+		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED, trace.Wrap(err)
+	}
+	for _, role := range roles {
 		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED
+			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
 		}
 	}
 
-	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED
+	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED, nil
 }

@@ -167,7 +167,7 @@ func (a *Server) augmentSessionForDeviceTrust(
 
 func (a *Server) calculateTrustedDeviceMode(
 	ctx context.Context,
-	getRoles func() []types.Role,
+	getRoles func() ([]types.Role, error),
 ) (types.TrustedDeviceRequirement, error) {
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
@@ -181,7 +181,10 @@ func (a *Server) calculateTrustedDeviceMode(
 		return unspecified, trace.Wrap(err)
 	}
 
-	requirement := dtauthz.CalculateTrustedDeviceRequirement(ap.GetDeviceTrust(), getRoles)
+	requirement, err := dtauthz.CalculateTrustedDeviceRequirement(ap.GetDeviceTrust(), getRoles)
+	if err != nil {
+		return unspecified, trace.Wrap(err)
+	}
 	return requirement, nil
 }
 
@@ -345,8 +348,8 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() []types.Role {
-		return checker.Roles()
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+		return checker.Roles(), nil
 	}); err != nil {
 		log.
 			WithError(err).
