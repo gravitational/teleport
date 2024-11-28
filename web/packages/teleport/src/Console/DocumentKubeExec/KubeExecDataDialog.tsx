@@ -35,7 +35,7 @@ import {
 import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 type Props = {
   onClose(): void;
@@ -123,11 +123,11 @@ function KubeExecDataDialog({ onClose, onExec }: Props) {
                     <Box ml={2} mr={1}>
                       Interactive shell
                     </Box>
-                    <ToolTipInfo>
+                    <TooltipInfo>
                       You can start an interactive shell and have a
                       bidirectional communication with the target pod, or you
                       can run one-off command and see its output.
-                    </ToolTipInfo>
+                    </TooltipInfo>
                   </Toggle>
                 </Flex>
               </Box>

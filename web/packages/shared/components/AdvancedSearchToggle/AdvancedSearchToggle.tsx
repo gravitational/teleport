@@ -22,7 +22,7 @@ import { Text, Toggle, Link, Flex, H2 } from 'design';
 
 import { P } from 'design/Text/Text';
 
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 const GUIDE_URL =
   'https://goteleport.com/docs/reference/predicate-language/#resource-filtering';
@@ -44,9 +44,9 @@ export function AdvancedSearchToggle(props: {
     >
       <Toggle isToggled={props.isToggled} onToggle={props.onToggle} />
       <Text typography="body3">Advanced</Text>
-      <ToolTipInfo trigger="click">
+      <TooltipInfo trigger="click">
         <PredicateDocumentation />
-      </ToolTipInfo>
+      </TooltipInfo>
     </Flex>
   );
 }

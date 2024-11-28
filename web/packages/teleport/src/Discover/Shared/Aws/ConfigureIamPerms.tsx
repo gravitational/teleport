@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import { Flex, Link, Box, H3 } from 'design';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { P } from 'design/Text/Text';
 
@@ -179,11 +179,11 @@ export function ConfigureIamPerms({
         <>
           <Flex alignItems="center">
             <H3 mr={1}>Configure your AWS IAM permissions</H3>
-            <ToolTipInfo sticky={true} maxWidth={450}>
+            <TooltipInfo sticky={true} maxWidth={450}>
               The following IAM permissions will be added as an inline policy
               named <b>{iamPolicyName}</b> to IAM role <b>{iamRoleName}</b>
               <Box mb={2}>{editor}</Box>
-            </ToolTipInfo>
+            </TooltipInfo>
           </Flex>
           <P mb={3}>
             {msg} Run the command below on your{' '}

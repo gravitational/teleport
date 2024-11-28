@@ -21,7 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'design/ToolTip';
+import { HoverTooltip, TooltipInfo } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
@@ -126,7 +126,7 @@ export const SelectSecurityGroups = ({
     <>
       <Flex alignItems="center" gap={1} mb={2}>
         <Subtitle3>Select ECS Security Groups</Subtitle3>
-        <ToolTipInfo>
+        <TooltipInfo>
           <Text>
             Select ECS security group(s) based on the following requirements:
             <ul>
@@ -141,7 +141,7 @@ export const SelectSecurityGroups = ({
               </li>
             </ul>
           </Text>
-        </ToolTipInfo>
+        </TooltipInfo>
       </Flex>
 
       <P mb={2}>

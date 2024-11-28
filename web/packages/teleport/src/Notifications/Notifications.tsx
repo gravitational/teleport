@@ -24,7 +24,7 @@ import { Alert, Box, Flex, Indicator, Text } from 'design';
 import { Notification as NotificationIcon, BellRinging } from 'design/Icon';
 import Logger from 'shared/libs/logger';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   useInfiniteScroll,

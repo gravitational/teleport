@@ -22,7 +22,7 @@ import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 export function CopyButton({
   name,

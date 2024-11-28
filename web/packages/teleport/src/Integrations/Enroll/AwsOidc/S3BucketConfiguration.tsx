@@ -19,7 +19,7 @@
 import React from 'react';
 import { Text, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 export function S3BucketConfiguration({
   s3Bucket,
@@ -32,11 +32,11 @@ export function S3BucketConfiguration({
     <>
       <Flex alignItems="center" gap={1}>
         <Text>Amazon S3 Location</Text>
-        <ToolTipInfo kind="warning">
+        <TooltipInfo kind="warning">
           Deprecated. Amazon is now validating the IdP certificate against a
           list of root CAs. Storing the OpenID Configuration in S3 is no longer
           required, and should be removed to improve security.
-        </ToolTipInfo>
+        </TooltipInfo>
       </Flex>
       <Flex gap={3}>
         <FieldInput

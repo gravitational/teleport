@@ -19,7 +19,7 @@
 import React from 'react';
 import { Flex, LabelInput, Text } from 'design';
 
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import Select, { Option } from 'shared/components/Select';
 
@@ -36,11 +36,11 @@ export function AccessDurationRequest({
     <LabelInput color="text.slightlyMuted">
       <Flex alignItems="center">
         <Text mr={1}>Access Duration</Text>
-        <ToolTipInfo>
+        <TooltipInfo>
           How long you would be given elevated privileges. Note that the time it
           takes to approve this request will be subtracted from the duration you
           requested.
-        </ToolTipInfo>
+        </TooltipInfo>
       </Flex>
       <Select
         options={maxDurationOptions}

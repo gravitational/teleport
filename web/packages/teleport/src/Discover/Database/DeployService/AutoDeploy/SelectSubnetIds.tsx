@@ -29,7 +29,7 @@ import {
 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'design/ToolTip';
+import { HoverTooltip, TooltipInfo } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -121,12 +121,12 @@ export function SelectSubnetIds({
     <>
       <Flex alignItems="center" gap={1} mb={2}>
         <Subtitle3>Select ECS Subnets</Subtitle3>
-        <ToolTipInfo>
+        <TooltipInfo>
           <Text>
             A subnet has an outbound internet route if it has a route to an
             internet gateway or a NAT gateway in a public subnet.
           </Text>
-        </ToolTipInfo>
+        </TooltipInfo>
       </Flex>
 
       <Text mb={2}>

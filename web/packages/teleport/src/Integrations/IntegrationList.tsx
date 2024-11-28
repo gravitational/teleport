@@ -24,7 +24,7 @@ import { Link as InternalRouteLink } from 'react-router-dom';
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
@@ -251,7 +251,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
         {getStatusCodeTitle(item.statusCode)}
         {statusDescription && (
           <Box mx="1">
-            <ToolTipInfo>{statusDescription}</ToolTipInfo>
+            <TooltipInfo>{statusDescription}</TooltipInfo>
           </Box>
         )}
       </Flex>
