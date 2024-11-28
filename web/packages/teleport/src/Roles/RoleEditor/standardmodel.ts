@@ -17,8 +17,14 @@
  */
 
 import { equalsDeep } from 'shared/utils/highbar';
-
 import { Option } from 'shared/components/Select';
+import {
+  arrayOf,
+  requiredField,
+  RuleSetValidationResult,
+  runRules,
+  ValidationResult,
+} from 'shared/components/Validation/rules';
 
 import {
   KubernetesResource,
@@ -26,8 +32,14 @@ import {
   Role,
   RoleConditions,
 } from 'teleport/services/resources';
-
-import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
+import {
+  nonEmptyLabels,
+  Label as UILabel,
+} from 'teleport/components/LabelsInput/LabelsInput';
+import {
+  KubernetesResourceKind,
+  KubernetesVerb,
+} from 'teleport/services/resources/types';
 
 import { defaultOptions } from './withDefaults';
 
@@ -108,29 +120,14 @@ export type KubernetesResourceModel = {
 };
 
 type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
-type KubernetesResourceKind =
-  | '*'
-  | 'pod'
-  | 'secret'
-  | 'configmap'
-  | 'namespace'
-  | 'service'
-  | 'serviceaccount'
-  | 'kube_node'
-  | 'persistentvolume'
-  | 'persistentvolumeclaim'
-  | 'deployment'
-  | 'replicaset'
-  | 'statefulset'
-  | 'daemonset'
-  | 'clusterrole'
-  | 'kube_role'
-  | 'clusterrolebinding'
-  | 'rolebinding'
-  | 'cronjob'
-  | 'job'
-  | 'certificatesigningrequest'
-  | 'ingress';
+const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
+  'namespace',
+  'kube_node',
+  'persistentvolume',
+  'clusterrole',
+  'clusterrolebinding',
+  'certificatesigningrequest',
+];
 
 /**
  * All possible resource kind drop-down options. This array needs to be kept in
@@ -172,19 +169,6 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
 ];
 
 type KubernetesVerbOption = Option<KubernetesVerb, string>;
-type KubernetesVerb =
-  | '*'
-  | 'get'
-  | 'create'
-  | 'update'
-  | 'patch'
-  | 'delete'
-  | 'list'
-  | 'watch'
-  | 'deletecollection'
-  | 'exec'
-  | 'portforward';
-
 /**
  * All possible Kubernetes verb drop-down options. This array needs to be kept
  * in sync with `KubernetesVerbs` in `api/types/constants.go.
@@ -590,7 +574,7 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
   return labels;
 }
 
-function optionsToStrings(opts: readonly Option[]): string[] {
+function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {
   return opts.map(opt => opt.value);
 }
 
@@ -603,3 +587,124 @@ export function hasModifiedFields(
     ignoreUndefined: true,
   });
 }
+
+export function validateRoleEditorModel({
+  metadata,
+  accessSpecs,
+}: RoleEditorModel) {
+  return {
+    metadata: validateMetadata(metadata),
+    accessSpecs: accessSpecs.map(validateAccessSpec),
+  };
+}
+
+function validateMetadata(model: MetadataModel): MetadataValidationResult {
+  return runRules(model, metadataRules);
+}
+
+const metadataRules = { name: requiredField('Role name is required') };
+export type MetadataValidationResult = RuleSetValidationResult<
+  typeof metadataRules
+>;
+
+export function validateAccessSpec(
+  spec: AccessSpec
+): AccessSpecValidationResult {
+  const { kind } = spec;
+  switch (kind) {
+    case 'kube_cluster':
+      return runRules(spec, kubernetesValidationRules);
+    case 'node':
+      return runRules(spec, serverValidationRules);
+    case 'app':
+      return runRules(spec, appSpecValidationRules);
+    case 'db':
+      return runRules(spec, databaseSpecValidationRules);
+    case 'windows_desktop':
+      return runRules(spec, windowsDesktopSpecValidationRules);
+    default:
+      kind satisfies never;
+  }
+}
+
+export type AccessSpecValidationResult =
+  | ServerSpecValidationResult
+  | KubernetesSpecValidationResult
+  | AppSpecValidationResult
+  | DatabaseSpecValidationResult
+  | WindowsDesktopSpecValidationResult;
+
+const validKubernetesResource = (res: KubernetesResourceModel) => () => {
+  const name = requiredField(
+    'Resource name is required, use "*" for any resource'
+  )(res.name)();
+  const namespace = kubernetesClusterWideResourceKinds.includes(res.kind.value)
+    ? { valid: true }
+    : requiredField('Namespace is required for resources of this kind')(
+        res.namespace
+      )();
+  return {
+    valid: name.valid && namespace.valid,
+    name,
+    namespace,
+  };
+};
+export type KubernetesResourceValidationResult = {
+  name: ValidationResult;
+  namespace: ValidationResult;
+};
+
+const kubernetesValidationRules = {
+  labels: nonEmptyLabels,
+  resources: arrayOf(validKubernetesResource),
+};
+export type KubernetesSpecValidationResult = RuleSetValidationResult<
+  typeof kubernetesValidationRules
+>;
+
+const noWildcard = (message: string) => (value: string) => () => {
+  const valid = value !== '*';
+  return { valid, message: valid ? '' : message };
+};
+
+const noWildcardOptions = (message: string) => (options: Option[]) => () => {
+  const valid = options.every(o => o.value !== '*');
+  return { valid, message: valid ? '' : message };
+};
+
+const serverValidationRules = {
+  labels: nonEmptyLabels,
+  logins: noWildcardOptions('Wildcard is not allowed in logins'),
+};
+export type ServerSpecValidationResult = RuleSetValidationResult<
+  typeof serverValidationRules
+>;
+
+const appSpecValidationRules = {
+  labels: nonEmptyLabels,
+  awsRoleARNs: arrayOf(noWildcard('Wildcard is not allowed in AWS role ARNs')),
+  azureIdentities: arrayOf(
+    noWildcard('Wildcard is not allowed in Azure identities')
+  ),
+  gcpServiceAccounts: arrayOf(
+    noWildcard('Wildcard is not allowed in GCP service accounts')
+  ),
+};
+export type AppSpecValidationResult = RuleSetValidationResult<
+  typeof appSpecValidationRules
+>;
+
+const databaseSpecValidationRules = {
+  labels: nonEmptyLabels,
+  roles: noWildcardOptions('Wildcard is not allowed in database roles'),
+};
+export type DatabaseSpecValidationResult = RuleSetValidationResult<
+  typeof databaseSpecValidationRules
+>;
+
+const windowsDesktopSpecValidationRules = {
+  labels: nonEmptyLabels,
+};
+export type WindowsDesktopSpecValidationResult = RuleSetValidationResult<
+  typeof windowsDesktopSpecValidationRules
+>;

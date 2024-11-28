@@ -88,11 +88,48 @@ export type RoleConditions = {
 export type Labels = Record<string, string | string[]>;
 
 export type KubernetesResource = {
-  kind?: string;
+  kind?: KubernetesResourceKind;
   name?: string;
   namespace?: string;
-  verbs?: string[];
+  verbs?: KubernetesVerb[];
 };
+
+export type KubernetesResourceKind =
+  | '*'
+  | 'pod'
+  | 'secret'
+  | 'configmap'
+  | 'namespace'
+  | 'service'
+  | 'serviceaccount'
+  | 'kube_node'
+  | 'persistentvolume'
+  | 'persistentvolumeclaim'
+  | 'deployment'
+  | 'replicaset'
+  | 'statefulset'
+  | 'daemonset'
+  | 'clusterrole'
+  | 'kube_role'
+  | 'clusterrolebinding'
+  | 'rolebinding'
+  | 'cronjob'
+  | 'job'
+  | 'certificatesigningrequest'
+  | 'ingress';
+
+export type KubernetesVerb =
+  | '*'
+  | 'get'
+  | 'create'
+  | 'update'
+  | 'patch'
+  | 'delete'
+  | 'list'
+  | 'watch'
+  | 'deletecollection'
+  | 'exec'
+  | 'portforward';
 
 /**
  * Teleport role options in full format, as returned from Teleport API. Note
