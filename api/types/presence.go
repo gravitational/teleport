@@ -70,6 +70,9 @@ func (s *KeepAlive) CheckAndSetDefaults() error {
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace
 	}
+	if s.Namespace != defaults.Namespace {
+		return trace.BadParameter("namespace %q invalid, custom namespaces are deprecated", s.Namespace)
+	}
 
 	return nil
 }
