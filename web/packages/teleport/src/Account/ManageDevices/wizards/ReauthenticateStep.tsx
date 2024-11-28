@@ -46,9 +46,9 @@ export function ReauthenticateStep({
   refCallback,
   stepIndex,
   flowLength,
-  reauthAttempt: attempt,
   mfaChallengeOptions,
-  clearReauthAttempt: clearAttempt,
+  reauthAttempt,
+  clearReauthAttempt,
   submitWithMfa,
   onClose,
 }: ReauthenticateStepProps) {
@@ -68,7 +68,7 @@ export function ReauthenticateStep({
     submitWithMfa(mfaOption, otpCode).then(next);
   };
 
-  const errorMessage = getReauthenticationErrorMessage(attempt);
+  const errorMessage = getReauthenticationErrorMessage(reauthAttempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -94,7 +94,7 @@ export function ReauthenticateStep({
               mb={4}
               onChange={o => {
                 setMfaOption(o as DeviceType);
-                clearAttempt();
+                clearReauthAttempt();
               }}
             />
             {mfaOption === 'totp' && (
@@ -106,7 +106,7 @@ export function ReauthenticateStep({
                 value={otpCode}
                 placeholder="123 456"
                 onChange={onOtpCodeChanged}
-                readonly={attempt.status === 'processing'}
+                readonly={reauthAttempt.status === 'processing'}
               />
             )}
             <Flex gap={2}>
