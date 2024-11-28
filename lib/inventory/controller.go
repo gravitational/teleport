@@ -119,11 +119,13 @@ const (
 	keepAliveKubeTick     = "keep-alive-kube-tick"
 )
 
-// instanceHBStepSize is the step size used for the variable instance heartbeat duration. This value is
-// basically arbitrary. It was selected because it produces a scaling curve that makes a fairly reasonable
-// tradeoff between heartbeat availability and load scaling. See test coverage in the 'interval' package
-// for a demonstration of the relationship between step sizes and interval/duration scaling.
-const instanceHBStepSize = 1024
+// heartbeatStepSize is the step size used for the variable heartbeat intervals.
+// This value is basically arbitrary. It was selected because it produces a
+// scaling curve that makes a fairly reasonable tradeoff between heartbeat
+// availability and load scaling. See test coverage in the 'interval' package
+// for a demonstration of the relationship between step sizes and
+// interval/duration scaling.
+const heartbeatStepSize = 1024
 
 type controllerOptions struct {
 	serverKeepAlive    time.Duration
@@ -234,6 +236,8 @@ type Controller struct {
 	instanceTTL                time.Duration
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
+	sshHBVariableDuration      *interval.VariableDuration
+	sshServerTTL               time.Duration
 	maxKeepAliveErrs           int
 	usageReporter              usagereporter.UsageReporter
 	testEvents                 chan testEvent
@@ -255,8 +259,21 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	instanceHBVariableDuration := interval.NewVariableDuration(interval.VariableDurationConfig{
 		MinDuration: options.instanceHBInterval,
 		MaxDuration: apidefaults.MaxInstanceHeartbeatInterval,
-		Step:        instanceHBStepSize,
+		Step:        heartbeatStepSize,
 	})
+
+	var sshHBVariableDuration *interval.VariableDuration
+	sshServerTTL := apidefaults.ServerAnnounceTTL
+	if !variableRateSSHHeartbeatsDisabledEnv() {
+		// by default, SSH heartbeats will scale from 1.5 to 6 minutes, and will
+		// have a TTL of 15 minutes
+		sshHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
+			MinDuration: options.serverKeepAlive,
+			MaxDuration: options.serverKeepAlive * 4,
+			Step:        heartbeatStepSize,
+		})
+		sshServerTTL = apidefaults.ServerAnnounceTTL * 3 / 2
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
@@ -267,6 +284,8 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
+		sshHBVariableDuration:      sshHBVariableDuration,
+		sshServerTTL:               sshServerTTL,
 		maxKeepAliveErrs:           options.maxKeepAliveErrs,
 		auth:                       auth,
 		authID:                     options.authID,
@@ -418,6 +437,9 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 		if handle.sshServer != nil {
 			c.onDisconnectFunc(constants.KeepAliveNode, 1)
+			if c.sshHBVariableDuration != nil {
+				c.sshHBVariableDuration.Dec()
+			}
 		}
 
 		if len(handle.appServers) > 0 {
@@ -458,9 +480,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				if m.SSHServer != nil {
 					if sshKeepAliveDelay == nil {
 						sshKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval: c.serverKeepAlive,
-							Jitter:        retryutils.SeventhJitter,
+							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval:    c.serverKeepAlive,
+							VariableInterval: c.sshHBVariableDuration,
+							Jitter:           retryutils.SeventhJitter,
 						})
 					}
 
@@ -603,6 +626,12 @@ func instanceHeartbeatsDisabledEnv() bool {
 	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
+// variableRateSSHHeartbeatsDisabledEnv checks if variable rate SSH heartbeats
+// have been explicitly disabled via environment variable.
+func variableRateSSHHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_VARIABLE_RATE_SSH_HEARTBEATS") == "yes"
+}
+
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
 	if !c.instanceHBEnabled {
 		return nil
@@ -723,10 +752,13 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
-	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+	sshServer.SetExpiry(time.Now().Add(c.sshServerTTL).UTC())
 
 	if handle.sshServer == nil {
 		c.onConnectFunc(constants.KeepAliveNode)
+		if c.sshHBVariableDuration != nil {
+			c.sshHBVariableDuration.Inc()
+		}
 		handle.sshServer = &heartBeatInfo[*types.ServerV2]{
 			resource: sshServer,
 		}
