@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"log/slog"
 	"os"
 	"time"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -238,7 +238,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
