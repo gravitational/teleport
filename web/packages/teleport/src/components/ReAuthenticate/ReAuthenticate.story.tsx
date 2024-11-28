@@ -52,5 +52,6 @@ const props: State = {
     MFA_OPTION_SSO_DEFAULT,
   ],
   submitWithMfa: () => null,
+  submitWithPasswordless: () => null,
   onClose: () => null,
 };

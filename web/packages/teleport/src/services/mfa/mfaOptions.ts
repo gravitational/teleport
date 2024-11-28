@@ -32,7 +32,7 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   }
 
   if (mfaChallenge?.ssoChallenge) {
-    mfaOptions.push(getSsoOption(mfaChallenge.ssoChallenge));
+    mfaOptions.push(getSsoMfaOption(mfaChallenge.ssoChallenge));
   }
 
   return mfaOptions;
@@ -67,18 +67,18 @@ export const MFA_OPTION_TOTP: MfaOption = {
   label: 'Authenticator App',
 };
 
-// used in tests, returned by getSsoOptions(null).
+// SSO MFA option used in tests.
 export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
   value: 'sso',
   label: 'SSO',
 };
 
-const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
+const getSsoMfaOption = (ssoChallenge: SSOChallenge): MfaOption => {
   return {
     value: 'sso',
     label:
-      ssoChallenge.device?.displayName ||
-      ssoChallenge.device?.connectorId ||
+      ssoChallenge?.device?.displayName ||
+      ssoChallenge?.device?.connectorId ||
       'SSO',
   };
 };
