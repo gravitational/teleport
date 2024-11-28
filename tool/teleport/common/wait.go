@@ -145,7 +145,14 @@ func checkDomainNoResolve(ctx context.Context, domainName string, log *slog.Logg
 			log.ErrorContext(ctx, "unexpected error when resolving domain", "error", err)
 			return false, trace.Wrap(err)
 		}
-		dnsErrorDetails := slog.Group("dns_error",
+
+		if dnsErr.IsNotFound {
+			log.InfoContext(ctx, "domain not found")
+			return true, nil
+		}
+
+		// Creating a new logger because the linter doesn't want both key/value and slog.Attr in the same log write.
+		log := log.With(slog.Group("dns_error",
 			"name", dnsErr.Name,
 			"server", dnsErr.Server,
 			"is_timeout", dnsErr.IsTimeout,
@@ -153,16 +160,12 @@ func checkDomainNoResolve(ctx context.Context, domainName string, log *slog.Logg
 			"is_not_found", dnsErr.IsNotFound,
 			// Logging the error type can help understanding where the error comes from
 			"wrapped_error_type", fmt.Sprintf("%T", dnsErr.Unwrap()),
-		)
+		))
 		if dnsErr.Temporary() {
-			log.WarnContext(ctx, "temporary error when resolving domain", "error", err, dnsErrorDetails)
+			log.WarnContext(ctx, "temporary error when resolving domain", "error", err)
 			return false, nil
 		}
-		if dnsErr.IsNotFound {
-			log.InfoContext(ctx, "domain not found")
-			return true, nil
-		}
-		log.ErrorContext(ctx, "error when resolving domain", "error", err, dnsErrorDetails)
+		log.ErrorContext(ctx, "error when resolving domain", "error", err)
 		return false, nil
 	}
 	if len(endpoints) == 0 {
