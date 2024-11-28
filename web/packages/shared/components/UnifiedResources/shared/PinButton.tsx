@@ -21,7 +21,7 @@ import React, { useRef } from 'react';
 import { PushPinFilled, PushPin } from 'design/Icon';
 import ButtonIcon from 'design/ButtonIcon';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { PinningSupport } from '../types';
 

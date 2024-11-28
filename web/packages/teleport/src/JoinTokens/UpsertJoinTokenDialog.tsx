@@ -29,7 +29,7 @@ import {
   Alert,
 } from 'design';
 import styled from 'styled-components';
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { Cross } from 'design/Icon';
 import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';

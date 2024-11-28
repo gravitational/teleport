@@ -18,7 +18,7 @@
 import { Box, Flex, Input, Text, Mark, H3, Subtitle3 } from 'design';
 import styled from 'styled-components';
 
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import React from 'react';
 
@@ -71,7 +71,7 @@ discovery_service:
               Auto-enrolling requires you to configure a{' '}
               <Mark>Discovery Service</Mark>
             </Text>
-            <ToolTipInfo children={discoveryServiceToolTip} />
+            <TooltipInfo children={discoveryServiceToolTip} />
           </Flex>
           <br />
         </>
@@ -100,7 +100,7 @@ discovery_service:
             <H3>Step 2</H3>
             <Subtitle3>
               Define a Discovery Group name{' '}
-              <ToolTipInfo children={discoveryGroupToolTip} />
+              <TooltipInfo children={discoveryGroupToolTip} />
             </Subtitle3>
           </header>
         </Flex>

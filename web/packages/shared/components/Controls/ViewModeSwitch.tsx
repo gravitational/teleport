@@ -22,7 +22,7 @@ import { Rows, SquaresFour } from 'design/Icon';
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 export const ViewModeSwitch = ({
   currentViewMode,

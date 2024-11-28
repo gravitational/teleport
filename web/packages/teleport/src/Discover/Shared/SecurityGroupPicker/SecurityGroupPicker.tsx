@@ -23,7 +23,7 @@ import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
 import { FetchStatus } from 'design/DataTable/types';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -163,13 +163,13 @@ export const SecurityGroupPicker = ({
                     if (sg.recommended && sg.tips?.length) {
                       return (
                         <Cell>
-                          <ToolTipInfo>
+                          <TooltipInfo>
                             <ul>
                               {sg.tips.map((tip, index) => (
                                 <li key={index}>{tip}</li>
                               ))}
                             </ul>
-                          </ToolTipInfo>
+                          </TooltipInfo>
                         </Cell>
                       );
                     }

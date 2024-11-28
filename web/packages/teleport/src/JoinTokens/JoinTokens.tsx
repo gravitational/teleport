@@ -42,7 +42,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { MenuButton } from 'shared/components/MenuAction';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useTeleport } from 'teleport';

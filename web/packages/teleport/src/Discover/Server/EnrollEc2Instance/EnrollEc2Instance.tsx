@@ -25,7 +25,7 @@ import { Danger } from 'design/Alert';
 import { OutlineInfo } from 'design/Alert/Alert';
 
 import { getErrMessage } from 'shared/utils/errorType';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
@@ -482,11 +482,11 @@ export function EnrollEc2Instance() {
                 <Box ml={2} mr={1}>
                   Auto-enroll all EC2 instances for selected region
                 </Box>
-                <ToolTipInfo>
+                <TooltipInfo>
                   Auto-enroll will automatically identify all EC2 instances from
                   the selected region and register them as node resources in
                   your infrastructure.
-                </ToolTipInfo>
+                </TooltipInfo>
               </Toggle>
               {wantAutoDiscover && (
                 <OutlineInfo mt={3} linkColor="buttons.link.default">

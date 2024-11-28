@@ -24,7 +24,7 @@ import { ClickableLabelCell, Cell } from 'design/DataTable';
 
 import { App } from 'teleport/services/apps';
 
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import Select, {
   Option as BaseOption,
@@ -231,11 +231,11 @@ function ActionCell({
         </ButtonPrimary>
       )}
       <Flex alignItems="center" justifyContent="end" mt={1}>
-        <ToolTipInfo muteIconColor={true}>
+        <TooltipInfo muteIconColor={true}>
           This application {agent.name} can be alternatively requested by
           members of user groups. You can alternatively select user groups
           instead to access this application.
-        </ToolTipInfo>
+        </TooltipInfo>
         <StyledSelect
           className={hasSelectedGroups ? 'hasSelectedGroups' : ''}
           size="small"

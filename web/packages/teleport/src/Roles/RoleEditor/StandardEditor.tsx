@@ -37,7 +37,7 @@ import {
   ValidationResult,
 } from 'shared/components/Validation/rules';
 import * as Icon from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'design/ToolTip';
+import { HoverTooltip, TooltipInfo } from 'design/Tooltip';
 import styled, { useTheme } from 'styled-components';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import {
@@ -433,7 +433,7 @@ const Section = ({
         {/* TODO(bl-nero): Show validation result in the summary. */}
         <Flex flex="1" gap={2}>
           <H3>{title}</H3>
-          {tooltip && <ToolTipInfo>{tooltip}</ToolTipInfo>}
+          {tooltip && <TooltipInfo>{tooltip}</TooltipInfo>}
         </Flex>
         {removable && (
           <Box

@@ -19,7 +19,7 @@
 import React from 'react';
 import { Box, Toggle } from 'design';
 
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 export function AutoDiscoverToggle({
   wantAutoDiscover,
@@ -40,11 +40,11 @@ export function AutoDiscoverToggle({
         <Box ml={2} mr={1}>
           Auto-enroll all databases for the selected VPC
         </Box>
-        <ToolTipInfo>
+        <TooltipInfo>
           Auto-enroll will automatically identify all RDS databases (e.g.
           PostgreSQL, MySQL, Aurora) from the selected VPC and register them as
           database resources in your infrastructure.
-        </ToolTipInfo>
+        </TooltipInfo>
       </Toggle>
     </Box>
   );

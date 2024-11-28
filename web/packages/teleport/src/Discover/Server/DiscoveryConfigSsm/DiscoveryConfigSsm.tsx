@@ -30,7 +30,7 @@ import {
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
 import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { Rule } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -317,7 +317,7 @@ export function DiscoveryConfigSsm() {
                   </ExternalLink>{' '}
                   to configure your IAM permissions.
                 </P>
-                <ToolTipInfo sticky={true} maxWidth={450}>
+                <TooltipInfo sticky={true} maxWidth={450}>
                   The following IAM permissions will be added as an inline
                   policy named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
                   <Mark>{arnResourceName}</Mark>
@@ -330,7 +330,7 @@ export function DiscoveryConfigSsm() {
                       />
                     </EditorWrapper>
                   </Box>
-                </ToolTipInfo>
+                </TooltipInfo>
               </Flex>
               <TextSelectCopyMulti
                 lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
