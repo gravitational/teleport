@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
@@ -80,7 +79,7 @@ func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 // was shorter than the cluster cert lifetime, or if the user has already re-logged in to the cluster.
 // If a cluster relogin is completed, the cluster client cache will be cleared for the root cluster and all
 // leaf clusters of that root.
-func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
+func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	tc, err := p.newTeleportClient(ctx, profileName, leafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -89,7 +88,7 @@ func (p *vnetAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 	var cert tls.Certificate
 	err = p.retryWithRelogin(ctx, tc, func() error {
 		var err error
-		cert, err = p.reissueAppCert(ctx, tc, profileName, leafClusterName, app)
+		cert, err = p.reissueAppCert(ctx, tc, profileName, leafClusterName, routeToApp)
 		return trace.Wrap(err, "reissuing app cert")
 	})
 	return cert, trace.Wrap(err)
@@ -117,7 +116,7 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 
 // OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
 // anything extra here.
-func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	return nil
 }
 
@@ -170,15 +169,8 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 	return client.RetryWithRelogin(ctx, tc, fn, opts...)
 }
 
-func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, app types.Application) (tls.Certificate, error) {
-	slog.InfoContext(ctx, "Reissuing cert for app.", "app_name", app.GetName(), "profile", profileName, "leaf_cluster", leafClusterName)
-
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: tc.SiteName,
-		URI:         app.GetURI(),
-	}
+func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+	slog.InfoContext(ctx, "Reissuing cert for app.", "app_name", routeToApp.Name, "profile", profileName, "leaf_cluster", leafClusterName)
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
@@ -193,6 +185,9 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		TTL:            tc.KeyTTL,
 	}
 
+	// leafClusterName cannot be replaced with routeToApp.ClusterName here. That's because when
+	// routeToApp points to an app in the root cluster, routeToApp.ClusterName uses the actual root
+	// cluster name which is not necessarily equal to profileName.
 	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
@@ -207,7 +202,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
 
-	cert, err := keyRing.AppTLSCert(app.GetName())
+	cert, err := keyRing.AppTLSCert(routeToApp.Name)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key")
 	}
