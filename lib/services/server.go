@@ -128,6 +128,9 @@ func compareServers(a, b types.Server) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent

@@ -33,15 +33,17 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import api from 'teleport/services/api';
 
 import {
+  ExternalAuditStorageIntegration,
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
-  IntegrationStatusCode,
   IntegrationKind,
+  IntegrationStatusCode,
   Plugin,
-  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+
+import { getStatus } from 'teleport/Integrations/helpers';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
@@ -55,7 +57,10 @@ type Props<IntegrationLike> = {
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
 
-type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
+export type IntegrationLike =
+  | Integration
+  | Plugin
+  | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
@@ -254,38 +259,10 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   );
 };
 
-enum Status {
+export enum Status {
   Success,
   Warning,
   Error,
-}
-
-function getStatus(item: IntegrationLike): Status | null {
-  if (item.resourceType === 'integration') {
-    return Status.Success;
-  }
-
-  if (item.resourceType === 'external-audit-storage') {
-    switch (item.statusCode) {
-      case IntegrationStatusCode.Draft:
-        return Status.Warning;
-      default:
-        return Status.Success;
-    }
-  }
-
-  switch (item.statusCode) {
-    case IntegrationStatusCode.Unknown:
-      return null;
-    case IntegrationStatusCode.Running:
-      return Status.Success;
-    case IntegrationStatusCode.SlackNotInChannel:
-      return Status.Warning;
-    case IntegrationStatusCode.Draft:
-      return Status.Warning;
-    default:
-      return Status.Error;
-  }
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
