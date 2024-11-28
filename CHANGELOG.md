@@ -1,5 +1,17 @@
 # Changelog
 
+## 14.3.34 (11/27/24)
+
+* Fixed a bug in the `teleport-cluster` Helm chart that can cause token mount to fail when using ArgoCD. [#49071](https://github.com/gravitational/teleport/pull/49071)
+* Allow overriding Teleport license secret name when using `teleport-cluster` Helm chart. [#48981](https://github.com/gravitational/teleport/pull/48981)
+* Fixed a bug in Kubernetes session recordings where both root and leaf cluster recorded the same Kubernetes session. Recordings of leaf resources are only available in leaf clusters. [#48740](https://github.com/gravitational/teleport/pull/48740)
+* Updated Go to 1.22.9. [#48583](https://github.com/gravitational/teleport/pull/48583)
+* The teleport-cluster Helm chart now uses the configured `serviceAccount.name` from chart values for its pre-deploy configuration check Jobs. [#48577](https://github.com/gravitational/teleport/pull/48577)
+* Fixed a Teleport Kubernetes Operator bug that happened for OIDCConnector resources with non-nil `max_age`. [#48378](https://github.com/gravitational/teleport/pull/48378)
+* Updated host user creation to prevent local password expiration policies from affecting Teleport managed users. [#48161](https://github.com/gravitational/teleport/pull/48161)
+* Resolved an issue that caused false positive errors incorrectly indicating that the YubiKey was in use by another application, while only tsh was accessing it. [#47954](https://github.com/gravitational/teleport/pull/47954)
+* Updated `tsh ssh` to support the `--` delimiter similar to openssh. It is now possible to execute a command via `tsh ssh user@host -- echo test` or `tsh ssh -- host uptime`. [#47495](https://github.com/gravitational/teleport/pull/47495)
+
 ## 14.3.33 (10/30/24)
 
 * Fixed a bug in the External Audit Storage bootstrap script that broke S3 bucket creation. [#48179](https://github.com/gravitational/teleport/pull/48179)
