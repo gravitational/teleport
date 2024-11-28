@@ -171,8 +171,15 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			Namespace: r,
 		}
 	case *types.ServerV2:
-		out.Resource = &proto.Event_Server{
-			Server: r,
+		switch r.GetKind() {
+		case types.KindGitServer:
+			out.Resource = &proto.Event_GitServer{
+				GitServer: r,
+			}
+		default:
+			out.Resource = &proto.Event_Server{
+				Server: r,
+			}
 		}
 	case *types.ReverseTunnelV2:
 		out.Resource = &proto.Event_ReverseTunnel{
@@ -608,6 +615,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetGitServer(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

@@ -370,6 +370,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			WebToken:                svces.WebTokens(),
 			WindowsDesktops:         svces.WindowsDesktops,
 			DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
+			GitServers:              svces.GitServers,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -176,6 +176,7 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	gitServers                         collectionReader[services.GitServerGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -784,6 +785,19 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
 
+		case types.KindGitServer:
+			if c.GitServers == nil {
+				return nil, trace.BadParameter("missing parameter GitServers")
+			}
+			collections.gitServers = &genericCollection[
+				types.Server,
+				services.GitServerGetter,
+				gitServerExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}

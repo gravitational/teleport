@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -77,7 +78,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -4876,8 +4877,8 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 }
 
 // GitServerClient returns a client for managing git servers
-func (c *Client) GitServerClient() gitserverv1.GitServerServiceClient {
-	return gitserverv1.NewGitServerServiceClient(c.conn)
+func (c *Client) GitServerClient() *gitserverclient.Client {
+	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

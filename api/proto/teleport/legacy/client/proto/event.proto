@@ -206,5 +206,7 @@ message Event {
     // IdentityCenterAccountlAssignment is a resource representing a potential
     // Permission Set grant on a specific AWS account.
     teleport.identitycenter.v1.AccountAssignment IdentityCenterAccountAssignment = 74;
+    // GitServer is a resource for Git proxy server.
+    types.ServerV2 GitServer = 75;
   }
 }

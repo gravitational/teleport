@@ -20,9 +20,11 @@ package local
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -127,4 +129,45 @@ func (s *GitServerService) ListGitServers(ctx context.Context, pageSize int, pag
 		return nil, "", trace.Wrap(err)
 	}
 	return items, next, nil
+}
+
+func newGitServerParser() *gitServerParser {
+	return &gitServerParser{
+		baseParser: newBaseParser(backend.NewKey(gitServerPrefix)),
+	}
+}
+
+type gitServerParser struct {
+	baseParser
+}
+
+func (p *gitServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(gitServerPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindGitServer,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalServer(event.Item.Value,
+			types.KindGitServer,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

@@ -248,6 +248,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newIdentityCenterPrincipalAssignmentParser()
 		case types.KindIdentityCenterAccountAssignment:
 			parser = newIdentityCenterAccountAssignmentParser()
+		case types.KindGitServer:
+			parser = newGitServerParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
