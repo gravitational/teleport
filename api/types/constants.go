@@ -594,6 +594,7 @@ const (
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
 	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
 	KindContact = "contact"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
