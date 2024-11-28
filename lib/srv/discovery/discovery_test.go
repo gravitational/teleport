@@ -1872,6 +1872,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfig: discoveryConfigName})
+
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: discoveryConfigName},
@@ -1906,6 +1908,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			&azure.ARMRedisEnterpriseClusterMock{},
 			&azure.ARMRedisEnterpriseDatabaseMock{},
 		),
+		EKS: &mocks.EKSMock{
+			Clusters: []*eks.Cluster{eksAWSResource},
+		},
 	}
 
 	tcs := []struct {
@@ -1916,6 +1921,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		azureMatchers               []types.AzureMatcher
 		expectDatabases             []types.Database
 		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
 		wantEvents                  int
 	}{
 		{
@@ -2114,6 +2120,12 @@ func TestDiscoveryDatabase(t *testing.T) {
 				return []*discoveryconfig.DiscoveryConfig{dc1}
 			},
 			wantEvents: 1,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(1), s.DiscoveredResources)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
+			},
 		},
 		{
 			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
@@ -2126,6 +2138,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}},
 			expectDatabases: []types.Database{awsRedshiftDBWithIntegration},
 			wantEvents:      1,
+		},
+		{
+			name: "running in integrations-only-mode with a dynamic matcher with an integration, must find 1 eks cluster",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherEKS},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{},
+			wantEvents:      0,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(1), s.DiscoveredResources)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
+			},
 		},
 	}
 
@@ -2226,6 +2259,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.Never(t, func() bool {
 					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
+			}
+
+			if tc.discoveryConfigStatusCheck != nil {
+				dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
+				require.NoError(t, err)
+
+				tc.discoveryConfigStatusCheck(t, dc.Status)
 			}
 		})
 	}
@@ -2387,6 +2427,23 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			require.Equal(t, reporter.DiscoveryFetchEventCount(), currentEmittedEvents)
 		})
 	})
+}
+
+func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*eks.Cluster, types.KubeCluster) {
+	t.Helper()
+	eksAWSCluster := &eks.Cluster{
+		Name:   aws.String(name),
+		Arn:    aws.String(fmt.Sprintf("arn:aws:eks:%s:123456789012:cluster/%s", region, name)),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env": aws.String("prod"),
+		},
+	}
+	actual, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksAWSCluster.Name), aws.StringValue(eksAWSCluster.Arn), eksAWSCluster.Tags)
+	require.NoError(t, err)
+	discoveryParams.matcherType = types.AWSMatcherEKS
+	rewriteCloudResource(t, actual, discoveryParams)
+	return eksAWSCluster, actual
 }
 
 func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
