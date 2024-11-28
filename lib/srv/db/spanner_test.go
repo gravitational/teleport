@@ -246,6 +246,10 @@ func TestAuditSpanner(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "googlesql", dbStart1.DatabaseName)
 
+		// the connection should start to shut down, but wait some time for that
+		// to happen before sending further RPCs so that the client will dial
+		// a new connection before sending another query RPC.
+		time.Sleep(500 * time.Millisecond)
 		row, err = pingSpanner(ctx, clt, 42)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "access to db denied")
