@@ -21,7 +21,7 @@ import { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';

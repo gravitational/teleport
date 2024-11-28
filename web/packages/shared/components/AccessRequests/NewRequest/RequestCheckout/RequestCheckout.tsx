@@ -39,7 +39,7 @@ import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';

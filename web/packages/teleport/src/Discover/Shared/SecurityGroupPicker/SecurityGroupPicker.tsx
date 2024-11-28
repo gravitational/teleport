@@ -23,7 +23,7 @@ import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
 import { FetchStatus } from 'design/DataTable/types';
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 

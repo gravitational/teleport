@@ -31,7 +31,7 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';

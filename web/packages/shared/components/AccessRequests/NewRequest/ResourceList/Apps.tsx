@@ -24,7 +24,7 @@ import { ClickableLabelCell, Cell } from 'design/DataTable';
 
 import { App } from 'teleport/services/apps';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import Select, {
   Option as BaseOption,

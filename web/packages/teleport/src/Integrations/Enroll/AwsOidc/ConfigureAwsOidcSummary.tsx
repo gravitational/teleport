@@ -20,7 +20,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, Box, H3, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 

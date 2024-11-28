@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import { Flex, Text, ButtonIcon, Box, LabelInput } from 'design';
 import * as Icon from 'design/Icon';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import Select, { Option } from 'shared/components/Select';
 

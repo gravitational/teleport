@@ -29,7 +29,7 @@ import {
 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, TooltipInfo } from 'design/ToolTip';
+import { HoverTooltip, TooltipInfo } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';

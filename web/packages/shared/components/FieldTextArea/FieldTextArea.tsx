@@ -27,7 +27,7 @@ import { TextAreaSize } from 'design/TextArea';
 
 import { BoxProps } from 'design/Box';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { useRule } from 'shared/components/Validation';
 

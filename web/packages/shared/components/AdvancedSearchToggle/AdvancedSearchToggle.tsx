@@ -22,7 +22,7 @@ import { Text, Toggle, Link, Flex, H2 } from 'design';
 
 import { P } from 'design/Text/Text';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 const GUIDE_URL =
   'https://goteleport.com/docs/reference/predicate-language/#resource-filtering';

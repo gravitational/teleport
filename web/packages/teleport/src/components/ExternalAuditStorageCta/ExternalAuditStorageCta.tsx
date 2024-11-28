@@ -25,7 +25,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';

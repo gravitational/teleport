@@ -25,7 +25,7 @@ import LabelInput from 'design/LabelInput';
 
 import Flex from 'design/Flex';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
 import { useRule } from '../Validation';

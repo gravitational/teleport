@@ -19,7 +19,7 @@
 import React from 'react';
 import { Flex, LabelInput, Text } from 'design';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import Select, { Option } from 'shared/components/Select';
 

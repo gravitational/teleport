@@ -22,4 +22,4 @@ export {
 
   /** @deprecated Use `HoverTooltip` from `design/Tooltip` */
   HoverTooltip,
-} from 'design/ToolTip';
+} from 'design/Tooltip';

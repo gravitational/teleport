@@ -21,7 +21,7 @@ import styled, { useTheme } from 'styled-components';
 import { matchPath, useLocation, useHistory } from 'react-router';
 import { Box, Text, Flex } from 'design';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import {

@@ -23,7 +23,7 @@ import { Flex, Image, Text, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
 import { Theme } from 'design/theme/themes/types';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';

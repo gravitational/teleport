@@ -22,7 +22,7 @@ import { ButtonPrimary, Text, Box, Alert, Flex, Label, H3 } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
 
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import { FieldSelect } from 'shared/components/FieldSelect';

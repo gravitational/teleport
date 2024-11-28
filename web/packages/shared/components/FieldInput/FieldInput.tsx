@@ -28,7 +28,7 @@ import styled, { useTheme } from 'styled-components';
 import { IconProps } from 'design/Icon/Icon';
 import { InputMode, InputSize, InputType } from 'design/Input';
 
-import { TooltipInfo } from 'design/ToolTip';
+import { TooltipInfo } from 'design/Tooltip';
 
 import { useRule } from 'shared/components/Validation';
 
