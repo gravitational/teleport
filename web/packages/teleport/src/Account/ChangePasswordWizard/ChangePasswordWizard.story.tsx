@@ -23,13 +23,18 @@ import Dialog from 'design/Dialog';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
 
-import { MfaDevice, WebauthnAssertionResponse } from 'teleport/services/mfa';
+import {
+  MFA_OPTION_SSO_DEFAULT,
+  MFA_OPTION_TOTP,
+  WebauthnAssertionResponse,
+} from 'teleport/services/mfa';
 
 import {
   ChangePasswordStep,
   ChangePasswordWizardStepProps,
+  REAUTH_OPTION_PASSKEY,
+  REAUTH_OPTION_WEBAUTHN,
   ReauthenticateStep,
-  createReauthOptions,
 } from './ChangePasswordWizard';
 
 export default {
@@ -60,44 +65,16 @@ export function ChangePasswordWithPasswordlessVerification() {
 }
 
 export function ChangePasswordWithMfaDeviceVerification() {
-  return <ChangePasswordStep {...stepProps} reauthMethod="mfaDevice" />;
+  return <ChangePasswordStep {...stepProps} reauthMethod="webauthn" />;
 }
 
 export function ChangePasswordWithOtpVerification() {
-  return <ChangePasswordStep {...stepProps} reauthMethod="otp" />;
+  return <ChangePasswordStep {...stepProps} reauthMethod="totp" />;
 }
 
-const devices: MfaDevice[] = [
-  {
-    id: '1',
-    description: 'Hardware Key',
-    name: 'touch_id',
-    registeredDate: new Date(1628799417000),
-    lastUsedDate: new Date(1628799417000),
-    type: 'webauthn',
-    usage: 'passwordless',
-  },
-  {
-    id: '2',
-    description: 'Hardware Key',
-    name: 'solokey',
-    registeredDate: new Date(1623722252000),
-    lastUsedDate: new Date(1623981452000),
-    type: 'webauthn',
-    usage: 'mfa',
-  },
-  {
-    id: '3',
-    description: 'Authenticator App',
-    name: 'iPhone',
-    registeredDate: new Date(1618711052000),
-    lastUsedDate: new Date(1626472652000),
-    type: 'totp',
-    usage: 'mfa',
-  },
-];
-
-const defaultReauthOptions = createReauthOptions('optional', true, devices);
+export function ChangePasswordWithSsoVerification() {
+  return <ChangePasswordStep {...stepProps} reauthMethod="sso" />;
+}
 
 const stepProps = {
   // StepComponentProps
@@ -109,14 +86,20 @@ const stepProps = {
   refCallback: () => {},
 
   // Shared props
-  reauthMethod: 'mfaDevice',
+  reauthMethod: 'passwordless',
   onClose() {},
   onSuccess() {},
 
   // ReauthenticateStepProps
-  reauthOptions: defaultReauthOptions,
-  onReauthMethodChange() {},
-  onWebauthnResponse() {},
+  reauthOptions: [
+    REAUTH_OPTION_PASSKEY,
+    REAUTH_OPTION_WEBAUTHN,
+    MFA_OPTION_TOTP,
+    MFA_OPTION_SSO_DEFAULT,
+  ],
+  onReauthMethodChange: () => {},
+  submitWithPasswordless: async () => {},
+  submitWithMfa: async () => {},
 
   // ChangePasswordStepProps
   webauthnResponse: {} as WebauthnAssertionResponse,

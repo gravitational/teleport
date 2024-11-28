@@ -268,7 +268,7 @@ function CreateMfaBox({
 }) {
   // Be more specific about the WebAuthn device type (it's not a passkey).
   mfaRegisterOptions = mfaRegisterOptions.map((o: MfaOption) =>
-    o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
+    o.value === 'webauthn' ? { ...o, label: 'Security Key' } : o
   );
 
   return (

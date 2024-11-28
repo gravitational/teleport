@@ -102,6 +102,21 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
       .catch(handleError);
   }
 
+  function submitWithPasswordless() {
+    setAttempt({ status: 'processing' });
+    // Always get a new passwordless challenge, the challenge stored in state is for mfa
+    // and will also be overwritten in the backend by the passwordless challenge.
+    return auth
+      .getMfaChallenge({
+        scope: props.challengeScope,
+        userVerificationRequirement: 'required',
+      })
+      .then(chal => auth.getMfaChallengeResponse(chal, 'webauthn'))
+      .then(props.onMfaResponse)
+      .finally(clearMfaChallenge)
+      .catch(handleError);
+  }
+
   function clearAttempt() {
     setAttempt({ status: '' });
   }
@@ -112,6 +127,7 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
     getMfaChallenge,
     getMfaChallengeOptions,
     submitWithMfa,
+    submitWithPasswordless,
   };
 }
 
@@ -128,4 +144,5 @@ export type ReauthState = {
   getMfaChallenge: () => Promise<MfaAuthenticateChallenge>;
   getMfaChallengeOptions: () => Promise<MfaOption[]>;
   submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => Promise<void>;
+  submitWithPasswordless: () => Promise<void>;
 };

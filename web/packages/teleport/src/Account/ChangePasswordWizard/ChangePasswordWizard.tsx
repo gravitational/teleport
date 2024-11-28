@@ -17,13 +17,13 @@
  */
 
 import styled from 'styled-components';
-import { OutlineDanger } from 'design/Alert/Alert';
+import { Alert, OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -32,43 +32,71 @@ import {
   requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import { Auth2faType } from 'shared/services';
 
 import Box from 'design/Box';
 
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { MfaDevice, WebauthnAssertionResponse } from 'teleport/services/mfa';
+import {
+  DeviceType,
+  MfaOption,
+  WebauthnAssertionResponse,
+} from 'teleport/services/mfa';
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import Indicator from 'design/Indicator';
 
 export interface ChangePasswordWizardProps {
-  /** MFA type setting, as configured in the cluster's configuration. */
-  auth2faType: Auth2faType;
-  /** Determines whether the cluster allows passwordless login. */
-  passwordlessEnabled: boolean;
-  /** A list of available authentication devices. */
-  devices: MfaDevice[];
+  hasPasswordless: boolean;
   onClose(): void;
   onSuccess(): void;
 }
 
 export function ChangePasswordWizard({
-  auth2faType,
-  passwordlessEnabled,
-  devices,
+  hasPasswordless,
   onClose,
   onSuccess,
 }: ChangePasswordWizardProps) {
-  const reauthOptions = createReauthOptions(
-    auth2faType,
-    passwordlessEnabled,
-    devices
-  );
-  const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>(
-    reauthOptions[0]?.value
-  );
   const [webauthnResponse, setWebauthnResponse] =
     useState<WebauthnAssertionResponse>();
-  const reauthRequired = reauthOptions.length > 0;
+  const { getMfaChallengeOptions, submitWithMfa, submitWithPasswordless } =
+    useReAuthenticate({
+      challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
+      onMfaResponse: mfaResponse => {
+        setWebauthnResponse(mfaResponse.webauthn_response);
+      },
+    });
+
+  // Attempt to get an MFA challenge for an existing device. If the challenge is
+  // empty, the user has no existing device (e.g. SSO user) and can register their
+  // first device without re-authentication.
+  const [reauthOptions, initReauthOptions] = useAsync(async () => {
+    let mfaOptions = await getMfaChallengeOptions();
+    const reauthOptions = getReauthOptions(mfaOptions, hasPasswordless);
+    setReauthMethod(reauthOptions[0].value);
+    return reauthOptions;
+  });
+
+  useEffect(() => {
+    initReauthOptions();
+  }, []);
+
+  const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>();
+
+  // Handle potential error states first.
+  switch (reauthOptions.status) {
+    case 'processing':
+      return (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      );
+    case 'error':
+      return <Alert children={reauthOptions.statusText} />;
+    case 'success':
+      break;
+    default:
+      return null;
+  }
 
   return (
     <Dialog
@@ -79,15 +107,14 @@ export function ChangePasswordWizard({
     >
       <StepSlider
         flows={wizardFlows}
-        currFlow={
-          reauthRequired ? 'withReauthentication' : 'withoutReauthentication'
-        }
+        currFlow={'withReauthentication'}
         // Step properties
-        reauthOptions={reauthOptions}
+        reauthOptions={reauthOptions.data}
         reauthMethod={reauthMethod}
-        onReauthMethodChange={setReauthMethod}
         webauthnResponse={webauthnResponse}
-        onWebauthnResponse={setWebauthnResponse}
+        onReauthMethodChange={setReauthMethod}
+        submitWithPasswordless={submitWithPasswordless}
+        submitWithMfa={submitWithMfa}
         onClose={onClose}
         onSuccess={onSuccess}
       />
@@ -95,56 +122,41 @@ export function ChangePasswordWizard({
   );
 }
 
-type ReauthenticationMethod = 'passwordless' | 'mfaDevice' | 'otp';
+type ReauthenticationMethod = 'passwordless' | DeviceType;
 type ReauthenticationOption = {
   value: ReauthenticationMethod;
   label: string;
 };
 
-export function createReauthOptions(
-  auth2faType: Auth2faType,
-  passwordlessEnabled: boolean,
-  devices: MfaDevice[]
+export const REAUTH_OPTION_WEBAUTHN: ReauthenticationOption = {
+  value: 'webauthn',
+  label: 'Security Key',
+};
+
+export const REAUTH_OPTION_PASSKEY: ReauthenticationOption = {
+  value: 'passwordless',
+  label: 'Passkey',
+};
+
+export function getReauthOptions(
+  mfaOptions: MfaOption[],
+  hasPasswordless: boolean
 ) {
-  const options: ReauthenticationOption[] = [];
+  // Be more specific about the WebAuthn device type (it's not a passkey).
+  const reauthOptions = mfaOptions.map((o: ReauthenticationOption) =>
+    o.value === 'webauthn' ? REAUTH_OPTION_WEBAUTHN : o
+  );
 
-  const methodsAllowedByDevices = {};
-  for (const d of devices) {
-    methodsAllowedByDevices[reauthMethodForDevice(d)] = true;
+  // Add passwordless as the default if available.
+  if (hasPasswordless) {
+    reauthOptions.unshift(REAUTH_OPTION_PASSKEY);
   }
 
-  if (passwordlessEnabled && 'passwordless' in methodsAllowedByDevices) {
-    options.push({ value: 'passwordless', label: 'Passkey' });
-  }
-
-  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
-
-  if (
-    (auth2faType === 'webauthn' || mfaEnabled) &&
-    'mfaDevice' in methodsAllowedByDevices
-  ) {
-    options.push({ value: 'mfaDevice', label: 'MFA Device' });
-  }
-
-  if (
-    (auth2faType === 'otp' || mfaEnabled) &&
-    'otp' in methodsAllowedByDevices
-  ) {
-    options.push({ value: 'otp', label: 'Authenticator App' });
-  }
-
-  return options;
-}
-
-/** Returns the reauthentication method supported by a given device. */
-function reauthMethodForDevice(d: MfaDevice): ReauthenticationMethod {
-  if (d.usage === 'passwordless') return 'passwordless';
-  return d.type === 'totp' ? 'otp' : 'mfaDevice';
+  return reauthOptions;
 }
 
 const wizardFlows = {
   withReauthentication: [ReauthenticateStep, ChangePasswordStep],
-  withoutReauthentication: [ChangePasswordStep],
 };
 
 export type ChangePasswordWizardStepProps = StepComponentProps &
@@ -155,7 +167,8 @@ interface ReauthenticateStepProps {
   reauthOptions: ReauthenticationOption[];
   reauthMethod: ReauthenticationMethod;
   onReauthMethodChange(method: ReauthenticationMethod): void;
-  onWebauthnResponse(res: WebauthnAssertionResponse): void;
+  submitWithPasswordless(): Promise<void>;
+  submitWithMfa(mfaType?: DeviceType): Promise<void>;
   onClose(): void;
 }
 
@@ -167,29 +180,27 @@ export function ReauthenticateStep({
   reauthOptions,
   reauthMethod,
   onReauthMethodChange,
-  onWebauthnResponse,
+  submitWithPasswordless,
+  submitWithMfa,
   onClose,
 }: ChangePasswordWizardStepProps) {
-  const [reauthenticateAttempt, reauthenticate] = useAsync(
-    async (m: ReauthenticationMethod) => {
-      if (m === 'passwordless' || m === 'mfaDevice') {
-        const challenge = await auth.getMfaChallenge({
-          scope: MfaChallengeScope.CHANGE_PASSWORD,
-          userVerificationRequirement:
-            m === 'passwordless' ? 'required' : 'discouraged',
-        });
-
-        const response = await auth.getMfaChallengeResponse(
-          challenge,
-          'webauthn'
-        );
-
-        // TODO(Joerger): handle non-webauthn response.
-        onWebauthnResponse(response.webauthn_response);
+  const [reauthAttempt, reauthenticate] = useAsync(
+    async (reauthMethod: ReauthenticationMethod) => {
+      switch (reauthMethod) {
+        case 'passwordless':
+          await submitWithPasswordless();
+          break;
+        case 'totp':
+          // totp is handled in the ChangePasswordStep
+          break;
+        default:
+          await submitWithMfa(reauthMethod);
+          break;
       }
       next();
     }
   );
+
   const onReauthenticate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     reauthenticate(reauthMethod);
@@ -204,8 +215,8 @@ export function ReauthenticateStep({
           title="Verify Identity"
         />
       </Box>
-      {reauthenticateAttempt.status === 'error' && (
-        <OutlineDanger>{reauthenticateAttempt.statusText}</OutlineDanger>
+      {reauthAttempt.status === 'error' && (
+        <OutlineDanger>{reauthAttempt.statusText}</OutlineDanger>
       )}
       <Box mb={2}>Verification Method</Box>
       <form onSubmit={e => onReauthenticate(e)}>
@@ -252,9 +263,9 @@ export function ChangePasswordStep({
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPassConfirmed, setNewPassConfirmed] = useState('');
-  const [authCode, setAuthCode] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthCode(e.target.value);
+    setOtpCode(e.target.value);
   };
   const [changePasswordAttempt, changePassword] = useAsync(
     async (req: ChangePasswordReq) => {
@@ -269,7 +280,7 @@ export function ChangePasswordStep({
     setOldPassword('');
     setNewPassword('');
     setNewPassConfirmed('');
-    setAuthCode('');
+    setOtpCode('');
   }
 
   async function onSubmit(
@@ -282,8 +293,10 @@ export function ChangePasswordStep({
     await changePassword({
       oldPassword,
       newPassword,
-      secondFactorToken: authCode,
-      webauthnResponse,
+      mfaResponse: {
+        totp_code: otpCode,
+        webauthn_response: webauthnResponse,
+      },
     });
   }
 
@@ -328,14 +341,14 @@ export function ChangePasswordStep({
               type="password"
               placeholder="Confirm Password"
             />
-            {reauthMethod === 'otp' && (
+            {reauthMethod === 'totp' && (
               <FieldInput
                 label="Authenticator Code"
                 helperText="Enter the code generated by your authenticator app"
                 rule={requiredField('Authenticator code is required')}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                value={authCode}
+                value={otpCode}
                 placeholder="123 456"
                 onChange={onAuthCodeChanged}
                 readonly={changePasswordAttempt.status === 'processing'}
