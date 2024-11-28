@@ -134,6 +134,10 @@ const FakeDeviceList = ({
           key: 'enrollStatus',
           headerText: 'Enroll Status',
         },
+        {
+          key: 'owner',
+          headerText: 'Owner',
+        },
       ]}
       emptyText="No Devices Found"
       pagination={{ pageSize }}
