@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"testing"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
 type mockK8STokenReviewValidator struct {

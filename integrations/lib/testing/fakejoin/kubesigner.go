@@ -21,7 +21,6 @@ package fakejoin
 import (
 	"encoding/json"
 	"fmt"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
@@ -31,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
 // KubernetesSigner is a JWT signer that mimicks the Kubernetes one. The signer mock Kubernetes and

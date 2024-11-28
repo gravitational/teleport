@@ -21,13 +21,13 @@ package auth
 import (
 	"context"
 	"fmt"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
 type k8sTokenReviewValidator interface {
