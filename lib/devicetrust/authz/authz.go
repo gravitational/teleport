@@ -62,7 +62,7 @@ func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
 // HasDeviceTrustExtensions returns true if the certificate's extension names
 // include all the required device-related extensions.
 // Unlike IsSSHDeviceVerified, this function operates on a list of extensions,
-// such as those in [ProfileStatus.Extensions].
+// such as those in lib/client.ProfileStatus.Extensions.
 func HasDeviceTrustExtensions(extensions []string) bool {
 	hasCertExtensionDeviceID := false
 	hasCertExtensionDeviceAssetTag := false
