@@ -99,32 +99,23 @@ func (c *Cluster) Connected() bool {
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.ClientI, clusterIDCache *clusteridcache.Cache) (*ClusterWithDetails, error) {
-	var (
-		clusterPingResponse *webclient.PingResponse
-		webConfig           *webclient.WebConfig
-		authPingResponse    proto.PingResponse
-		authPreferences     types.AuthPreference
-		caps                *types.AccessCapabilities
-		authClusterID       string
-		acl                 *api.ACL
-		user                types.User
-		roles               []types.Role
-	)
-
 	group, groupCtx := errgroup.WithContext(ctx)
 
+	var webConfig *webclient.WebConfig
 	group.Go(func() error {
 		res, err := c.clusterClient.GetWebConfig(groupCtx)
 		webConfig = res
 		return trace.Wrap(err)
 	})
 
+	var clusterPingResponse *webclient.PingResponse
 	group.Go(func() error {
 		res, err := c.clusterClient.Ping(groupCtx)
 		clusterPingResponse = res
 		return trace.Wrap(err)
 	})
 
+	var authPingResponse proto.PingResponse
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.Ping(groupCtx)
@@ -134,15 +125,17 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var authPreference types.AuthPreference
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetAuthPreference(groupCtx)
-			authPreferences = res
+			authPreference = res
 			return trace.Wrap(err)
 		})
 		return trace.Wrap(err)
 	})
 
+	var caps *types.AccessCapabilities
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetAccessCapabilities(groupCtx, types.AccessCapabilitiesRequest{
@@ -155,6 +148,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			clusterName, err := authClient.GetClusterName()
@@ -168,6 +162,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var user types.User
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetCurrentUser(groupCtx)
@@ -177,6 +172,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var roles []types.Role
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetCurrentUserRoles(groupCtx)
@@ -190,9 +186,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return nil, trace.Wrap(err)
 	}
 
-	roleSet := services.NewRoleSet(roles...)
-	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
-	trustedDeviceRequirement, err := dtauthz.CalculateTrustedDeviceRequirement(authPreferences.GetDeviceTrust(), func() ([]types.Role, error) {
+	trustedDeviceRequirement, err := dtauthz.CalculateTrustedDeviceRequirement(authPreference.GetDeviceTrust(), func() ([]types.Role, error) {
 		return roles, nil
 	})
 	if err != nil {
@@ -201,7 +195,9 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 			Warn("Failed to calculate trusted device requirement")
 	}
 
-	acl = &api.ACL{
+	roleSet := services.NewRoleSet(roles...)
+	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
+	acl := &api.ACL{
 		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
 		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
 		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
