@@ -19,6 +19,7 @@
 package dbcmd
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,21 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 			"\nSee https://goteleport.com/docs/database-access/troubleshooting/#access-to-db-denied for more information."
 		return trace.AccessDenied(fmtString, err, cmd.Path)
 	}
+
+	// ./tsh.sh -d db connect --db-user=rjones --db-name=foo postgres
+	// 	ERROR REPORT:
+	// Original Error: *exec.Error exec: &#34;psql&#34;: executable file not found in $PATH
+	// Stack Trace:
+	// 		github.com/gravitational/teleport/lib/client/db/dbcmd/error.go:58 github.com/gravitational/teleport/lib/client/db/dbcmd.ConvertCommandError
+	// 		github.com/gravitational/teleport/tool/tsh/common/db.go:811 github.com/gravitational/teleport/tool/tsh/common.onDatabaseConnect
+	// 		github.com/gravitational/teleport/tool/tsh/common/tsh.go:1578 github.com/gravitational/teleport/tool/tsh/common.Run
+	// 		github.com/gravitational/teleport/tool/tsh/common/tsh.go:627 github.com/gravitational/teleport/tool/tsh/common.Main
+	// 		github.com/gravitational/teleport/tool/tsh/main.go:26 main.main
+	// 		runtime/proc.go:272 runtime.main
+	// 		runtime/asm_arm64.s:1223 runtime.goexit
+	// User Message: exec: &#34;psql&#34;: executable file not found in $PATH
+	fmt.Printf("--> %v\n", err)
+
 	return trace.Wrap(err)
 }
 
