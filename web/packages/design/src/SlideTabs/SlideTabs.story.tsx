@@ -18,6 +18,8 @@
 
 import React, { useState } from 'react';
 
+import { useTheme } from 'styled-components';
+
 import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
 
@@ -120,9 +122,27 @@ export const Small = () => {
     <Flex flexDirection="column" gap={3}>
       <SlideTabs
         tabs={[
-          { key: 'alarm', icon: Icon.AlarmRing, ariaLabel: 'alarm' },
-          { key: 'bots', icon: Icon.Bots, ariaLabel: 'bots' },
-          { key: 'check', icon: Icon.Check, ariaLabel: 'check' },
+          {
+            key: 'alarm',
+            icon: Icon.AlarmRing,
+            ariaLabel: 'alarm',
+            tooltipContent: 'ring ring',
+            tooltipPosition: 'bottom',
+          },
+          {
+            key: 'bots',
+            icon: Icon.Bots,
+            ariaLabel: 'bots',
+            tooltipContent: 'beep boop',
+            tooltipPosition: 'bottom',
+          },
+          {
+            key: 'check',
+            icon: Icon.Check,
+            ariaLabel: 'check',
+            tooltipContent: 'Do or do not. There is no try.',
+            tooltipPosition: 'right',
+          },
         ]}
         size="small"
         appearance="round"
@@ -154,14 +174,38 @@ export const Small = () => {
   );
 };
 
-export const LoadingTab = () => {
+export const StatusIcons = () => {
+  const theme = useTheme();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs = [
+    {
+      key: 'warning',
+      title: 'warning',
+      statusIcon: Icon.Warning,
+      statusIconColor: theme.colors.interactive.solid.alert.default,
+    },
+    {
+      key: 'danger',
+      title: 'danger',
+      statusIcon: Icon.WarningCircle,
+      statusIconColor: theme.colors.interactive.solid.danger.default,
+    },
+    { key: 'neutral', title: 'neutral', statusIcon: Icon.Bubble },
+  ];
   return (
-    <SlideTabs
-      tabs={threeSimpleTabs}
-      onChange={() => null}
-      activeIndex={1}
-      isProcessing={true}
-    />
+    <Flex flexDirection="column" gap={3}>
+      <SlideTabs
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+        isProcessing={true}
+      />
+      <SlideTabs
+        tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+    </Flex>
   );
 };
 

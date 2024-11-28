@@ -17,10 +17,12 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { IconProps } from 'design/Icon/Icon';
+import { HoverTooltip } from 'design/ToolTip';
+import { Position } from 'design/Popover/Popover';
 
 export function SlideTabs({
   appearance = 'square',
@@ -32,6 +34,7 @@ export function SlideTabs({
   disabled = false,
   fitContent = false,
 }: SlideTabsProps) {
+  const theme = useTheme();
   const activeTab = useRef<HTMLButtonElement>(null);
   const tabContainer = useRef<HTMLDivElement>(null);
 
@@ -75,6 +78,11 @@ export function SlideTabs({
             icon: Icon,
             ariaLabel,
             controls,
+            tooltipContent,
+            tooltipPosition,
+            statusIcon,
+            statusIconColor = theme.colors.text.main,
+            statusIconColorActive = theme.colors.text.primaryInverse,
           } = toFullTabSpec(tabSpec, tabIndex);
 
           let onClick = undefined;
@@ -86,32 +94,44 @@ export function SlideTabs({
           }
 
           return (
-            <TabButton
+            <HoverTooltip
               key={key}
-              ref={selected ? activeTab : undefined}
-              role="tab"
-              onClick={onClick}
-              selected={selected}
-              className={selected ? 'selected' : undefined}
-              aria-controls={controls}
-              tabIndex={!disabled && selected ? 0 : -1}
-              processing={isProcessing}
-              disabled={disabled}
-              aria-selected={selected}
-              size={size}
-              aria-label={ariaLabel}
+              tipContent={tooltipContent}
+              position={tooltipPosition}
             >
-              {/* We need a separate tab content component, since the spinner,
-                  when displayed, shouldn't take up space to prevent layout
-                  jumping. TabContent serves as a positioning anchor whose left
-                  edge is the left edge of the content (not the tab button,
-                  which can be much wider). */}
-              <TabContent gap={1}>
-                {selected && isProcessing && <Spinner delay="none" size={25} />}
-                {Icon && <Icon size={size} role="graphics-symbol" />}
-                {title}
-              </TabContent>
-            </TabButton>
+              <TabButton
+                ref={selected ? activeTab : undefined}
+                role="tab"
+                onClick={onClick}
+                selected={selected}
+                className={selected ? 'selected' : undefined}
+                aria-controls={controls}
+                tabIndex={!disabled && selected ? 0 : -1}
+                processing={isProcessing}
+                disabled={disabled}
+                aria-selected={selected}
+                size={size}
+                aria-label={ariaLabel}
+              >
+                {/* We need a separate tab content component, since the status
+                  icon, when displayed, shouldn't take up space to prevent
+                  layout jumping. TabContent serves as a positioning anchor
+                  whose left edge is the left edge of the content (not the tab
+                  button, which can be much wider). */}
+                <TabContent gap={1}>
+                  <StatusIconContainer>
+                    <StatusIcon
+                      spinner={isProcessing && selected}
+                      icon={statusIcon}
+                      size={size}
+                      color={selected ? statusIconColorActive : statusIconColor}
+                    />
+                  </StatusIconContainer>
+                  {Icon && <Icon size={size} role="graphics-symbol" />}
+                  {title}
+                </TabContent>
+              </TabButton>
+            </HoverTooltip>
           );
         })}
         {/* The tab slider is positioned absolutely and appears below the
@@ -190,6 +210,18 @@ type FullTabSpec = TabContentSpec & {
    * attribute set to "tabpanel".
    */
   controls?: string;
+  tooltipContent?: React.ReactNode;
+  tooltipPosition?: Position;
+  /**
+   * An icon that will be displayed on the side. The layout will stay the same
+   * whether the icon is there or not. If `isProcessing` prop is set to `true`,
+   * the icon for an active tab is replaced by a spinner.
+   */
+  statusIcon?: React.ComponentType<IconProps>;
+  /** Color of the status icon. */
+  statusIconColor?: string;
+  /** Color of the status icon on an active tab. */
+  statusIconColorActive?: string;
 };
 
 /**
@@ -218,6 +250,32 @@ function toFullTabSpec(spec: TabSpec, index: number): FullTabSpec {
     key: index,
     title: spec,
   };
+}
+
+function StatusIcon({
+  spinner,
+  icon: Icon,
+  size,
+  color,
+}: {
+  spinner: boolean;
+  icon: React.ComponentType<IconProps> | undefined;
+  size: Size;
+  color: string | undefined;
+}) {
+  if (spinner) {
+    return <Spinner delay="none" size={size} />;
+  }
+  if (Icon) {
+    return (
+      <Icon
+        size={size}
+        color={color}
+        style={{ transition: 'color 0.2s ease-in 0s' }}
+      />
+    );
+  }
+  return null;
 }
 
 const TabSliderInner = styled.div<{ appearance: Appearance }>`
@@ -343,6 +401,9 @@ const TabList = styled.div<{ itemCount: number }>`
 
 const Spinner = styled(Indicator)`
   color: ${p => p.theme.colors.levels.deep};
+`;
+
+const StatusIconContainer = styled.div`
   position: absolute;
   left: -${p => p.theme.space[5]}px;
 `;
