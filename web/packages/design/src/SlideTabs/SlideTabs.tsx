@@ -21,7 +21,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import { HoverTooltip } from 'design/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { Position } from 'design/Popover/Popover';
 
 export function SlideTabs({
