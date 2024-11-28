@@ -325,6 +325,8 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	if len(h.app.GetTCPPorts()) == 0 {
 		localPort = 0
 	}
+	// TODO(ravicious): For multi-port apps, check if localPort is valid and surface the error in UI.
+	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#incorrect-port
 
 	lp, ok := h.portToLocalProxy[localPort]
 	if ok {
