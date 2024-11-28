@@ -210,17 +210,12 @@ const auth = {
     });
   },
 
-  changePassword({
-    oldPassword,
-    newPassword,
-    secondFactorToken,
-    webauthnResponse,
-  }: ChangePasswordReq) {
+  changePassword({ oldPassword, newPassword, mfaResponse }: ChangePasswordReq) {
     const data = {
       old_password: base64EncodeUnicode(oldPassword),
       new_password: base64EncodeUnicode(newPassword),
-      second_factor_token: secondFactorToken,
-      webauthnAssertionResponse: webauthnResponse,
+      second_factor_token: mfaResponse.totp_code,
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
