@@ -55,6 +55,8 @@ message AzureVirtualMachine {
   string resource_group = 5;
   // tags are a collection of arbitrary key-values applied to the virtual machine
   map<string, string> tags = 6;
+  // location is the geographical location of the Virtual Machine
+  string location = 7;
 }
 
 // AzureIdentity is a Graph API object identity
