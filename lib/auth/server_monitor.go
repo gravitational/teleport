@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -44,6 +45,9 @@ const (
 	systemClockThreshold = time.Minute
 	// systemClockNotificationWarningName is the ID for adding the global notification.
 	systemClockNotificationWarningName = "cluster-monitor-system-clock-warning"
+	// systemClockNotificationExpiration is the expiration time for global notification
+	// warning about time difference.
+	systemClockNotificationExpiration = time.Hour * 24 * 30
 	// systemClockMessagesLimit is limit for showing the list of affected inventories.
 	systemClockMessagesLimit = 10
 )
@@ -94,7 +98,7 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 						"difference", durationText(diff),
 					)
 					messages = append(messages, fmt.Sprintf(
-						" - %s[%s] is %s",
+						"%s[%s] is %s",
 						hello.GetServerID(),
 						types.SystemRoles(hello.GetServices()).String(),
 						durationText(diff),
@@ -106,7 +110,8 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 	})
 
 	if len(messages) > 0 {
-		err := upsertClockWarningGlobalNotification(ctx, a.Services, generateClockWarningNotificationMessage(messages, counter))
+		title, text := generateClockWarningNotificationMessage(messages, counter)
+		err := upsertClockWarningGlobalNotification(ctx, a.Services, title, text)
 		if err != nil {
 			slog.ErrorContext(ctx, "can't set notification about system clock issue", "error", err)
 		}
@@ -115,7 +120,8 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 
 // upsertClockWarningGlobalNotification sets predefined global notification for notifying the issues with the cluster
 // servers related to the system clock difference in nodes.
-func upsertClockWarningGlobalNotification(ctx context.Context, notification services.Notifications, text string) error {
+func upsertClockWarningGlobalNotification(ctx context.Context, notification services.Notifications, title, text string) error {
+	now := time.Now()
 	_, err := notification.UpsertGlobalNotification(ctx, &notificationsv1.GlobalNotification{
 		Kind:     types.KindGlobalNotification,
 		Version:  types.V1,
@@ -126,11 +132,15 @@ func upsertClockWarningGlobalNotification(ctx context.Context, notification serv
 			},
 			Notification: &notificationsv1.Notification{
 				SubKind: types.NotificationDefaultWarningSubKind,
-				Spec:    &notificationsv1.NotificationSpec{},
+				Spec: &notificationsv1.NotificationSpec{
+					Created: timestamppb.New(now),
+				},
 				Metadata: &headerv1.Metadata{
-					Name: systemClockNotificationWarningName,
+					Expires: timestamppb.New(now.Add(systemClockNotificationExpiration)),
+					Name:    systemClockNotificationWarningName,
 					Labels: map[string]string{
-						types.NotificationTitleLabel: text,
+						types.NotificationTitleLabel:       title,
+						types.NotificationTextContentLabel: text,
 					},
 				},
 			},
@@ -140,17 +150,18 @@ func upsertClockWarningGlobalNotification(ctx context.Context, notification serv
 }
 
 // generateClockWarningNotificationMessage formats the notification message with the inventory list.
-func generateClockWarningNotificationMessage(messages []string, total int) string {
-	message := "Incorrect system clock detected in the cluster, which may lead to certificate validation issues.\n" +
+func generateClockWarningNotificationMessage(messages []string, total int) (string, string) {
+	title := "Incorrect system clock detected in the cluster"
+	text := "Incorrect system clock may lead to certificate validation issues.\n" +
 		"Ensure that the clock is accurate on all nodes to avoid potential access problems.\n" +
-		"All comparisons are made with the Auth service system clock." +
-		"List of servers with a time drift: \n" + strings.Join(messages, "\n")
+		"All comparisons are made with the Auth service system clock.\n" +
+		"List of servers with a time drift: \n" + strings.Join(messages, ", ")
 
 	if total > len(messages) {
-		message += fmt.Sprintf("(%d in total)", total)
+		text += fmt.Sprintf("(%d in total)", total)
 	}
 
-	return message
+	return title, text
 }
 
 // durationText formats the specified duration to text by adding the suffix "ahead" or "behind"
