@@ -54,13 +54,13 @@ export function IdentityList(props: {
               </Flex>
               {props.deviceTrustStatus === 'enrolled' && (
                 <Flex gap={1} color="text.slightlyMuted">
-                  <ShieldCheck size="small" mb="2px" />
+                  <ShieldCheck color="success.main" size="small" mb="2px" />
                   <P3>Access secured with device trust.</P3>
                 </Flex>
               )}
               {props.deviceTrustStatus === 'requires-enrollment' && (
                 <Flex gap={1} color="text.slightlyMuted">
-                  <ShieldWarning size="small" mb="2px" />
+                  <ShieldWarning color="warning.main" size="small" mb="2px" />
                   <Flex flexDirection="column">
                     <P3>
                       Full access requires a trusted device.{' '}
