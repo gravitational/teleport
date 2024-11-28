@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { JSX } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, Text, Label, P3 } from 'design';
 import { ShieldCheck, ShieldWarning } from 'design/Icon';
@@ -52,28 +53,7 @@ export function IdentityList(props: {
                   </Label>
                 ))}
               </Flex>
-              {props.deviceTrustStatus === 'enrolled' && (
-                <Flex gap={1} color="text.slightlyMuted">
-                  <ShieldCheck color="success.main" size="small" mb="2px" />
-                  <P3>Access secured with device trust.</P3>
-                </Flex>
-              )}
-              {props.deviceTrustStatus === 'requires-enrollment' && (
-                <Flex gap={1} color="text.slightlyMuted">
-                  <ShieldWarning color="warning.main" size="small" mb="2px" />
-                  <Flex flexDirection="column">
-                    <P3>
-                      Full access requires a trusted device.{' '}
-                      <Link
-                        href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
-                        target="_blank"
-                      >
-                        Learn how to enroll your device.
-                      </Link>
-                    </P3>
-                  </Flex>
-                </Flex>
-              )}
+              <DeviceTrustMessage status={props.deviceTrustStatus} />
             </Flex>
           </Flex>
           <Separator />
@@ -102,6 +82,45 @@ export function IdentityList(props: {
       </KeyboardArrowsNavigation>
     </Box>
   );
+}
+
+function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
+  let message: JSX.Element | undefined;
+  switch (props.status) {
+    case 'enrolled': {
+      message = (
+        <>
+          <ShieldCheck color="success.main" size="small" mb="2px" />
+          <P3>Access secured with device trust.</P3>
+        </>
+      );
+      break;
+    }
+    case 'requires-enrollment': {
+      message = (
+        <>
+          <ShieldWarning color="warning.main" size="small" mb="2px" />
+          <P3>
+            Full access requires a trusted device.{' '}
+            <Link
+              href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+              target="_blank"
+            >
+              Learn how to enroll your device.
+            </Link>
+          </P3>
+        </>
+      );
+    }
+  }
+
+  if (message) {
+    return (
+      <Flex gap={1} color="text.slightlyMuted">
+        {message}
+      </Flex>
+    );
+  }
 }
 
 // Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover
