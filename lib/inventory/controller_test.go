@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -828,10 +829,25 @@ func TestInstanceHeartbeat(t *testing.T) {
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
-	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// Launch goroutine to consume downstream request and don't block control steam handler.
+	go func() {
+		for {
+			select {
+			case <-downstream.Recv():
+			case <-downstream.Done():
+				return
+			}
+		}
+	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -1424,6 +1440,77 @@ func TestGetSender(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// TestTimeReconciliation verifies basic behavior of the time reconciliation check.
+func TestTimeReconciliation(t *testing.T) {
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	events := make(chan testEvent, 1024)
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	clock := clockwork.NewRealClock()
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithClock(clock),
+	)
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	t.Cleanup(func() {
+		require.NoError(t, downstream.Close())
+		require.NoError(t, upstream.Close())
+		require.NoError(t, controller.Close())
+		cancel()
+	})
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	// Launch goroutine to respond to clock request.
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID:          msg.(proto.DownstreamInventoryPing).ID,
+					SystemClock: clock.Now().Add(-time.Minute).UTC(),
+				})
+				return
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	awaitEvents(t, events,
+		expect(timeReconciliationOk),
+	)
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	auth.mu.Lock()
+	m := auth.lastInstance.GetLastMeasurement()
+	auth.mu.Unlock()
+	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
 type eventOpts struct {
