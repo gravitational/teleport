@@ -45,40 +45,42 @@ import (
 // - AWS EC2 Auto Discover status
 // - AWS RDS Auto Discover status
 // - AWS EKS Auto Discover status
-func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
-	// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
-	// Those are discarded because there's no Status to update.
-	if discoveryConfigName == "" {
-		return
-	}
+func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
+	for _, discoveryConfigName := range discoveryConfigNames {
+		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
+		// Those are discarded because there's no Status to update.
+		if discoveryConfigName == "" {
+			return
+		}
 
-	discoveryConfigStatus := discoveryconfig.Status{
-		State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
-		LastSyncTime:                   s.clock.Now(),
-		IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
-	}
+		discoveryConfigStatus := discoveryconfig.Status{
+			State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
+			LastSyncTime:                   s.clock.Now(),
+			IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+		}
 
-	// Merge AWS Sync (TAG) status
-	discoveryConfigStatus = s.awsSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		// Merge AWS Sync (TAG) status
+		discoveryConfigStatus = s.awsSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
-	// Merge AWS EC2 Instances (auto discovery) status
-	discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		// Merge AWS EC2 Instances (auto discovery) status
+		discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
-	// Merge AWS RDS databases (auto discovery) status
-	discoveryConfigStatus = s.awsRDSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		// Merge AWS RDS databases (auto discovery) status
+		discoveryConfigStatus = s.awsRDSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
-	// Merge AWS EKS clusters (auto discovery) status
-	discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		// Merge AWS EKS clusters (auto discovery) status
+		discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
-	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+		defer cancel()
 
-	_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-	switch {
-	case trace.IsNotImplemented(err):
-		s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-	case err != nil:
-		s.Log.InfoContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
+		switch {
+		case trace.IsNotImplemented(err):
+			s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
+		case err != nil:
+			s.Log.InfoContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 
