@@ -76,6 +76,7 @@ export const allAccessAcl: Acl = {
   accessMonitoringRule: fullAccess,
   discoverConfigs: fullAccess,
   contacts: fullAccess,
+  gitServers: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
