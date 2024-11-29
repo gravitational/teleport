@@ -139,6 +139,18 @@ type EnrichedResource struct {
 	RequiresRequest bool
 }
 
+// EnrichedResources is a list of Enriched resources.
+type EnrichedResources []*EnrichedResource
+
+// ToResourcesWithLabels converts to ResourcesWithLabels.
+func (r EnrichedResources) ToResourcesWithLabels() ResourcesWithLabels {
+	ret := make(ResourcesWithLabels, len(r))
+	for _, resource := range r {
+		ret = append(ret, resource.ResourceWithLabels)
+	}
+	return ret
+}
+
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 

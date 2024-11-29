@@ -47,6 +47,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindAppServer,
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
+	types.KindGitServer,
 }
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -352,6 +353,7 @@ type ResourceGetter interface {
 	WindowsDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
+	GitServerGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -383,8 +385,11 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	// the container type.
 	switch r := resource.(type) {
 	case types.Server:
-		name = r.GetHostname() + "/" + r.GetName()
-		kind = types.KindNode
+		switch r.GetKind() {
+		case types.KindNode, types.KindGitServer:
+			name = r.GetHostname() + "/" + r.GetName()
+			kind = r.GetKind()
+		}
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
@@ -455,6 +460,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newGitServers, err := c.getGitServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	// empty the trees
@@ -470,6 +480,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
+	putResources[types.Server](c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -579,6 +590,23 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	}
 
 	return newSAMLApps, nil
+}
+
+func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.Server, err error) {
+	var page []types.Server
+	nextToken := ""
+	for {
+		page, nextToken, err = c.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting Git servers for unified resource watcher")
+		}
+
+		all = append(all, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return all, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
@@ -879,6 +907,19 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 				RequiresRequest: requiresRequest,
 			}
 		}
+	case types.KindGitServer:
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_GitServer{
+				GitServer: server,
+			},
+			RequiresRequest: requiresRequest,
+		}
+
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
