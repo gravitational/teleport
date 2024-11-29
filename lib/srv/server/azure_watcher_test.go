@@ -146,7 +146,7 @@ func TestAzureWatcher(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients)
+				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients, "" /* discovery config */)
 			})
 			require.NoError(t, err)
 

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const databaseEventPrefix = "db/"
@@ -74,6 +75,14 @@ func (s *Server) startDatabaseWatchers() error {
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
 			PreFetchHookFn: func() {
+				discoveryConfigs := slices.CollectValues(
+					s.getAllDatabaseFetchers(),
+					func(f common.Fetcher) (s string, skip bool) {
+						return f.DiscoveryConfigName(), f.DiscoveryConfigName() == ""
+					},
+				)
+				s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
 				s.awsRDSResourcesStatus.reset()
 			},
 		},

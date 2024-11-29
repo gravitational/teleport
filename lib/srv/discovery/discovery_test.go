@@ -1982,6 +1982,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				{Engine: aws.String(services.RDSEnginePostgres)},
 			},
 		},
+		MemoryDB: &mocks.MemoryDBMock{},
 		Redshift: &mocks.RedshiftMock{
 			Clusters: []*redshift.Cluster{awsRedshiftResource},
 		},
@@ -2242,6 +2243,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
+			},
+		},
+		{
+			name: "discovery config status must be updated even when there are no resources",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						// MemoryDB mock client returns no resources.
+						Types:       []string{types.AWSMatcherMemoryDB},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{},
+			wantEvents:      0,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(0), s.DiscoveredResources)
+				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
 			},
 		},
 	}

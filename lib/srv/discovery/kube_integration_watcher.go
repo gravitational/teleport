@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // startKubeIntegrationWatchers starts kube watchers that use integration for the credentials. Currently only
@@ -76,6 +77,14 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: func() {
+			discoveryConfigs := libslices.CollectValues(
+				s.getKubeIntegrationFetchers(),
+				func(f common.Fetcher) (s string, skip bool) {
+					return f.DiscoveryConfigName(), f.DiscoveryConfigName() == ""
+				},
+			)
+			s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
 			s.awsEKSResourcesStatus.reset()
 			s.awsEKSTasks.reset()
 		},

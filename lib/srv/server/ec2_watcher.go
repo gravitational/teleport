@@ -456,3 +456,8 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 	return instances, nil
 }
+
+// GetDiscoveryConfig returns the discovery config name that created this fetcher.
+func (f *ec2InstanceFetcher) GetDiscoveryConfig() string {
+	return f.DiscoveryConfig
+}
