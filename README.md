@@ -403,4 +403,4 @@ The remainder of the source code in this repository is available under the
 from source must comply with the terms of this license.
 
 Teleport Community Edition builds distributed on http://goteleport.com/download
-are available under a [modified Apache 2.0 license](./LICENSE-community).
+are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).

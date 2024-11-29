@@ -711,6 +711,31 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
+
+  // LastMeasurement stores information about the latest measurement between services.
+  SystemClockMeasurement LastMeasurement = 9;
+}
+
+// SystemClockMeasurement represents the measurement state of the systems clock difference.
+message SystemClockMeasurement {
+  // ControllerSystemClock is the system clock of the inventory controller.
+  google.protobuf.Timestamp ControllerSystemClock = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "controller_system_clock,omitempty"
+  ];
+  // SystemClock is the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
+  // RequestDuration stores information about the request duration between auth and remote service.
+  google.protobuf.Duration RequestDuration = 3 [
+    (gogoproto.jsontag) = "request_duration",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -842,6 +867,9 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -873,6 +901,15 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// GitHubServerMetadata contains info about GitHub proxies where each server
+// represents a GitHub organization.
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -3377,13 +3414,19 @@ message RoleConditions {
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 
-  wrappers.LabelValues AccountAssignmentLabels = 43 [
+  // GitHubPermissions defines GitHub integration related permissions.
+  repeated GitHubPermission git_hub_permissions = 43 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "github_permissions,omitempty"
+  ];
+
+  wrappers.LabelValues AccountAssignmentLabels = 44 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "account_assignment_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
 
-  string AccountAssignmentLabelsExpression = 44 [(gogoproto.jsontag) = "account_assignment_labels_expression,omitempty"];
+  string AccountAssignmentLabelsExpression = 45 [(gogoproto.jsontag) = "account_assignment_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -3391,6 +3434,11 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+}
+
+// GitHubPermission defines GitHub integration related permissions.
+message GitHubPermission {
+  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or

@@ -579,6 +579,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 			Description: "Access AWS IdentityCenter resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -610,6 +611,7 @@ func NewSystemIdentityCenterRequesterRole() types.Role {
 			Description: "Request AWS IdentityCenter resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -644,6 +646,7 @@ func NewSystemIdentityCenterReviewerRole() types.Role {
 			Description: "Request AWS IdentityCenter resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -722,64 +725,6 @@ func NewPresetTerraformProviderRole() types.Role {
 						Verbs: RW(),
 					},
 				},
-			},
-		},
-	}
-	return role
-}
-
-// NewSystemIdentityCenterAccessRole
-func NewSystemIdentityCenterAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil
-	}
-
-	role := &types.RoleV6{
-		Kind:    types.KindRole,
-		Version: types.V7,
-		Metadata: types.Metadata{
-			Name:        teleport.SystemIdentityCenterAccessRoleName,
-			Namespace:   apidefaults.Namespace,
-			Description: "Access Identity Center resources",
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.SystemResource,
-				types.OriginLabel:                  common.OriginAWSIdentityCenter,
-			},
-		},
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				AccountAssignments: []types.IdentityCenterAccountAssignment{
-					{
-						Account:       "*",
-						PermissionSet: "*",
-					},
-				},
-			},
-		},
-	}
-	return role
-}
-
-func NewSystemIdentityCenterRequesterRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil
-	}
-
-	role := &types.RoleV6{
-		Kind:    types.KindRole,
-		Version: types.V7,
-		Metadata: types.Metadata{
-			Name:        teleport.SystemOktaRequesterRoleName,
-			Namespace:   apidefaults.Namespace,
-			Description: "Request Identity Center resources",
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.SystemResource,
-				types.OriginLabel:                  common.OriginAWSIdentityCenter,
-			},
-		},
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
 			},
 		},
 	}

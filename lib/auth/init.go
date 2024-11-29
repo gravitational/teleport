@@ -338,6 +338,9 @@ type InitConfig struct {
 
 	// PluginStaticCredentials handles credentials for integrations and plugins.
 	PluginStaticCredentials services.PluginStaticCredentials
+
+	// GitServers manages git servers.
+	GitServers services.GitServers
 }
 
 // Init instantiates and configures an instance of AuthServer
