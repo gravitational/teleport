@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
@@ -401,11 +400,6 @@ type UpstreamHandle interface {
 	// for an explanation of how this system works.
 	VisitInstanceState(func(ref InstanceStateRef) InstanceStateUpdate)
 
-	// HeartbeatInstance triggers an early instance heartbeat. This function does not
-	// wait for the instance heartbeat to actually be completed, so calling this and then
-	// immediately locking the instanceStateTracker will likely result in observing the
-	// pre-heartbeat state.
-	HeartbeatInstance()
 	// UpdateLabels updates the labels on the instance.
 	UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error
 }
@@ -563,8 +557,6 @@ type upstreamHandle struct {
 	agentMDLock   sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata
 
-	ticker *interval.MultiInterval[intervalKey]
-
 	pingC chan pingRequest
 
 	stateTracker instanceStateTracker
@@ -603,17 +595,12 @@ type heartBeatInfo[T any] struct {
 	keepAliveErrs int
 }
 
-func (h *upstreamHandle) HeartbeatInstance() {
-	h.ticker.FireNow(instanceHeartbeatKey)
-}
-
-func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello, ticker *interval.MultiInterval[intervalKey]) *upstreamHandle {
+func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) *upstreamHandle {
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
-		ticker:                         ticker,
 	}
 }
 
