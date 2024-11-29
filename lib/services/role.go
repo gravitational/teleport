@@ -80,6 +80,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSPIFFEFederation, RO()),
 	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
 	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -2831,6 +2832,7 @@ func (set RoleSet) CanForwardAgents() bool {
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
 			return true
 		}

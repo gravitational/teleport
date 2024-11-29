@@ -29,15 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-func TestEvaluateTraitsMap(t *testing.T) {
-	t.Parallel()
-
-	baseInputTraits := map[string][]string{
+var (
+	baseInputTraits = map[string][]string{
 		"groups":   []string{"devs", "security"},
 		"username": []string{"alice"},
 	}
 
-	tests := []struct {
+	testCases = []struct {
 		desc           string
 		expressions    map[string][]string
 		inputTraits    map[string][]string
@@ -253,7 +251,31 @@ func TestEvaluateTraitsMap(t *testing.T) {
 				"localEmails": {"alice", "bob", "charlie", "darrell", "esther", "frank"},
 			},
 		},
+		{
+			desc: "methods on nil set from nonexistent map key",
+			expressions: map[string][]string{
+				"a": {`user.spec.traits["a"].add("a")`},
+				"b": {`ifelse(user.spec.traits["b"].contains("b"), set("z"), set("b"))`},
+				"c": {`ifelse(user.spec.traits["c"].contains_any(set("c")), set("z"), set("c"))`},
+				"d": {`ifelse(user.spec.traits["d"].isempty(), set("d"), set("z"))`},
+				"e": {`user.spec.traits["e"].remove("e")`},
+				"f": {`user.spec.traits["f"].remove("f").add("f")`},
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"a": {"a"},
+				"b": {"b"},
+				"c": {"c"},
+				"d": {"d"},
+				"e": {},
+				"f": {"f"},
+			},
+		},
 	}
+)
+
+func TestEvaluateTraitsMap(t *testing.T) {
+	t.Parallel()
 
 	type evaluationEnv struct {
 		Traits Dict
@@ -270,7 +292,7 @@ func TestEvaluateTraitsMap(t *testing.T) {
 	attributeParser, err := NewTraitsExpressionParser[evaluationEnv](typicalEnvVar)
 	require.NoError(t, err)
 
-	for _, tc := range tests {
+	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := EvaluateTraitsMap[evaluationEnv](
 				evaluationEnv{
@@ -291,4 +313,36 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			require.Empty(t, cmp.Diff(tc.expectedTraits, StringSliceMapFromDict(result), cmpopts.SortSlices(func(a, b string) bool { return a < b })))
 		})
 	}
+}
+
+func FuzzTraitsExpressionParser(f *testing.F) {
+	type evaluationEnv struct {
+		Traits Dict
+	}
+	parser, err := NewTraitsExpressionParser[evaluationEnv](map[string]typical.Variable{
+		"true":  true,
+		"false": false,
+		"user.spec.traits": typical.DynamicMap[evaluationEnv, Set](func(env evaluationEnv) (Dict, error) {
+			return env.Traits, nil
+		}),
+	})
+	require.NoError(f, err)
+	for _, tc := range testCases {
+		for _, expressions := range tc.expressions {
+			for _, expression := range expressions {
+				f.Add(expression)
+			}
+		}
+	}
+	f.Fuzz(func(t *testing.T, expression string) {
+		expr, err := parser.Parse(expression)
+		if err != nil {
+			// Many/most fuzzed expressions won't parse, as long as we didn't
+			// panic that's okay.
+			return
+		}
+		// If the expression parsed, try to evaluate it, errors are okay just
+		// make sure we don't panic.
+		_, _ = expr.Evaluate(evaluationEnv{DictFromStringSliceMap(baseInputTraits)})
+	})
 }
