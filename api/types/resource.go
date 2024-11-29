@@ -139,7 +139,7 @@ type EnrichedResource struct {
 	RequiresRequest bool
 }
 
-// EnrichedResources is a list of Enriched resources.
+// EnrichedResources is a wrapper of []*EnrichedResource.
 type EnrichedResources []*EnrichedResource
 
 // ToResourcesWithLabels converts to ResourcesWithLabels.

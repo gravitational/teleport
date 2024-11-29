@@ -21,12 +21,14 @@ package common
 import (
 	"bytes"
 	"fmt"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 func makeGitServer(t *testing.T, gitHubOrg string) types.Server {
@@ -99,13 +101,28 @@ func TestGitListCommand(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var capture bytes.Buffer
 			cf := &CLIConf{
+				Proxy:          "proxy",
+				Username:       "alice",
 				OverrideStdout: &capture,
+				HomePath:       t.TempDir(),
 			}
+
+			// Create a empty profile so we don't ping proxy.
+			clientStore, err := initClientStore(cf, cf.Proxy)
+			require.NoError(t, err)
+			profile := &profile.Profile{
+				SSHProxyAddr: "proxy:3023",
+				WebProxyAddr: "proxy:3080",
+			}
+			err = clientStore.SaveProfile(profile, true)
+			require.NoError(t, err)
+
 			cmd := gitListCommand{
 				format:  test.format,
 				fetchFn: test.fetchFn,
 			}
-			err := cmd.run(cf)
+
+			err = cmd.run(cf)
 			if test.wantError {
 				require.Error(t, err)
 			} else {
