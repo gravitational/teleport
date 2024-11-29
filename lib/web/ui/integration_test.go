@@ -45,6 +45,7 @@ func TestMakeIntegration(t *testing.T) {
 			Organization: "my-org",
 		},
 	)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		integration types.Integration

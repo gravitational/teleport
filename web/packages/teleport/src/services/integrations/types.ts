@@ -44,9 +44,7 @@ import { Node } from '../nodes';
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  SP extends Record<string, any> =
-    | IntegrationSpecAwsOidc
-    | IntegrationSpecGitHub,
+  SP extends Record<string, any> = IntegrationSpecAwsOidc,
   SD extends Record<string, any> = null,
 > = {
   resourceType: T;
@@ -719,8 +717,4 @@ export type Vpc = {
 export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
-};
-
-export type IntegrationSpecGitHub = {
-  organization: string;
 };

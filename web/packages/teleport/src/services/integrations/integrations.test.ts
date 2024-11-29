@@ -99,7 +99,8 @@ test('fetch integration list: fetchIntegrations()', async () => {
         name: 'github-my-org',
         resourceType: 'integration',
         spec: {
-          organization: 'my-org',
+          roleArn: undefined,
+          audience: undefined,
         },
         details: 'GitHub Organization "my-org"',
         statusCode: IntegrationStatusCode.Running,
