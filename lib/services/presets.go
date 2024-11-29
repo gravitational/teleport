@@ -751,6 +751,21 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 	return map[string]*types.AccessReviewConditions{}
 }
 
+func defaultAllowAccountAssignments(enterprise bool) map[string][]types.IdentityCenterAccountAssignment {
+	if enterprise {
+		return map[string][]types.IdentityCenterAccountAssignment{
+			teleport.PresetAccessRoleName: {
+				{
+					Account:       types.Wildcard,
+					PermissionSet: types.Wildcard,
+				},
+			},
+		}
+	}
+
+	return nil
+}
+
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
 func AddRoleDefaults(role types.Role) (types.Role, error) {
@@ -864,6 +879,14 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		arc := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
 		if arc != nil {
 			role.SetAccessReviewConditions(types.Allow, *arc)
+			changed = true
+		}
+	}
+
+	if len(role.GetIdentityCenterAccountAssignments(types.Allow)) == 0 {
+		assignments := defaultAllowAccountAssignments(enterprise)[role.GetName()]
+		if assignments != nil {
+			role.SetIdentityCenterAccountAssignments(types.Allow, assignments)
 			changed = true
 		}
 	}
