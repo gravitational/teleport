@@ -83,6 +83,12 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
+}
+
 // ErrNoProfile is returned by the client store when a specific profile is not found.
 var ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
 
