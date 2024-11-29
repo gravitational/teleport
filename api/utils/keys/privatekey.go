@@ -271,12 +271,12 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	marshalledSSHPub, err := os.ReadFile(sshPubFile)
+	marshaledSSHPub, err := os.ReadFile(sshPubFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshalledSSHPub, customPrompt)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, customPrompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,14 +284,14 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshalledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
 	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify that the private key's public key matches the expected public key.
-	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshalledSSHPub) {
+	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshaledSSHPub) {
 		return nil, trace.CompareFailed("the given private and public keys do not form a valid keypair")
 	}
 
