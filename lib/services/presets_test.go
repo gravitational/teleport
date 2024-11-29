@@ -205,6 +205,94 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "access (account assignments set on enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						DatabaseServiceLabels: defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseRoles,
+
+						AccountAssignments: []types.IdentityCenterAccountAssignment{
+							{
+								Account:       types.Wildcard,
+								PermissionSet: types.Wildcard,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "access (account assignments not set on OSS)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
+					},
+				},
+			},
+			enterprise:  false,
+			expectedErr: noChange,
+		},
+		{
+			name: "access (account assignments unchanged if already set)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AccountAssignments: []types.IdentityCenterAccountAssignment{
+							{
+								Account:       "Some Account",
+								PermissionSet: "Some PermissionSet",
+							},
+						},
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						DatabaseServiceLabels: defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseRoles,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
+		},
+		{
 			name: "auditor (default rules match preset rules)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
