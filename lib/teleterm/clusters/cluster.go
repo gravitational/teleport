@@ -100,6 +100,8 @@ func (c *Cluster) Connected() bool {
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.ClientI, clusterIDCache *clusteridcache.Cache) (*ClusterWithDetails, error) {
 	group, groupCtx := errgroup.WithContext(ctx)
+	const groupLimit = 8 // Arbitrary. No need to increase for every new goroutine.
+	group.SetLimit(groupLimit)
 
 	var webConfig *webclient.WebConfig
 	group.Go(func() error {
