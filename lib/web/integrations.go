@@ -343,7 +343,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	rules, err := collectAutoDiscoverRules(r.Context(), ig.GetName(), startKey, resourceType, clt.DiscoveryConfigClient())
+	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, clt.DiscoveryConfigClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,11 +351,11 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 	return rules, nil
 }
 
-// collectAutoDiscoverRules will iterate over all DiscoveryConfigs's Matchers and collect the Discover Rules that exist in them for the given integration.
+// collectAutoDiscoveryRules will iterate over all DiscoveryConfigs's Matchers and collect the Discovery Rules that exist in them for the given integration.
 // It can also be filtered by Matcher Type (eg ec2, rds, eks)
-// A Discover Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
+// A Discovery Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
 // Eg if a DiscoveryConfig's Matcher has two regions, then it will output two (almost equal) Rules, one for each Region.
-func collectAutoDiscoverRules(
+func collectAutoDiscoveryRules(
 	ctx context.Context,
 	integrationName string,
 	nextPage string,

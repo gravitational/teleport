@@ -215,7 +215,7 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	})
 }
 
-func TestCollectAutoDiscoverRules(t *testing.T) {
+func TestCollectAutoDiscoveryRules(t *testing.T) {
 	ctx := context.Background()
 	integrationName := "my-integration"
 
@@ -224,7 +224,7 @@ func TestCollectAutoDiscoverRules(t *testing.T) {
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
-		gotRules, err := collectAutoDiscoverRules(ctx, integrationName, "", "", clt)
+		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
 		require.NoError(t, err)
 		expectedRules := ui.IntegrationDiscoveryRules{}
 		require.Equal(t, expectedRules, gotRules)
@@ -296,7 +296,7 @@ func TestCollectAutoDiscoverRules(t *testing.T) {
 			},
 		}
 
-		got, err := collectAutoDiscoverRules(ctx, integrationName, "", "", clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
