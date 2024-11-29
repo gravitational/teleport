@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -4292,19 +4293,6 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
-}
-
-// TrustedDeviceRequirement indicates whether access may be hindered by the lack
-// of a trusted device.
-enum TrustedDeviceRequirement {
-  // Device requirement not determined.
-  // Does not mean that a device is not required, only that the necessary data
-  // was not considered.
-  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
-  // Trusted device not required.
-  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
-  // Trusted device required by either cluster mode or user roles.
-  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
