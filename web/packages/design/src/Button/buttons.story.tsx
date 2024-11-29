@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, {
+  ComponentPropsWithoutRef,
+  ComponentPropsWithRef,
+  PropsWithChildren,
+} from 'react';
 
 import styled from 'styled-components';
 
@@ -38,6 +42,7 @@ import {
   ButtonText,
   ButtonProps,
   ButtonFill,
+  ButtonSize,
 } from '.';
 
 export default {
@@ -247,4 +252,110 @@ const menuItemsForButtonWithMenu = (
       Lorem ipsum dolor sit amet
     </MenuItem>
   </>
+);
+
+const RegularWrapper = <Element extends React.ElementType = 'button'>(
+  props: PropsWithChildren<{
+    size?: ButtonSize;
+  }> &
+    ComponentPropsWithRef<typeof ButtonBorder<Element>>
+) => {
+  const { size, children, ...buttonProps } = props;
+
+  return (
+    <Flex>
+      <ButtonBorder size={size} {...buttonProps}>
+        {children}
+      </ButtonBorder>
+    </Flex>
+  );
+};
+
+const ForwardedAsWrapper = <Element extends React.ElementType = 'button'>(
+  props: PropsWithChildren<{
+    size?: ButtonSize;
+    forwardedAs?: Element;
+  }> &
+    ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
+) => {
+  const { size, children, ...buttonProps } = props;
+
+  return (
+    <Flex>
+      <ButtonBorder
+        css={`
+          border-top-bottom-radius: 0;
+        `}
+        size={size}
+        {...buttonProps}
+      >
+        {children}
+      </ButtonBorder>
+    </Flex>
+  );
+};
+
+const invalidOnClickHandler = (foo: string) => {
+  return typeof foo;
+};
+
+export const TypeTest = () => (
+  <Flex flexDirection="column" alignItems="flex-start" gap={4}>
+    <ButtonBorder
+      // @ts-expect-error href does not exist on <button>.
+      href="https://example.com"
+    >
+      Button
+    </ButtonBorder>
+
+    <div>
+      <p>This element should be a link but look like a button.</p>
+      <ButtonBorder
+        as="a"
+        href="https://example.com"
+        // @ts-expect-error onClick should accept a mouse event as first arg.
+        onClick={invalidOnClickHandler}
+      >
+        Link
+      </ButtonBorder>
+    </div>
+
+    <RegularWrapper
+      // @ts-expect-error href does not exist on <button>.
+      href="https://example.com"
+    >
+      Button
+    </RegularWrapper>
+
+    <div>
+      <p>This element should be a link but look like a button.</p>
+      <RegularWrapper
+        as="a"
+        href="https://example.com"
+        // @ts-expect-error onClick should accept a mouse event as first arg.
+        onClick={invalidOnClickHandler}
+      >
+        Link
+      </RegularWrapper>
+    </div>
+
+    <ForwardedAsWrapper
+      // @ts-expect-error href does not exist on <button>.
+      href="https://example.com"
+    >
+      Button
+    </ForwardedAsWrapper>
+
+    <div>
+      <p>This element should be a link but look like a button.</p>
+      <ForwardedAsWrapper
+        forwardedAs="a"
+        href="https://example.com"
+        // @ts-expect-error onClick should accept a mouse event as first arg.
+        onClick={invalidOnClickHandler}
+      >
+        Link
+      </ForwardedAsWrapper>
+    </div>
+  </Flex>
 );
