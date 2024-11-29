@@ -474,6 +474,38 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	return db
 }
 
+// MakeAgentServer creates SSH agent Service
+// It receives the Proxy Address, a Token (to join the cluster).
+func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
+	// Proxy uses self-signed certificates in tests.
+	lib.SetInsecureDevMode(true)
+
+	cfg.Hostname = "localhost"
+	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.SetAuthServerAddress(proxyAddr)
+	cfg.SetToken(token)
+	cfg.SSH.Enabled = true
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.Databases.Enabled = false
+	cfg.Log = utils.NewLoggerForTests()
+
+	agent, err := service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, agent.Start())
+
+	t.Cleanup(func() {
+		assert.NoError(t, agent.Close())
+	})
+
+	_, err = agent.WaitForEventTimeout(30*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "agent server didn't start after 10s")
+
+	return agent
+}
+
 // MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
 func MustCreateListener(t *testing.T) net.Listener {
 	t.Helper()
