@@ -46,6 +46,8 @@ const (
 	// Kubernetes should support bound tokens on 1.20 and 1.21,
 	// but we can have an apiserver running 1.21 and kubelets running 1.19.
 	kubernetesBoundTokenSupportVersion = "1.22.0"
+	// kubernetesAudience is the Kubernetes default audience put on SA tokens if we don't specify one.
+	kubernetesAudience = "https://kubernetes.default.svc"
 )
 
 type ValidationResult struct {
@@ -110,7 +112,7 @@ func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
-func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ValidationResult, error) {
+func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName string) (*ValidationResult, error) {
 	client, err := v.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,6 +121,11 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Val
 	review := &v1.TokenReview{
 		Spec: v1.TokenReviewSpec{
 			Token: token,
+			// In-cluster used to only allow tokens with the kubernetes audience
+			// But people kept confusing it with JWKS and set the cluster name
+			// as the audience/. To avoid his common footgun we now allow tokens
+			// whose audience is the teleport cluster name.
+			Audiences: []string{kubernetesAudience, clusterName},
 		},
 	}
 	options := metav1.CreateOptions{}
