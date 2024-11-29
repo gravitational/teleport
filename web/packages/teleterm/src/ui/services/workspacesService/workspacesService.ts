@@ -335,16 +335,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       // If the problem persists (because, for example, the user still hasn't
       // connected the hardware key) show a notification and return early.
       if (cluster.profileStatusError) {
-        const notificationId = this.notificationsService.notifyError({
+        this.notificationsService.notifyError({
           title: 'Could not set cluster as active',
           description: cluster.profileStatusError,
-          action: {
-            content: 'Retry',
-            onClick: () => {
-              this.notificationsService.removeNotification(notificationId);
-              this.setActiveWorkspace(clusterUri);
-            },
-          },
         });
         return { isAtDesiredWorkspace: false };
       }
@@ -588,6 +581,7 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
