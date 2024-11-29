@@ -20,10 +20,12 @@ package version
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades/cache"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
-	"github.com/gravitational/trace"
 )
 
 type proxyVersionClient struct {

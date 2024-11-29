@@ -20,9 +20,9 @@ package version
 
 import (
 	"context"
-	"github.com/gravitational/trace"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 

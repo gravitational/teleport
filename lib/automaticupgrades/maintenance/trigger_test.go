@@ -2,9 +2,10 @@ package maintenance
 
 import (
 	"context"
+	"testing"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // checkTraceError is a test helper that converts trace.IsXXXError into a require.ErrorAssertionFunc

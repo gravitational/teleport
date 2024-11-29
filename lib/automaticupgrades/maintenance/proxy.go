@@ -20,11 +20,13 @@ package maintenance
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades/cache"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
-	"github.com/gravitational/trace"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type proxyMaintenanceClient struct {

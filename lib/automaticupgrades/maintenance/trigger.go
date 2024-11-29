@@ -20,9 +20,9 @@ package maintenance
 
 import (
 	"context"
-	"github.com/gravitational/trace"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
