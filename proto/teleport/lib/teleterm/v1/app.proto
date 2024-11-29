@@ -79,6 +79,11 @@ message App {
   string fqdn = 10;
   // aws_roles is a list of AWS IAM roles for the application representing AWS console.
   repeated AWSRole aws_roles = 11;
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange tcp_ports = 12;
 }
 
 // AwsRole describes AWS IAM role.
@@ -91,4 +96,16 @@ message AWSRole {
   string arn = 3;
   // AccountID is the AWS Account ID this role refers to.
   string account_id = 4;
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 port = 1;
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 end_port = 2;
 }

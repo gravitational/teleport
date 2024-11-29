@@ -134,6 +134,15 @@ export interface App {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11;
      */
     awsRoles: AWSRole[];
+    /**
+     * TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+     * Only applicable to TCP App Access.
+     * If this field is not empty, URI is expected to contain no port number and start with the tcp
+     * protocol.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12;
+     */
+    tcpPorts: PortRange[];
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -166,6 +175,29 @@ export interface AWSRole {
      */
     accountId: string;
 }
+/**
+ * PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+ * PortRange can be used to describe a single port in which case the Port field is the port and the
+ * EndPort field is 0.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PortRange
+ */
+export interface PortRange {
+    /**
+     * Port describes the start of the range. It must be between 1 and 65535.
+     *
+     * @generated from protobuf field: uint32 port = 1;
+     */
+    port: number;
+    /**
+     * EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+     * be greater than Port when describing a port range. When omitted or set to zero, it signifies
+     * that the port range defines a single port.
+     *
+     * @generated from protobuf field: uint32 end_port = 2;
+     */
+    endPort: number;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
     constructor() {
@@ -180,7 +212,8 @@ class App$Type extends MessageType<App> {
             { no: 8, name: "saml_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole }
+            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole },
+            { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -196,6 +229,7 @@ class App$Type extends MessageType<App> {
         message.labels = [];
         message.fqdn = "";
         message.awsRoles = [];
+        message.tcpPorts = [];
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -237,6 +271,9 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles */ 11:
                     message.awsRoles.push(AWSRole.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 12:
+                    message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -283,6 +320,9 @@ class App$Type extends MessageType<App> {
         /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11; */
         for (let i = 0; i < message.awsRoles.length; i++)
             AWSRole.internalBinaryWrite(message.awsRoles[i], writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12; */
+        for (let i = 0; i < message.tcpPorts.length; i++)
+            PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -364,3 +404,58 @@ class AWSRole$Type extends MessageType<AWSRole> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AWSRole
  */
 export const AWSRole = new AWSRole$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PortRange$Type extends MessageType<PortRange> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PortRange", [
+            { no: 1, name: "port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "end_port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PortRange>): PortRange {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.port = 0;
+        message.endPort = 0;
+        if (value !== undefined)
+            reflectionMergePartial<PortRange>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PortRange): PortRange {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 port */ 1:
+                    message.port = reader.uint32();
+                    break;
+                case /* uint32 end_port */ 2:
+                    message.endPort = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PortRange, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 port = 1; */
+        if (message.port !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.port);
+        /* uint32 end_port = 2; */
+        if (message.endPort !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.endPort);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PortRange
+ */
+export const PortRange = new PortRange$Type();
