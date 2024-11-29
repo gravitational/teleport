@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Role } from 'teleport/services/resources';
+import {
+  KubernetesResource,
+  ResourceKind,
+  Role,
+  Rule,
+} from 'teleport/services/resources';
 
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 
@@ -25,6 +30,7 @@ import { Labels } from 'teleport/services/resources';
 import {
   labelsModelToLabels,
   labelsToModel,
+  newAccessSpec,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
@@ -37,6 +43,7 @@ const minimalRole = () =>
 const minimalRoleModel = (): RoleEditorModel => ({
   metadata: { name: 'foobar' },
   accessSpecs: [],
+  rules: [],
   requiresReset: false,
 });
 
@@ -211,88 +218,217 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
 });
 
 describe('roleToRoleEditorModel', () => {
-  it('detects unknown fields', () => {
-    const minRole = minimalRole();
-    const roleModelWithReset: RoleEditorModel = {
-      ...minimalRoleModel(),
-      requiresReset: true,
-    };
+  const minRole = minimalRole();
+  const roleModelWithReset: RoleEditorModel = {
+    ...minimalRoleModel(),
+    requiresReset: true,
+  };
 
-    expect(roleToRoleEditorModel(minRole).requiresReset).toEqual(false);
+  test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
+    {
+      name: 'unknown fields in Role',
+      role: { ...minRole, unknownField: 123 } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({ ...minRole, unknownField: 123 } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in metadata',
+      role: {
         ...minRole,
         metadata: { name: 'foobar', unknownField: 123 },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec',
+      role: {
         ...minRole,
         spec: { ...minRole.spec, unknownField: 123 },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.allow',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           allow: { ...minRole.spec.allow, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'job', unknownField: 123 } as KubernetesResource,
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newAccessSpec('kube_cluster'),
+            resources: [expect.any(Object)],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unsupported resource kind in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'illegal' } as unknown as KubernetesResource,
+              { kind: 'job' },
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newAccessSpec('kube_cluster'),
+            resources: [
+              expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
+            ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unsupported verb in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              {
+                kind: '*',
+                verbs: ['illegal', 'get'],
+              } as unknown as KubernetesResource,
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newAccessSpec('kube_cluster'),
+            resources: [
+              expect.objectContaining({
+                verbs: [{ value: 'get', label: 'get' }],
+              }),
+            ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unknown fields in Rule',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            rules: [{ unknownField: 123 } as Rule],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        rules: [expect.any(Object)],
+      },
+    },
+
+    {
+      name: 'unsupported resource kind in Rule',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            rules: [{ resources: ['illegal', 'node'] } as unknown as Rule],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        rules: [
+          expect.objectContaining({
+            resources: [{ value: 'node', label: 'node' }],
+          }),
+        ],
+      },
+    },
+
+    {
+      name: 'unsupported verb in Rule',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            rules: [{ verbs: ['illegal', 'create'] } as unknown as Rule],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        rules: [
+          expect.objectContaining({
+            verbs: [{ value: 'create', label: 'create' }],
+          }),
+        ],
+      },
+    },
+
+    {
+      name: 'unknown fields in spec.deny',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           deny: { ...minRole.spec.deny, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          deny: { ...minRole.spec.deny, unknownField: 123 },
-        },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           options: { ...minRole.spec.options, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            idp: { saml: { enabled: true }, unknownField: 123 },
-          },
-        },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options.idp.saml',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
@@ -301,11 +437,12 @@ describe('roleToRoleEditorModel', () => {
             idp: { saml: { enabled: true, unknownField: 123 } },
           },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options.record_session',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
@@ -317,9 +454,14 @@ describe('roleToRoleEditorModel', () => {
             },
           },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-  });
+      } as Role,
+    },
+  ])(
+    'requires reset because of $name',
+    ({ role, model = roleModelWithReset }) => {
+      expect(roleToRoleEditorModel(role)).toEqual(model);
+    }
+  );
 
   test('version change requires reset', () => {
     expect(roleToRoleEditorModel({ ...minimalRole(), version: 'v1' })).toEqual({
@@ -471,6 +613,46 @@ describe('roleToRoleEditorModel', () => {
   });
 });
 
+it('creates a rule model', () => {
+  expect(
+    roleToRoleEditorModel({
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          rules: [
+            {
+              resources: [ResourceKind.User, ResourceKind.DatabaseService],
+              verbs: ['read', 'list'],
+            },
+            { resources: [ResourceKind.Lock], verbs: ['create'] },
+          ],
+        },
+      },
+    })
+  ).toEqual({
+    ...minimalRoleModel(),
+    rules: [
+      {
+        id: expect.any(String),
+        resources: [
+          { label: 'user', value: 'user' },
+          { label: 'db_service', value: 'db_service' },
+        ],
+        verbs: [
+          { label: 'read', value: 'read' },
+          { label: 'list', value: 'list' },
+        ],
+      },
+      {
+        id: expect.any(String),
+        resources: [{ label: 'lock', value: 'lock' }],
+        verbs: [{ label: 'create', value: 'create' }],
+      },
+    ],
+  } as RoleEditorModel);
+});
+
 test('labelsToModel', () => {
   expect(labelsToModel({ foo: 'bar', doubleFoo: ['bar1', 'bar2'] })).toEqual([
     { name: 'foo', value: 'bar' },
@@ -557,6 +739,43 @@ describe('roleEditorModelToRole', () => {
               namespace: '',
               verbs: [],
             },
+          ],
+        },
+      },
+    } as Role);
+  });
+
+  it('converts a rule model', () => {
+    expect(
+      roleEditorModelToRole({
+        ...minimalRoleModel(),
+        rules: [
+          {
+            id: 'dummy-id-1',
+            resources: [
+              { label: 'user', value: ResourceKind.User },
+              { label: 'db_service', value: ResourceKind.DatabaseService },
+            ],
+            verbs: [
+              { label: 'read', value: 'read' },
+              { label: 'list', value: 'list' },
+            ],
+          },
+          {
+            id: 'dummy-id-2',
+            resources: [{ label: 'lock', value: ResourceKind.Lock }],
+            verbs: [{ label: 'create', value: 'create' }],
+          },
+        ],
+      })
+    ).toEqual({
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          rules: [
+            { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
+            { resources: ['lock'], verbs: ['create'] },
           ],
         },
       },

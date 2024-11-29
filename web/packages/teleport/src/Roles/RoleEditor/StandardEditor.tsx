@@ -69,6 +69,10 @@ import {
   AppAccessSpec,
   DatabaseAccessSpec,
   WindowsDesktopAccessSpec,
+  RuleModel,
+  resourceKindOptions,
+  verbOptions,
+  newRuleModel,
 } from './standardmodel';
 import {
   validateRoleEditorModel,
@@ -80,6 +84,7 @@ import {
   AppSpecValidationResult,
   DatabaseSpecValidationResult,
   WindowsDesktopSpecValidationResult,
+  AdminRuleValidationResult,
 } from './validation';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -188,6 +193,13 @@ export const StandardEditor = ({
     });
   }
 
+  function setRules(rules: RuleModel[]) {
+    handleChange({
+      ...standardEditorModel.roleModel,
+      rules,
+    });
+  }
+
   return (
     <Validation>
       {({ validator }) => (
@@ -227,6 +239,11 @@ export const StandardEditor = ({
                     key: StandardEditorTab.AdminRules,
                     title: 'Admin Rules',
                     controls: adminRulesTabId,
+                    status:
+                      validator.state.validating &&
+                      validation.rules.some(s => !s.valid)
+                        ? validationErrorTabStatus
+                        : undefined,
                   },
                   {
                     key: StandardEditorTab.Options,
@@ -305,6 +322,20 @@ export const StandardEditor = ({
                   </MenuButton>
                 </Box>
               </Flex>
+            </div>
+            <div
+              id={adminRulesTabId}
+              style={{
+                display:
+                  currentTab === StandardEditorTab.AdminRules ? '' : 'none',
+              }}
+            >
+              <AdminRules
+                isProcessing={isProcessing}
+                value={roleModel.rules}
+                onChange={setRules}
+                validation={validation.rules}
+              />
             </div>
           </EditorWrapper>
           <EditorSaveCancelButton
@@ -893,6 +924,75 @@ export function WindowsDesktopAccessSpecSection({
         onChange={logins => onChange?.({ ...value, logins })}
       />
     </>
+  );
+}
+
+export function AdminRules({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+}: SectionProps<RuleModel[], AdminRuleValidationResult[]>) {
+  function addRule() {
+    onChange?.([...value, newRuleModel()]);
+  }
+  function setRule(rule: RuleModel) {
+    onChange?.(value.map(r => (r.id === rule.id ? rule : r)));
+  }
+  return (
+    <Flex flexDirection="column" gap={3}>
+      {value.map((rule, i) => (
+        <AdminRule
+          key={rule.id}
+          isProcessing={isProcessing}
+          value={rule}
+          onChange={setRule}
+          validation={validation[i]}
+        />
+      ))}
+      <ButtonSecondary alignSelf="start" onClick={addRule}>
+        <Icon.Plus size="small" mr={2} />
+        Add New
+      </ButtonSecondary>
+    </Flex>
+  );
+}
+
+function AdminRule({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+}: SectionProps<RuleModel, AdminRuleValidationResult>) {
+  const { resources, verbs } = value;
+  const theme = useTheme();
+  return (
+    <Box
+      border={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderRadius={3}
+      p={3}
+    >
+      <FieldSelect
+        isMulti
+        label="Resources"
+        isDisabled={isProcessing}
+        options={resourceKindOptions}
+        value={resources}
+        onChange={r => onChange?.({ ...value, resources: r })}
+        rule={precomputed(validation.fields.resources)}
+      />
+      <FieldSelect
+        isMulti
+        label="Permissions"
+        isDisabled={isProcessing}
+        options={verbOptions}
+        value={verbs}
+        onChange={v => onChange?.({ ...value, verbs: v })}
+        rule={precomputed(validation.fields.verbs)}
+        mb={0}
+      />
+    </Box>
   );
 }
 
