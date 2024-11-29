@@ -20,6 +20,7 @@ package log
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -93,6 +94,31 @@ type SlogTextHandlerConfig struct {
 	// ReplaceAttr is called to rewrite each non-group attribute before
 	// it is logged.
 	ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
+}
+
+func CompactErrors(groups []string, a slog.Attr) slog.Attr {
+	if err, ok := a.Value.Any().(error); ok {
+		var traceErr trace.Error
+		if errors.As(err, &traceErr) {
+			return slog.Attr{Key: a.Key, Value: slog.StringValue(traceErr.CompactUserMessage())}
+		}
+		return slog.Attr{Key: a.Key, Value: slog.StringValue(err.Error())}
+	}
+	return a
+}
+
+func CompactErrorsWithStackTrace(groups []string, a slog.Attr) slog.Attr {
+	if err, ok := a.Value.Any().(error); ok {
+		var traceErr trace.Error
+		if errors.As(err, &traceErr) {
+			return slog.Group("",
+				a.Key, traceErr.CompactUserMessage(), // display single-lien error
+				a.Key+"_trace", traceErr.StackTraceReport(), // enrich with stacktrace
+			)
+		}
+		return slog.Attr{Key: a.Key, Value: slog.StringValue(err.Error())}
+	}
+	return a
 }
 
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
@@ -204,7 +230,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			buf = s.appendAttr(buf, ga)
 		}
 		if a.Key != "" {
-			s.groupPrefix = s.groupPrefix[:len(s.groupPrefix)-len(a.Key)-1 /* for keyComponentSep */]
+			s.groupPrefix = s.groupPrefix[:len(s.groupPrefix)-len(a.Key)-1 /* for keyComponentSep */ ]
 			if s.groups != nil {
 				s.groups = (s.groups)[:len(s.groups)-1]
 			}
@@ -490,6 +516,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 			AddSource: true,
 			Level:     cfg.Level,
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				a = cfg.ReplaceAttr(groups, a)
 				switch a.Key {
 				case teleport.ComponentKey:
 					if !withComponent {
