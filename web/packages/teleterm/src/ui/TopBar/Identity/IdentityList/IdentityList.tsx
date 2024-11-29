@@ -87,7 +87,7 @@ export function IdentityList(props: {
 function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
   let message: JSX.Element | undefined;
   switch (props.status) {
-    case 'enrolled': {
+    case 'enrolled':
       message = (
         <>
           <ShieldCheck color="success.main" size="small" mb="2px" />
@@ -95,8 +95,7 @@ function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
         </>
       );
       break;
-    }
-    case 'requires-enrollment': {
+    case 'requires-enrollment':
       message = (
         <>
           <ShieldWarning color="warning.main" size="small" mb="2px" />
@@ -111,7 +110,11 @@ function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
           </P3>
         </>
       );
-    }
+      break;
+    case 'none':
+      break;
+    default:
+      props.status satisfies never;
   }
 
   if (message) {
