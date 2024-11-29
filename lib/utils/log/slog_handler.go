@@ -107,13 +107,21 @@ func CompactErrors(groups []string, a slog.Attr) slog.Attr {
 	return a
 }
 
+func funcTraceOnly(traces trace.Traces) []string {
+	s := make([]string, len(traces))
+	for i, t := range traces {
+		s[i] = t.Func
+	}
+	return s
+}
+
 func CompactErrorsWithStackTrace(groups []string, a slog.Attr) slog.Attr {
 	if err, ok := a.Value.Any().(error); ok {
 		var traceErr trace.Error
 		if errors.As(err, &traceErr) {
 			return slog.Group("",
 				a.Key, traceErr.CompactUserMessage(), // display single-lien error
-				a.Key+"_trace", traceErr.StackTraceReport(), // enrich with stacktrace
+				a.Key+"_trace", funcTraceOnly(traceErr.StackTraceReport()), // enrich with stacktrace
 			)
 		}
 		return slog.Attr{Key: a.Key, Value: slog.StringValue(err.Error())}
