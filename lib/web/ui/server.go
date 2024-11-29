@@ -54,6 +54,8 @@ type Server struct {
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// GitHub contains metadata for GitHub proxy severs.
+	GitHub *GitHubServerMetadata `json:"github,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -65,6 +67,12 @@ type AWSMetadata struct {
 	VPCID       string `json:"vpcId"`
 	Integration string `json:"integration"`
 	SubnetID    string `json:"subnetId"`
+}
+
+// GitHubServerMetadata contains metadata for GitHub proxy severs.
+type GitHubServerMetadata struct {
+	Integration  string `json:"integration"`
+	Organization string `json:"organization"`
 }
 
 // MakeServer creates a server object for the web ui
@@ -98,6 +106,15 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 		}
 	}
 
+	if server.GetKind() == types.KindGitServer &&
+		server.GetSubKind() == types.SubKindGitHub {
+		if github := server.GetGitHub(); github != nil {
+			uiServer.GitHub = &GitHubServerMetadata{
+				Integration:  github.Integration,
+				Organization: github.Organization,
+			}
+		}
+	}
 	return uiServer
 }
 
