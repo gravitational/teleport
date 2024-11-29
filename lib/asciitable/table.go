@@ -188,9 +188,18 @@ func (t *Table) AsBuffer() *bytes.Buffer {
 			}
 			rowi = append(rowi, cell)
 		}
+		const cellMaxLength = 120
+		var formatStrings []string
+		for _, v := range rowi {
+			if str, ok := v.(string); ok && len(str) > cellMaxLength {
+				formatStrings = append(formatStrings, "%v")
+			} else {
+				formatStrings = append(formatStrings, "%v\t")
+			}
+		}
+		template := strings.Join(formatStrings, "")
 		fmt.Fprintf(writer, template+"\n", rowi...)
 	}
-
 	// Footnotes.
 	for label := range footnoteLabels {
 		fmt.Fprintln(writer)
