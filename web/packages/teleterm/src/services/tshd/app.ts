@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { App, Cluster } from 'teleterm/services/tshd/types';
+import { App, PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 /** Returns a URL that opens the web app in the browser. */
 export function getWebAppLaunchUrl({
@@ -108,3 +109,8 @@ export function getAppAddrWithProtocol(source: App): string {
 
   return addrWithProtocol;
 }
+
+export const formatPortRange = (portRange: PortRange): string =>
+  portRange.endPort === 0
+    ? portRange.port.toString()
+    : `${portRange.port}-${portRange.endPort}`;

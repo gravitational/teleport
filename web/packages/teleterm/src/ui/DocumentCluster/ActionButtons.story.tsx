@@ -81,6 +81,10 @@ function Buttons() {
           <TcpApp />
         </Box>
         <Box>
+          <Text>multi-port TCP app</Text>
+          <TcpMultiPortApp />
+        </Box>
+        <Box>
           <Text>Web app</Text>
           <HttpApp />
         </Box>
@@ -141,6 +145,22 @@ function TcpApp() {
     <ConnectAppActionButton
       app={makeApp({
         uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function TcpMultiPortApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        uri: `${testCluster.uri}/apps/bar`,
+        endpointUri: 'tcp://localhost',
+        tcpPorts: [
+          { port: 1337, endPort: 0 },
+          { port: 4242, endPort: 0 },
+          { port: 54221, endPort: 61879 },
+        ],
       })}
     />
   );
