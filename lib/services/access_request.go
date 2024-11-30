@@ -109,11 +109,11 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		}
 	}
 	if len(invalidClusters) > 0 {
-                // Multiple resources are requestable with the same or different cluster names.
-                // Prior to showing the error message, sort the list and remove duplicates so
-                // the same cluster name isn't repeated.
-                slices.Sort(invalidClusters)
-                invalidClusters = slices.Compact(invalidClusters)
+		// Multiple resources are requestable with the same or different cluster names.
+		// Prior to showing the error message, sort the list and remove duplicates so
+		// the same cluster name isn't repeated.
+		slices.Sort(invalidClusters)
+		invalidClusters = slices.Compact(invalidClusters)
 		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
 			strings.Join(invalidClusters, ", "))
 	}
