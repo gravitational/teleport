@@ -79,6 +79,10 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
+
+	// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+	// used to interact with a YubiKey private key.
+	SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -90,6 +94,10 @@ type FSKeyStore struct {
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If nil, a default CLI prompt is used.
+	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -157,6 +165,12 @@ func (fs *FSKeyStore) databaseCertPath(idx KeyIndex, dbname string) string {
 // kubeCertPath returns the TLS certificate path for the given KeyIndex and kube cluster name.
 func (fs *FSKeyStore) kubeCertPath(idx KeyIndex, kubename string) string {
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+}
+
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	fs.CustomHardwareKeyPrompt = prompt
 }
 
 // AddKey adds the given key to the store.
@@ -365,7 +379,7 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
+	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -705,3 +719,7 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 
 	return sshCerts, nil
 }
+
+// SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// Does nothing.
+func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}
