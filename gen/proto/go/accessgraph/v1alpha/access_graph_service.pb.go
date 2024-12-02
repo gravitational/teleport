@@ -1483,7 +1483,7 @@ func (*AzureSyncOperation) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{22}
 }
 
-// AzureEventsStreamResponse is a response from AzureEventStreamRequest
+// AzureEventsStreamResponse is a response from AzureEventsStream
 type AzureEventsStreamResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
