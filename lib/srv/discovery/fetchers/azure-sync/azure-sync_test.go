@@ -43,7 +43,6 @@ func (t testVmCli) ListVirtualMachines(ctx context.Context, scope string) ([]*ar
 	if t.returnErr {
 		return nil, fmt.Errorf("error")
 	}
-	fmt.Printf("CLIENT VMS: %v\n", t.vms)
 	return t.vms, nil
 }
 

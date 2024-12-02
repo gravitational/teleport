@@ -208,8 +208,8 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 
 	// Collect the error messages from the error channel
 	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		for {
 			err, ok := <-errsCh
