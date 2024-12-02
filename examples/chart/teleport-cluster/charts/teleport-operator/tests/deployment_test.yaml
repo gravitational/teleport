@@ -61,7 +61,7 @@ tests:
 
   - it: sets labels when specified
     values:
-      - ../.lint/deployment.yaml
+      - ../.lint/labels.yaml
     asserts:
       # Pod labels
       - equal:

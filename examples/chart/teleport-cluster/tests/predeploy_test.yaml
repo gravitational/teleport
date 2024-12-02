@@ -201,7 +201,7 @@ tests:
         jobPod:
           foo: bar
           baz: override-me
-      auth:
+      proxy:
         extraLabels:
           jobPod:
             baz: overridden
