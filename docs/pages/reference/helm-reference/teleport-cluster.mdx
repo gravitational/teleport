@@ -668,10 +668,10 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 `values.yaml` example:
 
   ```yaml
-    operator:
-      annotations:
-        deployment:
-          kubernetes.io/annotation: value
+  operator:
+    annotations:
+      deployment:
+        kubernetes.io/annotation: value
   ```
 
 ### `operator.annotations.pod`
@@ -687,10 +687,10 @@ Kubernetes annotations which should be applied to the `Pod` created by the chart
 `values.yaml` example:
 
   ```yaml
-    operator:
-      annotations:
-        pod:
-          kubernetes.io/annotation: value
+  operator:
+    annotations:
+      pod:
+        kubernetes.io/annotation: value
   ```
 
 ### `operator.annotations.serviceAccount`
@@ -706,10 +706,10 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 `values.yaml` example:
 
   ```yaml
-    operator:
-      annotations:
-        serviceAccount:
-          kubernetes.io/annotation: value
+  operator:
+    annotations:
+      serviceAccount:
+        kubernetes.io/annotation: value
   ```
 
 ### `operator.enabled`
@@ -728,7 +728,7 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
 
   ```yaml
   operator:
-   enabled: true
+    enabled: true
   ```
 
 ### `operator.image`
@@ -762,10 +762,10 @@ Kubernetes labels which should be applied to the `Deployment` created by the cha
 `values.yaml` example:
 
   ```yaml
-    operator:
-      labels:
-        deployment:
-          label: value
+  operator:
+    labels:
+      deployment:
+        label: value
   ```
 
 ### `operator.labels.pod`
@@ -781,10 +781,10 @@ Kubernetes labels which should be applied to the `Pod` created by the chart.
 `values.yaml` example:
 
   ```yaml
-    operator:
-      labels:
-        pod:
-          label: value
+  operator:
+    labels:
+      pod:
+        label: value
   ```
 
 ### `operator.resources`
