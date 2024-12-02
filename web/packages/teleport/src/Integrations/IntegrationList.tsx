@@ -358,6 +358,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Azure OIDC';
         icon = <IconContainer name="azure" />;
         break;
+      case IntegrationKind.GitHub:
+        formattedText = item.name;
+        icon = <IconContainer name="github" />;
+        break;
     }
   }
 

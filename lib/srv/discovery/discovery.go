@@ -377,6 +377,8 @@ type Server struct {
 
 	awsSyncStatus         awsSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
+	awsRDSResourcesStatus awsResourcesStatus
+	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
@@ -411,6 +413,9 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
 		awsSyncStatus:              awsSyncStatus{},
+		awsEC2ResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEC2),
+		awsRDSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherRDS),
+		awsEKSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEKS),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
