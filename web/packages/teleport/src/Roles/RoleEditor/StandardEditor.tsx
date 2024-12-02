@@ -119,7 +119,6 @@ export const StandardEditor = ({
     Options,
   }
 
-  const theme = useTheme();
   const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
   const idPrefix = useId();
   const overviewTabId = `${idPrefix}-overview`;
@@ -201,44 +200,33 @@ export const StandardEditor = ({
             <Box mb={3}>
               <SlideTabs
                 appearance="round"
+                hideStatusIconOnActiveTab
                 tabs={[
                   {
                     key: StandardEditorTab.Overview,
                     title: 'Overview',
                     controls: overviewTabId,
-                    statusIcon: validation.metadata.valid
+                    status: validation.metadata.valid
                       ? undefined
-                      : Icon.WarningCircle,
-                    statusIconColor:
-                      theme.colors.interactive.solid.danger.default,
-                    statusIconColorActive: 'transparent',
+                      : validationErrorTabStatus,
                   },
                   {
                     key: StandardEditorTab.Resources,
                     title: 'Resources',
                     controls: resourcesTabId,
-                    statusIcon: validation.accessSpecs.every(s => s.valid)
+                    status: validation.accessSpecs.every(s => s.valid)
                       ? undefined
-                      : Icon.WarningCircle,
-                    statusIconColor:
-                      theme.colors.interactive.solid.danger.default,
-                    statusIconColorActive: 'transparent',
+                      : validationErrorTabStatus,
                   },
                   {
                     key: StandardEditorTab.AdminRules,
                     title: 'Admin Rules',
                     controls: adminRulesTabId,
-                    statusIconColor:
-                      theme.colors.interactive.solid.danger.default,
-                    statusIconColorActive: 'transparent',
                   },
                   {
                     key: StandardEditorTab.Options,
                     title: 'Options',
                     controls: optionsTabId,
-                    statusIconColor:
-                      theme.colors.interactive.solid.danger.default,
-                    statusIconColorActive: 'transparent',
                   },
                 ]}
                 activeIndex={currentTab}
@@ -336,6 +324,11 @@ export type SectionProps<T, V> = {
   validation?: V;
   onChange?(value: T): void;
 };
+
+const validationErrorTabStatus = {
+  kind: 'danger',
+  ariaLabel: 'Invalid data',
+} as const;
 
 const MetadataSection = ({
   value,

@@ -47,16 +47,14 @@ export const EditorTabs = ({
         {
           key: 'standard',
           icon: Icon.ListAddCheck,
-          tooltipContent: standardLabel,
-          tooltipPosition: 'bottom',
+          tooltip: { content: standardLabel, position: 'bottom' },
           ariaLabel: standardLabel,
           controls: standardEditorId,
         },
         {
           key: 'yaml',
           icon: Icon.Code,
-          tooltipContent: yamlLabel,
-          tooltipPosition: 'bottom',
+          tooltip: { content: yamlLabel, position: 'bottom' },
           ariaLabel: yamlLabel,
           controls: yamlEditorId,
         },

@@ -148,7 +148,7 @@ test('invisible tabs still apply validation', async () => {
   expect(onSave).not.toHaveBeenCalled();
 
   // Switch back, make it valid.
-  await user.click(screen.getByRole('tab', { name: 'Overview' }));
+  await user.click(screen.getByRole('tab', { name: 'Invalid data Overview' }));
   await user.type(screen.getByLabelText('Role Name'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(onSave).toHaveBeenCalled();
