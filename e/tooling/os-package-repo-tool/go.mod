@@ -8,9 +8,9 @@ require (
 	github.com/gravitational/trace v1.4.0
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/seqsense/s3sync v1.10.0
-	github.com/stretchr/testify v1.9.0
-	golang.org/x/mod v0.21.0
-	golang.org/x/sync v0.8.0
+	github.com/stretchr/testify v1.10.0
+	golang.org/x/mod v0.22.0
+	golang.org/x/sync v0.9.0
 )
 
 require (
