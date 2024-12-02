@@ -58,7 +58,7 @@ export function UnifiedResourcesE() {
     ...requestCheckout
   } = useRequestCheckout({
     ctx,
-    selectedResource: 'resource',
+    isResourceRequest: true,
     addedResources,
     reset: clearAddedResources,
   });

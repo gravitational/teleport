@@ -24,11 +24,10 @@ type LoadingStatus = 'loading' | 'loaded';
 
 export function useRequestCheckout({
   ctx,
-  selectedResource,
+  isResourceRequest,
   addedResources,
   reset: clearAddedResources,
 }: Props) {
-  const isResourceRequest = selectedResource !== 'role';
   const { clusterId } = useStickyClusterId();
   const createAttempt = useAttempt('');
   const fetchResourceRequestRolesAttempt = useAttempt('');
@@ -132,7 +131,7 @@ export function useRequestCheckout({
     // in the back.
     let roles: string[];
     let resourceIds: ResourceId[];
-    if (selectedResource == 'role') {
+    if (!isResourceRequest) {
       roles = pendingAccessRequests.map(item => item.name);
     } else {
       resourceIds = getResourceIdsForRequests();
@@ -253,7 +252,7 @@ export function useRequestCheckout({
 
 type Props = {
   ctx: Ctx;
-  selectedResource: NewRequestState['selectedResource'];
+  isResourceRequest: boolean;
   addedResources: NewRequestState['addedResources'];
   reset: NewRequestState['clearAddedResources'];
 };

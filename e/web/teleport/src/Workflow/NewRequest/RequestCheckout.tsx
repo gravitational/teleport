@@ -6,7 +6,6 @@ import {
   RequestCheckoutWithSlider as SharedRequestCheckout,
   RequestCheckoutProps as SharedRequestCheckoutProps,
   ResourceMap,
-  RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 
 import cfg from 'e-teleport/config';
@@ -28,16 +27,15 @@ export const RequestCheckout = forwardRef<
     | 'isResourceRequest'
     | 'updateNamespacesForKubeCluster'
   > & {
-    selectedResource: RequestableResourceKind;
     addedResources: ResourceMap;
     transitionState: TransitionStatus;
   }
 >((props, ref) => {
-  const { selectedResource, addedResources, reset } = props;
+  const { isResourceRequest, addedResources, reset } = props;
   const ctx = useTeleportE();
   const state = useRequestCheckout({
     ctx,
-    selectedResource,
+    isResourceRequest,
     addedResources,
     reset,
   });

@@ -62,9 +62,7 @@ beforeEach(() => {
 
   jest.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
 
-  jest
-    .spyOn(Main, 'useContentMinWidthContext')
-    .mockReturnValue({ setEnforceMinWidth: () => null });
+  jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
   // Overwrites the IntersectionObserver with a mock so that the `useInfiniteScroll` hook always calls the fetching function.
   // eslint-disable-next-line jest/prefer-spy-on
   global.IntersectionObserver = jest.fn(callback => {
@@ -127,7 +125,7 @@ test('add and remove a resource from table', async () => {
   // Initial render is a resource table so we select roles
   await selectEvent.select(
     within(screen.getByTestId('resource-selector')).getByRole('combobox'),
-    'roles'
+    'Roles'
   );
 
   await screen.findByText('Proceed to Request');
@@ -151,7 +149,7 @@ test('add and remove a resource from table', async () => {
   expect(screen.getByText(/proceed to request/i)).toBeEnabled();
 
   // Add another one.
-  rows = screen.getAllByText(/request access/i);
+  rows = screen.getAllByText(/add to request/i);
   await userEvent.click(rows[0]);
   checkoutFooter = screen.getByTestId('checkout-footer');
   expect(checkoutFooter).toHaveTextContent(/2/);

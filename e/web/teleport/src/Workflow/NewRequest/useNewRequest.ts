@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { FetchStatus, SortType, Page } from 'design/DataTable/types';
+import { SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
-import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
@@ -15,6 +14,7 @@ import {
 } from 'shared/components/AccessRequests/NewRequest';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import { KubeResource } from 'teleport/services/kube';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import Ctx from 'e-teleport/teleportContextE';
 
@@ -24,24 +24,20 @@ import {
   parseResourceIdUri,
 } from './kube';
 
-import type {
-  ResourceLabel,
-  ResourceFilter,
-  ResourcesResponse,
-  UnifiedResource,
-} from 'teleport/services/agents';
+import type { ResourceFilter } from 'teleport/services/agents';
 
-const pageSize = 10;
+export type AccessRequestKind = 'role' | 'resource';
 
 export function useNewRequest(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const { attempt, setAttempt, handleError } = useAttempt(
-    isLeafCluster ? 'processing' : ''
-  );
   const { attempt: dryRunAttempt, setAttempt: setDryRunAttempt } =
     useAttempt('processing');
-  const [selectedResource, setSelectedResource] =
-    useState<RequestableResourceKind>(isLeafCluster ? 'node' : 'role');
+  // Role-based access requests are only allowed in root cluster.
+  const accessRequestKinds: AccessRequestKind[] = isLeafCluster
+    ? ['resource']
+    : ['role', 'resource'];
+  const [selectedAccessRequestKind, setSelectedAccessRequestKind] =
+    useState<AccessRequestKind>('resource');
   const {
     attempt: userGroupFetchAttempt,
     setAttempt: setUserGroupFetchAttempt,
@@ -49,10 +45,6 @@ export function useNewRequest(ctx: Ctx) {
   const [appsGrantedByUserGroup, setAppsGrantedByUserGroup] = useState<
     string[]
   >([]);
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [fetchedData, setFetchedData] = useState<
-    ResourcesResponse<UnifiedResource>
-  >(getEmptyFetchedDataState());
   const [resourceRequestsDisabled, setResourceRequestsDisabled] =
     useState(false);
 
@@ -117,46 +109,41 @@ export function useNewRequest(ctx: Ctx) {
     };
   }, [clusterId]);
 
-  const addAllFetchAttempt = useAttempt('');
-
-  const [page, setPage] = useState<Page>({ keys: [], index: 0 });
   const [agentFilter, setAgentFilter] = useState<ResourceFilter>({
     searchAsRoles: 'yes',
-    sort: getDefaultSort(selectedResource),
+    sort: getDefaultSort(),
   });
 
   const [addedResources, setAddedResources] = useState<ResourceMap>(
     getEmptyResourceState()
   );
 
-  const [usage, setUsage] = useState<{
-    limit: number;
-    used: number;
-  } | null>(null);
+  const [fetchUsageAttempt, fetchUsage] = useAsync(
+    useCallback(async () => {
+      if (cfg.entitlements.AccessRequests.limit === 0) {
+        // there are no limits
+        return;
+      }
 
-  function fetchUsage() {
-    if (cfg.entitlements.AccessRequests.limit === 0) {
-      // there are no limits
-      return;
+      if (!ctx.storeUser.getBillingAccess().list) {
+        return;
+      }
+
+      const { accessRequestUsage } =
+        await ctx.cloudService.fetchNonBillableSummaryInformation();
+      //  todo (michellescripts) we do have the option to not fetch the limit, as it's present on the entitlement
+      return {
+        limit: accessRequestUsage.monthlyLimit,
+        used: accessRequestUsage.monthlyUsed,
+      };
+    }, [ctx.cloudService, ctx.storeUser])
+  );
+
+  useEffect(() => {
+    if (fetchUsageAttempt.status === '') {
+      void fetchUsage();
     }
-
-    if (!ctx.storeUser.getBillingAccess().list) {
-      return;
-    }
-
-    ctx.cloudService
-      .fetchNonBillableSummaryInformation()
-      .then(info => {
-        //  todo (michellescripts) we do have the option to not fetch the limit, as it's present on the entitlement
-        setUsage({
-          limit: info.accessRequestUsage.monthlyLimit,
-          used: info.accessRequestUsage.monthlyUsed,
-        });
-      })
-      .catch(handleError);
-  }
-
-  useEffect(fetchUsage, []);
+  }, [fetchUsage, fetchUsageAttempt.status]);
 
   const {
     fetch: unifiedFetch,
@@ -166,42 +153,25 @@ export function useNewRequest(ctx: Ctx) {
   } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        try {
-          const response = await ctx.resourceService.fetchUnifiedResources(
-            clusterId,
-            {
-              search: agentFilter.search,
-              query: agentFilter.query,
-              sort: agentFilter.sort,
-              kinds: agentFilter.kinds,
-              searchAsRoles: 'yes',
-              limit: paginationParams.limit,
-              startKey: paginationParams.startKey,
-            },
-            signal
-          );
+        const response = await ctx.resourceService.fetchUnifiedResources(
+          clusterId,
+          {
+            search: agentFilter.search,
+            query: agentFilter.query,
+            sort: agentFilter.sort,
+            kinds: agentFilter.kinds,
+            searchAsRoles: 'yes',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
+          signal
+        );
 
-          return {
-            startKey: response.startKey,
-            agents: response.agents,
-            totalCount: response.agents.length,
-          };
-        } catch (err) {
-          // unified resources are not implemented on the cluster. We ignore
-          // the error because the view is going to change anyway. Throw everything else
-          if (
-            (err?.response?.status === 404 &&
-              err?.message.includes('unknown method ListUnifiedResources')) ||
-            err?.response?.status === 501
-          ) {
-            return {
-              startKey: '',
-              agents: [],
-              totalCount: 0,
-            };
-          }
-          throw err;
-        }
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
       },
       [clusterId, agentFilter, ctx.resourceService]
     ),
@@ -209,29 +179,24 @@ export function useNewRequest(ctx: Ctx) {
 
   useEffect(() => {
     clear();
-    // No need to fetch anything for roles, it
-    // already comes in a list from user context fetch.
-    // Also, we skip fetching resources for "resource" (unified resources)
-    // because we fetch it separately using the infinite scroll
-    if (selectedResource === 'role') return;
-    if (selectedResource !== 'resource') {
-      fetch();
-    }
-  }, [selectedResource, clear, clusterId, agentFilter]);
+  }, [selectedAccessRequestKind, clear, clusterId, agentFilter]);
 
   useEffect(() => {
     // We cannot mix root and leaf cluster resources.
     // So we reset all states.
-    setFetchedData(getEmptyFetchedDataState());
+    // TODO(gzdunek): This is not true. Backend API allows mixing root and leaf
+    // cluster resources (and it works in Teleport Connect).
+    // To make it work here, we need to store clusterId with each added resource,
+    // instead of relying on the "global" one that changes when the user switches the cluster.
     clearAddedResources();
     setAgentFilter({
       searchAsRoles: 'yes',
-      sort: getDefaultSort(selectedResource),
+      sort: getDefaultSort(),
     });
   }, [clusterId]);
 
   // when the selected user_group changes, we need to fetch the
-  // list of applications that the app grants access to to display
+  // list of applications that the app grants access to display
   // in the checkout process
   useEffect(() => {
     const selectedUserGroup =
@@ -264,63 +229,19 @@ export function useNewRequest(ctx: Ctx) {
     }
   }, [addedResources.user_group]);
 
-  // TODO (lisa): this is pretty hacky, maybe expose the ref for selector,
-  // but that might require touching multiple files adding to an already bloated PR.
-  useEffect(() => {
-    const clusterSelectorEl = document.querySelector(
-      '.teleport-cluster-selector'
-    );
-
-    if (!clusterSelectorEl) return;
-
-    if (selectedResource === 'role') {
-      // Mute cluster selector. Role based access requests can only
-      // be made from root cluster.
-      clusterSelectorEl.classList.add('mute');
-    } else {
-      // Unmute cluster selector since
-      // search based access requests can be made from root and leaf clusters
-      clusterSelectorEl.classList.remove('mute');
-    }
-
-    // Unset any global styling unmount.
-    return () => {
-      if (clusterSelectorEl) {
-        clusterSelectorEl.classList.remove('mute');
-      }
-    };
-  }, [selectedResource]);
-
-  function updateSort(sort: SortType) {
-    setAgentFilter({ ...agentFilter, sort });
-  }
-
   function clearAddedResources() {
     setAddedResources(getEmptyResourceState());
   }
 
-  const updateResourceKind = useCallback(
-    (kind: RequestableResourceKind) => {
-      setSelectedResource(kind);
+  const updateAccessRequestKind = useCallback(
+    (requestKind: AccessRequestKind) => {
+      setSelectedAccessRequestKind(requestKind);
       setAgentFilter({
         searchAsRoles: 'yes',
-        sort: getDefaultSort(kind),
-        search: '',
-        query: '',
+        sort: getDefaultSort(),
       });
-
-      // because the role table is client side, we don't need to render
-      // a loading indicator
-      if (kind === 'role') {
-        setAttempt({ status: 'success' });
-      } else {
-        // We set the attempt here to prevent a brief re-rendering of
-        // the user_group table with state data before useEffect kicks in.
-        // The unified resources table fetches on it's own with infinite scroll.
-        setAttempt({ status: 'processing' });
-      }
     },
-    [setAttempt]
+    []
   );
 
   /**
@@ -407,127 +328,6 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources(newResources);
   }
 
-  function getAgentsFetchCallback(
-    ctx: Ctx,
-    resourceType: RequestableResourceKind
-  ) {
-    if (resourceType === 'app') {
-      return ctx.appService.fetchApps;
-    }
-
-    if (resourceType === 'db') {
-      return ctx.databaseService.fetchDatabases;
-    }
-
-    if (resourceType === 'node') {
-      return ctx.nodeService.fetchNodes;
-    }
-
-    if (resourceType === 'kube_cluster') {
-      return ctx.kubeService.fetchKubernetes;
-    }
-
-    if (resourceType === 'windows_desktop') {
-      return ctx.desktopService.fetchDesktops;
-    }
-
-    if (resourceType === 'user_group') {
-      return ctx.userGroupService.fetchUserGroups;
-    }
-  }
-
-  function fetch() {
-    const cb = getAgentsFetchCallback(ctx, selectedResource);
-    setFetchStatus('loading');
-    setAttempt({ status: 'processing' });
-
-    cb(clusterId, {
-      ...agentFilter,
-      limit: pageSize,
-      searchAsRoles: 'yes',
-    })
-      .then(res => {
-        setFetchedData({
-          ...fetchedData,
-          agents: res.agents,
-          startKey: res.startKey,
-          totalCount: res.totalCount,
-        });
-        setPage({
-          keys: ['', res.startKey],
-          index: 0,
-        });
-        setAttempt({ status: 'success' });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setFetchedData(getEmptyFetchedDataState());
-        setFetchStatus('');
-      });
-  }
-
-  const fetchNext = () => {
-    const cb = getAgentsFetchCallback(ctx, selectedResource);
-    setFetchStatus('loading');
-
-    cb(clusterId, {
-      ...agentFilter,
-      limit: pageSize,
-      startKey: page.keys[page.index + 1],
-      searchAsRoles: 'yes',
-    })
-      .then(res => {
-        setFetchedData({
-          ...fetchedData,
-          agents: res.agents,
-          startKey: res.startKey,
-        });
-        setPage({
-          keys: [...page.keys, res.startKey],
-          index: page.index + 1,
-        });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setFetchStatus('');
-      });
-  };
-
-  const fetchPrev = () => {
-    const cb = getAgentsFetchCallback(ctx, selectedResource);
-    setFetchStatus('loading');
-
-    cb(clusterId, {
-      ...agentFilter,
-      limit: pageSize,
-      startKey: page.keys[page.index - 1],
-      searchAsRoles: 'yes',
-    })
-      .then(res => {
-        setFetchedData({
-          ...fetchedData,
-          agents: res.agents,
-          startKey: res.startKey,
-        });
-        setPage({
-          keys: page.keys.slice(0, -1),
-          index: page.index - 1,
-        });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setFetchStatus('');
-      });
-  };
-
-  function onAgentLabelClick(label: ResourceLabel) {
-    const query = makeAdvancedSearchQueryForLabel(label, agentFilter);
-    setAgentFilter({ ...agentFilter, search: '', query });
-  }
-
   const requestableRoles = ctx.storeUser.getRequestableRoles();
 
   /**
@@ -567,41 +367,28 @@ export function useNewRequest(ctx: Ctx) {
   const numAddedResources = getNumAddedResources(addedResources);
 
   return {
-    isLeafCluster,
     numAddedResources,
-    attempt,
-    agents: fetchedData.agents,
     agentFilter,
     setAgentFilter,
     clusterId,
     addSelectedResources,
-    updateSort,
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
-    fetchStatus,
-    onAgentLabelClick,
-    selectedResource,
     resources,
     unifiedFetch,
     unifiedFetchAttempt,
-    updateResourceKind,
+    accessRequestKinds,
+    selectedAccessRequestKind,
+    updateAccessRequestKind,
     dryRunAttempt,
     addedResources,
     addOrRemoveResource,
-    customSort: {
-      dir: agentFilter.sort?.dir,
-      fieldName: agentFilter.sort?.fieldName,
-      onSort: updateSort,
-    },
-    nextPage: page.keys[page.index + 1] ? fetchNext : null,
-    prevPage: page.index > 0 ? fetchPrev : null,
     clearAddedResources,
     setAddedResources,
     requestableRoles,
     resourceRequestsDisabled,
-    addAllFetchAttempt: addAllFetchAttempt.attempt,
     fetchUsage,
-    usage,
+    fetchUsageAttempt,
     ctx,
     updateNamespacesForKubeCluster,
   };
@@ -623,18 +410,7 @@ const getResourceIdAndVal = (params: AccessRequestResourceIdParam) => {
   };
 };
 
-function getEmptyFetchedDataState() {
-  return {
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  };
-}
-
-function getDefaultSort(kind: RequestableResourceKind): SortType {
-  if (kind === 'node') {
-    return { fieldName: 'hostname', dir: 'ASC' };
-  }
+function getDefaultSort(): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 

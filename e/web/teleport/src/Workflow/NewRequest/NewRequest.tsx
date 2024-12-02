@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Prompt, useHistory } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
 import {
-  Indicator,
   Box,
   Flex,
   ButtonPrimary,
@@ -12,12 +11,8 @@ import {
   ButtonIcon,
   P1,
 } from 'design';
-import { StyledPanel } from 'design/DataTable/StyledTable';
-import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import {
   Info as InfoIcon,
-  CircleArrowLeft,
-  CircleArrowRight,
   Magnifier,
   ListAddCheck,
   ArrowLeft,
@@ -25,7 +20,6 @@ import {
 import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { Info } from 'design/Alert';
-import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import {
@@ -40,42 +34,28 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { useUser } from 'teleport/User/UserContext';
-import { useContentMinWidthContext } from 'teleport/Main';
-
+import { useNoMinWidth } from 'teleport/Main';
 import { getSalesURL } from 'teleport/services/sales';
 import cfg from 'teleport/config';
-
-import {
-  RequestableResourceKind,
-  ResourceList,
-} from 'shared/components/AccessRequests/NewRequest';
+import { Roles } from 'shared/components/AccessRequests/NewRequest';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import { RequestCheckout } from './RequestCheckout';
-import { useNewRequest, State, getResourceId } from './useNewRequest';
+import {
+  useNewRequest,
+  State,
+  getResourceId,
+  AccessRequestKind,
+} from './useNewRequest';
 import { AppRequestButton, RequestButton } from './RequestButton';
 
-const agentOptions: ResourceOption[] = [
-  // Order matters. On initial render
-  // the last element in the options array
-  // will be used. Which can either be 'resource' or 'role'.
-  {
-    value: 'resource',
-    label: 'resources',
-  },
-];
-
-// roleOption is separate because role based
-// and search based access requests cannot
-// be combined.
-const roleOption: ResourceOption = {
-  value: 'role',
-  label: 'roles',
+const accessRequestTypeToLabel: Record<AccessRequestKind, string> = {
+  resource: 'Resources',
+  role: 'Roles',
 };
 
 export default function Container() {
@@ -113,10 +93,7 @@ const availableKinds: FilterKind[] = [
 
 function NewRequest(props: State) {
   const {
-    isLeafCluster,
     clusterId,
-    attempt,
-    agents,
     agentFilter,
     setAgentFilter,
     unifiedFetch,
@@ -124,114 +101,65 @@ function NewRequest(props: State) {
     resources,
     addSelectedResources,
     resourceRequestsDisabled,
-    fetchStatus,
-    onAgentLabelClick,
-    selectedResource,
+    accessRequestKinds,
+    selectedAccessRequestKind,
     addedResources,
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
     addOrRemoveResource,
-    customSort,
-    nextPage,
-    prevPage,
-    updateResourceKind,
+    updateAccessRequestKind,
     clearAddedResources,
     dryRunAttempt,
     requestableRoles,
-    addAllFetchAttempt,
-    usage,
+    fetchUsageAttempt,
     fetchUsage,
     ctx,
     updateNamespacesForKubeCluster,
     numAddedResources,
   } = props;
-  const { setEnforceMinWidth } = useContentMinWidthContext();
+  useNoMinWidth();
   const history = useHistory();
   const { preferences, updatePreferences } = useUser();
   const [clusterDropdownError, setClusterDropdownError] = useState('');
 
   const [showCheckout, setShowCheckout] = useState(false);
-  // warningConfirm holds the next resource option that will be applied
-  // after user agrees to the warning dialogue.
-  const [warningConfirm, setWarningConfirm] = useState<ResourceOption>();
-
-  // Role based access requests are only allowed in root cluster.
-  const resourceOptions = useMemo(() => {
-    let options = [...agentOptions];
-    if (!isLeafCluster) {
-      options.unshift(roleOption);
-    }
-    return options;
-  }, [isLeafCluster]);
-
-  // Load the last option which is either:
-  //  - option role if at a root cluster
-  //  - option node if at a leaf cluster
-  const [currResourceOpt, setCurrResourceOpt] = useState(
-    resourceOptions[resourceOptions.length - 1]
-  );
-
-  useEffect(() => {
-    setEnforceMinWidth(false);
-
-    return () => {
-      setEnforceMinWidth(true);
-    };
-  }, []);
 
   useEffect(() => {
     if (dryRunAttempt.status === 'failed') {
-      setCurrResourceOpt(roleOption);
-      updateResourceKind('role');
+      updateAccessRequestKind('role');
     }
   }, [dryRunAttempt]);
 
-  useEffect(() => {
-    const newOption = resourceOptions[resourceOptions.length - 1];
-    // if resourceOptions have changed, then unified support has changed.
-    // We need to reset the selected resource
-    setCurrResourceOpt(newOption);
-    updateResourceKind(newOption.value);
-  }, [resourceOptions, updateResourceKind]);
-
   const isResourceRequest = numAddedResources > 0;
-  const isRoleList = currResourceOpt.value === 'role';
-
   const numAddedRoles = Object.keys(addedResources.role).length;
-
   const numTotalSelections = numAddedResources + numAddedRoles;
 
-  // 'confirmed' parameter is only true when user agrees to the warning dialogue.
-  function handleOnChangeResourceOption(o: ResourceOption, confirmed = false) {
-    // Warn users when user is switching between search based requests (AgentKinds) and
-    // role based requests when items were selected.
-    if (
-      !confirmed &&
-      ((o.value === 'role' && numAddedResources > 0) ||
-        (o.value !== 'role' && numAddedRoles > 0))
-    ) {
-      setWarningConfirm(o);
+  function handleOnChangeResourceOption(o: AccessRequestKind) {
+    // Warn when is switching between search-based requests and
+    // role-based requests when items were selected.
+    if (!numTotalSelections) {
+      updateAccessRequestKind(o);
       return;
     }
 
-    setCurrResourceOpt(o);
-    updateResourceKind(o.value);
-  }
-
-  /* This is a warning prompt when user switches between role based and search based requests. */
-  if (warningConfirm) {
     const msg = `Resource Access Request cannot be combined with Role Access Request. Current items selected will be cleared. Are you sure you want to continue?`;
     if (window.confirm(msg)) {
       clearAddedResources();
-      handleOnChangeResourceOption(warningConfirm, true);
+      updateAccessRequestKind(o);
     }
-    setWarningConfirm(null);
   }
 
-  const limited = usage?.limit > 0 || cfg.entitlements.AccessRequests.limit > 0;
-  const requestStarted = getNumAddedResources(addedResources) > 0;
+  const limited =
+    (fetchUsageAttempt.status === 'success' &&
+      fetchUsageAttempt.data?.limit > 0) ||
+    cfg.entitlements.AccessRequests.limit > 0;
 
   const transitionRef = useRef<HTMLDivElement>();
+
+  const accessRequestOptions = accessRequestKinds.map(r => ({
+    value: r,
+    label: accessRequestTypeToLabel[r],
+  }));
 
   return (
     <FeatureBox>
@@ -260,33 +188,32 @@ function NewRequest(props: State) {
           )}
         </Flex>
       </FeatureHeader>
-      {attempt.status === 'failed' &&
-        attempt.statusText !== dryRunAttempt.statusText && (
-          <ErrorMessage message={attempt.statusText} />
+      {fetchUsageAttempt.status === 'error' &&
+        fetchUsageAttempt.statusText !== dryRunAttempt.statusText && (
+          <ErrorMessage message={fetchUsageAttempt.statusText} />
         )}
-      {addAllFetchAttempt.status === 'failed' && (
-        <ErrorMessage message={addAllFetchAttempt.statusText} />
-      )}
       {clusterDropdownError && <ErrorMessage message={clusterDropdownError} />}
-      {dryRunAttempt.status === 'failed' && selectedResource !== 'role' && (
-        <Info>{dryRunAttempt.statusText}</Info>
-      )}
+      {dryRunAttempt.status === 'failed' &&
+        selectedAccessRequestKind !== 'role' && (
+          <Info>{dryRunAttempt.statusText}</Info>
+        )}
 
       <UsageInfo
-        used={usage?.used}
+        used={
+          fetchUsageAttempt.status === 'success' && fetchUsageAttempt.data?.used
+        }
         limit={cfg.entitlements.AccessRequests.limit}
       />
 
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <Box width="150px" data-testid="resource-selector">
           <Select
-            value={currResourceOpt}
-            options={resourceOptions}
-            onChange={o => handleOnChangeResourceOption(o as ResourceOption)}
-            isDisabled={false}
-            css={`
-              text-transform: capitalize;
-            `}
+            value={{
+              value: selectedAccessRequestKind,
+              label: accessRequestTypeToLabel[selectedAccessRequestKind],
+            }}
+            options={accessRequestOptions}
+            onChange={o => handleOnChangeResourceOption(o.value)}
           />
         </Box>
         <Flex
@@ -318,7 +245,7 @@ function NewRequest(props: State) {
         </Flex>
       </Flex>
       {dryRunAttempt.status === 'success' &&
-        selectedResource === 'resource' && (
+        selectedAccessRequestKind === 'resource' && (
           <UnifiedResources
             bulkActions={[
               {
@@ -398,55 +325,12 @@ function NewRequest(props: State) {
             }
           />
         )}
-      {selectedResource !== 'resource' && (
-        <Box>
-          {(attempt.status === 'processing' ||
-            dryRunAttempt.status === 'processing') && (
-            <Box textAlign="center" m={10}>
-              <Indicator />
-            </Box>
-          )}
-          {attempt.status !== 'processing' && (
-            <StyledWrapper>
-              <ResourceList
-                agents={agents}
-                selectedResource={selectedResource}
-                customSort={customSort}
-                onLabelClick={onAgentLabelClick}
-                addedResources={addedResources}
-                requestStarted={requestStarted}
-                addOrRemoveResource={addOrRemoveResource}
-                requestableRoles={requestableRoles}
-                disableRows={fetchStatus === 'loading'}
-              />
-              {!isRoleList && (
-                <StyledPanel>
-                  <Flex justifyContent="flex-end" width="100%">
-                    <Flex alignItems="center" mr={2}></Flex>
-                    <Flex>
-                      <StyledArrowBtn
-                        onClick={prevPage}
-                        title="Previous page"
-                        disabled={!prevPage || fetchStatus === 'loading'}
-                        mx={0}
-                      >
-                        <CircleArrowLeft />
-                      </StyledArrowBtn>
-                      <StyledArrowBtn
-                        ml={0}
-                        onClick={nextPage}
-                        title="Next page"
-                        disabled={!nextPage || fetchStatus === 'loading'}
-                      >
-                        <CircleArrowRight />
-                      </StyledArrowBtn>
-                    </Flex>
-                  </Flex>
-                </StyledPanel>
-              )}
-            </StyledWrapper>
-          )}
-        </Box>
+      {selectedAccessRequestKind === 'role' && (
+        <Roles
+          requestable={requestableRoles}
+          requested={new Set(Object.keys(addedResources.role))}
+          onToggleRole={role => addOrRemoveResource('role', role)}
+        />
       )}
       <Transition
         in={showCheckout}
@@ -463,14 +347,13 @@ function NewRequest(props: State) {
             userGroupFetchAttempt={userGroupFetchAttempt}
             onClose={() => {
               setShowCheckout(false);
-              fetchUsage();
+              void fetchUsage();
             }}
             toggleResource={({ kind, id, name }) =>
               addOrRemoveResource(kind, id, name)
             }
             transitionState={transitionState}
             reset={clearAddedResources}
-            selectedResource={selectedResource}
             isResourceRequest={isResourceRequest}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
@@ -492,10 +375,6 @@ function NewRequest(props: State) {
     </FeatureBox>
   );
 }
-
-const StyledWrapper = styled.div`
-  border-radius: 8px;
-`;
 
 function UsageInfo(usage: { limit: number; used?: number }) {
   const ctx = useTeleportE();
@@ -558,11 +437,6 @@ const UsageNotice = styled(Flex)`
   margin-top: ${p => p.theme.space[2]}px;
   margin-bottom: ${p => p.theme.space[4]}px;
 `;
-
-type ResourceOption = {
-  value: RequestableResourceKind;
-  label: string;
-};
 
 function NoResults({ query }: { query: string }) {
   // Prevent `No resources were found for ""` flicker.
