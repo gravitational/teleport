@@ -8032,7 +8032,7 @@ message AccessGraphSync {
     (gogoproto.stdduration) = true
   ];
   // Azure is a configuration for Azure Access Graph service poll service.
-  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "aws,omitempty"];
+  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
