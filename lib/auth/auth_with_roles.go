@@ -195,30 +195,14 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(ctx context.Context, namespace string, sid session.ID) (types.SessionKind, error) {
-	sessionEnd, err := a.findSessionEndEvent(ctx, sid)
-
-	extendContext := func(ctx *services.Context) error {
-		ctx.Session = sessionEnd
+func (a *ServerWithRoles) actionForKindSession(ctx context.Context, namespace string, sid session.ID) error {
+	extendContext := func(servicesCtx *services.Context) error {
+		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
+		servicesCtx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
 
-	var sessionKind types.SessionKind
-	switch e := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		sessionKind = types.SSHSessionKind
-		if e.KubernetesCluster != "" {
-			sessionKind = types.KubernetesSessionKind
-		}
-	case *apievents.DatabaseSessionEnd:
-		sessionKind = types.DatabaseSessionKind
-	case *apievents.AppSessionEnd:
-		sessionKind = types.AppSessionKind
-	case *apievents.WindowsDesktopSessionEnd:
-		sessionKind = types.WindowsDesktopSessionKind
-	}
-
-	return sessionKind, trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
@@ -5946,44 +5930,100 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
+	// StreamSessionEvents can be called internally, and when that happens we
+	// don't want to emit an event or check permissions.
+	if err := a.localServerAction(); err == nil {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	}
+
+	if err := a.actionForKindSession(ctx, apidefaults.Namespace, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	eventsCh, errCh := a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	return a.streamSessionEventsWithAudit(ctx, sessionID, eventsCh, errCh)
+}
+
+// streamSessionEventWithAudit audit log the recording access and streams the
+// session recording events.
+func (a *ServerWithRoles) streamSessionEventsWithAudit(ctx context.Context, sessionID session.ID, rawEventsCh chan apievents.AuditEvent, rawErrCh chan error) (chan apievents.AuditEvent, chan error) {
+	// Peek session events to determine the session type for audit logging.
+	// Also peek the error channel to avoid blocking the function call if the
+	// stream has errors (e.g. when session is not found).
+	eventsCh, firstEventCh := peekChannel(rawEventsCh, 1)
+	errCh, firstErrCh := peekChannel(rawErrCh, 1)
+
+	var sessionKind types.SessionKind
+	select {
+	case <-ctx.Done():
+	case <-firstErrCh:
+	case sessionStartEvent := <-firstEventCh:
+		sessionKind = sessionTypeFromStartEvent(sessionStartEvent)
+	}
+
+	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRecordingAccessEvent,
+			Code: events.SessionRecordingAccessCode,
+		},
+		SessionID:    sessionID.String(),
+		UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+		SessionType:  string(sessionKind),
+		Format:       metadata.SessionRecordingFormatFromContext(ctx),
+	}); err != nil {
 		e := make(chan error, 1)
 		e <- trace.Wrap(err)
 		return nil, e
 	}
 
-	err := a.localServerAction()
-	isTeleportServer := err == nil
+	return eventsCh, errCh
+}
 
-	var sessionType types.SessionKind
-	if !isTeleportServer {
-		var err error
-		sessionType, err = a.actionForKindSession(ctx, apidefaults.Namespace, sessionID)
-		if err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
+// peekChannel peeks N messages from the provided channel.
+func peekChannel[T any](ch chan T, n int) (chan T, chan T) {
+	// Given that we're going to produce into the two channels (until the n
+	// reaches 0), use buffered channels to avoid slow channel consumption
+	// blocks.
+	normalCh := make(chan T, n)
+	peekCh := make(chan T, n)
+
+	go func(rem int) {
+		defer close(normalCh)
+		defer close(peekCh)
+
+		for msg := range ch {
+			if rem > 0 {
+				peekCh <- msg
+				rem--
+			}
+
+			normalCh <- msg
 		}
-	}
+	}(n)
 
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	shouldEmitAuditEvent := !isTeleportServer
-	if shouldEmitAuditEvent {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
-			Metadata: apievents.Metadata{
-				Type: events.SessionRecordingAccessEvent,
-				Code: events.SessionRecordingAccessCode,
-			},
-			SessionID:    sessionID.String(),
-			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
-			SessionType:  string(sessionType),
-			Format:       metadata.SessionRecordingFormatFromContext(ctx),
-		}); err != nil {
-			return createErrorChannel(err)
+	return normalCh, peekCh
+}
+
+// sessionTypeFromStartEvent determines the session type given the session start
+// event.
+func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionKind {
+	switch e := sessionStart.(type) {
+	case *apievents.SessionStart:
+		if e.KubernetesCluster != "" {
+			return types.KubernetesSessionKind
 		}
+		return types.SSHSessionKind
+	case *apievents.DatabaseSessionStart:
+		return types.DatabaseSessionKind
+	case *apievents.AppSessionStart:
+		return types.AppSessionKind
+	case *apievents.WindowsDesktopSessionStart:
+		return types.WindowsDesktopSessionKind
+	default:
+		return types.UnknownSessionKind
 	}
-
-	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 }
 
 // CreateApp creates a new application resource.
