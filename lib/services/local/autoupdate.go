@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -142,6 +143,9 @@ func (s *AutoUpdateService) CreateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
+	if err := modules.ValidateResource(v); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	version, err := s.version.CreateResource(ctx, v)
 	return version, trace.Wrap(err)
 }
@@ -151,6 +155,9 @@ func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
+	if err := modules.ValidateResource(v); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	version, err := s.version.ConditionalUpdateResource(ctx, v)
 	return version, trace.Wrap(err)
 }
@@ -160,6 +167,9 @@ func (s *AutoUpdateService) UpsertAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
+	if err := modules.ValidateResource(v); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	version, err := s.version.UpsertResource(ctx, v)
 	return version, trace.Wrap(err)
 }

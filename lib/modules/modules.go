@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -331,7 +332,7 @@ func GetModules() Modules {
 var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
 
 // ValidateResource performs additional resource checks.
-func ValidateResource(res types.Resource) error {
+func ValidateResource(res any) error {
 	if GetModules().Features().Cloud || !IsInsecureTestMode() {
 		switch r := res.(type) {
 		case types.AuthPreference:
@@ -355,6 +356,8 @@ func ValidateResource(res types.Resource) error {
 		if !r.GetProxyChecksHostKeys() {
 			return trace.BadParameter("cannot disable strict host key checking on Cloud")
 		}
+	case autoupdate.AutoUpdateVersion:
+		return trace.BadParameter("cannot modify auto update version on Cloud")
 	}
 	return nil
 }
