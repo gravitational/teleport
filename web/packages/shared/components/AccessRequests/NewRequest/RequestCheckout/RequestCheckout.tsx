@@ -734,9 +734,6 @@ function TextBox({
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
-  const optionalText = requireReason ? '' : ' (optional)';
-  const placeholder = `Describe your request...${optionalText}`;
-
   return (
     <LabelInput hasError={hasError}>
       {labelText}
@@ -749,7 +746,7 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder={placeholder}
+        placeholder="Describe your request..."
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`

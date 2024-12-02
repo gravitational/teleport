@@ -43,7 +43,11 @@ const config: StorybookConfig = {
     options: { builder: { viteConfigPath: 'web/.storybook/vite.config.mts' } },
   },
   staticDirs: ['public'],
-  addons: ['@storybook/addon-toolbars'],
+  addons: [
+    '@storybook/addon-toolbars',
+    '@storybook/addon-controls',
+    '@storybook/addon-actions',
+  ],
 };
 
 export default config;

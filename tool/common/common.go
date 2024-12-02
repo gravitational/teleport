@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -55,35 +56,40 @@ type SessionsCollection struct {
 
 // WriteText writes the session collection as text to the provided io.Writer.
 func (e *SessionsCollection) WriteText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
+	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Target", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		var id, typ, participants, hostname, timestamp string
+		var id, typ, participants, target, timestamp string
 
 		switch session := event.(type) {
 		case *events.SessionEnd:
 			id = session.GetSessionID()
 			typ = session.Protocol
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.ServerAddr
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+
+			target = session.ServerHostname
+			if typ == libevents.EventProtocolKube {
+				target = session.KubernetesCluster
+			}
+
 		case *events.WindowsDesktopSessionEnd:
 			id = session.GetSessionID()
 			typ = "windows"
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.DesktopName
+			target = session.DesktopName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		case *events.DatabaseSessionEnd:
 			id = session.GetSessionID()
 			typ = session.DatabaseProtocol
 			participants = session.GetUser()
-			hostname = session.DatabaseService
+			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:
 			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
 			continue
 		}
 
-		t.AddRow([]string{id, typ, participants, hostname, timestamp})
+		t.AddRow([]string{id, typ, participants, target, timestamp})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

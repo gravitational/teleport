@@ -28,8 +28,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
+
+type mockClients struct {
+	cloud.Clients
+
+	azureClient azure.VirtualMachinesClient
+}
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureClient, nil

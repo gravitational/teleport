@@ -31,14 +31,13 @@ import { P } from 'design/Text/Text';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-interface DocumentsReopenProps {
+export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
   onCancel(): void;
   onConfirm(): void;
-}
-
-export function DocumentsReopen(props: DocumentsReopenProps) {
+  hidden?: boolean;
+}) {
   const { rootClusterUri } = props;
   const { clustersService } = useAppContext();
   // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
@@ -49,7 +48,8 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',
