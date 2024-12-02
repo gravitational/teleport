@@ -33,7 +33,7 @@ const (
 )
 
 // WorkloadIdentityService exposes backend functionality for storing
-// WorkloadIdentity resxources
+// WorkloadIdentity resources
 type WorkloadIdentityService struct {
 	service *generic.ServiceWrapper[*workloadidentityv1pb.WorkloadIdentity]
 }
@@ -89,9 +89,9 @@ func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
 	return trace.Wrap(b.service.DeleteResource(ctx, name))
 }
 
-// DeleteAllWorkloadIdentitys deletes all SPIFFE resources, this is typically
+// DeleteAllWorkloadIdentities deletes all SPIFFE resources, this is typically
 // only meant to be used by the cache.
-func (b *WorkloadIdentityService) DeleteAllWorkloadIdentitys(
+func (b *WorkloadIdentityService) DeleteAllWorkloadIdentities(
 	ctx context.Context,
 ) error {
 	return trace.Wrap(b.service.DeleteAllResources(ctx))
