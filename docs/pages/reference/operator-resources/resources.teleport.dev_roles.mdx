@@ -51,6 +51,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
+|github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -87,6 +88,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.allow.github_permissions items
+
+|Field|Type|Description|
+|---|---|---|
+|orgs|[]string||
 
 ### spec.allow.impersonate
 
@@ -223,6 +230,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
+|github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -259,6 +267,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.deny.github_permissions items
+
+|Field|Type|Description|
+|---|---|---|
+|orgs|[]string||
 
 ### spec.deny.impersonate
 
@@ -498,6 +512,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
+|github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -534,6 +549,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.allow.github_permissions items
+
+|Field|Type|Description|
+|---|---|---|
+|orgs|[]string||
 
 ### spec.allow.impersonate
 
@@ -670,6 +691,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
+|github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -706,6 +728,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.deny.github_permissions items
+
+|Field|Type|Description|
+|---|---|---|
+|orgs|[]string||
 
 ### spec.deny.impersonate
 
