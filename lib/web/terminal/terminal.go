@@ -115,8 +115,8 @@ func (t *WSStream) WriteMessage(messageType int, data []byte) error {
 
 // WriteError displays an error in the terminal window.
 func (t *WSStream) WriteError(msg string) {
-	if _, writeErr := replacer.WriteString(t, msg); writeErr != nil {
-		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", msg)
+	if _, err := replacer.WriteString(t, msg); err != nil && !errors.Is(err, websocket.ErrCloseSent) {
+		t.log.WithError(err).Warnf("Unable to send error to terminal: %v", msg)
 	}
 }
 
