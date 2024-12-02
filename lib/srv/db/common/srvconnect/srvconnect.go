@@ -22,11 +22,10 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,19 +47,12 @@ type DatabaseServersGetter interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 }
 
-// Cluster represents a remote site the behavior of a cluster in the system,
-// providing methods to retrieve its name and access point.
-type Cluster interface {
-	// GetName returns site name (identified by authority domain's name).
-	GetName() string
-}
-
 // GetDatabaseServersParams contains the parameters required to retrieve
 // database servers from a specific cluster.
 type GetDatabaseServersParams struct {
 	Logger *slog.Logger
-	// Cluster represents the cluster to which the database belongs.
-	Cluster Cluster
+	// ClusterName is the cluster name to which the database belongs.
+	ClusterName string
 	// DatabaseServersGetter used to fetch the list of database servers.
 	DatabaseServersGetter DatabaseServersGetter
 	// Identity contains the identity information.
@@ -75,7 +67,7 @@ func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	params.Logger.DebugContext(ctx, "Available database servers.", "cluster", params.Cluster.GetName(), "servers", servers)
+	params.Logger.DebugContext(ctx, "Available database servers.", "cluster", params.ClusterName, "servers", servers)
 
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
@@ -187,10 +179,9 @@ func ShuffleSort(servers []types.DatabaseServer) []types.DatabaseServer {
 // ShuffleRandom is a ShuffleFunc that randomizes the order of database servers.
 // Used to provide load balancing behavior when proxying to multiple agents.
 func ShuffleRandom(servers []types.DatabaseServer) []types.DatabaseServer {
-	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(
-		len(servers), func(i, j int) {
-			servers[i], servers[j] = servers[j], servers[i]
-		})
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
+	})
 	return servers
 }
 
@@ -210,8 +201,8 @@ type ConnectParams struct {
 	Servers []types.DatabaseServer
 	// ShuffleFunc is a function used to shuffle the list of database servers.
 	ShuffleFunc ShuffleFunc
-	// Cluster represents the cluster to which the database belongs.
-	Cluster Cluster
+	// Cluster is the cluster name to which the database belongs.
+	ClusterName string
 	// Cluster represents the cluster to which the database belongs.
 	Dialer Dialer
 	// CertSigner is used to sign certificates for authenticating with the
@@ -226,32 +217,94 @@ type ConnectParams struct {
 	ClientDstAddr net.Addr
 }
 
+func (p *ConnectParams) CheckAndSetDefaults() error {
+	if p.Logger != nil {
+		p.Logger = slog.Default()
+	}
+
+	if p.Identity.RouteToDatabase.Empty() {
+		return trace.BadParameter("Identity must have RouteToDatabase information")
+	}
+
+	if p.ShuffleFunc == nil {
+		p.ShuffleFunc = ShuffleRandom
+	}
+
+	if p.ClusterName == "" {
+		return trace.BadParameter("missing ClusterName parameter")
+	}
+
+	if p.Dialer == nil {
+		return trace.BadParameter("missing Dialer parameter")
+	}
+
+	if p.CertSigner == nil {
+		return trace.BadParameter("missing CertSigner parameter")
+	}
+
+	if p.AuthPreference == nil {
+		return trace.BadParameter("missing AuthPreference parameter")
+	}
+
+	if p.ClientSrcAddr == nil {
+		return trace.BadParameter("missing ClientSrcAddr parameter")
+	}
+
+	if p.ClientDstAddr == nil {
+		return trace.BadParameter("missing ClientDstAddr parameter")
+	}
+
+	return nil
+}
+
 // ConnectStats contains statistics about the connection attempts.
-type ConnectStats struct {
-	// AttemptedServers is the number of database servers that were attempted to
-	// connect to.
-	AttemptedServers int
-	// DialAttempts is the number of times a dial to a server was attempted.
-	DialAttempts int
-	// DialFailures is the number of times a dial to a server failed.
-	DialFailures int
+type ConnectStats interface {
+	// GetAttemptedServers retrieves the number of database servers that were
+	// attempted to connect to.
+	GetAttemptedServers() int
+	// GetDialAttempts retrieves the number of times a dial to a server was
+	// attempted.
+	GetDialAttempts() int
+	// GetDialFailures retrieves the number of times a dial to a server failed.
+	GetDialFailures() int
+}
+
+// Stats implements [ConnectStats].
+type Stats struct {
+	attemptedServers int
+	dialAttempts     int
+	dialFailures     int
+}
+
+// GetAttemptedServers implements [ConnectStats].
+func (s Stats) GetAttemptedServers() int {
+	return s.attemptedServers
+}
+
+// GetDialAttempts implements [ConnectStats].
+func (s Stats) GetDialAttempts() int {
+	return s.dialAttempts
+}
+
+// GetDialFailures implements ConnectStats.
+func (s Stats) GetDialFailures() int {
+	return s.dialFailures
 }
 
 // Connect connects to the database server running on a remote cluster
 // over reverse tunnel and upgrades this end of the connection to TLS so
 // the identity can be passed over it.
 func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats, error) {
-	if params.ShuffleFunc == nil {
-		params.ShuffleFunc = ShuffleRandom
+	stats := Stats{}
+	if err := params.CheckAndSetDefaults(); err != nil {
+		return nil, stats, trace.Wrap(err)
 	}
-
-	stats := ConnectStats{}
 
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
 	for _, server := range params.ShuffleFunc(params.Servers) {
-		stats.AttemptedServers++
+		stats.attemptedServers++
 		params.Logger.DebugContext(ctx, "Dialing to database service.", "server", server)
 		tlsConfig, err := GetServerTLSConfig(ctx, ServerTLSConfigParams{
 			AuthPreference: params.AuthPreference,
@@ -263,17 +316,17 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 			return nil, stats, trace.Wrap(err)
 		}
 
-		stats.DialAttempts++
+		stats.dialAttempts++
 		serviceConn, err := params.Dialer.Dial(reversetunnelclient.DialParams{
 			From:                  params.ClientSrcAddr,
 			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: params.ClientDstAddr,
-			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), params.Cluster.GetName()),
+			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), params.ClusterName),
 			ConnType:              types.DatabaseTunnel,
 			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
-			stats.DialFailures++
+			stats.dialFailures++
 			// If an agent is down, we'll retry on the next one (if available).
 			if isReverseTunnelDownError(err) {
 				params.Logger.WarnContext(ctx, "Failed to dial database service.", "server", server, "error", err)

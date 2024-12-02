@@ -70,7 +70,7 @@ func TestGetDatabaseServers(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			servers, err := GetDatabaseServers(context.Background(), GetDatabaseServersParams{
 				Logger:                utils.NewSlogLoggerForTests(),
-				Cluster:               &clusterMock{"root"},
+				ClusterName:           "root",
 				DatabaseServersGetter: tc.getter,
 				Identity:              tc.identity,
 			})
@@ -166,26 +166,26 @@ func TestConnect(t *testing.T) {
 			identity:      identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			dialer:        newDialerMock(t, authServer.AuthServer, "db", []string{"server-1", "server-2"}, nil),
 			expectErrFunc: require.NoError,
-			expectedStats: ConnectStats{AttemptedServers: 1, DialAttempts: 1},
+			expectedStats: Stats{attemptedServers: 1, dialAttempts: 1},
 		},
 		"connects but with dial failures": {
 			identity: identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			// Given the shuffle function, the "server-1" will be attempted first (cause the initial failure).
 			dialer:        newDialerMock(t, authServer.AuthServer, "db", []string{"server-2"}, []string{"server-1"}),
 			expectErrFunc: require.NoError,
-			expectedStats: ConnectStats{AttemptedServers: 2, DialAttempts: 2, DialFailures: 1},
+			expectedStats: Stats{attemptedServers: 2, dialAttempts: 2, dialFailures: 1},
 		},
 		"fails to connect": {
 			identity:      identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			dialer:        newDialerMock(t, authServer.AuthServer, "db", nil, []string{"server-1"}),
 			expectErrFunc: require.Error,
-			expectedStats: ConnectStats{AttemptedServers: 1, DialAttempts: 1, DialFailures: 1},
+			expectedStats: Stats{attemptedServers: 1, dialAttempts: 1, dialFailures: 1},
 		},
 		"no servers": {
 			identity:      identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			dialer:        newDialerMock(t, authServer.AuthServer, "db", nil, nil),
 			expectErrFunc: require.Error,
-			expectedStats: ConnectStats{},
+			expectedStats: Stats{},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -194,7 +194,7 @@ func TestConnect(t *testing.T) {
 				Identity:       tc.identity,
 				Servers:        tc.dialer.getServers(),
 				ShuffleFunc:    ShuffleSort,
-				Cluster:        &clusterMock{name: clusterName},
+				ClusterName:    clusterName,
 				Dialer:         tc.dialer,
 				CertSigner:     authServer.AuthServer,
 				AuthPreference: authServer.AuthServer,
@@ -259,14 +259,6 @@ func newDatabaseServersWithErr(err error) *databaseServersMock {
 
 func (d *databaseServersMock) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return d.servers, d.err
-}
-
-type clusterMock struct {
-	name string
-}
-
-func (m *clusterMock) GetName() string {
-	return m.name
 }
 
 func newDialerMock(t *testing.T, authServer *auth.Server, dbName string, availableServers []string, unavailableServers []string) *dialerMock {

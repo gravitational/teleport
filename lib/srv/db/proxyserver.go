@@ -445,10 +445,10 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		Identity:       proxyCtx.Identity,
 		Servers:        proxyCtx.Servers,
 		ShuffleFunc:    getShuffleFunc(),
-		Cluster:        proxyCtx.Cluster,
+		ClusterName:    proxyCtx.Cluster.GetName(),
 		Dialer:         proxyCtx.Cluster,
 		CertSigner:     s.cfg.AuthClient,
-		AuthPreference: s.cfg.AuthClient,
+		AuthPreference: s.cfg.AccessPoint,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 	})
@@ -530,7 +530,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}
 	servers, err := srvconnect.GetDatabaseServers(ctx, srvconnect.GetDatabaseServersParams{
 		Logger:                s.log,
-		Cluster:               cluster,
+		ClusterName:           cluster.GetName(),
 		DatabaseServersGetter: accessPoint,
 		Identity:              identity,
 	})
