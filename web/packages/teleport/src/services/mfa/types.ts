@@ -51,6 +51,14 @@ export type SaveNewHardwareDeviceRequest = {
   credential: Credential;
 };
 
+export type MfaAuthenticateChallengeJson = {
+  sso_challenge?: SSOChallenge;
+  totp_challenge?: boolean;
+  webauthn_challenge?: {
+    publicKey: PublicKeyCredentialRequestOptionsJSON;
+  };
+};
+
 export type MfaAuthenticateChallenge = {
   ssoChallenge?: SSOChallenge;
   totpChallenge?: boolean;
@@ -65,6 +73,15 @@ export type SSOChallenge = {
     connectorId: string;
     connectorType: AuthProviderType;
     displayName: string;
+  };
+};
+
+export type MfaRegistrationChallengeJson = {
+  totp?: {
+    qrCode: Base64urlString;
+  };
+  webauthn?: {
+    publicKey: PublicKeyCredentialCreationOptionsJSON;
   };
 };
 
