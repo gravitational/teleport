@@ -24,7 +24,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strconv"
 	"sync"
@@ -351,8 +351,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 // the MySQL.ServerVersion set in configuration if the first one is not available.
 // Function picks a random server each time if more than one are available.
 func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
-	count := len(servers)
-	db := servers[rand.Intn(count)].GetDatabase()
+	db := servers[rand.N(len(servers))].GetDatabase()
 	return db.GetMySQLServerVersion()
 }
 

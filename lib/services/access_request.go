@@ -275,11 +275,30 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
-	caps.RequireReason = v.requireReason
+	caps.RequireReason, err = v.calcRequireReasonCap(ctx, req, caps)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	caps.RequestPrompt = v.prompt
 	caps.AutoRequest = v.autoRequest
 
 	return &caps, nil
+}
+
+func (v *RequestValidator) calcRequireReasonCap(ctx context.Context, req types.AccessCapabilitiesRequest, caps types.AccessCapabilities) (requireReason bool, err error) {
+	var roles []string
+	if req.RequestableRoles {
+		roles = caps.RequestableRoles
+	} else {
+		roles = caps.ApplicableRolesForResources
+	}
+
+	requireReason, _, err = v.isReasonRequired(ctx, roles, nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return requireReason, nil
 }
 
 // allowedSearchAsRoles returns all allowed `allow.request.search_as_roles` for the user that are
@@ -302,6 +321,8 @@ func (m *RequestValidator) allowedSearchAsRoles() ([]string, error) {
 
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
 // applicable for the given list of resourceIDs.
+//
+// If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
 	rolesToRequest, err := m.allowedSearchAsRoles()
 	if err != nil {
@@ -1041,10 +1062,23 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
-	clock         clockwork.Clock
-	getter        RequestValidatorGetter
-	userState     UserState
-	requireReason bool
+	clock     clockwork.Clock
+	getter    RequestValidatorGetter
+	userState UserState
+	// requireReasonForAllRoles indicates that non-empty reason is required for all access
+	// requests. This happens if any of the user roles has options.request_access "always" or
+	// "reason".
+	requireReasonForAllRoles bool
+	// requiringReasonRoles is a set of role names, which require non-empty reason to be
+	// specified when requested. The same applies to all requested resources allowed by those
+	// roles. Such roles are all requestable roles and search_as_roles allowed by a role
+	// assigned to a user and having spec.allow.request.reason.mode="required" set.
+	//
+	// Please note this means, roles having spec.allow.request.reason.mode="required" don't
+	// necessarily require reason when they are requested themselves. Instead they mark roles
+	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
+	// reason.
+	requiringReasonRoles map[string]struct{}
 	// Used to enforce that the configuration found in the static
 	// role that defined the search_as_role, is respected.
 	// An empty map or list means nothing was configured.
@@ -1097,6 +1131,8 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		getter:    getter,
 		userState: uls,
 		logger:    slog.With(teleport.ComponentKey, "request.validator"),
+
+		requiringReasonRoles: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1132,10 +1168,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
-	if m.requireReason && req.GetRequestReason() == "" {
-		return trace.BadParameter("request reason must be specified (required by static role configuration)")
-	}
-
 	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
@@ -1166,6 +1198,18 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
 		}
 		req.SetRoles(requestable)
+	}
+
+	// If the reason is provided, don't check if it's required. It has to happen after wildcard
+	// role expansion.
+	if len(strings.TrimSpace(req.GetRequestReason())) == 0 {
+		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if required {
+			return trace.BadParameter(explanation)
+		}
 	}
 
 	// verify that all requested roles are permissible
@@ -1311,6 +1355,35 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	return nil
+}
+
+// isReasonRequired checks if the reason is required for the given roles and resource IDs.
+func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) (required bool, explanation string, err error) {
+	if v.requireReasonForAllRoles {
+		return true, "request reason must be specified (required request_access option in one of the roles)", nil
+	}
+
+	allApplicableRoles := requestedRoles
+	if len(requestedResourceIDs) > 0 {
+		// Do not provide loginHint. We want all matching search_as_roles for those resources.
+		roles, err := v.applicableSearchAsRoles(ctx, requestedResourceIDs, "")
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		}
+		if len(allApplicableRoles) == 0 {
+			allApplicableRoles = roles
+		} else {
+			allApplicableRoles = append(allApplicableRoles, roles...)
+		}
+	}
+
+	for _, r := range allApplicableRoles {
+		if _, ok := v.requiringReasonRoles[r]; ok {
+			return true, fmt.Sprintf("request reason must be specified (required for role %q)", r), nil
+		}
+	}
+
+	return false, "", nil
 }
 
 // calculateMaxAccessDuration calculates the maximum time for the access request.
@@ -1518,7 +1591,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 
 		roleAllowsAccess := true
 		for _, resource := range filteredResources {
-			access, err := m.roleAllowsResource(ctx, role, resource, loginHint)
+			access, err := m.roleAllowsResource(role, resource, loginHint)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1564,13 +1637,22 @@ func setAllowRequestKubeResourceLookup(allowKubernetesResources []types.RequestK
 func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	var err error
 
-	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
+	m.requireReasonForAllRoles = m.requireReasonForAllRoles || role.GetOptions().RequestAccess.RequireReason()
 	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
 	if m.prompt == "" {
 		m.prompt = role.GetOptions().RequestPrompt
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+
+	if allow.Reason != nil && allow.Reason.Mode.Required() {
+		for _, r := range allow.Roles {
+			m.requiringReasonRoles[r] = struct{}{}
+		}
+		for _, r := range allow.SearchAsRoles {
+			m.requiringReasonRoles[r] = struct{}{}
+		}
+	}
 
 	setAllowRequestKubeResourceLookup(allow.KubernetesResources, allow.SearchAsRoles, m.kubernetesResource.allow)
 
@@ -1951,10 +2033,10 @@ func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[strin
 
 type ValidateRequestOption func(*RequestValidator)
 
-// ExpandVars toggles variable expansion during request validation.  Variable expansion
-// includes expanding wildcard requests, setting system annotations, and gathering
-// threshold information.  Variable expansion should be run by the auth server prior
-// to storing an access request for the first time.
+// ExpandVars toggles variable expansion during request validation.  Variable expansion includes
+// expanding wildcard requests, setting system annotations, finding applicable roles for
+// resource-based requests and gathering threshold information.  Variable expansion should be run
+// by the auth server prior to storing an access request for the first time.
 func ExpandVars(expand bool) ValidateRequestOption {
 	return func(v *RequestValidator) {
 		v.opts.expandVars = expand
@@ -1962,7 +2044,7 @@ func ExpandVars(expand bool) ValidateRequestOption {
 }
 
 // ValidateAccessRequestForUser validates an access request against the associated users's
-// *statically assigned* roles. If expandRoles is true, it will also expand wildcard
+// *statically assigned* roles. If [[ExpandVars]] is set to true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
 func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) error {
@@ -2121,7 +2203,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		for _, role := range allRoles {
-			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2228,7 +2310,6 @@ func getAllowedKubeResourceKinds(allowedKinds []string, deniedKinds []string) []
 }
 
 func (m *RequestValidator) roleAllowsResource(
-	ctx context.Context,
 	role types.Role,
 	resource types.ResourceWithLabels,
 	loginHint string,

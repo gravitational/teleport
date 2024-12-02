@@ -21,6 +21,7 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,6 +49,11 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
+// IntegrationGitHub contains the specific fields for the `github` subkind integration.
+type IntegrationGitHub struct {
+	Organization string `json:"organization"`
+}
+
 // CheckAndSetDefaults for the aws oidc integration spec.
 func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	if r.RoleARN == "" {
@@ -62,6 +68,39 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+type IntegrationWithSummary struct {
+	*Integration
+	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	// AWSEKS contains the summary for the AWS EKS resources for this integration.
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+}
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+type ResourceTypeSummary struct {
+	// RulesCount is the number of enrollment rules that are using this integration.
+	// A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+	// If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+	// Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+	// Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+	// Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+	RulesCount int `json:"rulesCount,omitempty"`
+	// ResourcesFound contains the count of resources found by this integration.
+	ResourcesFound int `json:"resourcesFound,omitempty"`
+	// ResourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+	ResourcesEnrollmentFailed int `json:"resourcesEnrollmentFailed,omitempty"`
+	// ResourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
+	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
+	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+	// Only applicable for AWS RDS resource summary.
+	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -70,6 +109,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// GitHub contains the fields for `github` subkind integration.
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -85,6 +126,16 @@ func (r *Integration) CheckAndSetDefaults() error {
 
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	switch r.SubKind {
+	case types.IntegrationSubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing spec for GitHub integrations")
+		}
+		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -160,6 +211,14 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+		}
+	case types.IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for GitHub integrations")
+		}
+		ret.GitHub = &IntegrationGitHub{
+			Organization: spec.Organization,
 		}
 	}
 
