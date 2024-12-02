@@ -1827,6 +1827,11 @@ func TestInitDatabaseService(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, process.Start())
 			eg.Go(func() error { return process.WaitForSignals(ctx, nil) })
+			// Ensures the proccess is closed in failure scenarios.
+			t.Cleanup(func() {
+				cancel()
+				_ = eg.Wait()
+			})
 
 			if !test.expectErr {
 				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
