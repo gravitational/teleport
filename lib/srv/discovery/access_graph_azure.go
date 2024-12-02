@@ -220,7 +220,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 				First:  time.Second,
 				Step:   semaphoreExpiration / 2,
 				Max:    semaphoreExpiration,
-				Jitter: retryutils.NewJitter(),
+				Jitter: retryutils.DefaultJitter,
 			},
 		},
 	)
@@ -278,7 +278,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 		defer wg.Done()
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-			s.Log.Info("access graph service connection was closed")
+			s.Log.InfoContext(ctx, "access graph service connection was closed")
 		}
 	}()
 
@@ -320,7 +320,7 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 			fetchers := s.getAllTAGSyncAzureFetchers()
 			// Wait for the config to change and re-evaluate the fetchers before starting the sync.
 			if len(fetchers) == 0 {
-				s.Log.Debug("No Azure sync fetchers configured. Access graph sync will not be enabled.")
+				s.Log.DebugContext(ctx, "No Azure sync fetchers configured. Access graph sync will not be enabled.")
 				select {
 				case <-ctx.Done():
 					return
@@ -331,10 +331,10 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 			}
 			// Reset the Azure resources to force a full sync
 			if err := s.initializeAndWatchAzureAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
-				s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+				s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 				break
 			} else if err != nil {
-				s.Log.Warn("Error initializing and watching access graph", "error", err)
+				s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
 			}
 
 			select {

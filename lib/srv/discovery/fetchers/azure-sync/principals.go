@@ -12,6 +12,7 @@ import (
 )
 
 const groupType = "#microsoft.graph.group"
+const defaultGraphScope = "https://graph.microsoft.com/.default"
 
 func (a *Fetcher) fetchPrincipals(ctx context.Context) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	// Get the VM client
@@ -19,7 +20,7 @@ func (a *Fetcher) fetchPrincipals(ctx context.Context) ([]*accessgraphv1alpha.Az
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scopes := []string{"https://graph.microsoft.com/.default"}
+	scopes := []string{defaultGraphScope}
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: scopes})
 	if err != nil {
 		return nil, trace.Wrap(err)

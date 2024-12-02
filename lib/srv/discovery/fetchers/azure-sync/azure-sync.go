@@ -76,7 +76,6 @@ type Fetcher struct {
 	lastDiscoveredResources uint64
 	lastResult              *Resources
 
-	graphClient      *GraphClient
 	vmClient         VirtualMachinesClient
 	roleDefClient    RoleDefinitionsClient
 	roleAssignClient RoleAssignmentsClient

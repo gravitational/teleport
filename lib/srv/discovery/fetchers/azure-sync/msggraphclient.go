@@ -196,9 +196,9 @@ func (c *GraphClient) request(ctx context.Context, req request) error {
 		return err
 	}
 
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
+	defer func(r *http.Response) {
+		_ = r.Body.Close()
+	}(resp)
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
