@@ -38,7 +38,7 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	insecurerand "math/rand"
+	mathrand "math/rand/v2"
 	"net"
 	"os"
 	"regexp"
@@ -89,6 +89,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -624,6 +625,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		})
 	}
 
+	if as.bitbucketIDTokenValidator == nil {
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -1031,6 +1036,8 @@ type Server struct {
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
+	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -1337,8 +1344,7 @@ func (a *Server) runPeriodicOperations() {
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
+	period := retryutils.HalfJitter(2 * defaults.HighResPollingPeriod)
 
 	ticker := interval.NewMulti(
 		a.GetClock(),
@@ -1433,7 +1439,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(a.closeCtx, r)
+				a.refreshRemoteClusters(a.closeCtx)
 			}
 		}
 	}()
@@ -1862,7 +1868,7 @@ var (
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
-func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
@@ -1876,7 +1882,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
 		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
 	})
 
@@ -4820,93 +4826,21 @@ func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uin
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	const pingAttempt = "ping-attempt"
-	const pingSuccess = "ping-success"
-	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	id := insecurerand.Uint64()
+	id := mathrand.Uint64()
 
-	if !req.ControlLog {
-		// this ping doesn't pass through the control log, so just execute it immediately.
-		d, err := stream.Ping(ctx, id)
-		return proto.InventoryPingResponse{
-			Duration: d,
-		}, trace.Wrap(err)
-	}
-
-	// matchEntry is used to check if our log entry has been included
-	// in the control log.
-	matchEntry := func(entry types.InstanceControlLogEntry) bool {
-		return entry.Type == pingAttempt && entry.ID == id
-	}
-
-	var included bool
-	for i := 1; i <= maxAttempts; i++ {
-		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-			// check if we've already successfully included the ping entry
-			if ref.LastHeartbeat != nil {
-				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
-					included = true
-					return
-				}
-			}
-
-			// if the entry pending already, we just need to wait
-			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
-				return
-			}
-
-			// either this is the first iteration, or the pending control log was reset.
-			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
-				Type: pingAttempt,
-				ID:   id,
-				Time: time.Now(),
-			})
-			stream.HeartbeatInstance()
-			return
-		})
-
-		if included {
-			// entry appeared in control log
-			break
-		}
-
-		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
-		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
-		// simple sleep loop.
-		select {
-		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
-		case <-stream.Done():
-			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
-		case <-ctx.Done():
-			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
-		}
-	}
-
-	if !included {
-		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	if req.ControlLog { //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		return proto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
 	}
 
 	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
-
-	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
-			Type: pingSuccess,
-			ID:   id,
-			Labels: map[string]string{
-				"duration": d.String(),
-			},
-		})
-		return
-	})
-	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,

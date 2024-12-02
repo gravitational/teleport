@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -1344,6 +1345,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
   // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
+  // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
+  ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1687,6 +1690,49 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
   // and provide standard JWKS endpoints.
   string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
+message ProvisionTokenSpecV2Bitbucket {
+  // Rule is a set of properties the Bitbucket-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // WorkspaceUUID is the UUID of the workspace for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
+
+    // RepositoryUUID is the UUID of the repository for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
+
+    // DeploymentEnvironmentUUID is the UUID of the deployment environment
+    // targeted by this pipelines run, if any. These values may be found in the
+    // "Pipelines -> OpenID Connect -> Deployment environments" section of the
+    // repository settings.
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
+
+    // BranchName is the name of the branch on which this pipeline executed.
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is a Bitbucket-specified audience value for this token. It is
+  // unique to each Bitbucket repository, and must be set to the value as
+  // written in the Pipelines -> OpenID Connect section of the repository
+  // settings.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC
+  // tokens. It is unique to each Bitbucket repository, and must be set to the
+  // value as written in the Pipelines -> OpenID Connect section of the
+  // repository settings.
+  string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -3463,6 +3509,22 @@ message AccessRequestConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
+
+  // Reason defines settings for the reason for the access provided by the user.
+  AccessRequestConditionsReason Reason = 9 [(gogoproto.jsontag) = "reason,omitempty"];
+}
+
+// AccessRequestConditionsReason defines settings for the reason for the access provided by the
+// user.
+message AccessRequestConditionsReason {
+  // Mode can be either "required" or "optional". Empty string is treated as "optional". If a role
+  // has the request reason mode set to "required", then reason is required for all Access Requests
+  // requesting roles or resources allowed by this role. It applies only to users who have this
+  // role assigned.
+  string Mode = 1 [
+    (gogoproto.jsontag) = "mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -4147,19 +4209,6 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
-}
-
-// TrustedDeviceRequirement indicates whether access may be hindered by the lack
-// of a trusted device.
-enum TrustedDeviceRequirement {
-  // Device requirement not determined.
-  // Does not mean that a device is not required, only that the necessary data
-  // was not considered.
-  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
-  // Trusted device not required.
-  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
-  // Trusted device required by either cluster mode or user roles.
-  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
