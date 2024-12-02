@@ -434,9 +434,9 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 	)
 
 	defer func() {
-		dialAttemptedServers.With(labels).Observe(float64(stats.AttemptedServers))
-		dialAttempts.With(labels).Add(float64(stats.DialAttempts))
-		dialFailures.With(labels).Add(float64(stats.DialFailures))
+		dialAttemptedServers.With(labels).Observe(float64(stats.GetAttemptedServers()))
+		dialAttempts.With(labels).Add(float64(stats.GetDialAttempts()))
+		dialFailures.With(labels).Add(float64(stats.GetDialFailures()))
 	}()
 
 	serviceConn, stats, err = srvconnect.Connect(ctx, srvconnect.ConnectParams{
