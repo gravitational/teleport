@@ -289,7 +289,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	for {
 		err := s.reconcileAccessGraphAzure(ctx, azureResources, stream, features)
 		if errors.Is(err, errNoAccessGraphFetchers) {
-			_, err := stream.CloseAndRecv()
+			err := stream.CloseSend()
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
