@@ -2876,13 +2876,6 @@ func (m SSHPortForwardMode) String() string {
 	}
 }
 
-// TODO (eriktate): remove Legacy method in v20
-// Legacy returns a bool that can be used as the legacy PortForwarding value when dealing with
-// an agent that doesn't know about SSHPortForwardMode.
-func (m SSHPortForwardMode) Legacy() bool {
-	return m != SSHPortForwardModeOff
-}
-
 // SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet.
 func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 	// explicit allows and denies both need to be tracked in order to enforce implicit allows properly
@@ -2929,7 +2922,7 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
-	return set.SSHPortForwardMode().Legacy()
+	return set.SSHPortForwardMode() == SSHPortForwardModeOn
 }
 
 // RecordDesktopSession returns true if the role set has enabled desktop
