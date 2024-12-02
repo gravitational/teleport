@@ -17,6 +17,12 @@ metadata:
 spec:
   backoffLimit: 1
   template:
+    metadata:
+      labels:
+        {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
+        {{- if $auth.extraLabels.jobPod }}
+        {{- toYaml $auth.extraLabels.jobPod | nindent 8 }}
+        {{- end }}
     spec:
 {{- if $auth.affinity }}
       affinity: {{- toYaml $auth.affinity | nindent 8 }}
