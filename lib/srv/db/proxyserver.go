@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
-	"github.com/gravitational/teleport/lib/srv/db/common/srvconnect"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -101,18 +101,18 @@ var (
 	// mu protects the shuffleFunc global access.
 	mu sync.RWMutex
 	// shuffleFunc provides shuffle behavior for multiple database agents.
-	shuffleFunc srvconnect.ShuffleFunc = srvconnect.ShuffleRandom
+	shuffleFunc connect.ShuffleFunc = connect.ShuffleRandom
 )
 
 // SetShuffleFunc sets the shuffle behavior when proxying to multiple agents.
-func SetShuffleFunc(fn srvconnect.ShuffleFunc) {
+func SetShuffleFunc(fn connect.ShuffleFunc) {
 	mu.Lock()
 	defer mu.Unlock()
 	shuffleFunc = fn
 }
 
 // getShuffleFunc returns the configured function used to shuffle agents.
-func getShuffleFunc() srvconnect.ShuffleFunc {
+func getShuffleFunc() connect.ShuffleFunc {
 	mu.RLock()
 	defer mu.RUnlock()
 	return shuffleFunc
@@ -429,7 +429,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 
 	var (
 		serviceConn net.Conn
-		stats       srvconnect.ConnectStats
+		stats       connect.ConnectStats
 		err         error
 	)
 
@@ -439,7 +439,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		dialFailures.With(labels).Add(float64(stats.GetDialFailures()))
 	}()
 
-	serviceConn, stats, err = srvconnect.Connect(ctx, srvconnect.ConnectParams{
+	serviceConn, stats, err = connect.Connect(ctx, connect.ConnectParams{
 		Logger:         s.log,
 		Identity:       proxyCtx.Identity,
 		Servers:        proxyCtx.Servers,
@@ -527,7 +527,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := srvconnect.GetDatabaseServers(ctx, srvconnect.GetDatabaseServersParams{
+	servers, err := connect.GetDatabaseServers(ctx, connect.GetDatabaseServersParams{
 		Logger:                s.log,
 		ClusterName:           cluster.GetName(),
 		DatabaseServersGetter: accessPoint,
