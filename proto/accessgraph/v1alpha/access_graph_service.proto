@@ -287,5 +287,5 @@ message AzureEventsStreamRequest {
 // at the end of the sync process.
 message AzureSyncOperation {}
 
-// AzureEventsStreamResponse is a response from AzureEventStreamRequest
+// AzureEventsStreamResponse is a response from AzureEventsStream
 message AzureEventsStreamResponse {}
