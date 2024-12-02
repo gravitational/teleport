@@ -37,22 +37,11 @@ func NewAptRunner() (*AptRunner, error) {
 			},
 			"ubuntu": { // See https://wiki.ubuntu.com/Releases for details
 				"xenial",   // 16.04 LTS
-				"yakkety",  // 16.10 (EOL)
-				"zesty",    // 17.04 (EOL)
-				"artful",   // 17.10 (EOL)
 				"bionic",   // 18.04 LTS
-				"cosmic",   // 18.10 (EOL)
-				"disco",    // 19.04 (EOL)
-				"eoan",     // 19.10 (EOL)
 				"focal",    // 20.04 LTS
-				"groovy",   // 20.10 (EOL)
-				"hirsuite", // 21.04 (EOL)
-				"impish",   // 21.10 (EOL)
 				"jammy",    // 22.04 LTS
-				"kinetic",  // 22.10 (EOL)
-				"lunar",    // 23.04
-				"mantic",   // 23.10
 				"noble",    // 24.04 LTS
+				"oracular", // 24.10
 			},
 		},
 	}
