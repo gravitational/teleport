@@ -20,10 +20,10 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
+import { MfaChallengeResponse } from '../mfa';
 
 import makeJoinToken from './makeJoinToken';
 import { JoinToken, JoinRule, JoinTokenRequest } from './types';
-import { MfaChallengeResponse } from '../mfa';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 

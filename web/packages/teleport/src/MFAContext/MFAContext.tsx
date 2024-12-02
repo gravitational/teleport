@@ -45,6 +45,8 @@ export const useMfaContext = () => {
   return useContext(MFAContext);
 };
 
+type MfaRetryFunc = (mfaResp?: MfaChallengeResponse) => Promise<any>;
+
 export const MFAContextProvider = ({ children }: PropsWithChildren) => {
   const { attempt, setAttempt } = useAttempt('');
 
@@ -55,9 +57,7 @@ export const MFAContextProvider = ({ children }: PropsWithChildren) => {
   const mfaOptions = createMfaOptions(mfaChallenge);
   const [mfaOption, setMfaOption] = useState<Auth2faType>();
 
-  async function withMfaRetry(
-    callback: (mfaResp?: MfaChallengeResponse) => any
-  ): Promise<any> {
+  async function withMfaRetry(callback: MfaRetryFunc): Promise<any> {
     // const response = await callback();
 
     // let json;
@@ -83,18 +83,23 @@ export const MFAContextProvider = ({ children }: PropsWithChildren) => {
     //   throw new ApiError(parseError(json), response, undefined, json.messages);
     // }
 
-    setAttempt({ status: 'processing' });
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
     });
     setMfaChallenge(challenge);
 
-    const promise = Promise.withResolvers();
-    setMfaResponsePromise(promise);
-    const mfaResponse = await promise.promise;
-
-    console.log(mfaResponse);
-    return callback(mfaResponse);
+    const waitForSubmit = Promise.withResolvers();
+    setMfaResponsePromise(waitForSubmit);
+    try {
+      const mfaResponse = await waitForSubmit.promise;
+      return callback(mfaResponse);
+    } catch (err) {
+      console.log('here??', err);
+      throw new Error(err);
+    } finally {
+      // set challenge null so the popup goes away
+      setMfaChallenge(null);
+    }
   }
 
   function onSubmit() {
@@ -103,12 +108,13 @@ export const MFAContextProvider = ({ children }: PropsWithChildren) => {
     });
   }
 
-  function clearAttempt() {
-    setAttempt({ status: '' });
-  }
-
   function onClose() {
-    return;
+    if (mfaResponsePromise) {
+      mfaResponsePromise.reject(
+        'Error message about cancelling MFA and its required here'
+      );
+    }
+    setMfaChallenge(null);
   }
 
   return (
