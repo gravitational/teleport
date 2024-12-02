@@ -19,13 +19,13 @@
 import { useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
 import { storageService } from 'teleport/services/storageService';
-import { TrustedDeviceRequirement } from 'teleport/DeviceTrust/types';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
