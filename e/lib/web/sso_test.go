@@ -538,7 +538,6 @@ func mustCreateRole(t *testing.T, ctx context.Context, s *webSuite, name string)
 		},
 		Allow: types.RoleConditions{
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Namespaces: []string{apidefaults.Namespace},
 			Rules: []types.Rule{
 				types.NewRule(types.Wildcard, services.RW()),
 			},

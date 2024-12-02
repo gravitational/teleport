@@ -11,7 +11,6 @@ import (
 	"github.com/scim2/filter-parser/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -185,7 +184,6 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 
 	accessRole, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Namespaces: []string{apidefaults.Namespace},
 			Rules: []types.Rule{
 				types.NewRule(types.KindUserGroup, services.RO()),
 			},

@@ -20,7 +20,7 @@ type cloudWithRoles struct {
 
 // GetBillingInformation returns billing information
 func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetBillingInformationResponse, error) {
-	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
+	err := ac.action(ctx, types.KindBilling, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -30,7 +30,7 @@ func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.Emp
 
 // GetBillingSummaryInformation returns the users Billing Summary Information
 func (ac *cloudWithRoles) GetBillingSummaryInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetBillingSummaryInformationResponse, error) {
-	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
+	err := ac.action(ctx, types.KindBilling, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,11 +125,11 @@ func (ac *cloudWithRoles) SetSurveyResults(ctx context.Context, req *v1.SetSurve
 func (ac *cloudWithRoles) SendTeleportInvite(ctx context.Context, req *v1.SendTeleportInviteRequest) (*v1.EmptyResponse, error) {
 	// Note: we want to inherit the permissions of the normal CreateUser() +
 	// CreateResetPasswordToken() flow
-	err := ac.action(ctx, apidefaults.Namespace, types.KindUser, types.VerbCreate)
+	err := ac.action(ctx, types.KindUser, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = ac.action(ctx, apidefaults.Namespace, types.KindUser, types.VerbUpdate)
+	err = ac.action(ctx, types.KindUser, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func (ac *cloudWithRoles) ClusterAlertInfo(ctx context.Context, req *v1.EmptyReq
 	return ac.plugin.cloudClient.ClusterAlertInfo(ctx, req)
 }
 
-func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
+func (ac *cloudWithRoles) action(ctx context.Context, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
 	}
@@ -165,7 +165,7 @@ func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, actio
 
 	return authCtx.Checker.CheckAccessToRule(
 		&services.Context{User: authCtx.User},
-		namespace,
+		apidefaults.Namespace,
 		resource,
 		action)
 }

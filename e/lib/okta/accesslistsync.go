@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1057,7 +1056,6 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 
 	role, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Namespaces:  []string{apidefaults.Namespace},
 			Rules:       rules,
 			AppLabels:   toLabels(irMetadata.roleAppLabels),
 			GroupLabels: toLabels(irMetadata.roleGroupLabels),

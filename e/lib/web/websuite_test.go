@@ -227,8 +227,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Namespace: apidefaults.Namespace,
-			Name:      "auth",
+			Name: "auth",
 		},
 		Spec: types.ServerSpecV2{
 			Addr:     s.testAuthServer.TLS.Listener.Addr().String(),
@@ -523,10 +522,9 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 			},
 		},
 		Allow: types.RoleConditions{
-			Logins:     []string{login},
-			Namespaces: []string{apidefaults.Namespace},
-			Rules:      rules,
-			AppLabels:  types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			Logins:    []string{login},
+			Rules:     rules,
+			AppLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)

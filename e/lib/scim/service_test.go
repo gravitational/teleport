@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gravitational/teleport/api/defaults"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -182,9 +181,8 @@ func mkTestPlugin() types.Plugin {
 		SubKind: types.PluginSubkindAccess,
 		Version: "abc123",
 		Metadata: types.Metadata{
-			Name:      testPluginName,
-			Namespace: defaults.Namespace,
-			Labels:    map[string]string{"test": testPluginName},
+			Name:   testPluginName,
+			Labels: map[string]string{"test": testPluginName},
 		},
 		// Spec is deliberately empty, apart from giving the plugin just enough
 		// info to determine its type. The SCIM server should not touch *any*

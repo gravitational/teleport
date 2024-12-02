@@ -865,9 +865,8 @@ func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUs
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      p.Username,
-			Namespace: apidefaults.Namespace,
-			Expires:   &expires,
+			Name:    p.Username,
+			Expires: &expires,
 		},
 		Spec: types.UserSpecV2{
 			Roles:  p.Roles,
