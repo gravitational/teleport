@@ -211,10 +211,11 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 			extraSuiteOptions:          []proxySuiteOptionsFunc{withTrustedClusterBehindALB()},
 		},
 	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
 	for _, tc := range testCase {
+		t.Parallel()
 		t.Run(tc.name, func(t *testing.T) {
-			lib.SetInsecureDevMode(true)
-			defer lib.SetInsecureDevMode(false)
 
 			username := helpers.MustGetCurrentUser(t).Username
 
