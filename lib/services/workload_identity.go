@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -83,8 +84,33 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		return trace.BadParameter("metadata.name: is required")
 	case s.Spec == nil:
 		return trace.BadParameter("spec: is required")
+	case s.Spec.Spiffe.Id == "":
+		return trace.BadParameter("spec.spiffe.id: is required")
+	case !strings.HasPrefix(s.Spec.Spiffe.Id, "/"):
+		return trace.BadParameter("spec.spiffe.id: must start with a /")
 	}
 
-	// TODO: More validation here!!
+	for i, rule := range s.GetSpec().GetRules().GetAllow() {
+		if len(rule.Conditions) == 0 {
+			return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
+		}
+		for j, condition := range rule.Conditions {
+			if condition.Attribute == "" {
+				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)
+			}
+			// Ensure exactly one operator is set.
+			operatorsSet := 0
+			if condition.Equals != "" {
+				operatorsSet++
+			}
+			if operatorsSet == 0 || operatorsSet > 1 {
+				return trace.BadParameter(
+					"spec.rules.allow[%d].conditions[%d]: exactly one operator must be specified, found %d",
+					i, j, operatorsSet,
+				)
+			}
+		}
+	}
+
 	return nil
 }
