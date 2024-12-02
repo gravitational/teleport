@@ -40,18 +40,26 @@ import {
   AccessRequestButton,
 } from './ActionButtons';
 
-type StoryProps = { vnet: boolean };
+type StoryProps = {
+  vnet: boolean;
+  lotsOfMenuItems: boolean;
+};
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/DocumentCluster/ActionButtons',
   component: Buttons,
   argTypes: {
-    vnet: {
+    vnet: { control: { type: 'boolean' } },
+    lotsOfMenuItems: {
       control: { type: 'boolean' },
+      description:
+        // TODO(ravicious): Support this prop in more places than just TCP ports.
+        'Renders long lists of options in menus. Currently works only with ports for multi-port TCP apps.',
     },
   },
   args: {
     vnet: true,
+    lotsOfMenuItems: false,
   },
 };
 
@@ -66,14 +74,14 @@ export function Story(props: StoryProps) {
     <MockAppContextProvider appContext={appContext}>
       <ConnectionsContextProvider>
         <VnetContextProvider>
-          <Buttons />
+          <Buttons {...props} />
         </VnetContextProvider>
       </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
 
-function Buttons() {
+function Buttons(props: StoryProps) {
   return (
     <Flex gap={4}>
       <Flex gap={3} flexDirection="column">
@@ -83,7 +91,7 @@ function Buttons() {
         </Box>
         <Box>
           <Text>multi-port TCP app</Text>
-          <TcpMultiPortApp />
+          <TcpMultiPortApp lotsOfMenuItems={props.lotsOfMenuItems} />
         </Box>
         <Box>
           <Text>Web app</Text>
@@ -151,17 +159,23 @@ function TcpApp() {
   );
 }
 
-function TcpMultiPortApp() {
+function TcpMultiPortApp(props: { lotsOfMenuItems: boolean }) {
+  let tcpPorts = [
+    { port: 1337, endPort: 0 },
+    { port: 4242, endPort: 0 },
+    { port: 54221, endPort: 61879 },
+  ];
+
+  if (props.lotsOfMenuItems) {
+    tcpPorts = new Array(50).fill(tcpPorts).flat();
+  }
+
   return (
     <ConnectAppActionButton
       app={makeApp({
         uri: `${testCluster.uri}/apps/bar`,
         endpointUri: 'tcp://localhost',
-        tcpPorts: [
-          { port: 1337, endPort: 0 },
-          { port: 4242, endPort: 0 },
-          { port: 54221, endPort: 61879 },
-        ],
+        tcpPorts,
       })}
     />
   );
