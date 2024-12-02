@@ -157,7 +157,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/parquet-go/parquet-go v0.23.0
-	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627
+	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.7
