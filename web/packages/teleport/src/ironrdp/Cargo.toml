@@ -15,6 +15,7 @@ console_error_panic_hook = "0.1.7"
 getrandom = { version = "0.2", features = ["js"] }
 ironrdp-session.workspace = true
 ironrdp-pdu.workspace = true
+ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
 js-sys = "0.3.70"
 log = "0.4.22"

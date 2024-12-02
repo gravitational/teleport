@@ -16,7 +16,9 @@ jobs:
       # but because of the replace, the dependency cannot find the correct
       # Teleport version.
       allow-ghsas: 'GHSA-6xf3-5hp7-xqqg'
+      # IronRDP uses MIT/Apache-2.0 but slashes are not recognized by dependency review action
       allow-dependencies-licenses: >-
+        pkg:cargo/ironrdp-core,
         pkg:cargo/curve25519-dalek-derive,
         pkg:cargo/ring,
         pkg:cargo/sspi,

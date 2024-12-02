@@ -22,8 +22,8 @@ use ironrdp_cliprdr::pdu::{
     FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
 };
 use ironrdp_cliprdr::{Client, CliprdrClient as Cliprdr, CliprdrSvcMessages};
+use ironrdp_core::impl_as_any;
 use ironrdp_pdu::PduResult;
-use ironrdp_svc::impl_as_any;
 use log::{debug, error, info, trace, warn};
 use std::fmt::{Debug, Formatter};
 
