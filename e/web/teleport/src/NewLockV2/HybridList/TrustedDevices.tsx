@@ -39,6 +39,10 @@ export function TrustedDevices(
           headerText: 'Enroll Status',
         },
         {
+          key: 'owner',
+          headerText: 'Owner',
+        },
+        {
           altKey: 'action-btn',
           render: ({ id }) =>
             renderActionCell(Boolean(selectedResources.device[id]), () =>
