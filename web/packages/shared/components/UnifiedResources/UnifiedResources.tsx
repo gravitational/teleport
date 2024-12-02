@@ -399,6 +399,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
 
   useLayoutEffect(() => {
+    // TODO(ravicious): Use useResizeObserver instead.
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
 

@@ -39,6 +39,7 @@ export function LayoutContextProvider(props: PropsWithChildren<unknown>) {
   const containerRef = useRef<HTMLDivElement>();
 
   useEffect(() => {
+    // TODO(ravicious): Use useResizeObserver instead.
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
       setCurrentWidth(container?.contentRect.width || 0);
