@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PagerPosition } from 'design/DataTable/types';
+import Box from './Box';
 
-export type TrustedDevice = {
-  id: string;
-  assetTag: string;
-  osType: TrustedDeviceOSType;
-  enrollStatus: 'enrolled' | 'not enrolled';
-  owner: string;
-  createTime?: Date;
-};
-
-export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';
-
-export type TrustedDeviceResponse = {
-  items: TrustedDevice[];
-  startKey: string;
-};
-
-export type DeviceListProps = {
-  items: TrustedDeviceResponse['items'];
-  pageSize?: number;
-  pagerPosition?: PagerPosition;
-  fetchStatus?: 'loading' | 'disabled' | '';
-  fetchData?: () => void;
-};
+/**
+ * TypeTest is supposed to catch regressions in the types for our design components.
+ *
+ * The file name specifically uses the "type-test.tsx" suffix so that this file isn't ran by Jest.
+ */
+export const TypeTest = () => (
+  <Box>
+    <Box
+      // @ts-expect-error Prop that doesn't exist on Box.
+      nonexistentprop
+    />
+    <Box
+      // @ts-expect-error Valid prop but invalid value type.
+      alignSelf={2}
+    />
+  </Box>
+);
