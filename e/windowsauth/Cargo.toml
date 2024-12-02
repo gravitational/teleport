@@ -19,7 +19,7 @@ panic = "abort"
 
 [build-dependencies]
 chrono = { version = "0.4.38", default-features = false, features = ["now"] }
-embed-resource = "2.5.0"
+embed-resource = "3.0.1"
 regex = "1.11.1"
 
 [dependencies]

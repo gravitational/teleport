@@ -32,5 +32,5 @@ fn main() {
             OsString::from(version_comma),
             OsString::from(year),
         ],
-    );
+    ).manifest_optional().unwrap();
 }
