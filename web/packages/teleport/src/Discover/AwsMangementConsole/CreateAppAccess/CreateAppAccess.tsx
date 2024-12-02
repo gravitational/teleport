@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Mark, H3 } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { P } from 'design/Text/Text';
@@ -81,7 +81,7 @@ export function CreateAppAccess() {
       <Container>
         <Flex alignItems="center" gap={1} mb={1}>
           <H3>First configure your AWS IAM permissions</H3>
-          <TooltipInfo sticky={true} maxWidth={450}>
+          <IconTooltip sticky={true} maxWidth={450}>
             The following IAM permissions will be added as an inline policy
             named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
             <Mark>{iamRoleName}</Mark>
@@ -94,7 +94,7 @@ export function CreateAppAccess() {
                 />
               </EditorWrapper>
             </Box>
-          </TooltipInfo>
+          </IconTooltip>
         </Flex>
         <P mb={2}>
           Run the command below on your{' '}

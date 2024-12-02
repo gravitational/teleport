@@ -27,7 +27,7 @@ import { TextAreaSize } from 'design/TextArea';
 
 import { BoxProps } from 'design/Box';
 
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { useRule } from 'shared/components/Validation';
 
@@ -141,7 +141,7 @@ export const FieldTextArea = forwardRef<
                   >
                     {label}
                   </span>
-                  <TooltipInfo children={toolTipContent} />
+                  <IconTooltip children={toolTipContent} />
                 </>
               ) : (
                 <>{label}</>

@@ -31,7 +31,7 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';
@@ -435,11 +435,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Enable Kubernetes App Discovery
               </Box>
-              <TooltipInfo>
+              <IconTooltip>
                 Teleport's Kubernetes App Discovery will automatically identify
                 and enroll to Teleport HTTP applications running inside a
                 Kubernetes cluster.
-              </TooltipInfo>
+              </IconTooltip>
             </Toggle>
             <Toggle
               isToggled={isAutoDiscoveryEnabled}
@@ -448,11 +448,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Auto-enroll all EKS clusters for selected region
               </Box>
-              <TooltipInfo>
+              <IconTooltip>
                 Auto-enroll will automatically identify all EKS clusters from
                 the selected region and register them as Kubernetes resources in
                 your infrastructure.
-              </TooltipInfo>
+              </IconTooltip>
             </Toggle>
           </Box>
           {showTable && (
