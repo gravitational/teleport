@@ -20,73 +20,72 @@ import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64';
 
 import {
   MfaAuthenticateChallenge,
+  MfaAuthenticateChallengeJson,
   MfaRegistrationChallenge,
+  MfaRegistrationChallengeJson,
   WebauthnAssertionResponse,
   WebauthnAttestationResponse,
 } from './types';
 
-// makeMfaRegistrationChallenge formats fetched register challenge JSON.
-export function makeMfaRegistrationChallenge(
-  json: string | MfaRegistrationChallenge
+// parseMfaRegistrationChallengeJson formats fetched register challenge JSON.
+export function parseMfaRegistrationChallengeJson(
+  challenge: MfaRegistrationChallengeJson
 ): MfaRegistrationChallenge {
-  const challenge = typeof json === 'string' ? JSON.parse(json) : json;
-  const { webauthnPublicKey, qrCode } = challenge;
-
   // WebAuthn challenge contains Base64URL(byte) fields that needs to
   // be converted to ArrayBuffer expected by navigator.credentials.create:
   // - challenge
   // - user.id
   // - excludeCredentials[i].id
-  if (webauthnPublicKey) {
-    const challenge = webauthnPublicKey.challenge || '';
-    const id = webauthnPublicKey.user?.id || '';
-    const excludeCredentials = webauthnPublicKey.excludeCredentials || [];
-
-    webauthnPublicKey.challenge = base64urlToBuffer(challenge);
-    webauthnPublicKey.user.id = base64urlToBuffer(id);
-    webauthnPublicKey.excludeCredentials = excludeCredentials.map(
-      (credential, i) => {
-        excludeCredentials[i].id = base64urlToBuffer(credential.id);
-        return excludeCredentials[i];
-      }
-    );
-  }
+  const webauthnPublicKeyFromJson = (
+    json: PublicKeyCredentialCreationOptionsJSON
+  ) =>
+    ({
+      ...json,
+      challenge: base64urlToBuffer(json.challenge),
+      user: {
+        ...json.user,
+        id: base64urlToBuffer(json.user?.id || ''),
+      },
+      excludeCredentials: json.excludeCredentials?.map(credential => ({
+        ...credential,
+        id: base64urlToBuffer(credential.id),
+      })),
+    }) as PublicKeyCredentialCreationOptions;
 
   return {
-    qrCode: qrCode,
-    webauthnPublicKey,
+    qrCode: challenge.totp?.qrCode,
+    webauthnPublicKey: challenge.webauthn
+      ? webauthnPublicKeyFromJson(challenge.webauthn.publicKey)
+      : null,
   };
 }
 
-// makeMfaChallenge formats fetched authenticate challenge JSON.
-export function makeMfaChallenge(
-  json: string | MfaAuthenticateChallenge
+// parseMfaChallengeJson formats fetched authenticate challenge JSON.
+export function parseMfaChallengeJson(
+  challenge: MfaAuthenticateChallengeJson
 ): MfaAuthenticateChallenge {
-  const challenge = typeof json === 'string' ? JSON.parse(json) : json;
-  const { sso_challenge, webauthn_challenge, totp_challenge } = challenge;
-
   // WebAuthn challenge contains Base64URL(byte) fields that needs to
   // be converted to ArrayBuffer expected by navigator.credentials.get:
   // - challenge
   // - allowCredentials[i].id
-  const webauthnPublicKey = webauthn_challenge?.publicKey;
-  if (webauthnPublicKey) {
-    const challenge = webauthnPublicKey.challenge || '';
-    const allowCredentials = webauthnPublicKey.allowCredentials || [];
-
-    webauthnPublicKey.challenge = base64urlToBuffer(challenge);
-    webauthnPublicKey.allowCredentials = allowCredentials.map(
-      (credential, i) => {
-        allowCredentials[i].id = base64urlToBuffer(credential.id);
-        return allowCredentials[i];
-      }
-    );
-  }
+  const webauthnPublicKeyFromJson = (
+    json: PublicKeyCredentialRequestOptionsJSON
+  ) =>
+    ({
+      ...json,
+      challenge: base64urlToBuffer(json.challenge),
+      allowCredentials: json.allowCredentials?.map(credential => ({
+        ...credential,
+        id: base64urlToBuffer(credential.id),
+      })),
+    }) as PublicKeyCredentialRequestOptions;
 
   return {
-    ssoChallenge: sso_challenge,
-    totpChallenge: totp_challenge,
-    webauthnPublicKey: webauthnPublicKey,
+    ssoChallenge: challenge.sso_challenge,
+    totpChallenge: challenge.totp_challenge,
+    webauthnPublicKey: challenge.webauthn_challenge
+      ? webauthnPublicKeyFromJson(challenge.webauthn_challenge.publicKey)
+      : null,
   };
 }
 

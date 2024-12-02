@@ -23,8 +23,8 @@ import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
-  makeMfaChallenge,
-  makeMfaRegistrationChallenge,
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from '../mfa/makeMfa';
@@ -65,7 +65,7 @@ const auth = {
         deviceType,
         deviceUsage,
       })
-      .then(makeMfaRegistrationChallenge);
+      .then(parseMfaRegistrationChallengeJson);
   },
 
   /**
@@ -94,7 +94,7 @@ const auth = {
   createMfaAuthnChallengeWithToken(tokenId: string) {
     return api
       .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
-      .then(makeMfaChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   // mfaLoginBegin retrieves users mfa challenges for their
@@ -107,7 +107,7 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   login(userId: string, password: string, otpCode: string) {
@@ -270,7 +270,7 @@ const auth = {
         },
         abortSignal
       )
-      .then(makeMfaChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   async fetchWebAuthnChallenge(
@@ -291,7 +291,7 @@ const auth = {
             },
             abortSignal
           )
-          .then(makeMfaChallenge)
+          .then(parseMfaChallengeJson)
       )
       .then(res =>
         navigator.credentials.get({
