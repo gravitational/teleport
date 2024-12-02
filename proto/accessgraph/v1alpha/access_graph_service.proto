@@ -21,6 +21,7 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "accessgraph/v1alpha/aws.proto";
+import "accessgraph/v1alpha/azure.proto";
 import "accessgraph/v1alpha/entra.proto";
 import "accessgraph/v1alpha/events.proto";
 import "accessgraph/v1alpha/gitlab.proto";
@@ -90,6 +91,9 @@ service AccessGraphService {
 
   // NetIQEventsStream is a stream of commands to the NetIQ importer.
   rpc NetIQEventsStream(stream NetIQEventsStreamRequest) returns (stream NetIQEventsStreamResponse);
+
+  // AzureEventsStream is a stream of commands to the Azure importer
+  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (stream AzureEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -288,3 +292,23 @@ message NetIQSyncOperation {}
 
 // NetIQEventsStreamResponse is a response from NetIQEventsStream
 message NetIQEventsStreamResponse {}
+
+// AzureEventsStreamRequest is a request to send commands to the Azure importer
+message AzureEventsStreamRequest {
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    AzureSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    AzureResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    AzureResourceList delete = 3;
+  }
+}
+
+// AzureSyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message AzureSyncOperation {}
+
+// AzureEventsStreamResponse is a response from AzureEventsStream
+message AzureEventsStreamResponse {}
