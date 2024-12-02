@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { createRef, cloneElement } from 'react';
+import React, { createRef, cloneElement, ComponentProps } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
 
@@ -36,9 +36,7 @@ export type ModalProps = {
   /**
    * Styles passed to the modal, the parent of the children.
    */
-  // TODO(ravicious): The type for modalCss might need some work after we migrate the components
-  // that use <Modal> to TypeScript.
-  modalCss?: StyleFunction<any>;
+  modalCss?: StyleFunction<ComponentProps<'div'>>;
 
   /**
    * The child must be a single HTML element. Modal used to call methods such as focus and
@@ -96,7 +94,7 @@ export type ModalProps = {
 
 export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
-  modalRef = createRef<HTMLElement>();
+  modalRef = createRef<HTMLDivElement>();
   mounted = false;
 
   componentDidMount() {
@@ -272,8 +270,7 @@ const StyledBackdrop = styled.div<BackdropProps>`
 `;
 
 const StyledModal = styled.div<{
-  modalCss?: StyleFunction<any>;
-  ref: React.RefObject<HTMLElement>;
+  modalCss?: StyleFunction<ComponentProps<'div'>>;
   hiddenInDom?: boolean;
 }>`
   position: fixed;
