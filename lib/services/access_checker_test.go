@@ -569,12 +569,46 @@ func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
 
+	allAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
 	allow := newRole(func(rv *types.RoleV6) {
 		rv.SetName("all-allow")
 		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
 				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	deny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
 			},
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
@@ -588,13 +622,19 @@ func TestSSHPortForwarding(t *testing.T) {
 		rv.SetNodeLabels(types.Allow, anyLabels)
 	})
 
-	allAllow := newRole(func(rv *types.RoleV6) {
-		rv.SetName("all-allow")
+	legacyDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-allow")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
+			PortForwarding: types.NewBoolOption(false),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-deny")
+		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
-				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
 			},
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
@@ -603,9 +643,18 @@ func TestSSHPortForwarding(t *testing.T) {
 	remoteDeny := newRole(func(rv *types.RoleV6) {
 		rv.SetName("remote-deny")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
 			},
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
@@ -614,21 +663,8 @@ func TestSSHPortForwarding(t *testing.T) {
 	localDeny := newRole(func(rv *types.RoleV6) {
 		rv.SetName("local-deny")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
-			},
-		})
-		rv.SetNodeLabels(types.Allow, anyLabels)
-	})
-
-	deny := newRole(func(rv *types.RoleV6) {
-		rv.SetName("all-deny")
-		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
-			SSHPortForwarding: &types.SSHPortForwarding{
-				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
-				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
 			},
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
@@ -645,9 +681,24 @@ func TestSSHPortForwarding(t *testing.T) {
 		expectedMode SSHPortForwardMode
 	}{
 		{
-			name:         "explicit allow",
+			name:         "allow all",
+			roleSet:      NewRoleSet(allAllow),
+			expectedMode: SSHPortForwardModeOn,
+		},
+		{
+			name:         "deny all",
+			roleSet:      NewRoleSet(allDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+		{
+			name:         "allow remote and local",
 			roleSet:      NewRoleSet(allow),
 			expectedMode: SSHPortForwardModeOn,
+		},
+		{
+			name:         "deny remote and local",
+			roleSet:      NewRoleSet(deny),
+			expectedMode: SSHPortForwardModeOff,
 		},
 		{
 			name:         "legacy allow",
@@ -655,8 +706,13 @@ func TestSSHPortForwarding(t *testing.T) {
 			expectedMode: SSHPortForwardModeOn,
 		},
 		{
-			name:         "all allowed",
-			roleSet:      NewRoleSet(allAllow),
+			name:         "legacy deny",
+			roleSet:      NewRoleSet(legacyDeny),
+			expectedMode: SSHPortForwardModeOff,
+		},
+		{
+			name:         "remote allow",
+			roleSet:      NewRoleSet(remoteAllow),
 			expectedMode: SSHPortForwardModeOn,
 		},
 		{
@@ -665,14 +721,14 @@ func TestSSHPortForwarding(t *testing.T) {
 			expectedMode: SSHPortForwardModeLocal,
 		},
 		{
+			name:         "local allow",
+			roleSet:      NewRoleSet(localAllow),
+			expectedMode: SSHPortForwardModeOn,
+		},
+		{
 			name:         "local deny",
 			roleSet:      NewRoleSet(localDeny),
 			expectedMode: SSHPortForwardModeRemote,
-		},
-		{
-			name:         "explicit deny",
-			roleSet:      NewRoleSet(deny),
-			expectedMode: SSHPortForwardModeOff,
 		},
 		{
 			name:         "implicit allow",
@@ -680,29 +736,31 @@ func TestSSHPortForwarding(t *testing.T) {
 			expectedMode: SSHPortForwardModeOn,
 		},
 		{
-			name:         "conflicting roles with remote deny",
+			name:         "conflicting roles: allow all with remote deny",
 			roleSet:      NewRoleSet(allow, remoteDeny),
-			expectedMode: SSHPortForwardModeOn,
+			expectedMode: SSHPortForwardModeLocal,
 		},
 		{
-			name:         "conflicting roles with local deny",
+			name:         "conflicting roles: allow all with local deny",
 			roleSet:      NewRoleSet(allow, localDeny),
-			expectedMode: SSHPortForwardModeOn,
+			expectedMode: SSHPortForwardModeRemote,
 		},
 		{
-			name:         "conflicting roles with legacy allow",
+			// legacy behavior prefers explicit allow, so make sure we respect that if one is given
+			name:         "conflicting roles: deny all with legacy allow",
 			roleSet:      NewRoleSet(deny, legacyAllow),
 			expectedMode: SSHPortForwardModeOn,
 		},
 		{
-			name:         "conflicting roles with explicit deny",
-			roleSet:      NewRoleSet(allow, deny),
+			// legacy behavior prioritizes explicit allow, so make sure we respect that if another role would allow access
+			name:         "conflicting roles: allow all with legacy deny",
+			roleSet:      NewRoleSet(allow, legacyDeny),
 			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "conflicting roles implicit allow explicit deny",
 			roleSet:      NewRoleSet(implicitAllow, deny),
-			expectedMode: SSHPortForwardModeOn,
+			expectedMode: SSHPortForwardModeOff,
 		},
 	}
 

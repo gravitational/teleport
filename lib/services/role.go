@@ -134,9 +134,6 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// Explicitly disable options that default to true, otherwise the option
-				// will always be enabled, as this implicit role is part of every role set.
-				PortForwarding: types.NewBoolOption(false),
 				RecordSession: &types.RecordSession{
 					Desktop: types.NewBoolOption(false),
 				},
@@ -2876,10 +2873,12 @@ func (m SSHPortForwardMode) String() string {
 	}
 }
 
-// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet.
+// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet. Port forwarding is implicitly allowed, but explicit denies take
+// precedence of explicit allows when using SSHPortForwarding. The legacy PortForwarding field prefers explicit allows for backwards
+// compatibility reasons, but is only evaluated in the absence of an SSHPortForwarding config on the same role.
 func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
-	// explicit allows and denies both need to be tracked in order to enforce implicit allows properly
-	var allowRemote, allowLocal bool
+	var denyRemote, denyLocal, legacyDeny bool
+	legacyCanDeny := true
 
 	for _, role := range set {
 		config := role.GetOptions().SSHPortForwarding
@@ -2887,36 +2886,50 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 		if config == nil {
 			// TODO (eriktate): remove legacy check in v20
 			//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
-			if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
-				return SSHPortForwardModeOn
+			legacy := role.GetOptions().PortForwarding
+			if legacy != nil {
+				if legacy.Value {
+					return SSHPortForwardModeOn
+				}
+
+				legacyDeny = true
 			}
 
 			continue
 		}
 
-		if config.Remote == nil || types.BoolDefaultTrue(config.Remote.Enabled) {
-			allowRemote = true
+		if config.Remote != nil && config.Remote.Enabled != nil {
+			if !config.Remote.Enabled.Value {
+				denyRemote = true
+
+			}
+
+			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
+			legacyCanDeny = false
 		}
 
-		if config.Local == nil || types.BoolDefaultTrue(config.Local.Enabled) {
-			allowLocal = true
-		}
+		if config.Local != nil && config.Local.Enabled != nil {
+			if !config.Local.Enabled.Value {
+				denyLocal = true
+			}
 
-		if allowRemote && allowLocal {
-			return SSHPortForwardModeOn
+			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
+			legacyCanDeny = false
 		}
 	}
 
-	// enforcing implicit allow and preferring expicit allow over explicit deny
+	// enforcing implicit allow and preferring allow over explicit deny
 	switch {
-	case allowRemote && allowLocal:
-		return SSHPortForwardModeOn
-	case allowRemote:
-		return SSHPortForwardModeRemote
-	case allowLocal:
-		return SSHPortForwardModeLocal
-	default:
+	case denyRemote && denyLocal:
 		return SSHPortForwardModeOff
+	case legacyDeny && legacyCanDeny:
+		return SSHPortForwardModeOff
+	case denyRemote:
+		return SSHPortForwardModeLocal
+	case denyLocal:
+		return SSHPortForwardModeRemote
+	default:
+		return SSHPortForwardModeOn
 	}
 }
 
