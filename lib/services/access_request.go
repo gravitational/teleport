@@ -121,7 +121,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 	}
 	if len(invalidClusters) > 0 {
 		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
-			strings.Join(utils.Deduplicate(invalidClusters), ", "))
+			strings.Join(apiutils.Deduplicate(invalidClusters), ", "))
 	}
 	return nil
 }
