@@ -20,6 +20,10 @@ The operator supports reconciling the following Kubernetes CRs:
 - TeleportRoleV7 (creates role v7)
 - TeleportProvisionToken
 - TeleportGithubConnector
+- TeleportAccessList
+- TeleportOpenSSHEICEServerV2
+- TeleportOpenSSHServerV2
+- TeleportTrustedClusterV2
 - TeleportSAMLConnector [1]
 - TeleportOIDCConnector [1]
 - TeleportLoginRule [1]
