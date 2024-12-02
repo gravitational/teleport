@@ -20,7 +20,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, Box, H3, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -61,7 +61,7 @@ export function ConfigureAwsOidcSummary({
 }`;
 
   return (
-    <TooltipInfo sticky={true} maxWidth={800}>
+    <IconTooltip sticky={true} maxWidth={800}>
       <H3 mb={2}>Running the command in AWS CloudShell does the following:</H3>
       <Text>1. Configures an AWS IAM OIDC Identity Provider (IdP)</Text>
       <Text>
@@ -76,7 +76,7 @@ export function ConfigureAwsOidcSummary({
           />
         </EditorWrapper>
       </Box>
-    </TooltipInfo>
+    </IconTooltip>
   );
 }
 

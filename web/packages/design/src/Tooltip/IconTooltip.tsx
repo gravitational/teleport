@@ -27,7 +27,7 @@ import { anchorOriginForPosition, transformOriginForPosition } from './shared';
 
 type ToolTipKind = 'info' | 'warning' | 'error';
 
-export const TooltipInfo: React.FC<
+export const IconTooltip: React.FC<
   PropsWithChildren<{
     trigger?: 'click' | 'hover';
     position?: Position;
