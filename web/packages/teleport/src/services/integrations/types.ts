@@ -62,6 +62,7 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  GitHub = 'github',
 }
 
 /**
