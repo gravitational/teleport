@@ -18,6 +18,8 @@
 
 import { Flex, Text, Box } from 'design';
 
+import { Meta } from '@storybook/react';
+
 import {
   makeApp,
   makeRootCluster,
@@ -38,27 +40,26 @@ import {
   AccessRequestButton,
 } from './ActionButtons';
 
-export default {
+type StoryProps = { vnet: boolean };
+
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/DocumentCluster/ActionButtons',
+  component: Buttons,
+  argTypes: {
+    vnet: {
+      control: { type: 'boolean' },
+    },
+  },
+  args: {
+    vnet: true,
+  },
 };
 
-export function ActionButtons() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
+export default meta;
 
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Buttons />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-export function WithoutVnet() {
-  const appContext = new MockAppContext({ platform: 'win32' });
+export function Story(props: StoryProps) {
+  const platform = props.vnet ? 'darwin' : 'win32';
+  const appContext = new MockAppContext({ platform });
   prepareAppContext(appContext);
 
   return (
