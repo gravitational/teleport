@@ -18,12 +18,10 @@
 
 import React, { useState } from 'react';
 
-import { useTheme } from 'styled-components';
-
 import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
 
-import { SlideTabs } from './SlideTabs';
+import { SlideTabs, TabSpec } from './SlideTabs';
 
 export default {
   title: 'Design/SlideTabs',
@@ -126,22 +124,28 @@ export const Small = () => {
             key: 'alarm',
             icon: Icon.AlarmRing,
             ariaLabel: 'alarm',
-            tooltipContent: 'ring ring',
-            tooltipPosition: 'bottom',
+            tooltip: {
+              content: 'ring ring',
+              position: 'bottom',
+            },
           },
           {
             key: 'bots',
             icon: Icon.Bots,
             ariaLabel: 'bots',
-            tooltipContent: 'beep boop',
-            tooltipPosition: 'bottom',
+            tooltip: {
+              content: 'beep boop',
+              position: 'bottom',
+            },
           },
           {
             key: 'check',
             icon: Icon.Check,
             ariaLabel: 'check',
-            tooltipContent: 'Do or do not. There is no try.',
-            tooltipPosition: 'right',
+            tooltip: {
+              content: 'Do or do not. There is no try.',
+              position: 'right',
+            },
           },
         ]}
         size="small"
@@ -175,22 +179,11 @@ export const Small = () => {
 };
 
 export const StatusIcons = () => {
-  const theme = useTheme();
   const [activeIndex, setActiveIndex] = useState(0);
-  const tabs = [
-    {
-      key: 'warning',
-      title: 'warning',
-      statusIcon: Icon.Warning,
-      statusIconColor: theme.colors.interactive.solid.alert.default,
-    },
-    {
-      key: 'danger',
-      title: 'danger',
-      statusIcon: Icon.WarningCircle,
-      statusIconColor: theme.colors.interactive.solid.danger.default,
-    },
-    { key: 'neutral', title: 'neutral', statusIcon: Icon.Bubble },
+  const tabs: TabSpec[] = [
+    { key: 'warning', title: 'warning', status: { kind: 'warning' } },
+    { key: 'danger', title: 'danger', status: { kind: 'danger' } },
+    { key: 'neutral', title: 'neutral', status: { kind: 'neutral' } },
   ];
   return (
     <Flex flexDirection="column" gap={3}>
@@ -202,6 +195,12 @@ export const StatusIcons = () => {
       />
       <SlideTabs
         tabs={tabs}
+        activeIndex={activeIndex}
+        onChange={setActiveIndex}
+      />
+      <SlideTabs
+        tabs={tabs}
+        hideStatusIconOnActiveTab
         activeIndex={activeIndex}
         onChange={setActiveIndex}
       />
