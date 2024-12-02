@@ -25,7 +25,7 @@ import LabelInput from 'design/LabelInput';
 
 import Flex from 'design/Flex';
 
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
 import { useRule } from '../Validation';
@@ -96,7 +96,7 @@ export const FieldSelectWrapper = <Opt, IsMulti extends boolean>({
           {toolTipContent ? (
             <Flex gap={1} alignItems="center">
               {label}
-              <TooltipInfo children={toolTipContent} />
+              <IconTooltip children={toolTipContent} />
             </Flex>
           ) : (
             label

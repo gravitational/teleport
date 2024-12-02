@@ -28,7 +28,7 @@ import styled, { useTheme } from 'styled-components';
 import { IconProps } from 'design/Icon/Icon';
 import { InputMode, InputSize, InputType } from 'design/Input';
 
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { useRule } from 'shared/components/Validation';
 
@@ -114,7 +114,7 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
                   >
                     {label}
                   </span>
-                  <TooltipInfo children={toolTipContent} />
+                  <IconTooltip children={toolTipContent} />
                 </>
               ) : (
                 <>{label}</>

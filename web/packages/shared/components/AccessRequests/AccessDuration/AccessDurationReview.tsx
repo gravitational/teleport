@@ -19,7 +19,7 @@
 import React from 'react';
 import { Flex, Text } from 'design';
 
-import { TooltipInfo } from 'design/Tooltip';
+import { IconTooltip } from 'design/Tooltip';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
@@ -41,9 +41,9 @@ export function AccessDurationReview({
           end: accessRequest.expires,
         })}
       </Text>
-      <TooltipInfo>
+      <IconTooltip>
         How long the access will be granted for after approval.
-      </TooltipInfo>
+      </IconTooltip>
     </Flex>
   );
 }
