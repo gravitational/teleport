@@ -281,8 +281,7 @@ See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) fo
 Teleport can display a custom message of the day (MOTD) for users prior to authenticating
 in the Teleport Web UI and CLI. 
 
-<Tabs>
-<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+### Self-Hosted
 
 Add the following to your Teleport configuration file, which is stored in
 `/etc/teleport.yaml` by default.
@@ -292,10 +291,9 @@ Add the following to your Teleport configuration file, which is stored in
   message_of_the_day: "\n Welcome to the Example Teleport Cluster\n  All activity is monitored and should follow organization policies\n"
   ```
 
-  Restart the Teleport Auth services to apply this change.
+Restart the Teleport Auth Services to apply this change.
 
-</TabItem>
-<TabItem scope={["enterprise", "oss"]} label="Teleport Enterprise Cloud/Dynamic">
+### Teleport Enterprise Cloud/Dynamic
 
 Edit your `cluster_auth_preference` resource:
 
@@ -319,6 +317,3 @@ version: v2
 ```
 
 Save and close the file in your editor to apply changes.
-
-</TabItem>
-</Tabs>
