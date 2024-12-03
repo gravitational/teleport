@@ -76,7 +76,7 @@ describe('test retrieving mfa options from MFA Challenge', () => {
     {
       name: 'challenge webauthn',
       challenge: {
-        webauthnPublicKey: Object.create(PublicKeyCredential),
+        webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
       },
       expect: ['webauthn'],
     },
@@ -85,16 +85,16 @@ describe('test retrieving mfa options from MFA Challenge', () => {
       challenge: {
         ssoChallenge: Object.create(SSOChallenge),
       },
-      expect: ['webauthn', 'totp'],
+      expect: ['sso'],
     },
     {
       name: 'challenge all',
       challenge: {
         totpChallenge: true,
-        webauthnPublicKey: Object.create(PublicKeyCredential),
+        webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
         ssoChallenge: Object.create(SSOChallenge),
       },
-      expect: ['webauthn', 'totp'],
+      expect: ['webauthn', 'totp', 'sso'],
     },
   ];
 
