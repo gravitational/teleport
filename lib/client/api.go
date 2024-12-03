@@ -3060,13 +3060,13 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			// The ssh package requires and enforces that questions and echos
 			// have the same length, so blindly indexing here is safe.
 			if echos[i] {
-				answer, err := prompt.Input(context.Background(), tc.Stdout, tc.stdin(), question)
+				answer, err := prompt.Input(context.Background(), tc.Stdout, prompt.Stdin(), question)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				answers = append(answers, answer)
 			} else {
-				answer, err := prompt.Password(context.Background(), tc.Stdout, tc.stdin(), question)
+				answer, err := prompt.Password(context.Background(), tc.Stdout, prompt.Stdin(), question)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
