@@ -1451,7 +1451,7 @@ Hello messages are sent on connection and are used to build the serve's local in
 This information is available almost instantaneously after the connection and can be cheaply queried by the auth (
 everything is in memory). The inventory is then used to count the local instances and drive the rollout.
 
-Both instance heartbeats and Hello merssages will be extended to incorporate and send data that is written to
+Both instance heartbeats and Hello messages will be extended to incorporate and send data that is written to
 `/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
 
 The following data related to the update is sent by the agent:
