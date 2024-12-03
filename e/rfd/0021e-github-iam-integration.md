@@ -62,11 +62,11 @@ We will assume Okta as an identity provider since we're using it internally,
 and will use these flows as a primer of how this integration will be deployed
 for our own use.
 
-## I want onboarded users to automaticaly get access to appropriate repositories
+## I want onboarded users to automatically get access to appropriate repositories
 
 To simplify onboarding, we want a user to automatically get appropriate access
 to Github when they join the team. Assuming Okta access list sync is enabled,
-they will get automaticaly added to an Okta-synced access list representing
+they will get automatically added to an Okta-synced access list representing
 their team. The Okta-synced list can be made a member of a corresponding
 Github-synced list which will grant all its members access to Github.
 

@@ -101,7 +101,7 @@ the resources internally to build their own solution.
 
 #### Case Study: Vespa AI (Existing Solution)
 
-Vespa AI is a customer currently trialling Teleport as an access solution. In
+Vespa AI is a customer currently trialing Teleport as an access solution. In
 an early conversation with our sales team, they asked if Teleport offered a
 workload identity solution.
 
@@ -805,7 +805,7 @@ SVIDs from a workload. This should include:
 - Any additional information that can be discerned of the caller
   (e.g IP address, user agent).
 - The SPIFFE IDs that were returned.
-- Any additional certificate fields that were retruned (e.g DNS SANs).
+- Any additional certificate fields that were returned (e.g DNS SANs).
 
 Hypothetically, this additional information with the `tbot` log message could
 be provided to the Auth Server for inclusion in the audit event. However, this

@@ -237,7 +237,7 @@ sequenceDiagram
     Proxy ->> Proxy: fetch session ID
     Proxy ->> Auth: ConfirmDeviceWebAuthentication(<br>confirmToken, currentSessionID)
     Auth ->> Auth: spend token
-    Auth ->> Auth: verify currentSessionID vs expectedSesssionID
+    Auth ->> Auth: verify currentSessionID vs expectedSessionID
     Auth ->> Auth: on success: update WebSession
 
     Auth -->> Proxy: watcher session update event
@@ -544,7 +544,7 @@ flowchart TD
     Start(Open URL)
     End(End)
     AskDeviceAuthn[ask: Authenticate device for web session?]
-    AlreadyLoggedIn[Alread logged in?]
+    AlreadyLoggedIn[Already logged in?]
     Login
     AuthenticateWebDevice[AuthenticateWebDevice]
     OpenBrowser[Open Browser]

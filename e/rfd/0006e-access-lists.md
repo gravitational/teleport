@@ -253,7 +253,7 @@ traits can be specified specifically for target roles, for example:
 traits: { my-role/app: salesForce }
 ```
 
-However, I would recommend we go for the former for simplicit of
+However, I would recommend we go for the former for simplicity of
 implementation.
 
 ### Audit notifier
