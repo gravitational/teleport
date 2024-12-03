@@ -118,7 +118,6 @@ func createClientTLSConfig(clientKeyPair tls.Certificate, serverCertPath string)
 
 	return &tls.Config{
 		Certificates: []tls.Certificate{clientKeyPair},
-		NextProtos:   []string{"h2"},
 		RootCAs:      certPool,
 	}, nil
 }
