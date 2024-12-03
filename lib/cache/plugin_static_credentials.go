@@ -58,7 +58,7 @@ var _ executor[types.PluginStaticCredentials, pluginStaticCredentialsGetter] = p
 type pluginStaticCredentialsExecutor struct{}
 
 func (pluginStaticCredentialsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.PluginStaticCredentials, error) {
-	return cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials(ctx)
+	return cache.PluginStaticCredentials.GetAllPluginStaticCredentials(ctx)
 }
 
 func (pluginStaticCredentialsExecutor) upsert(ctx context.Context, cache *Cache, resource types.PluginStaticCredentials) error {
