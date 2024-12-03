@@ -23,6 +23,7 @@ import Box from '../Box';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
 import { H3 } from '../Text';
+import { Origin } from '../Popover';
 
 import MenuItemIcon from './MenuItemIcon';
 import MenuItem, {
@@ -140,8 +141,8 @@ export const IconExample = () => (
 const SimpleMenu = (
   props: PropsWithChildren<{
     text: string;
-    anchorOrigin?: any;
-    transformOrigin?: any;
+    anchorOrigin?: Origin;
+    transformOrigin?: Origin;
   }>
 ) => {
   const anchorElRef = useRef(null);
