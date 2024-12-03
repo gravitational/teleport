@@ -278,10 +278,12 @@ in the Teleport Web UI and CLI.
 Add the following to your Teleport configuration file, which is stored in
 `/etc/teleport.yaml` by default.
 
-  ```yaml
-  auth_service:
-  message_of_the_day: "\n Welcome to the Example Teleport Cluster\n  All activity is monitored and should follow organization policies\n"
-  ```
+```yaml
+auth_service:
+  message_of_the_day: |
+    Welcome to the Example Teleport Cluster
+    All activity is monitored and should follow organization policies
+```
 
 Restart the Teleport Auth Service instances to apply this change.
 
@@ -300,7 +302,9 @@ kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
 spec:
-  message_of_the_day: "\n Welcome to the Example Teleport Cluster\nAll activity is monitored and should follow organization policies\n"
+  message_of_the_day: |
+    Welcome to the Example Teleport Cluster
+    All activity is monitored and should follow organization policies
   type: local
   second_factor: "on"
   webauthn:
