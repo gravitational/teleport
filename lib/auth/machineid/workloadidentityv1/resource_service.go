@@ -239,7 +239,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 // UpdateWorkloadIdentity updates an existing WorkloadIdentity.
 // Implements teleport.workloadidentity.v1.ResourceService/UpdateWorkloadIdentity
 func (s *ResourceService) UpdateWorkloadIdentity(
-	ctx context.Context, req *workloadidentityv1pb.CreateWorkloadIdentityRequest,
+	ctx context.Context, req *workloadidentityv1pb.UpdateWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
