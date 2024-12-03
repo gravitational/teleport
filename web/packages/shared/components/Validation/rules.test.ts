@@ -190,7 +190,7 @@ test.each([
     items: ['a', '', 'c'],
     expected: {
       valid: false,
-      items: [
+      results: [
         { valid: true, message: '' },
         { valid: false, message: 'required' },
         { valid: true, message: '' },
@@ -202,7 +202,7 @@ test.each([
     items: ['a', 'b', 'c'],
     expected: {
       valid: true,
-      items: [
+      results: [
         { valid: true, message: '' },
         { valid: true, message: '' },
         { valid: true, message: '' },
