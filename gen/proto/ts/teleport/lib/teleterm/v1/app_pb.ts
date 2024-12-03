@@ -198,6 +198,49 @@ export interface PortRange {
      */
     endPort: number;
 }
+/**
+ * RouteToApp is used by the auth service and the app service during cert generation and routing.
+ * It's purpose is to point to a specific app within a root cluster. Kind of like an app URI in
+ * Connect, but with extra data attached.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.RouteToApp
+ */
+export interface RouteToApp {
+    /**
+     * name is the name of the app within a cluster.
+     *
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
+    /**
+     * public_addr is the address under which the app can be reached. It's just the hostname, it does
+     * not include the schema or the port number. See the docs for public_addr of
+     * the App message for a more thorough description.
+     *
+     * @generated from protobuf field: string public_addr = 2;
+     */
+    publicAddr: string;
+    /**
+     * cluster_name is the name of the cluster that the app belongs to. In the case of the root
+     * cluster, it's not guaranteed to be equal to the proxy hostname – the root cluster might have a
+     * distinct name set.
+     *
+     * @generated from protobuf field: string cluster_name = 3;
+     */
+    clusterName: string;
+    /**
+     * uri is the URI which the app service is going to proxy requests to.
+     *
+     * @generated from protobuf field: string uri = 4;
+     */
+    uri: string;
+    /**
+     * target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
+     *
+     * @generated from protobuf field: uint32 target_port = 5;
+     */
+    targetPort: number;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
     constructor() {
@@ -459,3 +502,82 @@ class PortRange$Type extends MessageType<PortRange> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PortRange
  */
 export const PortRange = new PortRange$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RouteToApp$Type extends MessageType<RouteToApp> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.RouteToApp", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "target_port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RouteToApp>): RouteToApp {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.publicAddr = "";
+        message.clusterName = "";
+        message.uri = "";
+        message.targetPort = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RouteToApp>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RouteToApp): RouteToApp {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string public_addr */ 2:
+                    message.publicAddr = reader.string();
+                    break;
+                case /* string cluster_name */ 3:
+                    message.clusterName = reader.string();
+                    break;
+                case /* string uri */ 4:
+                    message.uri = reader.string();
+                    break;
+                case /* uint32 target_port */ 5:
+                    message.targetPort = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RouteToApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string public_addr = 2; */
+        if (message.publicAddr !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
+        /* string cluster_name = 3; */
+        if (message.clusterName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.clusterName);
+        /* string uri = 4; */
+        if (message.uri !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.uri);
+        /* uint32 target_port = 5; */
+        if (message.targetPort !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.targetPort);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RouteToApp
+ */
+export const RouteToApp = new RouteToApp$Type();

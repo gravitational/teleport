@@ -109,3 +109,23 @@ message PortRange {
   // that the port range defines a single port.
   uint32 end_port = 2;
 }
+
+// RouteToApp is used by the auth service and the app service during cert generation and routing.
+// It's purpose is to point to a specific app within a root cluster. Kind of like an app URI in
+// Connect, but with extra data attached.
+message RouteToApp {
+  // name is the name of the app within a cluster.
+  string name = 1;
+  // public_addr is the address under which the app can be reached. It's just the hostname, it does
+  // not include the schema or the port number. See the docs for public_addr of
+  // the App message for a more thorough description.
+  string public_addr = 2;
+  // cluster_name is the name of the cluster that the app belongs to. In the case of the root
+  // cluster, it's not guaranteed to be equal to the proxy hostname – the root cluster might have a
+  // distinct name set.
+  string cluster_name = 3;
+  // uri is the URI which the app service is going to proxy requests to.
+  string uri = 4;
+  // target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
+  uint32 target_port = 5;
+}
