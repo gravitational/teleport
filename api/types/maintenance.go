@@ -45,10 +45,10 @@ var validWeekdays = [7]time.Weekday{
 	time.Saturday,
 }
 
-// parseWeekday attempts to interpret a string as a time.Weekday. In the interest of flexibility,
+// ParseWeekday attempts to interpret a string as a time.Weekday. In the interest of flexibility,
 // parsing is case-insensitive and supports the common three-letter shorthand accepted by many
 // common scheduling utilites (e.g. contab, systemd timers).
-func parseWeekday(s string) (day time.Weekday, ok bool) {
+func ParseWeekday(s string) (day time.Weekday, ok bool) {
 	for _, w := range validWeekdays {
 		if strings.EqualFold(w.String(), s) || strings.EqualFold(w.String()[:3], s) {
 			return w, true
@@ -75,7 +75,7 @@ func (w *AgentUpgradeWindow) generator(from time.Time) func() (start time.Time, 
 
 	var weekdays []time.Weekday
 	for _, d := range w.Weekdays {
-		if p, ok := parseWeekday(d); ok {
+		if p, ok := ParseWeekday(d); ok {
 			weekdays = append(weekdays, p)
 		}
 	}
@@ -203,7 +203,7 @@ func (m *ClusterMaintenanceConfigV1) CheckAndSetDefaults() error {
 		}
 
 		for _, day := range m.Spec.AgentUpgrades.Weekdays {
-			if _, ok := parseWeekday(day); !ok {
+			if _, ok := ParseWeekday(day); !ok {
 				return trace.BadParameter("invalid weekday in agent upgrade window: %q", day)
 			}
 		}
