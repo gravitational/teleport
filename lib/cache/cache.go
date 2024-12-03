@@ -3560,6 +3560,19 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }
 
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
+}
+
 // ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
 func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")

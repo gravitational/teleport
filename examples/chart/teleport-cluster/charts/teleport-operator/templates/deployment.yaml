@@ -4,7 +4,11 @@ kind: Deployment
 metadata:
   name: {{ include "teleport-cluster.operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.operator.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.operator.labels" . | nindent 4 }}
+    {{- if .Values.labels.deployment }}
+    {{- toYaml .Values.labels.deployment | nindent 4 }}
+    {{- end }}
   {{- if .Values.annotations.deployment }}
   annotations: {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
@@ -22,7 +26,11 @@ spec:
   {{- if .Values.annotations.pod }}
       annotations: {{- toYaml .Values.annotations.pod | nindent 8 }}
   {{- end }}
-      labels: {{- include "teleport-cluster.operator.labels" . | nindent 8 }}
+      labels:
+      {{- include "teleport-cluster.operator.labels" . | nindent 8 }}
+      {{- if .Values.labels.pod }}
+      {{- toYaml .Values.labels.pod | nindent 8 }}
+      {{- end }}
     spec:
   {{- if .Values.nodeSelector }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}

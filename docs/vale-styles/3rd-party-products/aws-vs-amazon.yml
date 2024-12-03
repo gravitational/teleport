@@ -15,7 +15,6 @@
 #   /^AWS /{ print gensub(/AWS (.*)/,"  \"Amazon \\1\"","1") ": " $0}'
 extends: substitution
 message: "Incorrect AWS product name. Use %s instead of %s."
-scope: raw
 level: warning
 ignorecase: true
 swap:
