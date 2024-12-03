@@ -49,6 +49,9 @@ const totpOption: MfaOption = { value: 'totp', label: 'Authenticator App' };
 const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
   return {
     value: 'sso',
-    label: ssoChallenge.device.displayName || ssoChallenge.device.connectorId,
+    label:
+      ssoChallenge.device?.displayName ||
+      ssoChallenge.device?.connectorId ||
+      'SSO',
   };
 };
