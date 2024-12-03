@@ -2226,6 +2226,12 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
 }
 
 func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
@@ -2261,6 +2267,12 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
 }
 
 func TestPluginResourceWrapper(t *testing.T) {
