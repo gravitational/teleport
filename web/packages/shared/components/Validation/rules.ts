@@ -285,7 +285,7 @@ const requiredAll =
 /** A result of the {@link arrayOf} validation rule. */
 export type ArrayValidationResult<R = ValidationResult> = ValidationResult & {
   /** Results of validating each separate item. */
-  items: R[];
+  results: R[];
 };
 
 /** Validates an array by executing given rule on each of its elements. */
@@ -296,7 +296,7 @@ const arrayOf =
   (values: T[]) =>
   () => {
     const results = values.map(v => elementRule(v)());
-    return { items: results, valid: results.every(r => r.valid) };
+    return { results: results, valid: results.every(r => r.valid) };
   };
 
 /**

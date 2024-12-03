@@ -183,7 +183,7 @@ describe('validation rules', () => {
     }));
     return {
       valid: results.every(r => r.name.valid && r.value.valid),
-      items: results,
+      results: results,
     };
   };
 

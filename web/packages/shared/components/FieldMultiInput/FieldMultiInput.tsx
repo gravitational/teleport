@@ -35,13 +35,13 @@ import FieldInput from '../FieldInput';
 
 type StringListValidationResult = ValidationResult & {
   /**
-   * A list of validation results, one per label. Note: items are optional just
-   * because `useRule` by default returns only `ValidationResult`. For the
-   * actual validation, it's not optional; if it's undefined, or there are
-   * fewer items in this list than the labels, the corresponding items will be
-   * treated as valid.
+   * A list of validation results, one per list item. Note: results are
+   * optional just because `useRule` by default returns only
+   * `ValidationResult`. For the actual validation, it's not optional; if it's
+   * undefined, or there are fewer results in this list than the list items,
+   * the corresponding items will be treated as valid.
    */
-  items?: ValidationResult[];
+  results?: ValidationResult[];
 };
 
 export type FieldMultiInputProps = {
@@ -119,7 +119,7 @@ export function FieldMultiInput({
               <FieldInput
                 value={val}
                 rule={precomputed(
-                  validationResult.items?.[i] ?? { valid: true }
+                  validationResult.results?.[i] ?? { valid: true }
                 )}
                 ref={toFocus.current === i ? setFocus : null}
                 onChange={e =>

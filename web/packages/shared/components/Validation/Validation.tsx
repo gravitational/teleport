@@ -110,7 +110,9 @@ export default class Validator extends Store<ValidatorState> {
 
 const ValidationContext = React.createContext<Validator | undefined>(undefined);
 
-type ValidationRenderFunction = (arg: { validator: Validator }) => any;
+type ValidationRenderFunction = (arg: {
+  validator: Validator;
+}) => React.ReactNode;
 
 /**
  * Installs a validation context that provides a {@link Validator} store. The
@@ -184,7 +186,7 @@ export function Validation(props: {
 export function useValidation(): Validator | undefined {
   const validator = React.useContext(ValidationContext);
   if (!validator) {
-    logger.warn('Missing Validation Context declaration');
+    throw new Error('useValidation() called without a validation context');
   }
   return useStore(validator);
 }
