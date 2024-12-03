@@ -340,6 +340,7 @@ export function TrustedDeviceEnrolled() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
+    profileStatusError: '',
   };
 
   const activeIdentityRootCluster = identityRootCluster;
@@ -374,6 +375,7 @@ export function TrustedDeviceRequiredButNotEnrolled() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
+    profileStatusError: '',
   };
 
   const activeIdentityRootCluster = identityRootCluster;
