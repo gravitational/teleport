@@ -1,4 +1,4 @@
-.version: &version "16.4.2-dev-tross-pam-auth.3"
+.version: &version "16.4.2-dev-tross-kbd-interactive.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
