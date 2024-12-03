@@ -56,12 +56,25 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Con
 	if clock == nil {
 		return nil, trace.BadParameter("missing clock")
 	}
+
+	timeBased, err := newTimeBasedStrategy(log, clock)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to instantiate time-based strategy")
+	}
+	haltOnError, err := newHaltOnErrorStrategy(log, clock)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to instantiate halt on failure")
+	}
 	return &Controller{
 		clock: clock,
 		log:   log,
 		reconciler: reconciler{
 			clt: client,
 			log: log,
+			rolloutStrategies: []rolloutStrategy{
+				timeBased,
+				haltOnError,
+			},
 		},
 	}, nil
 }
