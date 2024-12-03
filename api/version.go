@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "16.4.2-dev-tross-pam-auth.1"
+const Version = "16.4.2-dev-tross-pam-auth.2"
 
 var SemVersion = semver.New(Version)
