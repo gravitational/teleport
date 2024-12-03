@@ -107,6 +107,7 @@ func initCache(srv *auth.Server, args CacheArgs) error {
 		WebToken:                svces.WebTokens(),
 		WindowsDesktops:         svces.WindowsDesktops,
 		DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
+		PluginStaticCredentials: svces.PluginStaticCredentials,
 	})
 	if err != nil {
 		return trace.Wrap(err)
