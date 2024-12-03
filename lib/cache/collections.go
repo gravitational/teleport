@@ -176,6 +176,7 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -783,6 +784,20 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
+
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
 
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
