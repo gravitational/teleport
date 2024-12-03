@@ -169,7 +169,7 @@ require (
 	github.com/redis/go-redis/v9 v9.6.1 // replaced
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/russellhaering/goxmldsig v1.4.0
-	github.com/schollz/progressbar/v3 v3.17.0
+	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shirou/gopsutil/v4 v4.24.10
 	github.com/sigstore/cosign/v2 v2.4.1
