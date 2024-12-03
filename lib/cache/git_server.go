@@ -58,7 +58,7 @@ func (gitServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	var page []types.Server
 	var nextToken string
 	for {
-		page, nextToken, err = cache.gitServersCache.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
+		page, nextToken, err = cache.GitServers.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
