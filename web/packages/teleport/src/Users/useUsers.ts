@@ -32,13 +32,6 @@ export default function useUsers({
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
-  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
-  // the info yet
-  const [showMauInfo, setShowMauInfo] = useState(
-    ctx.getFeatureFlags().billing &&
-      cfg.isUsageBasedBilling &&
-      !storageService.getUsersMauAcknowledged()
-  );
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -130,17 +123,26 @@ export default function useUsers({
 
   function onDismissUsersMauNotice() {
     storageService.setUsersMAUAcknowledged();
-    setShowMauInfo(false);
   }
 
   useEffect(() => {
     attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
 
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
+
+  const usersAcl = ctx.storeUser.getUserAccess();
+
   return {
     attempt,
     users,
     fetchRoles,
+    usersAcl,
     operation,
     onStartCreate,
     onStartDelete,
