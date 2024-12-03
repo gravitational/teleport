@@ -81,7 +81,7 @@ func TestCreateResource(t *testing.T) {
 	require.NoError(t, err)
 	got, err = s.GetAuthPreference(ctx)
 	require.NoError(t, err)
-	require.NotEqual(t, got.GetType(), cap.GetType())
+	require.NotEqual(t, cap.GetType(), got.GetType())
 }
 
 func TestUserResource(t *testing.T) {
