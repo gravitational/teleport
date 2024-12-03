@@ -72,7 +72,7 @@ func TestCreateResource(t *testing.T) {
 	require.NoError(t, err)
 	got, err := s.GetAuthPreference(ctx)
 	require.NoError(t, err)
-	require.Equal(t, got.GetType(), cap.GetType())
+	require.Equal(t, cap.GetType(), got.GetType())
 
 	// Check that already exists errors are ignored and the resource is not
 	// updated.
