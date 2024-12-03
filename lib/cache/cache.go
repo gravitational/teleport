@@ -199,6 +199,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindPluginStaticCredentials},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -552,6 +553,7 @@ type Cache struct {
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
 	workloadIdentityCache        workloadIdentityCacher
+	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -789,6 +791,8 @@ type Config struct {
 
 	// IdentityCenter is the upstream Identity Center service that we're caching
 	IdentityCenter services.IdentityCenter
+	// PluginStaticCredentials is the plugin static credentials services
+	PluginStaticCredentials services.PluginStaticCredentials
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1034,6 +1038,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1082,6 +1092,7 @@ func New(config Config) (*Cache, error) {
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
 		workloadIdentityCache:        workloadIdentityCache,
+		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),

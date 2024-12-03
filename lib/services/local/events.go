@@ -250,6 +250,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newIdentityCenterAccountAssignmentParser()
 		case types.KindWorkloadIdentity:
 			parser = newWorkloadIdentityParser()
+		case types.KindPluginStaticCredentials:
+			parser = newPluginStaticCredentialsParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
