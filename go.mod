@@ -171,7 +171,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/scim2/filter-parser/v2 v2.2.0
-	github.com/shirou/gopsutil/v4 v4.24.10
+	github.com/shirou/gopsutil/v4 v4.24.11
 	github.com/sigstore/cosign/v2 v2.4.1
 	github.com/sigstore/sigstore v1.8.10
 	github.com/sijms/go-ora/v2 v2.8.22
