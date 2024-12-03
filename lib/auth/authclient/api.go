@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -1235,6 +1236,12 @@ type Cache interface {
 
 	// GetProvisioningState gets a specific provisioning state
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
+
+	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
+	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+
+	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
 }
 
 type NodeWrapper struct {

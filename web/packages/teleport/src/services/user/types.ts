@@ -28,6 +28,7 @@ export interface AccessStrategy {
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
+  requireReason: boolean;
 }
 
 export interface UserContext {
@@ -71,6 +72,7 @@ export interface AccessWithUse extends Access {
 
 export interface Acl {
   directorySharingEnabled: boolean;
+  reviewRequests: boolean;
   desktopSessionRecordingEnabled: boolean;
   clipboardSharingEnabled: boolean;
   authConnectors: Access;
@@ -92,6 +94,7 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  discoverConfigs: Access;
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;

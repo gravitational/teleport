@@ -1125,7 +1125,7 @@ func TestValidateRole(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 
 			if len(tc.expectWarnings) == 0 {
-				require.Empty(t, warning)
+				require.NoError(t, warning)
 			}
 			for _, msg := range tc.expectWarnings {
 				require.ErrorContains(t, warning, msg)
@@ -2478,7 +2478,11 @@ func TestCheckRuleAccess(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+
+			// At least one scenario exercises "default" vs "system" namespaces.
+			namespace := check.namespace
+
+			result := set.CheckAccessToRule(&check.context, namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
@@ -2495,7 +2499,6 @@ func TestDefaultImplicitRules(t *testing.T) {
 	type check struct {
 		hasAccess bool
 		verb      string
-		namespace string
 		rule      string
 		context   testContext
 	}
@@ -2505,60 +2508,73 @@ func TestDefaultImplicitRules(t *testing.T) {
 		checks []check
 	}{
 		{
-			name: "KindIdentityCenterAccount with NewPresetAccessRole",
+			name: "KindIdentityCenter with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
-			name: "KindIdentityCenterAccount with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
+			name: "KindIdentityCenter with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with a custom role that does not explicitly target read and list verbs for KindSAMLIdPServiceProvider",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
+			},
+		},
+		{
+			name: "KindGitServer with empty rules",
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Allow = types.RoleConditions{}
+				r.Spec.Deny = types.RoleConditions{}
+			}),
+			checks: []check{
+				{rule: types.KindGitServer, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		roleSet := NewRoleSet(tc.role)
 		for _, check := range tc.checks {
-			result := roleSet.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+			result := roleSet.CheckAccessToRule(&check.context, apidefaults.Namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result)
 			} else {
 				require.True(t, trace.IsAccessDenied(result))
 			}
-
 		}
 	}
 }
@@ -2735,10 +2751,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	type checkAccessParams struct {
-		ctx       Context
-		namespace string
-		resource  string
-		verbs     []string
+		ctx      Context
+		resource string
+		verbs    []string
 	}
 
 	tests := []struct {
@@ -2756,9 +2771,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "global session list/read allowed",
 			roles: RoleSet{readAllSessions},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2767,9 +2781,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own session list/read allowed",
 			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2778,9 +2791,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "session list/read denied",
 			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 		},
 		{
@@ -2790,18 +2802,16 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				allowSSHSessions, denySSHSessions, // none mention "session"
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
 			name:  "global SSH session list/read allowed",
 			roles: RoleSet{allowSSHSessions},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2810,9 +2820,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own SSH session list/read allowed",
 			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2824,9 +2833,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				denySSHSessions, // unconditional deny, takes precedence
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
@@ -2837,9 +2845,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				ownSSHSessions,
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 	}
@@ -2847,12 +2854,12 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
 			for _, verb := range params.verbs {
-				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb)
+				err := test.roles.CheckAccessToRule(&params.ctx, apidefaults.Namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, apidefaults.Namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
 					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}
@@ -9591,6 +9598,78 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
 			err := accessChecker.CheckSPIFFESVID(tt.spiffeIDPath, tt.dnsSANs, tt.ipSANs)
 			tt.requireErr(t, err)
+		})
+	}
+}
+
+func TestCheckAccessToGitServer(t *testing.T) {
+	githubOrgServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "my-org",
+		Organization: "my-org",
+	})
+	require.NoError(t, err)
+
+	makeRole := func(t *testing.T, allowOrg, denyOrg string) types.Role {
+		spec := types.RoleSpecV6{}
+		if allowOrg != "" {
+			spec.Allow.GitHubPermissions = append(spec.Allow.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{allowOrg},
+			})
+		}
+		if denyOrg != "" {
+			spec.Deny.GitHubPermissions = append(spec.Deny.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{denyOrg},
+			})
+		}
+		role, err := types.NewRole(uuid.NewString(), spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	tests := []struct {
+		name       string
+		roles      []types.Role
+		requireErr require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no roles",
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit allow",
+			roles: []types.Role{
+				makeRole(t, "my-org", ""),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "wildcard allow",
+			roles: []types.Role{
+				makeRole(t, "*", "some-other-org"),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "explicit deny",
+			roles: []types.Role{
+				makeRole(t, "*", "my-org"),
+			},
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "wildcard deny",
+			roles: []types.Role{
+				makeRole(t, "my-org", "*"),
+			},
+			requireErr: requireAccessDenied,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			accessChecker := makeAccessCheckerWithRoleSet(test.roles)
+			err := accessChecker.CheckAccess(githubOrgServer, AccessState{})
+			test.requireErr(t, err)
 		})
 	}
 }

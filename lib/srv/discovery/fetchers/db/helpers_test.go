@@ -53,10 +53,10 @@ func makeAWSMatchersForType(matcherType, region string, tags map[string]string) 
 	}}
 }
 
-func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher) []common.Fetcher {
+func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers)
+	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers, discoveryConfig)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -70,7 +70,7 @@ func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []type
 func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAzureFetchers(clients, matchers)
+	fetchers, err := MakeAzureFetchers(clients, matchers, "" /* discovery config */)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -126,14 +126,14 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 		test.inputClients.STS = stsMock
 		t.Run(test.name, func(t *testing.T) {
 			t.Helper()
-			fetchers := mustMakeAWSFetchers(t, test.inputClients, test.inputMatchers)
+			fetchers := mustMakeAWSFetchers(t, test.inputClients, test.inputMatchers, "" /* discovery config */)
 			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
 		})
 		t.Run(test.name+" with assume role", func(t *testing.T) {
 			t.Helper()
 			matchers := copyAWSMatchersWithAssumeRole(testAssumeRole, test.inputMatchers...)
 			wantDBs := copyDatabasesWithAWSAssumeRole(testAssumeRole, test.wantDatabases...)
-			fetchers := mustMakeAWSFetchers(t, test.inputClients, matchers)
+			fetchers := mustMakeAWSFetchers(t, test.inputClients, matchers, "" /* discovery config */)
 			require.ElementsMatch(t, wantDBs, mustGetDatabases(t, fetchers))
 			require.Equal(t, []string{testAssumeRole.RoleARN}, stsMock.GetAssumedRoleARNs())
 			require.Equal(t, []string{testAssumeRole.ExternalID}, stsMock.GetAssumedRoleExternalIDs())

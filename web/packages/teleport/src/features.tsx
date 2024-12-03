@@ -47,6 +47,8 @@ import {
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
+
 import { NavTitle } from './types';
 
 import { AuditContainer as Audit } from './Audit';
@@ -571,6 +573,10 @@ export class FeatureClusters implements TeleportFeature {
     },
     searchableTags: ['clusters', 'manage clusters'],
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {
@@ -622,6 +628,22 @@ class FeatureDeviceTrust implements TeleportFeature {
     },
     searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
+}
+
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
 }
 
 // ****************************
@@ -698,6 +720,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureIntegrationStatus(),
 
     // - Identity
     new AccessRequests(),

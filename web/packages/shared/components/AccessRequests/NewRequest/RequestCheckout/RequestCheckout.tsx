@@ -55,7 +55,6 @@ import { AccessDurationRequest } from '../../AccessDuration';
 import {
   checkSupportForKubeResources,
   isKubeClusterWithNamespaces,
-  type KubeNamespaceRequest,
 } from '../kube';
 
 import { ReviewerOption } from './types';
@@ -170,7 +169,7 @@ export function RequestCheckout<T extends PendingListItem>({
   startTime,
   onStartTimeChange,
   fetchKubeNamespaces,
-  bulkToggleKubeResources,
+  updateNamespacesForKubeCluster,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
 
@@ -241,7 +240,7 @@ export function RequestCheckout<T extends PendingListItem>({
   function customRow(item: T) {
     if (item.kind === 'kube_cluster') {
       return (
-        <td colSpan={3}>
+        <td colSpan={showClusterNameColumn ? 4 : 3}>
           <Flex>
             <Flex flexWrap="wrap">
               <Flex
@@ -251,6 +250,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 alignItems="center"
               >
                 <Flex gap={5}>
+                  {showClusterNameColumn && <Box>{item.clusterName}</Box>}
                   <Box>{getPrettyResourceKind(item.kind)}</Box>
                   <Box>{item.name}</Box>
                 </Flex>
@@ -265,7 +265,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 kubeClusterItem={item}
                 savedResourceItems={pendingAccessRequests}
                 fetchKubeNamespaces={fetchKubeNamespaces}
-                bulkToggleKubeResources={bulkToggleKubeResources}
+                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
               />
             </Flex>
           </Flex>
@@ -734,9 +734,6 @@ function TextBox({
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
-  const optionalText = requireReason ? '' : ' (optional)';
-  const placeholder = `Describe your request...${optionalText}`;
-
   return (
     <LabelInput hasError={hasError}>
       {labelText}
@@ -749,7 +746,7 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder={placeholder}
+        placeholder="Describe your request..."
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
@@ -934,8 +931,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;
-    fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
-    bulkToggleKubeResources(
+    fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
+    updateNamespacesForKubeCluster(
       kubeResources: PendingKubeResourceItem[],
       kubeCluster: T
     ): void;

@@ -54,6 +54,11 @@ impl NetworkClient {
 
 const DEFAULT_KERBEROS_PORT: u16 = 88;
 
+// Maximum response size from KDC we accept, Windows uses maximum token size of 48kB and recommends
+// not to exceed 64kB
+// https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/kerberos-authentication-problems-if-user-belongs-to-groups#calculating-the-maximum-token-size
+const MAX_RESPONSE_LENGTH: u32 = 65535;
+
 impl NetworkClient {
     async fn send_tcp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
         let addr = format!(
@@ -76,6 +81,14 @@ impl NetworkClient {
             error!("KDC length read failed: {:?}", e);
             reason_err!("NLA", "reading data from Key Distribution Center failed")
         })?;
+
+        if len > MAX_RESPONSE_LENGTH {
+            error!("KDC response too large: {} > {}", len, MAX_RESPONSE_LENGTH);
+            return Err(reason_err!(
+                "NLA",
+                "response from Key Distribution Center was too large"
+            ));
+        }
 
         let mut buf = vec![0; len as usize + 4];
         buf[0..4].copy_from_slice(&(len.to_be_bytes()));

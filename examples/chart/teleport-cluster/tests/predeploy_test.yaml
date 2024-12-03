@@ -2,8 +2,10 @@ suite: Pre-Deploy Config Test Hooks
 templates:
   - auth/predeploy_job.yaml
   - auth/predeploy_config.yaml
+  - auth/predeploy_serviceaccount.yaml
   - proxy/predeploy_job.yaml
   - proxy/predeploy_config.yaml
+  - proxy/predeploy_serviceaccount.yaml
 tests:
   - it: Deploys the auth-test config
     template: auth/predeploy_config.yaml
@@ -53,6 +55,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
   - it: should set resources on auth predeploy job when set in values
     template: auth/predeploy_job.yaml
     values:
@@ -130,6 +133,26 @@ tests:
           path: metadata.labels.baz
           value: overridden
 
+  - it: should set extraLabels.jobPod on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          jobPod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
   - it: should set extraLabels on auth predeploy config when set in values
     template: auth/predeploy_config.yaml
     set:
@@ -149,6 +172,7 @@ tests:
       - equal:
           path: metadata.labels.baz
           value: overridden
+
   - it: should set extraLabels on proxy predeploy job when set in values
     template: proxy/predeploy_job.yaml
     set:
@@ -167,6 +191,26 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels.jobPod on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          jobPod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
           value: overridden
 
   - it: should set extraLabels on proxy predeploy config when set in values
@@ -189,41 +233,65 @@ tests:
           path: metadata.labels.baz
           value: overridden
 
-  - it: should use default serviceAccount name for auth predeploy job SA when not set in values
+  - it: should use default serviceAccount name suffixed with -hook for auth predeploy job SA when not set in values and we're creating SAs
     template: auth/predeploy_job.yaml
     set:
       clusterName: helm-lint
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
-          value: RELEASE-NAME
+          value: RELEASE-NAME-hook
 
-  - it: should use serviceAccount.name for auth predeploy job SA when set in values
+  - it: should use serviceAccount.name suffixed with -hook for auth predeploy job SA when set in values and we're creating SAs
     template: auth/predeploy_job.yaml
     set:
       clusterName: helm-lint
       serviceAccount:
         name: helm-test-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa-hook
+
+  - it: should use serviceAccount.name for auth predeploy job SA when set in values and we're not creating SAs
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccount:
+        name: helm-test-sa
+        create: false
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: helm-test-sa
 
-  - it: should use default serviceAccount name for proxy predeploy job SA when not set in values
+  - it: should use default serviceAccount name suffixed with -hook for proxy predeploy job SA when not set in values and we're creating SAs
     template: proxy/predeploy_job.yaml
     set:
       clusterName: helm-lint
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
-          value: RELEASE-NAME-proxy
+          value: RELEASE-NAME-proxy-hook
 
-  - it: should use serviceAccount.name for proxy predeploy job SA when set in values
+  - it: should use serviceAccount.name suffixed with -hook for proxy predeploy job SA when set in values and we're creating SAs
     template: proxy/predeploy_job.yaml
     set:
       clusterName: helm-lint
       serviceAccount:
         name: helm-test-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa-proxy-hook
+
+  - it: should use serviceAccount.name for proxy predeploy job SA when set in values and we're not creating SAs
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccount:
+        name: helm-test-sa
+        create: false
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName

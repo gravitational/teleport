@@ -79,7 +79,8 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindVnetConfig, RO()),
 	types.NewRule(types.KindSPIFFEFederation, RO()),
 	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
-	types.NewRule(types.KindIdentityCenterAccount, RO()),
+	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -349,6 +350,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
+			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
@@ -2830,6 +2832,7 @@ func (set RoleSet) CanForwardAgents() bool {
 // CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
 			return true
 		}

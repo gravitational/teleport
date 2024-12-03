@@ -59,19 +59,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -218,7 +215,7 @@ type ProxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -813,6 +810,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Site specific API
 
+	// get site info
+	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
+
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
@@ -976,6 +976,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsCreate))
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
+	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
@@ -1070,7 +1071,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Implements the agent version server.
 	// Channel can contain "/", hence the use of a catch-all parameter
-	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
+	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades109))
 
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
@@ -1232,6 +1233,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	userContext.AccessCapabilities = ui.AccessCapabilities{
 		RequestableRoles:   res.RequestableRoles,
 		SuggestedReviewers: res.SuggestedReviewers,
+		RequireReason:      res.RequireReason,
 	}
 
 	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
@@ -1552,7 +1554,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings(r.Context()),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context()),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
@@ -1579,36 +1581,13 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
-			AutoUpdate:       h.automaticUpdateSettings(ctx),
+			AutoUpdate:       h.automaticUpdateSettings184(ctx),
 		}, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-// TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
-func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpdateSettings {
-	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
-	}
-
-	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
-	}
-
-	return webclient.AutoUpdateSettings{
-		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
-		ToolsVersion:             getToolsVersion(autoUpdateVersion),
-		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-		AgentVersion:             getAgentVersion(autoUpdateVersion),
-		AgentAutoUpdate:          agentShouldUpdate(autoUpdateConfig, autoUpdateVersion),
-	}
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2883,6 +2862,35 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
+}
+
+type getClusterInfoResponse struct {
+	ui.Cluster
+	IsCloud bool `json:"isCloud"`
+}
+
+// getClusterInfo returns the information about the cluster in the :site param
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	clusterDetails, err := ui.GetClusterDetails(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getClusterInfoResponse{
+		Cluster: *clusterDetails,
+		IsCloud: pingResp.GetServerFeatures().Cloud,
+	}, nil
 }
 
 type getSiteNamespacesResponse struct {
@@ -5172,60 +5180,4 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
-}
-
-func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
-	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if config.GetSpec().GetTools() != nil {
-		return config.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
-	}
-	return false
-}
-
-func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	if version.GetSpec().GetTools() == nil {
-		return api.Version
-	}
-	return version.GetSpec().GetTools().GetTargetVersion()
-}
-
-func getAgentVersion(version *autoupdatepb.AutoUpdateVersion) string {
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	// TODO: read the version from the autoupdate_agent_rollout when the resource is implemented
-	if version.GetSpec().GetAgents() == nil {
-		return api.Version
-	}
-
-	return version.GetSpec().GetAgents().GetTargetVersion()
-}
-
-func agentShouldUpdate(config *autoupdatepb.AutoUpdateConfig, version *autoupdatepb.AutoUpdateVersion) bool {
-	// TODO: read the data from the autoupdate_agent_rollout when the resource is implemented
-
-	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if config.GetSpec().GetAgents() == nil {
-		return false
-	}
-	if version.GetSpec().GetAgents() == nil {
-		return false
-	}
-	configMode := config.GetSpec().GetAgents().GetMode()
-	versionMode := version.GetSpec().GetAgents().GetMode()
-
-	// We update only if both version and config agent modes are "enabled"
-	if configMode != autoupdate.AgentsUpdateModeEnabled || versionMode != autoupdate.AgentsUpdateModeEnabled {
-		return false
-	}
-
-	scheduleName := version.GetSpec().GetAgents().GetSchedule()
-	return scheduleName == autoupdate.AgentsScheduleImmediate
 }

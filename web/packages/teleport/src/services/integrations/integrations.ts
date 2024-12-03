@@ -57,6 +57,8 @@ import {
   ListAwsSubnetsResponse,
   Subnet,
   AwsDatabaseVpcsResponse,
+  AwsOidcPingResponse,
+  AwsOidcPingRequest,
 } from './types';
 
 export const integrationService = {
@@ -76,6 +78,16 @@ export const integrationService = {
 
   createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
     return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  },
+
+  pingAwsOidcIntegration(
+    urlParams: {
+      integrationName: string;
+      clusterId: string;
+    },
+    req: AwsOidcPingRequest
+  ): Promise<AwsOidcPingResponse> {
+    return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
   updateIntegration(
@@ -410,7 +422,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc } = json;
+  const { name, subKind, awsoidc, github } = json;
   return {
     resourceType: 'integration',
     name,
@@ -421,6 +433,9 @@ function makeIntegration(json: any): Integration {
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
       audience: awsoidc?.audience,
     },
+    details: github
+      ? `GitHub Organization "${github.organization}"`
+      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only

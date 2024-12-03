@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
@@ -111,6 +112,30 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,
 		HandleRedirect:    rd.OpenRedirect,
+		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if loginResp.MFAToken == "" {
+				return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+			}
+
+			return loginResp.MFAToken, nil
+		},
+	}
+}
+
+// NewConnectMFACeremony creates a new Teleport Connect SSO ceremony from the given redirector.
+func NewConnectMFACeremony(rd *Redirector) mfa.SSOMFACeremony {
+	return &MFACeremony{
+		close:             rd.Close,
+		ClientCallbackURL: rd.ClientCallbackURL,
+		HandleRedirect: func(ctx context.Context, redirectURL string) error {
+			// Connect handles redirect on the Electron side.
+			return nil
+		},
 		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
 			loginResp, err := rd.WaitForResponse(ctx)
 			if err != nil {

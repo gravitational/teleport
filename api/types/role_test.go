@@ -811,3 +811,31 @@ func TestRoleFilterMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestRoleGitHubPermissions(t *testing.T) {
+	role, err := NewRole("github-my-org", RoleSpecV6{
+		Allow: RoleConditions{
+			GitHubPermissions: []GitHubPermission{{
+				Organizations: []string{"my-org"},
+			}},
+		},
+		Deny: RoleConditions{
+			GitHubPermissions: []GitHubPermission{{
+				Organizations: []string{"jedi", "night-watch"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	allowMatchers, err := role.GetLabelMatchers(Allow, KindGitServer)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{Labels: Labels{
+		GitHubOrgLabel: []string{"my-org"},
+	}}, allowMatchers)
+
+	denyMatchers, err := role.GetLabelMatchers(Deny, KindGitServer)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{Labels: Labels{
+		GitHubOrgLabel: []string{"jedi", "night-watch"},
+	}}, denyMatchers)
+}
