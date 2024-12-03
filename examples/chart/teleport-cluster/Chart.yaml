@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-remove-e-ref-arg-2"
+.version: &version "17.0.0-dev.fred-remove-e-ref-arg-3"
 
 name: teleport-cluster
 apiVersion: v2
