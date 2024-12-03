@@ -50,7 +50,7 @@ export enum DatabaseEngine {
   AuroraMysql,
   MongoDb,
   Redis,
-  CoackroachDb,
+  CockroachDb,
   SqlServer,
   Snowflake,
   Cassandra,

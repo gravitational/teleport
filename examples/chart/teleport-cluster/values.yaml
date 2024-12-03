@@ -179,7 +179,7 @@ authentication:
 proxyListenerMode: "separate"
 
 # Optional setting for configuring session recording.
-# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+# See `session_recording` under https://goteleport.com/docs/reference/config/#auth-service
 sessionRecording: ""
 
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
@@ -654,6 +654,9 @@ extraLabels:
   ingress: {}
   # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
   job: {}
+  # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
+  # Job run by the Helm hook.
+  jobPod: {}
   # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
   persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
