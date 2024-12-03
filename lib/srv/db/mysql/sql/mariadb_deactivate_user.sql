@@ -13,5 +13,18 @@ BEGIN
         DEALLOCATE PREPARE stmt;
 
         CALL teleport_revoke_roles(username);
+
+        -- Call a callback procedure once a user is deactivated (if the procedure exists)
+        -- The signature of the procedure should be:
+        -- CREATE PROCEDURE teleport_user_deactivated_callback(IN username VARCHAR(80))
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.routines
+            WHERE routine_type = 'procedure'
+              AND routine_schema = 'teleport'
+              AND routine_name = 'teleport_user_deactivated_callback'
+        ) THEN
+            CALL teleport_user_deactivated_callback(username);
+        END IF;
     END IF;
 END
