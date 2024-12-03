@@ -366,6 +366,14 @@ spec:
       kubernetes_resources:
         - kind: "namespace"
 
+      # 'reason' defines settings for the reason for the access provided by the user.
+      reason:
+        # 'mode' can be either "required" or "optional". Empty string is treated as
+        # "optional". If a role has the request reason mode set to "required", then reason
+        # is required for all Access Requests requesting roles or resources allowed by
+        # this role. It applies only to users who have this role assigned.
+        mode: "optional"
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
       thresholds:
