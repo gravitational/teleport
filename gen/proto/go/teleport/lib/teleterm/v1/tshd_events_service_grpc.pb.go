@@ -135,9 +135,8 @@ func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARe
 }
 
 func (c *tshdEventsServiceClient) PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PromptHardwareKeyPINResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPIN_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPIN_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +144,8 @@ func (c *tshdEventsServiceClient) PromptHardwareKeyPIN(ctx context.Context, in *
 }
 
 func (c *tshdEventsServiceClient) PromptHardwareKeyTouch(ctx context.Context, in *PromptHardwareKeyTouchRequest, opts ...grpc.CallOption) (*PromptHardwareKeyTouchResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PromptHardwareKeyTouchResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyTouch_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyTouch_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,9 +153,8 @@ func (c *tshdEventsServiceClient) PromptHardwareKeyTouch(ctx context.Context, in
 }
 
 func (c *tshdEventsServiceClient) PromptHardwareKeyPINChange(ctx context.Context, in *PromptHardwareKeyPINChangeRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINChangeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PromptHardwareKeyPINChangeResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPINChange_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPINChange_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -165,9 +162,8 @@ func (c *tshdEventsServiceClient) PromptHardwareKeyPINChange(ctx context.Context
 }
 
 func (c *tshdEventsServiceClient) ConfirmHardwareKeySlotOverwrite(ctx context.Context, in *ConfirmHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*ConfirmHardwareKeySlotOverwriteResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ConfirmHardwareKeySlotOverwriteResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
