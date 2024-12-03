@@ -542,6 +542,84 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
 }
 
+func (s *Server) keyboardInteractiveCallback(ctx context.Context, netConfig types.ClusterNetworkingConfig, user string, perms *ssh.Permissions) func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	type kbdResult struct {
+		clt *tracessh.Client
+		err error
+	}
+
+	type prompt struct {
+		instruction string
+		questions   []string
+		echos       []bool
+	}
+
+	type response struct {
+		answers []string
+		err     error
+	}
+	promptC := make(chan prompt)
+	responseC := make(chan response)
+	resultC := make(chan kbdResult)
+	go func() {
+		defer func() {
+			close(responseC)
+			close(promptC)
+		}()
+
+		clt, err := s.newRemoteClient(ctx, user, netConfig, func(name, instruction string, questions []string, echos []bool) (answers []string, err error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case promptC <- prompt{instruction: instruction, questions: questions, echos: echos}:
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case r := <-responseC:
+				return r.answers, r.err
+			}
+		})
+
+		select {
+		case resultC <- kbdResult{
+			clt: clt,
+			err: err,
+		}:
+		case <-ctx.Done():
+			if clt != nil {
+				_ = clt.Close()
+			}
+
+			resultC <- kbdResult{err: ctx.Err()}
+			return
+		}
+	}()
+
+	return func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+		for {
+			select {
+			case p := <-promptC:
+				answers, err := client(conn.User(), p.instruction, p.questions, p.echos)
+				responseC <- response{answers, err}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			case res := <-resultC:
+				if res.err != nil {
+					return nil, res.err
+				}
+
+				s.remoteClient = res.clt
+				return perms, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+}
+
 func (s *Server) Serve() {
 	var succeeded bool
 
@@ -551,8 +629,7 @@ func (s *Server) Serve() {
 		return
 	}
 
-	ctx := context.Background()
-
+	ctx := s.closeContext
 	config := &ssh.ServerConfig{
 		Config: ssh.Config{
 			// Set the ciphers, KEX, and MACs that the client will send to the target
@@ -573,15 +650,7 @@ func (s *Server) Serve() {
 
 			return nil, &ssh.PartialSuccessError{
 				Next: ssh.ServerAuthCallbacks{
-					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-						rc, err := s.newRemoteClient(ctx, conn.User(), netConfig, client)
-						if err != nil {
-							return nil, trace.Wrap(err)
-						}
-
-						s.remoteClient = rc
-						return perms, nil
-					},
+					KeyboardInteractiveCallback: s.keyboardInteractiveCallback(ctx, netConfig, conn.User(), perms),
 				},
 			}
 		},
@@ -793,7 +862,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	}
 
 	if kbdCB != nil {
-		authMethods = append(authMethods, ssh.KeyboardInteractive(kbdCB))
+		authMethods = append(authMethods, ssh.RetryableAuthMethod(ssh.KeyboardInteractive(kbdCB), 0))
 	}
 
 	clientConfig := &ssh.ClientConfig{
