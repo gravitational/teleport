@@ -881,10 +881,10 @@ github.com/aws/aws-sdk-go-v2/service/ec2 v1.195.0 h1:F3pFi50sK30DZ4IkkNpHwTLGeal
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.195.0/go.mod h1:00zqVNJFK6UASrTnuvjJHJuaqUdkVz5tW8Ip+VhzuNg=
 github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.7 h1:n221X4mwD08KKGlfpcsD0WxIsCuVOH32RUDOHniC8/U=
 github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.7/go.mod h1:bkT6gKfhFH//cV+66Ut8tqWR2apIcZvsU4no8luLx3w=
-github.com/aws/aws-sdk-go-v2/service/ecr v1.36.3 h1:bqmoQEKpWFRDRxOv4lC5yZLc+N1cogZHPLeQACfVUJo=
-github.com/aws/aws-sdk-go-v2/service/ecr v1.36.3/go.mod h1:KwOqlt4MOBK9EpOGkj8RU9fqfTEae5AOUHi1pDEZ3OQ=
-github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.3 h1:oYLW8b00aHQqcga7JI7iH24a2SqTkzhMvUSnGzmF52w=
-github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.3/go.mod h1:QxSgBsxxVn4qiU1h0XjCSih9PJCtZahLE0fbUmEK/iE=
+github.com/aws/aws-sdk-go-v2/service/ecr v1.36.6 h1:zg+3FGHA0PBs0KM25qE/rOf2o5zsjNa1g/Qq83+SDI0=
+github.com/aws/aws-sdk-go-v2/service/ecr v1.36.6/go.mod h1:ZSq54Z9SIsOTf1Efwgw1msilSs4XVEfVQiP9nYVnKpM=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.6 h1:9DXEMWmABYPz/NXSFmp9Y14yI5FQ5jmPPvllS9hXXfY=
+github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.6/go.mod h1:qoPi18scDl8uM9o+tHi77043RLv2WIIFvVHcF1RT8Yk=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.52.1 h1:85SGI/Db9I8PT2rvDLIRGxXdSzuyC4ZKDJwfzuv7WqQ=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.52.1/go.mod h1:Ghi1OWUv4+VMEULWiHsKH2gNA3KAcMoLWsvU0eRXvIA=
 github.com/aws/aws-sdk-go-v2/service/eks v1.53.0 h1:ACTxnLwL6YNmuYbxtp/VR3HGL9SWXU6VZkXPjWST9ZQ=
@@ -940,8 +940,8 @@ github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0/go.mod h1:AxK
 github.com/aws/smithy-go v1.13.5/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=
 github.com/aws/smithy-go v1.22.1 h1:/HPHZQ0g7f4eUeK6HKglFz8uwVfZKgoI25rb/J+dnro=
 github.com/aws/smithy-go v1.22.1/go.mod h1:irrKGvNn1InZwb2d7fkIRNucdfwR8R+Ts3wxYa/cJHg=
-github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241029204838-fb9784500689 h1:1Wsq5J+j6MVRiPSKTEqJPRfsiO2pg5MnjRt0C7nW2xA=
-github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241029204838-fb9784500689/go.mod h1:Ngigq3Yf0wMR9DxQizomTKBn91l0jSNGJnvFhZPk9dQ=
+github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241128053516-b9e7404a33c3 h1:Z0GhCczQLlS/GRRS/suhoVxqU4Oz4CftHRd+Kdj22Uo=
+github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241128053516-b9e7404a33c3/go.mod h1:7GP/HkcmpkFy6JyDSTKfdN6PNWCpMgsVMpwTkQwvVc4=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/beevik/etree v1.1.0/go.mod h1:r8Aw8JqVegEf0w2fDnATrX9VpkMcyFeM0FhwO62wh+A=
