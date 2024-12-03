@@ -17,7 +17,6 @@
  */
 
 import { ReactNode } from 'react';
-import { StyleFunction } from 'styled-components';
 
 import Dialog from 'design/Dialog';
 
@@ -35,7 +34,7 @@ export function DialogConfirmation(props: {
     event: KeyboardEvent | React.MouseEvent,
     reason: 'escapeKeyDown' | 'backdropClick'
   ) => void;
-  dialogCss?: StyleFunction<any>;
+  dialogCss?: any;
 }) {
   return (
     <Dialog
