@@ -227,8 +227,7 @@ func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.
 		return nil, trace.BadParameter("missing credentials")
 	}
 
-	// TODO(greedy52) use cache
-	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.backend)
+	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.cache)
 }
 
 func (s *Service) getGitHubCertAuthorities(ctx context.Context, ig types.Integration) (*types.CAKeySet, error) {

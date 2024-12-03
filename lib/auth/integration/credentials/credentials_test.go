@@ -64,59 +64,69 @@ func mustMakeCred(t *testing.T, labels map[string]string) types.PluginStaticCred
 
 func TestGetByPurpose(t *testing.T) {
 	ref := NewRef()
-
-	wantPurpose := "test-found"
-	notFoundPurpose := "test-not-found"
-	backendIssuePurpose := "test-backend-issue"
-
-	wantLabels := map[string]string{LabelStaticCredentialsPurpose: wantPurpose}
-	maps.Copy(wantLabels, ref.Labels)
-	wantCred := mustMakeCred(t, wantLabels)
-
-	notFoundLabels := map[string]string{LabelStaticCredentialsPurpose: notFoundPurpose}
-	maps.Copy(notFoundLabels, ref.Labels)
-
-	m := &mockByLabelsGetter{}
-	m.On("GetPluginStaticCredentialsByLabels", wantLabels).Return([]types.PluginStaticCredentials{wantCred}, nil)
-	m.On("GetPluginStaticCredentialsByLabels", notFoundLabels).Return([]types.PluginStaticCredentials{}, nil)
-	m.On("GetPluginStaticCredentialsByLabels", mock.Anything).Return(nil, trace.ConnectionProblem(fmt.Errorf("backend error"), "backend error"))
+	purpose := "test-found"
+	labels := map[string]string{LabelStaticCredentialsPurpose: purpose}
+	maps.Copy(labels, ref.Labels)
+	cred := mustMakeCred(t, labels)
 
 	tests := []struct {
 		name      string
 		ref       *types.PluginStaticCredentialsRef
-		purpose   string
+		setupMock func(m *mockByLabelsGetter)
 		wantError func(error) bool
 		wantCred  types.PluginStaticCredentials
 	}{
 		{
 			name:      "nil ref",
 			ref:       nil,
-			purpose:   wantPurpose,
 			wantError: trace.IsBadParameter,
 		},
 		{
-			name:     "success",
-			ref:      ref,
-			purpose:  wantPurpose,
-			wantCred: wantCred,
+			name: "success",
+			ref:  ref,
+			setupMock: func(m *mockByLabelsGetter) {
+				m.On("GetPluginStaticCredentialsByLabels", labels).
+					Return([]types.PluginStaticCredentials{cred}, nil)
+			},
+			wantCred: cred,
 		},
 		{
-			name:      "no creds found",
-			ref:       ref,
-			purpose:   notFoundPurpose,
+			name: "no creds found",
+			ref:  ref,
+			setupMock: func(m *mockByLabelsGetter) {
+				m.On("GetPluginStaticCredentialsByLabels", labels).
+					Return([]types.PluginStaticCredentials{}, nil)
+			},
 			wantError: trace.IsNotFound,
 		},
 		{
-			name:      "backend issue",
-			ref:       ref,
-			purpose:   backendIssuePurpose,
+			name: "too mandy creds found",
+			ref:  ref,
+			setupMock: func(m *mockByLabelsGetter) {
+				m.On("GetPluginStaticCredentialsByLabels", labels).
+					Return([]types.PluginStaticCredentials{cred, mustMakeCred(t, labels)}, nil)
+			},
+			wantError: trace.IsCompareFailed,
+		},
+		{
+			name: "backend issue",
+			ref:  ref,
+			setupMock: func(m *mockByLabelsGetter) {
+				m.On("GetPluginStaticCredentialsByLabels", labels).
+					Return(nil, trace.ConnectionProblem(fmt.Errorf("backend"), "problem"))
+			},
 			wantError: trace.IsConnectionProblem,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cred, err := GetByPurpose(context.Background(), test.ref, test.purpose, m)
+			m := &mockByLabelsGetter{}
+			if test.setupMock != nil {
+				test.setupMock(m)
+			}
+
+			cred, err := GetByPurpose(context.Background(), test.ref, purpose, m)
 			if test.wantError != nil {
 				require.True(t, test.wantError(err))
 				return
