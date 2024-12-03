@@ -15,7 +15,7 @@ func TestScoreRelevance(t *testing.T) {
 	makeAccessList := func(roles ...string) *accesslist.AccessList {
 		return &accesslist.AccessList{
 			Spec: accesslist.Spec{
-				Grants: accesslist.Grants{Roles: []string{"role1"}},
+				Grants: accesslist.Grants{Roles: roles},
 			},
 		}
 	}
@@ -74,13 +74,15 @@ func TestScoreRelevance(t *testing.T) {
 					Spec: types.AccessRequestSpecV3{Roles: []string{"role1", "role3"}},
 				},
 				lists: []*accesslist.AccessList{
-					makeAccessList("role1", "role2"),
+					makeAccessList("role100", "role101"),
 					makeAccessList("role1", "role3"),
+					makeAccessList("role1", "role2"),
 				},
 			},
 			want: []*accesslist.AccessList{
 				makeAccessList("role1", "role3"),
 				makeAccessList("role1", "role2"),
+				makeAccessList("role100", "role101"),
 			},
 		},
 	}
