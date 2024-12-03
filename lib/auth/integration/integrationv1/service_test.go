@@ -30,6 +30,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -420,7 +421,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				refUUID := uuid.NewString()
 				ig.SetCredentials(&types.PluginCredentialsV1{
 					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
-						StaticCredentialsRef: newStaticCredentialsRef(refUUID),
+						StaticCredentialsRef: credentials.NewRefWithUUID(refUUID),
 					},
 				})
 
@@ -433,8 +434,8 @@ func TestIntegrationCRUD(t *testing.T) {
 						Metadata: types.Metadata{
 							Name: igName,
 							Labels: map[string]string{
-								labelStaticCredentialsIntegration: refUUID,
-								labelStaticCredentialsPurpose:     "test",
+								credentials.LabelStaticCredentialsIntegration: refUUID,
+								credentials.LabelStaticCredentialsPurpose:     "test",
 							},
 						},
 					},

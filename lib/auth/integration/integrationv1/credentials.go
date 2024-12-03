@@ -20,30 +20,14 @@ package integrationv1
 
 import (
 	"context"
-	"maps"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-)
-
-const (
-	// labelStaticCredentialsIntegration is the label used to store the
-	// UUID ref in the static credentials.
-	labelStaticCredentialsIntegration = types.TeleportInternalLabelPrefix + types.KindIntegration
-	// labelStaticCredentialsPurpose is the label used to store the purpose of
-	// the static credentials.
-	labelStaticCredentialsPurpose = "purpose"
-
-	// purposeGitHubSSHCA is the label value that indicates the static
-	// credentials contains the GitHub SSH CA.
-	purposeGitHubSSHCA = "github-sshca"
-	// purposeGitHubOAuth is the label value that indicates the static
-	// credentials contains the GitHub OAuth ID and secret.
-	purposeGitHubOAuth = "github-oauth"
 )
 
 // ExportIntegrationCertAuthorities exports cert authorities for an integration.
@@ -74,24 +58,6 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 	}
 }
 
-func newStaticCredentialsRef(uuid string) *types.PluginStaticCredentialsRef {
-	return &types.PluginStaticCredentialsRef{
-		Labels: map[string]string{
-			labelStaticCredentialsIntegration: uuid,
-		},
-	}
-}
-
-func copyRefLabels(cred types.PluginStaticCredentials, ref *types.PluginStaticCredentialsRef) {
-	labels := cred.GetStaticLabels()
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-	maps.Copy(labels, ref.Labels)
-
-	cred.SetStaticLabels(labels)
-}
-
 func buildGitHubOAuthCredentials(ig types.Integration) (*types.PluginStaticCredentialsV1, error) {
 	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
 		return nil, trace.BadParameter("GitHub integration requires OAuth ID and secret for credentials")
@@ -102,7 +68,7 @@ func buildGitHubOAuthCredentials(ig types.Integration) (*types.PluginStaticCrede
 			Metadata: types.Metadata{
 				Name: uuid.NewString(),
 				Labels: map[string]string{
-					labelStaticCredentialsPurpose: purposeGitHubOAuth,
+					credentials.LabelStaticCredentialsPurpose: credentials.PurposeGitHubOAuth,
 				},
 			},
 		},
@@ -127,7 +93,7 @@ func (s *Service) newGitHubSSHCA(ctx context.Context) (*types.PluginStaticCreden
 			Metadata: types.Metadata{
 				Name: uuid.NewString(),
 				Labels: map[string]string{
-					labelStaticCredentialsPurpose: purposeGitHubSSHCA,
+					credentials.LabelStaticCredentialsPurpose: credentials.PurposeGitHubSSHCA,
 				},
 			},
 		},
@@ -161,11 +127,11 @@ func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integrat
 }
 
 func (s *Service) createStaticCredentials(ctx context.Context, ig types.Integration, creds ...types.PluginStaticCredentials) error {
-	ref := newStaticCredentialsRef(uuid.NewString())
+	ref := credentials.NewRef()
 
 	for _, cred := range creds {
 		s.logger.DebugContext(ctx, "Creating static credentials", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
-		copyRefLabels(cred, ref)
+		credentials.CopyRefLabels(cred, ref)
 		if err := s.backend.CreatePluginStaticCredentials(ctx, cred); err != nil {
 			return trace.Wrap(err)
 		}
@@ -214,7 +180,7 @@ func (s *Service) updateStaticCredentials(ctx context.Context, ig types.Integrat
 		s.logger.DebugContext(ctx, "Updating static credentials", "integration", ig.GetName(), "labels", cred.GetStaticLabels())
 
 		// Use same labels to find existing credentials.
-		copyRefLabels(cred, ref)
+		credentials.CopyRefLabels(cred, ref)
 		oldCreds, err := s.backend.GetPluginStaticCredentialsByLabels(ctx, cred.GetStaticLabels())
 		if err != nil {
 			return trace.Wrap(err)
@@ -257,35 +223,19 @@ func (s *Service) removeStaticCredentials(ctx context.Context, ig types.Integrat
 }
 
 func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.Integration, purpose string) (types.PluginStaticCredentials, error) {
-	if ig.GetCredentials() == nil || ig.GetCredentials().GetStaticCredentialsRef() == nil {
-		return nil, trace.BadParameter("missing credentials ref")
+	if ig.GetCredentials() == nil {
+		return nil, trace.BadParameter("missing credentials")
 	}
-	labels := ig.GetCredentials().GetStaticCredentialsRef().Labels
-	if len(labels) == 0 {
-		return nil, trace.BadParameter("missing labels from credentials ref")
-	}
-	labels[labelStaticCredentialsPurpose] = purpose
 
 	// TODO(greedy52) use cache
-	creds, err := s.backend.GetPluginStaticCredentialsByLabels(ctx, labels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch len(creds) {
-	case 0:
-		return nil, trace.NotFound("%v credentials not found", purpose)
-	case 1:
-		return creds[0], nil
-	default:
-		return nil, trace.CompareFailed("expecting one plugin static credentials but got %v", len(creds))
-	}
+	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.backend)
 }
 
 func (s *Service) getGitHubCertAuthorities(ctx context.Context, ig types.Integration) (*types.CAKeySet, error) {
 	if ig.GetSubKind() != types.IntegrationSubKindGitHub {
 		return nil, trace.BadParameter("integration is not a GitHub integration")
 	}
-	creds, err := s.getStaticCredentialsWithPurpose(ctx, ig, purposeGitHubSSHCA)
+	creds, err := s.getStaticCredentialsWithPurpose(ctx, ig, credentials.PurposeGitHubSSHCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
