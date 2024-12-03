@@ -51,7 +51,7 @@ type LabelListValidationResult = ValidationResult & {
    * fewer items in this list than the labels, a default validation rule will
    * be used instead.
    */
-  items?: LabelValidationResult[];
+  results?: LabelValidationResult[];
 };
 
 type LabelValidationResult = {
@@ -154,7 +154,7 @@ export function LabelsInput({
       <Box>
         {labels.map((label, index) => {
           const validationItem: LabelValidationResult | undefined =
-            validationResult.items?.[index];
+            validationResult.results?.[index];
           return (
             <Box mb={2} key={index}>
               <Flex alignItems="start">
@@ -246,6 +246,6 @@ export const nonEmptyLabels: LabelsRule = labels => () => {
   }));
   return {
     valid: results.every(r => r.name.valid && r.value.valid),
-    items: results,
+    results: results,
   };
 };
