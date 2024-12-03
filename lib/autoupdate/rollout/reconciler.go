@@ -42,10 +42,6 @@ const (
 
 	defaultGroupName = "default"
 	defaultStartHour = 12
-
-	// Common reasons
-	updateReasonCreated         = "created"
-	updateReasonReconcilerError = "reconciler_error"
 )
 
 var (
