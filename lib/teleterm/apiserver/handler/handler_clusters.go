@@ -108,6 +108,10 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		},
 	}
 
+	if cluster.GetProfileStatusError() != nil {
+		apiCluster.ProfileStatusError = cluster.GetProfileStatusError().Error()
+	}
+
 	return apiCluster
 }
 

@@ -39,6 +39,7 @@ const (
 	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
 	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
 	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
+	TerminalService_StartHeadlessWatcher_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
 	TerminalService_GetDatabases_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/GetDatabases"
 	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
 	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
@@ -96,6 +97,9 @@ type TerminalServiceClient interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
+	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
@@ -239,6 +243,15 @@ func (c *terminalServiceClient) ListRootClusters(ctx context.Context, in *ListCl
 func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error) {
 	out := new(ListClustersResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListLeafClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error) {
+	out := new(StartHeadlessWatcherResponse)
+	err := c.cc.Invoke(ctx, TerminalService_StartHeadlessWatcher_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -657,6 +670,9 @@ type TerminalServiceServer interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
+	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
@@ -784,6 +800,9 @@ func (UnimplementedTerminalServiceServer) ListRootClusters(context.Context, *Lis
 }
 func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeafClusters not implemented")
+}
+func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartHeadlessWatcher not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
@@ -965,6 +984,24 @@ func _TerminalService_ListLeafClusters_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListLeafClusters(ctx, req.(*ListLeafClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_StartHeadlessWatcher_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartHeadlessWatcherRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).StartHeadlessWatcher(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_StartHeadlessWatcher_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).StartHeadlessWatcher(ctx, req.(*StartHeadlessWatcherRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1700,6 +1737,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLeafClusters",
 			Handler:    _TerminalService_ListLeafClusters_Handler,
+		},
+		{
+			MethodName: "StartHeadlessWatcher",
+			Handler:    _TerminalService_StartHeadlessWatcher_Handler,
 		},
 		{
 			MethodName: "GetDatabases",

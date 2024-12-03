@@ -170,6 +170,7 @@ export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
 
 const Container = styled(Box)`
   background: ${props => props.theme.colors.levels.elevated};
+  width: 100%;
 `;
 
 export type DeviceTrustStatus = 'none' | 'enrolled' | 'requires-enrollment';

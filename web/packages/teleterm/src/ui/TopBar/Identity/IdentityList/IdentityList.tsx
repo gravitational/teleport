@@ -31,16 +31,14 @@ import { IdentityRootCluster } from '../useIdentity';
 import { IdentityListItem } from './IdentityListItem';
 import { AddNewClusterItem } from './AddNewClusterItem';
 
-interface IdentityListProps {
+export function IdentityList(props: {
   loggedInUser: LoggedInUser;
   clusters: IdentityRootCluster[];
   onSelectCluster(clusterUri: string): void;
   onAddCluster(): void;
   onLogout(clusterUri: string): void;
   deviceTrustStatus: DeviceTrustStatus;
-}
-
-export function IdentityList(props: IdentityListProps) {
+}) {
   return (
     <Box minWidth="200px">
       {props.loggedInUser && (
@@ -64,15 +62,13 @@ export function IdentityList(props: IdentityListProps) {
       <KeyboardArrowsNavigation>
         {focusGrabber}
         <Box>
-          {props.clusters.map((i, index) => (
+          {props.clusters.map((cluster, index) => (
             <IdentityListItem
-              key={i.uri}
+              key={cluster.uri}
               index={index}
-              isSelected={i.active}
-              userName={i.userName}
-              clusterName={i.clusterName}
-              onSelect={() => props.onSelectCluster(i.uri)}
-              onLogout={() => props.onLogout(i.uri)}
+              cluster={cluster}
+              onSelect={() => props.onSelectCluster(cluster.uri)}
+              onLogout={() => props.onLogout(cluster.uri)}
             />
           ))}
         </Box>

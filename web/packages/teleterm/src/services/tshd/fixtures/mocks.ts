@@ -115,6 +115,7 @@ export class MockTshClient implements TshdClient {
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
   authenticateWebDevice = () => new MockedUnaryCall({});
+  startHeadlessWatcher = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {
