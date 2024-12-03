@@ -404,9 +404,6 @@ type UpstreamHandle interface {
 
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
 
-	// SystemClock makes ping request to fetch the system clock of the node.
-	SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error)
-
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
 	HasService(types.SystemRole) bool
@@ -670,27 +667,6 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
 	case <-ctx.Done():
 		return 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
-	}
-}
-
-// SystemClock makes ping request to fetch the system clock of the downstream.
-func (h *upstreamHandle) SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error) {
-	rspC := make(chan pingResponse, 1)
-	select {
-	case h.pingC <- pingRequest{rspC: rspC, id: id}:
-	case <-h.Done():
-		return time.Time{}, 0, trace.Errorf("failed to send downstream ping (stream closed)")
-	case <-ctx.Done():
-		return time.Time{}, 0, trace.Errorf("failed to send downstream ping: %v", ctx.Err())
-	}
-
-	select {
-	case rsp := <-rspC:
-		return rsp.systemClock, rsp.reqDuration, rsp.err
-	case <-h.Done():
-		return time.Time{}, 0, trace.Errorf("failed to recv upstream pong (stream closed)")
-	case <-ctx.Done():
-		return time.Time{}, 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
 	}
 }
 
