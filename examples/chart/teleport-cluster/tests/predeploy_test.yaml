@@ -133,6 +133,26 @@ tests:
           path: metadata.labels.baz
           value: overridden
 
+  - it: should set extraLabels.jobPod on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          jobPod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
   - it: should set extraLabels on auth predeploy config when set in values
     template: auth/predeploy_config.yaml
     set:
@@ -152,6 +172,7 @@ tests:
       - equal:
           path: metadata.labels.baz
           value: overridden
+
   - it: should set extraLabels on proxy predeploy job when set in values
     template: proxy/predeploy_job.yaml
     set:
@@ -170,6 +191,26 @@ tests:
           value: bar
       - equal:
           path: metadata.labels.baz
+          value: overridden
+
+  - it: should set extraLabels.jobPod on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          jobPod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
           value: overridden
 
   - it: should set extraLabels on proxy predeploy config when set in values

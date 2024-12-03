@@ -40,9 +40,3 @@ export type DeviceListProps = {
   fetchStatus?: 'loading' | 'disabled' | '';
   fetchData?: () => void;
 };
-
-export enum TrustedDeviceRequirement {
-  UNSPECIFIED,
-  NOT_REQUIRED,
-  REQUIRED,
-}
