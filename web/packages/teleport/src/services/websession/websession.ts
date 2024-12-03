@@ -26,9 +26,8 @@ import { KeysEnum, storageService } from 'teleport/services/storageService';
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
 
-// Time to determine when to renew session which is
-// when expiry time of token is less than 3 minutes.
-const RENEW_TOKEN_TIME = 180 * 1000;
+const MAX_RENEW_TOKEN_TIME = 180000; // 3m
+const MIN_RENEW_TOKEN_TIME = 30000; // 30s
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
 
@@ -146,11 +145,14 @@ const session = {
       return false;
     }
 
-    // Renew session if token expiry time is less than 3 minutes.
+    // Renew session if token expiry time is less than renewTime (with a floor
+    // of 30s and a ceiling of 3m).
     // Browsers have js timer throttling behavior in inactive tabs that can go
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
-    return this._timeLeft() < RENEW_TOKEN_TIME;
+    let renewTime = Math.min(this._ttl() / 10, MAX_RENEW_TOKEN_TIME);
+    renewTime = Math.max(renewTime, MIN_RENEW_TOKEN_TIME);
+    return this._timeLeft() < renewTime;
   },
 
   _renewToken(req: RenewSessionRequest = {}, signal?: AbortSignal) {
@@ -212,6 +214,21 @@ const session = {
     expiresIn = expiresIn * 1000;
     const delta = created + expiresIn - new Date().getTime();
     return delta;
+  },
+
+  _ttl() {
+    const token = this._getBearerToken();
+    if (!token) {
+      return 0;
+    }
+
+    let { expiresIn, created } = token;
+    if (!created || !expiresIn) {
+      return 0;
+    }
+
+    expiresIn = expiresIn * 1000;
+    return expiresIn;
   },
 
   _shouldCheckStatus() {
