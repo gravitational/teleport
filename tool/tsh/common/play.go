@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/metadata"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
@@ -135,7 +136,7 @@ func exportSession(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0)
+	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(cf.Context, format), *sid, 0)
 
 	var exporter sessionExporter
 	switch format {
