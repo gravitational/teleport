@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -2257,7 +2258,7 @@ func (c *testContext) Close() error {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	SetShuffleFunc(ShuffleSort)
+	SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
