@@ -2,7 +2,7 @@
 
 ## 17.0.3 (12/3/2024)
 
-* Restore ability to disable second factor authentication for local users. [#49692](https://github.com/gravitational/teleport/pull/49692)
+* Restore ability to disable multi-factor authentication for local users. [#49692](https://github.com/gravitational/teleport/pull/49692)
 * Updated github.com/quic-go/quic-go to v0.48.2 (addresses CVE-2024-53259). [#49662](https://github.com/gravitational/teleport/pull/49662)
 * Add ability to configure resource labels in `teleport-cluster`'s operator sub-chart. [#49647](https://github.com/gravitational/teleport/pull/49647)
 * Fixed proxy peering listener not using the exact address specified in `peer_listen_addr`. [#49589](https://github.com/gravitational/teleport/pull/49589)
