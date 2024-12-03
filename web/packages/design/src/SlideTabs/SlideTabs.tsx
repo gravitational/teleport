@@ -287,24 +287,25 @@ function StatusIconOrSpinner({
   // property being undefined and not present at all: undefined props would
   // override the default ones, but we want it them to interfere at all.
   const optionalProps: { color?: string; 'aria-label'?: string } = {};
-  if (color != undefined) {
+  if (color !== undefined) {
     optionalProps.color = color;
   }
-  if (ariaLabel != undefined) {
+  if (ariaLabel !== undefined) {
     optionalProps['aria-label'] = ariaLabel;
   }
 
-  if (statusKind) {
-    return (
-      <StatusIcon
-        kind={statusKind}
-        size={size}
-        style={{ transition: 'color 0.2s ease-in 0s' }}
-        {...optionalProps}
-      />
-    );
+  if (!statusKind) {
+    return null;
   }
-  return null;
+
+  return (
+    <StatusIcon
+      kind={statusKind}
+      size={size}
+      style={{ transition: 'color 0.2s ease-in 0s' }}
+      {...optionalProps}
+    />
+  );
 }
 
 const TabSliderInner = styled.div<{ appearance: Appearance }>`
