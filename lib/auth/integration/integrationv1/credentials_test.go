@@ -25,17 +25,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/trace"
+
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/trace"
 )
 
 func TestExportIntegrationCertAuthorities(t *testing.T) {
 	t.Parallel()
 
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
-	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1.nip.io")
+	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1")
 
 	githubIntegration, err := newGitHubIntegration("github-my-org", "id", "secret")
 	require.NoError(t, err)

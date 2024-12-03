@@ -128,7 +128,7 @@ message GenerateGitHubUserCertRequest {
   bytes public_key = 2;
   // UserId is the GitHub user id.
   string user_id = 3;
-  // KeyId is the certficate ID, usually the Teleport username.
+  // KeyId is the certificate ID, usually the Teleport username.
   string key_id = 4;
   // Ttl is the duration the certificate will be valid for.
   google.protobuf.Duration ttl = 5;

@@ -41,7 +41,7 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 		return nil, trace.AccessDenied("GenerateGitHubUserCert is only available to proxy services")
 	}
 
-	cert, err := s.prepareGitHubCert(ctx, in)
+	cert, err := s.prepareGitHubCert(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 	}, nil
 }
 
-func (s *Service) prepareGitHubCert(ctx context.Context, in *integrationpb.GenerateGitHubUserCertRequest) (*ssh.Certificate, error) {
+func (s *Service) prepareGitHubCert(in *integrationpb.GenerateGitHubUserCertRequest) (*ssh.Certificate, error) {
 	if in.UserId == "" {
 		return nil, trace.BadParameter("missing UserId for GenerateGitHubUserCert")
 	}
@@ -70,7 +70,7 @@ func (s *Service) prepareGitHubCert(ctx context.Context, in *integrationpb.Gener
 	}
 	// Sign with user ID set in id@github.com extension.
 	// https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-git-access-to-your-organizations-repositories/about-ssh-certificate-authorities
-	now := time.Now()
+	now := s.clock.Now()
 	cert := &ssh.Certificate{
 		Key:         key,
 		CertType:    ssh.UserCert,

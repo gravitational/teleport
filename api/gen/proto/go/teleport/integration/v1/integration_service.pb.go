@@ -508,7 +508,7 @@ type GenerateGitHubUserCertRequest struct {
 	PublicKey []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	// UserId is the GitHub user id.
 	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// KeyId is the certficate ID, usually the Teleport username.
+	// KeyId is the certificate ID, usually the Teleport username.
 	KeyId string `protobuf:"bytes,4,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
 	// Ttl is the duration the certificate will be valid for.
 	Ttl *durationpb.Duration `protobuf:"bytes,5,opt,name=ttl,proto3" json:"ttl,omitempty"`
