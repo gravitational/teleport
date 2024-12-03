@@ -177,8 +177,8 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityDelete{
 		Metadata: apievents.Metadata{
-			Code: events.SPIFFEFederationDeleteCode,
-			Type: events.SPIFFEFederationDeleteEvent,
+			Code: events.WorkloadIdentityDeleteCode,
+			Type: events.WorkloadIdentityDeleteEvent,
 		},
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
@@ -218,8 +218,8 @@ func (s *ResourceService) CreateWorkloadIdentity(
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityCreate{
 		Metadata: apievents.Metadata{
-			Code: events.SPIFFEFederationCreateCode,
-			Type: events.SPIFFEFederationCreateEvent,
+			Code: events.WorkloadIdentityCreateCode,
+			Type: events.WorkloadIdentityCreateEvent,
 		},
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
@@ -252,15 +252,15 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.CreateWorkloadIdentity(ctx, req.WorkloadIdentity)
+	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityUpdate{
 		Metadata: apievents.Metadata{
-			Code: events.SPIFFEFederationCreateCode,
-			Type: events.SPIFFEFederationCreateEvent,
+			Code: events.WorkloadIdentityUpdateCode,
+			Type: events.WorkloadIdentityUpdateEvent,
 		},
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
@@ -269,7 +269,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
-			ctx, "Failed to emit audit event for creation of WorkloadIdentity",
+			ctx, "Failed to emit audit event for updating of WorkloadIdentity",
 			"error", err,
 		)
 	}
