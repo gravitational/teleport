@@ -36,7 +36,6 @@ import {
   roleToRoleEditorModel,
   ServerAccessSpec,
   StandardEditorModel,
-  validateAccessSpec,
   WindowsDesktopAccessSpec,
 } from './standardmodel';
 import {
@@ -49,6 +48,7 @@ import {
   StandardEditorProps,
   WindowsDesktopAccessSpecSection,
 } from './StandardEditor';
+import { validateAccessSpec } from './validation';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();

@@ -94,6 +94,12 @@ export type KubernetesResource = {
   verbs?: KubernetesVerb[];
 };
 
+/**
+ * Supported Kubernetes resource kinds. This type needs to be kept in sync with
+ * `KubernetesResourcesKinds` in `api/types/constants.go, as well as
+ * `kubernetesResourceKindOptions` in
+ * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
+ */
 export type KubernetesResourceKind =
   | '*'
   | 'pod'
@@ -118,6 +124,12 @@ export type KubernetesResourceKind =
   | 'certificatesigningrequest'
   | 'ingress';
 
+/**
+ * Supported Kubernetes resource verbs. This type needs to be kept in sync with
+ * `KubernetesVerbs` in `api/types/constants.go, as well as
+ * `kubernetesVerbOptions` in
+ * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
+ */
 export type KubernetesVerb =
   | '*'
   | 'get'

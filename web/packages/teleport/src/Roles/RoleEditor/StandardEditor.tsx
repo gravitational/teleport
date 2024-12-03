@@ -69,6 +69,8 @@ import {
   AppAccessSpec,
   DatabaseAccessSpec,
   WindowsDesktopAccessSpec,
+} from './standardmodel';
+import {
   validateRoleEditorModel,
   MetadataValidationResult,
   AccessSpecValidationResult,
@@ -78,7 +80,7 @@ import {
   AppSpecValidationResult,
   DatabaseSpecValidationResult,
   WindowsDesktopSpecValidationResult,
-} from './standardmodel';
+} from './validation';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 
@@ -206,17 +208,20 @@ export const StandardEditor = ({
                     key: StandardEditorTab.Overview,
                     title: 'Overview',
                     controls: overviewTabId,
-                    status: validation.metadata.valid
-                      ? undefined
-                      : validationErrorTabStatus,
+                    status:
+                      validator.state.validating && !validation.metadata.valid
+                        ? validationErrorTabStatus
+                        : undefined,
                   },
                   {
                     key: StandardEditorTab.Resources,
                     title: 'Resources',
                     controls: resourcesTabId,
-                    status: validation.accessSpecs.every(s => s.valid)
-                      ? undefined
-                      : validationErrorTabStatus,
+                    status:
+                      validator.state.validating &&
+                      validation.accessSpecs.some(s => !s.valid)
+                        ? validationErrorTabStatus
+                        : undefined,
                   },
                   {
                     key: StandardEditorTab.AdminRules,
@@ -613,7 +618,7 @@ export function KubernetesAccessSpecSection({
           <KubernetesResourceView
             key={resource.id}
             value={resource}
-            validation={validation.fields.resources.items[index]}
+            validation={validation.fields.resources.results[index]}
             isProcessing={isProcessing}
             onChange={newRes =>
               onChange?.({

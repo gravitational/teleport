@@ -60,6 +60,8 @@ export const RoleEditor = ({
   onDelete,
 }: RoleEditorProps) => {
   const idPrefix = useId();
+  // These IDs are needed to connect accessibility attributes between the
+  // standard/YAML tab switcher and the switched panels.
   const standardEditorId = `${idPrefix}-standard`;
   const yamlEditorId = `${idPrefix}-yaml`;
 

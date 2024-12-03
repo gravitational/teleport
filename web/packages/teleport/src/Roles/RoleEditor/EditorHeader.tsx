@@ -52,7 +52,11 @@ export const EditorHeader = ({
   return (
     <Flex alignItems="center" mb={3} gap={2}>
       <Box flex="1">
-        <H2>{isCreating ? 'Create a New Role' : role?.metadata.name}</H2>
+        <H2>
+          {isCreating
+            ? 'Create a New Role'
+            : `Edit Role ${role?.metadata.name}`}
+        </H2>
       </Box>
       <Box flex="0 0 24px" lineHeight={0}>
         {isProcessing && <Indicator size={24} color="text.muted" />}
