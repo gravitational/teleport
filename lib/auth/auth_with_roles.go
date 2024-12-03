@@ -1270,12 +1270,14 @@ type resourceAccess struct {
 func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
 	resourceKind := resource.GetKind()
 
-	slog.Warn("Checking access to resource",
+	logger := slog.With(
 		"kind", resource.GetKind(),
 		"name", resource.GetName())
 
+	logger.Warn("Checking access to resource")
+
 	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
-		slog.Error("Access denied via access map", "error", canAccessErr)
+		log.Error("Access denied via access map", "error", canAccessErr)
 
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
@@ -1299,15 +1301,19 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	}
 
 	if !match {
+		slog.Error("Access denied via filter check")
 		return false, nil
 	}
 
 	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
+		logger.Warn("Performing reguar access check")
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
+				logger.Warn("Access denied via regular access check", "error", err)
 				return false, nil
 			}
+			logger.Warn("Regular access check failed", "error", err)
 			return false, trace.Wrap(err)
 		}
 		return true, nil
@@ -1862,8 +1868,10 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 
 	case services.UnifiedResource153Adapter:
 		switch rr.Unwrap().(type) {
-		case services.IdentityCenterAccount,
-			services.IdentityCenterAccountAssignment:
+		case services.IdentityCenterAccount:
+			return r.CheckAccess(rr, state)
+
+		case services.IdentityCenterAccountAssignment:
 			return r.CheckAccess(rr, state)
 		}
 	}

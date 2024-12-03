@@ -2568,9 +2568,19 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
+	logger := slog.Default().With(
+		"kind", r.GetKind(),
+		"name", r.GetName())
+
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
+	}
+
+	requiresLabelMatching := true
+	switch r.GetKind() {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		requiresLabelMatching = false
 	}
 
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
@@ -2590,25 +2600,35 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	// Check deny rules.
+	logger.Warn("Checking DENY role rules")
 	for _, role := range set {
+		logger := logger.With("role", role.GetName())
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
 		if !matchNamespace {
 			continue
 		}
 
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchLabels {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
-				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
-				r.GetKind(), additionalDeniedMessage)
+		if requiresLabelMatching {
+			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
+			if err != nil {
+				logger.Warn("Error during label match")
+				return trace.Wrap(err)
+			}
+			if matchLabels {
+				logger.Warn("Access denied via label match")
+
+				debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
+					r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+					r.GetKind(), additionalDeniedMessage)
+			}
+		} else {
+			logger.Info("Skipping DENY label matching")
 		}
 
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
+		logger.Info("Checking matchers", "matchers", matchers)
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2630,7 +2650,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	var errs []error
 	allowed := false
 	// Check allow rules.
+	logger.Warn("Checking ALLOW role rules")
 	for _, role := range set {
+		logger := logger.With("role", role.GetName())
+
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
 			if isDebugEnabled {
@@ -2640,26 +2663,36 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !matchLabels {
-			if isDebugEnabled {
-				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
-					role.GetName(), labelsMessage))
+		if requiresLabelMatching {
+			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
+			if err != nil {
+				logger.Error("Error during label match", "error", err)
+				return trace.Wrap(err)
 			}
-			continue
+
+			if !matchLabels {
+				logger.Warn("No Access via label match")
+
+				if isDebugEnabled {
+					errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
+						role.GetName(), labelsMessage))
+				}
+				continue
+			}
+		} else {
+			logger.Info("Skipping ALLOW label match")
 		}
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
+		logger.Info("Checking matchers", "matchers", matchers)
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
+			logger.Error("Error while executing matchers", "error", err)
 			return trace.Wrap(err)
 		}
 		if !matchMatchers {
+			logger.Info("No access via matchers")
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
 					role.GetName(), matchers))
@@ -2705,6 +2738,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	if allowed {
+		logger.Info("Access Allowed")
 		return nil
 	}
 

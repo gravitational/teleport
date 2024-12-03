@@ -2190,34 +2190,59 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
+		logger := slog.With(slog.Group("resource",
+			slog.String("kind", resource.GetKind()),
+			slog.String("name", resource.GetName())))
+
 		var (
-			rolesForResource []types.Role
-			resourceMatcher  *KubeResourcesMatcher
+			rolesForResource    []types.Role
+			matchers            []RoleMatcher
+			kubeResourceMatcher *KubeResourcesMatcher
 		)
 		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if len(kubernetesResources) > 0 {
-			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+			kubeResourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+			matchers = append(matchers, kubeResourceMatcher)
 		}
 
+		switch rr := resource.(type) {
+		case UnifiedResource153Adapter:
+			switch urr := rr.Unwrap().(type) {
+			case IdentityCenterAccount:
+				matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
+
+			case IdentityCenterAccountAssignment:
+				matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
+			}
+		}
+
+		logger.Info("Checking Roles", "count", len(allRoles))
+
 		for _, role := range allRoles {
-			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			logger := logger.With("role", role.GetName())
+			logger.Info("checking role")
+
+			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
+				logger.Info("role does NOT allow access")
 				// Role does not allow access to this resource. We will prune it
 				// unless it allows access to another resource.
 				continue
 			}
+			logger.Info("role allows access")
 			rolesForResource = append(rolesForResource, role)
 		}
+
 		// If any of the requested resources didn't match with the provided roles,
 		// we deny the request because the user is trying to request more access
 		// than what is allowed by its search_as_roles.
-		if resourceMatcher != nil && len(resourceMatcher.Unmatched()) > 0 {
+		if kubeResourceMatcher != nil && len(kubeResourceMatcher.Unmatched()) > 0 {
 			resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2226,7 +2251,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`no roles configured in the "search_as_roles" for this user allow `+
 					`access to at least one requested resources. `+
 					`resources: %s roles: %v unmatched resources: %v`,
-				resourcesStr, roles, resourceMatcher.Unmatched())
+				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest

@@ -284,6 +284,10 @@ type Role interface {
 	GetGitHubPermissions(RoleConditionType) []GitHubPermission
 	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
 	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
+
+	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
+	// Assignments for the role
+	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 }
 
 // NewRole constructs new standard V7 role.
@@ -2059,6 +2063,15 @@ func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers 
 			GitHubOrgLabel: all,
 		},
 	}
+}
+
+// GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
+	if rct == Allow {
+		return r.Spec.Allow.AccountAssignments
+	}
+	return r.Spec.Deny.AccountAssignments
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label

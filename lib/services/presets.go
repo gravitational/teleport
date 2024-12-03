@@ -584,8 +584,11 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				AccountAssignmentLabels: types.Labels{
-					types.OriginLabel: []string{common.OriginAWSIdentityCenter},
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       types.Wildcard,
+						PermissionSet: types.Wildcard,
+					},
 				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindIdentityCenter, RO()),

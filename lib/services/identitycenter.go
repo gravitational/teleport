@@ -18,13 +18,17 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
+	"github.com/gravitational/trace"
 )
 
 // IdentityCenterAccount wraps a raw identity center record in a new type to
@@ -231,4 +235,72 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+}
+
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterMatcher {
+	return &IdentityCenterMatcher{
+		accountID:        account.GetSpec().GetId(),
+		permissionSetARN: nil,
+	}
+}
+
+func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) *IdentityCenterMatcher {
+	psARN := account.GetSpec().GetPermissionSet().GetArn()
+	return &IdentityCenterMatcher{
+		accountID:        account.GetSpec().GetAccountId(),
+		permissionSetARN: &psARN,
+	}
+}
+
+type IdentityCenterMatcher struct {
+	accountID        string
+	permissionSetARN *string
+}
+
+func (m *IdentityCenterMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := m.matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !accountMatches {
+			continue
+		}
+
+		if m.permissionSetARN == nil {
+			return true, nil
+		}
+
+		psMatches, err := m.matchExpression(*(m.permissionSetARN), asmt.PermissionSet)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if psMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterMatcher) matchExpression(target, accountExpression string) (bool, error) {
+	if accountExpression == types.Wildcard {
+		return true, nil
+	}
+	matches, err := utils.MatchString(target, accountExpression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return matches, nil
+}
+
+func (m *IdentityCenterMatcher) String() string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "IdentityCenterMatcher(account==%v", m.accountID)
+	if m.permissionSetARN != nil {
+		fmt.Fprintf(&text, ", ps==%v", *(m.permissionSetARN))
+	}
+	text.WriteRune(')')
+	return text.String()
 }

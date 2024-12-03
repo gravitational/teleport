@@ -1420,15 +1420,18 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 				break
 			}
 
-			slog.Info("Unmarshaling resource", "key", item.Key)
+			logger := slog.With("key", item.Key)
+
+			logger.Info("----------------------")
+			logger.Info("Unmarshaling resource")
 
 			resource, err := unmarshalItemFunc(item)
 			if err != nil {
-				slog.Error("Unmarshaling failed", "error", err)
+				logger.Error("Unmarshaling failed", "error", err)
 				return false, trace.Wrap(err)
 			}
 
-			slog.Info("Unmarshaled resource",
+			logger.Info("Unmarshaled resource",
 				"kind", resource.GetKind(),
 				"name", resource.GetName())
 
@@ -1437,11 +1440,11 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 
 			case match:
-				slog.Info("Matched")
+				logger.Info("Matched")
 				resources = append(resources, resource)
 
 			default:
-				slog.Info("Did not match")
+				logger.Info("Did not match")
 			}
 		}
 

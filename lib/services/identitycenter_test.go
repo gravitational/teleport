@@ -59,7 +59,7 @@ func TestIdentityCenterAccountClone(t *testing.T) {
 
 	// EXPECT that the cloned object DOES NOT inherit the update
 	require.NotEqual(t, src, dst)
-	require.Equal(t, "original value", dst.Spec.PermissionSetInfo[0].Name)
+	require.Equal(t, "original value", dst.(IdentityCenterAccount).Spec.PermissionSetInfo[0].Name)
 }
 
 func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
@@ -93,5 +93,104 @@ func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
 
 	// EXPECT that the cloned object DOES NOT inherit the update
 	require.NotEqual(t, src, dst)
-	require.Equal(t, "original name", dst.Spec.PermissionSet.Name)
+	require.Equal(t, "original name", dst.(IdentityCenterAccountAssignment).Spec.PermissionSet.Name)
+}
+
+func ptr[T any](v T) *T {
+	return &v
+}
+
+func TestIdentityCenterMatcher(t *testing.T) {
+
+	testCases := []struct {
+		name           string
+		roleAssignment types.IdentityCenterAccountAssignment
+		condition      types.RoleConditionType
+		matcher        IdentityCenterMatcher
+		expectMatch    require.BoolAssertionFunc
+	}{
+		{
+			name: "simple account match",
+			roleAssignment: types.IdentityCenterAccountAssignment{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+			condition: types.Allow,
+			matcher: IdentityCenterMatcher{
+				accountID: "11111111",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "simple account nonmatch",
+			roleAssignment: types.IdentityCenterAccountAssignment{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+			condition: types.Allow,
+			matcher: IdentityCenterMatcher{
+				accountID: "potato",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "simple account assignment",
+			roleAssignment: types.IdentityCenterAccountAssignment{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+			condition: types.Allow,
+			matcher: IdentityCenterMatcher{
+				accountID:        "11111111",
+				permissionSetARN: ptr("some:arn"),
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "simple account assignment with bad account",
+			roleAssignment: types.IdentityCenterAccountAssignment{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+			condition: types.Allow,
+			matcher: IdentityCenterMatcher{
+				accountID:        "potato",
+				permissionSetARN: ptr("some:arn"),
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "simple account assignment with bad ps arn",
+			roleAssignment: types.IdentityCenterAccountAssignment{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+			condition: types.Allow,
+			matcher: IdentityCenterMatcher{
+				accountID:        "11111111",
+				permissionSetARN: ptr("banana"),
+			},
+			expectMatch: require.False,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			roleSpec := types.RoleSpecV6{}
+			condition := &roleSpec.Deny
+			if testCase.condition == types.Allow {
+				condition = &roleSpec.Allow
+			}
+			condition.AccountAssignments = append(condition.AccountAssignments,
+				testCase.roleAssignment)
+
+			r, err := types.NewRole("test", roleSpec)
+			require.NoError(t, err)
+
+			match, err := testCase.matcher.Match(r, testCase.condition)
+			require.NoError(t, err)
+
+			testCase.expectMatch(t, match)
+		})
+	}
 }
