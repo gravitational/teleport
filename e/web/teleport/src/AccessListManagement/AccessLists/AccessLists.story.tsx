@@ -302,6 +302,41 @@ const mockAccessLists = () => {
       },
       members: Array(20000).fill({}),
     },
+    {
+      metadata: {
+        name: 'ic1',
+        labels: {
+          'teleport.dev/origin': 'aws-identity-center',
+        },
+      },
+      spec: {
+        title: 'Dev Account',
+        description: 'lorem ipsum some kind of generic description',
+        audit: {},
+        grants: { roles: ['design', 'ux', 'ui', 'llama'] },
+        ownership_requires: { roles: [] },
+        owners: [],
+      },
+      members: Array(1).fill({}),
+      membersCount: 1,
+    },
+    {
+      metadata: {
+        name: 'ic2',
+        labels: {
+          'teleport.dev/origin': 'aws-identity-center',
+        },
+      },
+      spec: {
+        title: 'Prod Account',
+        audit: {},
+        grants: { roles: ['admin-on-account1'] },
+        ownership_requires: { roles: [] },
+        owners: [],
+      },
+      members: Array(1).fill({}),
+      membersCount: 1,
+    },
   ].map((list, i) => {
     return {
       ...list,

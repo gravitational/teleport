@@ -13,6 +13,7 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
   UpsertAccessListRequest,
+  AccessListType,
 } from './types';
 
 test('fetch access lists, empty responses does not throw error', async () => {
@@ -26,7 +27,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
   expect(response).toStrictEqual([
     {
       id: '',
-      isOkta: false,
+      type: '',
       title: '',
       description: '',
       owners: [],
@@ -84,7 +85,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
-    isOkta: false,
+    type: '',
     title: '',
   };
 
@@ -163,7 +164,7 @@ test('fetch an access list', async () => {
     await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
-    isOkta: true,
+    type: AccessListType.Okta,
     title: 'some title',
     description: 'some description',
     audit: {

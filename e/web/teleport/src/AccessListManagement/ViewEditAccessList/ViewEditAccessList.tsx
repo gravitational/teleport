@@ -17,12 +17,13 @@ import {
   AccessList,
   AccessListMember,
   AccessListMemberKind,
+  AccessListType,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
-import { OktaBadge } from '../Shared/OktaBadge';
+import { TypeBadge } from '../Shared/TypeBadge';
 
 import { ReviewAccessList } from './ReviewAccessList';
 
@@ -274,7 +275,7 @@ export function ViewEditAccessList() {
       />
       {deleteConfirm && (
         <DeleteAccessListConfirmDialog
-          isOkta={accessList.isOkta}
+          isOkta={accessList.type === AccessListType.Okta}
           accessListId={accessList.id}
           accessListName={accessList.title}
           onClose={() => setDeleteConfirm(false)}
@@ -310,7 +311,9 @@ const FeatureTitle = ({
         <Box>
           <Flex alignItems="center" mr={3} gap={1}>
             <H1>{accessList.title}</H1>
-            {accessList.isOkta && <OktaBadge />}
+            {accessList.type !== AccessListType.Unspecified && (
+              <TypeBadge type={accessList.type} />
+            )}
             <ButtonPencil
               title={
                 !perms.adminWhoCanEdit

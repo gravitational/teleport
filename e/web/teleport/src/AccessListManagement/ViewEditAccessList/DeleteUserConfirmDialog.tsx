@@ -11,6 +11,7 @@ import { OutlineWarn } from 'design/Alert/Alert';
 
 import {
   AccessList,
+  AccessListType,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 
@@ -83,7 +84,7 @@ export function DeleteUserConfirmDialog({
           </Text>{' '}
           ?
         </P1>
-        {accessList.isOkta && kind === 'Member' && (
+        {accessList.type === AccessListType.Okta && kind === 'Member' && (
           <Box mt={4}>
             <DeleteMemberWarning />
           </Box>

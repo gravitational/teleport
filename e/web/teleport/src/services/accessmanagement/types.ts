@@ -42,7 +42,7 @@ export type AccessList = {
   id: string;
   title: string; // friendly name of id
   description?: string;
-  isOkta?: boolean;
+  type?: AccessListType;
   audit: AccessListAudit;
   grants: AccessListGrant; // memberGrant
   ownerGrants: AccessListGrant;
@@ -170,3 +170,13 @@ export type ReviewAccessListRequest = {
   membersDeleted?: AccessListMember[];
   auditRecurrence?: AccessListAuditRecurrence;
 };
+
+/**
+ * AccessListType specifies the name of an integration
+ * for which or from which the Access List was created.
+ */
+export enum AccessListType {
+  Unspecified = '',
+  Okta = 'okta',
+  AwsIdentityCenter = 'aws-identity-center',
+}

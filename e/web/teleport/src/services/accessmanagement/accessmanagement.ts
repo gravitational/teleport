@@ -15,6 +15,7 @@ import {
   ReviewFrequency,
   ReviewFrequencyBackendParsableValue,
   ReviewAccessListRequest,
+  AccessListType,
 } from './types';
 
 export const accessManagementService = {
@@ -169,13 +170,27 @@ export function makeAccessLists(json: any): AccessList[] {
   return accesslists.map(makeAccessList);
 }
 
+function typeFromMetadataLabel(labels: object): AccessListType {
+  if (Object.keys(labels).includes('okta/org')) {
+    return AccessListType.Okta;
+  }
+
+  for (const [k, v] of Object.entries(labels)) {
+    if (k === 'teleport.dev/origin' && v === 'aws-identity-center') {
+      return AccessListType.AwsIdentityCenter;
+    }
+  }
+
+  return AccessListType.Unspecified;
+}
+
 function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
   const metadata = json?.metadata || { metadata: {} };
 
   return {
     id: metadata?.name || '',
-    isOkta: Object.keys(metadata?.labels || {}).includes('okta/org'),
+    type: typeFromMetadataLabel(metadata?.labels || {}),
     title: spec.title || '',
     description: spec.description || '',
     owners: makeOwners(spec.owners),

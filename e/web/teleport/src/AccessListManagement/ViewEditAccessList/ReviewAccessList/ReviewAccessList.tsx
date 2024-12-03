@@ -24,6 +24,7 @@ import {
   AccessListRequires,
   accessManagementService,
   ReviewAccessListRequest,
+  AccessListType,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 import {
@@ -209,7 +210,7 @@ export function ReviewAccessList({
                 editedMembers={editedMembers}
                 onDeleteMember={handleRemoveMember}
                 originalMembers={accessList.members}
-                isOkta={accessList.isOkta}
+                isOkta={accessList.type === AccessListType.Okta}
               />
             </Box>
           )}

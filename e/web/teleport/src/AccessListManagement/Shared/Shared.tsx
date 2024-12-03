@@ -8,7 +8,10 @@ import ResourceService from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListMemberKind,
+  AccessListType,
+} from 'e-teleport/services/accessmanagement';
 
 import {
   AccessListFilters,
@@ -201,7 +204,16 @@ export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
         return true;
       }
 
-      if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
+      if (
+        searchValue.toLowerCase().includes('okta') &&
+        r.type === AccessListType.Okta
+      ) {
+        return true;
+      }
+      if (
+        searchValue.toLowerCase().includes('aws') &&
+        r.type === AccessListType.AwsIdentityCenter
+      ) {
         return true;
       }
     });
@@ -209,10 +221,22 @@ export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
 
   if (filterValue.source?.length) {
     filtered = filtered.filter(acl => {
-      if (filterValue.source.includes('teleport') && !acl.isOkta) {
+      if (
+        filterValue.source.includes('okta') &&
+        acl.type === AccessListType.Okta
+      ) {
         return true;
       }
-      return filterValue.source.includes('okta') && acl.isOkta;
+      if (
+        filterValue.source.includes('aws-identity-center') &&
+        acl.type === AccessListType.AwsIdentityCenter
+      ) {
+        return true;
+      }
+      return (
+        filterValue.source.includes('teleport') &&
+        acl.type === AccessListType.Unspecified
+      );
     });
   }
 

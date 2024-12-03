@@ -35,7 +35,7 @@ type PreProcessFn = (lists: AccessList[]) => AccessList[];
 
 // AccessListFilters is used to filter the access lists based on the source, owners, and roles.
 export type AccessListFilters = {
-  source?: ('okta' | 'teleport')[];
+  source?: ('okta' | 'teleport' | 'aws-identity-center')[];
   owners?: string[];
   roles?: string[];
 };

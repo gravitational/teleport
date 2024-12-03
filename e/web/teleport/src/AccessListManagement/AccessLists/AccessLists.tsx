@@ -53,6 +53,7 @@ import {
   AccessList,
   AccessListGrant,
   AccessListMemberKind,
+  AccessListType,
 } from 'e-teleport/services/accessmanagement';
 import {
   AccessCard,
@@ -193,8 +194,13 @@ function MainContent({
 
   const currentUsername = ctx.storeUser.getUsername();
 
-  const hasOktaLists = useMemo(
-    () => accessLists.some(a => a.isOkta),
+  const showListTypes = useMemo(
+    () =>
+      accessLists.some(
+        a =>
+          a.type === AccessListType.Okta ||
+          a.type === AccessListType.AwsIdentityCenter
+      ),
     [accessLists]
   );
 
@@ -296,11 +302,15 @@ function MainContent({
       </Box>
       <Flex justifyContent="space-between" alignItems="center" mb={3}>
         <Flex justifyContent="flex-start" alignItems="center" gap={2}>
-          {hasOktaLists && (
+          {showListTypes && (
             <MultiselectMenu
               options={[
                 { value: 'teleport', label: 'Teleport' },
                 { value: 'okta', label: 'Okta' },
+                {
+                  value: 'aws-identity-center',
+                  label: 'AWS IAM Identity Center',
+                },
               ]}
               onChange={sources => setFilterValue({ source: sources })}
               selected={filterValue.source || []}
@@ -350,7 +360,7 @@ function MainContent({
             accessLists={sortedAccessLists}
             history={history}
             searchValue={searchValue}
-            hasOktaLists={hasOktaLists}
+            showListTypes={showListTypes}
             currentSort={currentSort}
             setCurrentSort={setCurrentSort}
           />
@@ -379,14 +389,14 @@ const AccessListTable = ({
   accessLists,
   history,
   searchValue,
-  hasOktaLists,
+  showListTypes,
   currentSort,
   setCurrentSort,
 }: {
   accessLists: AccessListWithModifiedGrants[];
   history: ReturnType<typeof useHistory>;
   searchValue?: string;
-  hasOktaLists?: boolean;
+  showListTypes?: boolean;
   currentSort: AccessListSort;
   setCurrentSort: (sort: AccessListSort) => void;
 }) => {
@@ -418,13 +428,13 @@ const AccessListTable = ({
       },
     ];
 
-    if (hasOktaLists) {
+    if (showListTypes) {
       cols.push({
         headerText: 'Type',
-        key: 'isOkta',
+        key: 'type',
         render: acl => (
           <Cell>
-            <Text>{acl.isOkta ? 'Okta' : 'Teleport'}</Text>
+            <Text>{friendlyListType(acl.type)}</Text>
           </Cell>
         ),
       });
@@ -496,7 +506,7 @@ const AccessListTable = ({
     );
 
     return cols;
-  }, [hasOktaLists, history, searchValue]);
+  }, [showListTypes, history, searchValue]);
 
   return (
     <Table
@@ -522,6 +532,17 @@ const AccessListTable = ({
       }}
     />
   );
+};
+
+const friendlyListType = (listType: string) => {
+  switch (listType) {
+    case AccessListType.Okta:
+      return 'Okta';
+    case AccessListType.AwsIdentityCenter:
+      return 'AWS IAM Identity Center';
+    default:
+      return 'Teleport';
+  }
 };
 
 const TableAuditNextDateCell = ({

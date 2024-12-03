@@ -3,6 +3,7 @@ import {
   AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
+  AccessListType,
 } from 'e-teleport/services/accessmanagement';
 
 import {
@@ -307,7 +308,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
       },
-      isOkta: false,
+      type: AccessListType.Unspecified,
       members: Array(15).fill({}),
     },
     {
@@ -326,7 +327,7 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180),
       },
-      isOkta: true,
+      type: AccessListType.Okta,
       members: Array(65).fill({}),
     },
     {
@@ -345,8 +346,27 @@ describe('Access List Management Shared', () => {
         },
         nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
       },
-      isOkta: true,
+      type: AccessListType.Okta,
       members: Array(25).fill({}),
+    },
+    {
+      id: '4',
+      title: 'AWS IAM Identity Center List',
+      description: 'AWS groups',
+      owners: [{ name: 'AWSDev', membershipKind: AccessListMemberKind.User }],
+      grants: { roles: ['devops'], traits: {}, traitList: [] },
+      inheritedMemberGrants: { roles: [], traits: {} },
+      ownerGrants: { roles: [], traits: {}, traitList: [] },
+      ownershipRequires: { roles: [], traits: {} },
+      audit: {
+        recurrence: {
+          dayOfMonth: ReviewDayOfMonth.FirstDayOfMonth,
+          frequency: ReviewFrequency.OneYear,
+        },
+        nextDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
+      },
+      type: AccessListType.AwsIdentityCenter,
+      members: Array(1).fill({}),
     },
   ].map(list => {
     return {
@@ -366,6 +386,7 @@ describe('Access List Management Shared', () => {
       });
       expect(result.map(r => r.title)).toEqual([
         'Admin List',
+        'AWS IAM Identity Center List',
         'Support List',
         'User List',
       ]);
@@ -379,6 +400,7 @@ describe('Access List Management Shared', () => {
       expect(result.map(r => r.title)).toEqual([
         'User List',
         'Support List',
+        'AWS IAM Identity Center List',
         'Admin List',
       ]);
     });
@@ -487,6 +509,24 @@ describe('Access List Management Shared', () => {
         filterValue: {},
       });
       expect(result).toEqual(mockAccessLists);
+    });
+
+    it('filters by source (AWS IAM Identity Center)', () => {
+      const result = filterAccessLists({
+        accessLists: mockAccessLists,
+        searchValue: '',
+        filterValue: { source: ['aws-identity-center'] },
+      });
+      expect(result).toEqual([mockAccessLists[3]]);
+    });
+
+    it('search by source (AWS IAM Identity Center)', () => {
+      const result = filterAccessLists({
+        accessLists: mockAccessLists,
+        searchValue: 'aws',
+        filterValue: {},
+      });
+      expect(result).toEqual([mockAccessLists[3]]);
     });
   });
 });

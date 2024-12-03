@@ -8,8 +8,10 @@ import { pluralize } from 'shared/utils/text';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { AccessListType } from 'e-teleport/services/accessmanagement';
+
 import { TruncatingLabel } from '../Shared/Shared';
-import { OktaBadge } from '../Shared/OktaBadge';
+import { TypeBadge } from '../Shared/TypeBadge';
 
 import { AccessListWithModifiedGrants } from './AccessLists';
 
@@ -32,7 +34,7 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
     memberListCount,
     grants,
     needsReviewBy,
-    isOkta,
+    type,
   } = accessList;
   let truncatedDesc = description;
   // Roughly two lines worth of text.
@@ -71,7 +73,7 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
           <SingleLineBox bold title={title} $requiresReview={requiresReview}>
             {title}
           </SingleLineBox>
-          {isOkta && <OktaBadge />}
+          {type !== AccessListType.Unspecified && <TypeBadge type={type} />}
         </Flex>
         <Text typography="body4" color="text.muted" title={description}>
           {truncatedDesc}
