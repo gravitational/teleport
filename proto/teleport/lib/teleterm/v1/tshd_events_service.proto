@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/lib/teleterm/v1/app.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -96,8 +98,10 @@ message GatewayCertExpired {
 message VnetCertExpired {
   // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
   string target_uri = 1;
-  // public_addr is the public address of the app that the user tried to access.
-  string public_addr = 2;
+  reserved 2;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 3;
 }
 
 // Response for Relogin.
@@ -130,8 +134,10 @@ message CannotProxyGatewayConnection {
 message CannotProxyVnetConnection {
   string target_uri = 1;
   string error = 2;
-  // public_addr is the public address of the app that the user tried to access.
-  string public_addr = 3;
+  reserved 3;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 4;
 }
 
 // Response for SendNotification.

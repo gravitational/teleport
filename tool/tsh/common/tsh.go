@@ -2899,6 +2899,10 @@ type appTableConfig struct {
 }
 
 func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig) error {
+	includesMultiPortApp := slices.ContainsFunc(appListings, func(al appListing) bool {
+		return len(al.App.GetTCPPorts()) > 0
+	})
+
 	getName := func(app types.Application) string {
 		isActive := slices.ContainsFunc(config.active, func(route tlsca.RouteToApp) bool {
 			// TODO(ravicious): This should be based on name _and_ route.ClusterName, so that we don't
@@ -2916,6 +2920,19 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 	}
 	getLabels := func(app types.Application) string {
 		return common.FormatLabels(app.GetAllLabels(), config.verbose)
+	}
+	getTargetPorts := func(app types.Application) string {
+		ports := make([]string, 0, len(app.GetTCPPorts()))
+		for _, portRange := range app.GetTCPPorts() {
+			var port string
+			if portRange.EndPort == 0 {
+				port = strconv.Itoa(int(portRange.Port))
+			} else {
+				port = fmt.Sprintf("%d-%d", portRange.Port, portRange.EndPort)
+			}
+			ports = append(ports, port)
+		}
+		return strings.Join(ports, ", ")
 	}
 
 	const labelsColumn = "Labels"
@@ -2947,8 +2964,13 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 			get:  types.Application.GetPublicAddr,
 		},
 		appTableColumn{
-			name:    "URI",
-			get:     types.Application.GetURI,
+			name: "Target Ports",
+			get:  getTargetPorts,
+			hide: !includesMultiPortApp,
+		},
+		appTableColumn{
+			name: "URI",
+			get:  types.Application.GetURI,
 			hide: !config.verbose,
 		},
 		appTableColumn{

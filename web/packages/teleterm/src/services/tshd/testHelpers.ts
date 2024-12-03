@@ -72,6 +72,7 @@ export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
   samlApp: false,
   uri: appUri,
   awsRoles: [],
+  tcpPorts: [],
   ...props,
 });
 

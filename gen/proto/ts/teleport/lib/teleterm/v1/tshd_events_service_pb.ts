@@ -31,6 +31,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { RouteToApp } from "./app_pb";
 /**
  * Request for Relogin.
  *
@@ -93,11 +94,11 @@ export interface VnetCertExpired {
      */
     targetUri: string;
     /**
-     * public_addr is the public address of the app that the user tried to access.
+     * route_to_app is the metadata associated with the app that the user was trying to reach.
      *
-     * @generated from protobuf field: string public_addr = 2;
+     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 3;
      */
-    publicAddr: string;
+    routeToApp?: RouteToApp;
 }
 /**
  * Response for Relogin.
@@ -173,11 +174,11 @@ export interface CannotProxyVnetConnection {
      */
     error: string;
     /**
-     * public_addr is the public address of the app that the user tried to access.
+     * route_to_app is the metadata associated with the app that the user was trying to reach.
      *
-     * @generated from protobuf field: string public_addr = 3;
+     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 4;
      */
-    publicAddr: string;
+    routeToApp?: RouteToApp;
 }
 /**
  * Response for SendNotification.
@@ -540,13 +541,12 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
     constructor() {
         super("teleport.lib.teleterm.v1.VnetCertExpired", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "route_to_app", kind: "message", T: () => RouteToApp }
         ]);
     }
     create(value?: PartialMessage<VnetCertExpired>): VnetCertExpired {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
-        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<VnetCertExpired>(this, message, value);
         return message;
@@ -559,8 +559,8 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
                     break;
-                case /* string public_addr */ 2:
-                    message.publicAddr = reader.string();
+                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 3:
+                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -577,9 +577,9 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* string public_addr = 2; */
-        if (message.publicAddr !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
+        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 3; */
+        if (message.routeToApp)
+            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -744,14 +744,13 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "route_to_app", kind: "message", T: () => RouteToApp }
         ]);
     }
     create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
         message.error = "";
-        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<CannotProxyVnetConnection>(this, message, value);
         return message;
@@ -767,8 +766,8 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
                 case /* string error */ 2:
                     message.error = reader.string();
                     break;
-                case /* string public_addr */ 3:
-                    message.publicAddr = reader.string();
+                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 4:
+                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -788,9 +787,9 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         /* string error = 2; */
         if (message.error !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.error);
-        /* string public_addr = 3; */
-        if (message.publicAddr !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.publicAddr);
+        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 4; */
+        if (message.routeToApp)
+            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
