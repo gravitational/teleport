@@ -137,11 +137,11 @@ type CORS struct {
 // EndPort field is 0.
 type PortRange struct {
 	// Port describes the start of the range. It must be between 1 and 65535.
-	Port uint16
-	// EndPort describes the end of the range, inclusive. If set, it must be between 2and 65535 and be
-	// greater than Port when describing a port range. When omitted or set to zero, it signifies that
-	// the port range defines a single port.
-	EndPort uint16
+	Port int
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than Port and less than or equal to 65535. When describing a single port, it must be
+	// set to 0.
+	EndPort int
 }
 
 // CheckAndSetDefaults validates an application.
@@ -224,7 +224,7 @@ func (a *App) checkPorts() error {
 	}
 
 	for _, portRange := range a.TCPPorts {
-		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+		if err := netutils.ValidatePortRange(portRange.Port, portRange.EndPort); err != nil {
 			return trace.Wrap(err, "validating a port range of a TCP app")
 		}
 	}

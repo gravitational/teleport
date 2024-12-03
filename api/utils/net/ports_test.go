@@ -79,6 +79,79 @@ func TestValidatePortRange(t *testing.T) {
 	}
 }
 
+func TestIsPortInRange(t *testing.T) {
+	tests := []struct {
+		name       string
+		port       int
+		endPort    int
+		targetPort int
+		check      require.BoolAssertionFunc
+	}{
+		{
+			name:       "within single port range",
+			port:       1337,
+			endPort:    0,
+			targetPort: 1337,
+			check:      require.True,
+		},
+		{
+			name:       "within port range",
+			port:       1337,
+			endPort:    3456,
+			targetPort: 2550,
+			check:      require.True,
+		},
+		{
+			name:       "equal to range start",
+			port:       1337,
+			endPort:    3456,
+			targetPort: 1337,
+			check:      require.True,
+		},
+		{
+			name:       "equal to range end",
+			port:       1337,
+			endPort:    3456,
+			targetPort: 3456,
+			check:      require.True,
+		},
+		{
+			name:       "outside of single port range",
+			port:       1337,
+			endPort:    0,
+			targetPort: 7331,
+			check:      require.False,
+		},
+		{
+			name:       "equal to end of single port range",
+			port:       1337,
+			endPort:    0,
+			targetPort: 0,
+			check:      require.False,
+		},
+		{
+			name:       "smaller than range start",
+			port:       1337,
+			endPort:    3456,
+			targetPort: 42,
+			check:      require.False,
+		},
+		{
+			name:       "bigger than range end",
+			port:       1337,
+			endPort:    3456,
+			targetPort: 7331,
+			check:      require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, IsPortInRange(tt.port, tt.endPort, tt.targetPort), "compared %d against %d-%d", tt.targetPort, tt.port, tt.endPort)
+		})
+	}
+}
+
 func badParameterError(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
