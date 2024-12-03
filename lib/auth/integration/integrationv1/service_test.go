@@ -30,6 +30,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -62,32 +63,6 @@ func TestIntegrationCRUD(t *testing.T) {
 		)
 		require.NoError(t, err)
 		return ig
-	}
-
-	newGitHubIntegration := func(name, id, secret string) (*types.IntegrationV1, error) {
-		ig, err := types.NewIntegrationGitHub(
-			types.Metadata{
-				Name: name,
-			},
-			&types.GitHubIntegrationSpecV1{
-				Organization: "my-org",
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if secret != "" {
-			ig.SetCredentials(&types.PluginCredentialsV1{
-				Credentials: &types.PluginCredentialsV1_IdSecret{
-					IdSecret: &types.PluginIdSecretCredential{
-						Id:     id,
-						Secret: secret,
-					},
-				},
-			})
-		}
-		return ig, nil
 	}
 
 	tt := []struct {
@@ -449,7 +424,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				refUUID := uuid.NewString()
 				ig.SetCredentials(&types.PluginCredentialsV1{
 					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
-						StaticCredentialsRef: newStaticCredentialsRef(refUUID),
+						StaticCredentialsRef: credentials.NewRefWithUUID(refUUID),
 					},
 				})
 
@@ -462,8 +437,8 @@ func TestIntegrationCRUD(t *testing.T) {
 						Metadata: types.Metadata{
 							Name: igName,
 							Labels: map[string]string{
-								labelStaticCredentialsIntegration: refUUID,
-								labelStaticCredentialsPurpose:     "test",
+								credentials.LabelStaticCredentialsIntegration: refUUID,
+								credentials.LabelStaticCredentialsPurpose:     "test",
 							},
 						},
 					},
@@ -655,7 +630,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
-		IntegrationsService: *cacheResourceService,
+		IntegrationsService:            *cacheResourceService,
+		PluginStaticCredentialsService: localCredService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
@@ -692,6 +668,7 @@ type mockCache struct {
 	returnErr error
 
 	local.IntegrationsService
+	*local.PluginStaticCredentialsService
 }
 
 func (m *mockCache) GetProxies() ([]types.Server, error) {
@@ -745,6 +722,32 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
+}
+
+func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error) {
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{
+			Name: name,
+		},
+		&types.GitHubIntegrationSpecV1{
+			Organization: "my-org",
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if secret != "" {
+		ig.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     id,
+					Secret: secret,
+				},
+			},
+		})
+	}
+	return ig, nil
 }
 
 func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {
