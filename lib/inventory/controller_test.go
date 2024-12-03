@@ -1503,12 +1503,6 @@ func TestTimeReconciliation(t *testing.T) {
 		cancel()
 	})
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
-		ServerID: serverID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	})
-
 	// Launch goroutine to respond to clock request.
 	go func() {
 		for {
@@ -1518,7 +1512,6 @@ func TestTimeReconciliation(t *testing.T) {
 					ID:          msg.(proto.DownstreamInventoryPing).ID,
 					SystemClock: clock.Now().Add(-time.Minute).UTC(),
 				})
-				return
 			case <-downstream.Done():
 				return
 			case <-ctx.Done():
@@ -1527,12 +1520,16 @@ func TestTimeReconciliation(t *testing.T) {
 		}
 	}()
 
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
 	_, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)
 
-	awaitEvents(t, events,
-		expect(timeReconciliationOk),
-	)
+	awaitEvents(t, events, expect(pongOk))
 	awaitEvents(t, events,
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
@@ -1540,6 +1537,8 @@ func TestTimeReconciliation(t *testing.T) {
 	auth.mu.Lock()
 	m := auth.lastInstance.GetLastMeasurement()
 	auth.mu.Unlock()
+
+	require.NotNil(t, m)
 	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
