@@ -329,6 +329,7 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 			// Clone to avoid Marshaling modifying want
 			proto.Clone(toCreate).(*workloadidentityv1pb.WorkloadIdentity),
 		)
+		require.NoError(t, err)
 		// We'll now update it twice, but on the second update, we will use the
 		// revision from the creation not the second update.
 		_, err = service.UpdateWorkloadIdentity(
