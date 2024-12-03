@@ -212,14 +212,13 @@ const auth = {
     oldPassword,
     newPassword,
     secondFactorToken,
-    credential,
+    webauthnResponse,
   }: ChangePasswordReq) {
     const data = {
       old_password: base64EncodeUnicode(oldPassword),
       new_password: base64EncodeUnicode(newPassword),
       second_factor_token: secondFactorToken,
-      webauthnAssertionResponse:
-        credential && makeWebauthnAssertionResponse(credential),
+      webauthnAssertionResponse: webauthnResponse,
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
@@ -342,9 +341,7 @@ const auth = {
       .then(res =>
         api.post(cfg.api.createPrivilegeTokenPath, {
           // TODO(Joerger): Handle non-webauthn challenges.
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(
-            res.webauthn_response
-          ),
+          webauthnAssertionResponse: res.webauthn_response,
         })
       );
   },
@@ -390,7 +387,7 @@ const auth = {
     return auth
       .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
       .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => makeWebauthnAssertionResponse(res.webauthn_response));
+      .then(res => res.webauthn_response);
   },
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
