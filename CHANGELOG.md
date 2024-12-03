@@ -12,7 +12,7 @@
 * Fixed a potential panic in login rule and SAML IdP expression parser. [#49431](https://github.com/gravitational/teleport/pull/49431)
 * Support for long-running kube exec/port-forward, respect client_idle_timeout config. [#49423](https://github.com/gravitational/teleport/pull/49423)
 * Fixed a permissions error with Postgres database user auto-provisioning that occurs when the database admin is not a superuser and the database is upgraded to Postgres v16 or higher. [#49389](https://github.com/gravitational/teleport/pull/49389)
-* Teleport Connect now refreshes the resources view after dropping an access request. [#49348](https://github.com/gravitational/teleport/pull/49348)
+* Teleport Connect now refreshes the resources view after dropping an Access Request. [#49348](https://github.com/gravitational/teleport/pull/49348)
 * Fixed missing user participants in session recordings listing for non-interactive Kubernetes recordings. [#49344](https://github.com/gravitational/teleport/pull/49344)
 * Support delegated joining for Bitbucket Pipelines in Machine ID. [#49337](https://github.com/gravitational/teleport/pull/49337)
 * Fix a bug in the Teleport Operator chart that causes the operator to not be able to watch secrets during secret injection. [#49326](https://github.com/gravitational/teleport/pull/49326)
