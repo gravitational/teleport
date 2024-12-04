@@ -20,15 +20,15 @@ package web
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // autoUpdateAgentVersion returns the version the agent should install/update to based on

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -167,6 +168,17 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 	t.Cleanup(brokenChannelUpstream.Close)
 
 	clock := clockwork.NewFakeClock()
+	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       clock,
+		Context:     ctx,
+		ReloadOnErr: false,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cmcCache.Shutdown(ctx)
+	})
+
 	activeUpgradeWindow := types.AgentUpgradeWindow{UTCStartHour: uint32(clock.Now().Hour())}
 	inactiveUpgradeWindow := types.AgentUpgradeWindow{UTCStartHour: uint32(clock.Now().Add(2 * time.Hour).Hour())}
 	tests := []struct {
@@ -309,6 +321,8 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 			cmc := types.NewClusterMaintenanceConfig()
 			cmc.SetAgentUpgradeWindow(tt.upgradeWindow)
 			require.NoError(t, tt.channel.CheckAndSetDefaults())
+			// Advance clock to invalidate cache
+			clock.Advance(2 * findEndpointCacheTTL)
 			h := &Handler{
 				cfg: Config{
 					AccessPoint: &fakeRolloutAccessPoint{
@@ -323,7 +337,8 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 						groupName: tt.channel,
 					},
 				},
-				clock: clock,
+				clock:                         clock,
+				clusterMaintenanceConfigCache: cmcCache,
 			}
 
 			// Test execution
