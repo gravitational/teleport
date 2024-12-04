@@ -46,8 +46,6 @@ const (
 	// Kubernetes should support bound tokens on 1.20 and 1.21,
 	// but we can have an apiserver running 1.21 and kubelets running 1.19.
 	kubernetesBoundTokenSupportVersion = "1.22.0"
-	// kubernetesAudience is the Kubernetes default audience put on SA tokens if we can't get the default audiences.
-	kubernetesAudience = "https://kubernetes.default.svc.cluster.local"
 )
 
 type ValidationResult struct {
