@@ -28,7 +28,7 @@ type OriginProps = {
 
 export const HoverTooltip: React.FC<
   PropsWithChildren<{
-    tipContent: string | undefined;
+    tipContent?: React.ReactNode;
     showOnlyOnOverflow?: boolean;
     className?: string;
     anchorOrigin?: OriginProps;
