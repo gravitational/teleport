@@ -67,6 +67,7 @@ export function useIdentity() {
       userName: cluster.loggedInUser?.name,
       uri: cluster.uri,
       connected: cluster.connected,
+      profileStatusError: cluster.profileStatusError,
     }));
 
   return {
@@ -85,4 +86,5 @@ export interface IdentityRootCluster {
   userName: string;
   uri: RootClusterUri;
   connected: boolean;
+  profileStatusError: string;
 }

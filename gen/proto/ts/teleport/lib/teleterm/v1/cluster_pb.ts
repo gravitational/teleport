@@ -30,6 +30,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { TrustedDeviceRequirement } from "../../../legacy/types/trusted_device_requirement_pb";
 /**
  * Cluster describes cluster fields.
  *
@@ -113,6 +114,13 @@ export interface Cluster {
      * @generated from protobuf field: teleport.lib.teleterm.v1.ShowResources show_resources = 11;
      */
     showResources: ShowResources;
+    /**
+     * profile_status_error is set if there was an error when reading the profile.
+     * This allows the app to be usable, when one or more profiles cannot be read.
+     *
+     * @generated from protobuf field: string profile_status_error = 12;
+     */
+    profileStatusError: string;
 }
 /**
  * LoggedInUser describes a logged-in user
@@ -169,6 +177,18 @@ export interface LoggedInUser {
      * @generated from protobuf field: teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8;
      */
     userType: LoggedInUser_UserType;
+    /**
+     * Indicates if the profile contains all required device extensions.
+     *
+     * @generated from protobuf field: bool is_device_trusted = 9;
+     */
+    isDeviceTrusted: boolean;
+    /**
+     * Indicates whether access may be hindered by the lack of a trusted device.
+     *
+     * @generated from protobuf field: types.TrustedDeviceRequirement trusted_device_requirement = 10;
+     */
+    trustedDeviceRequirement: TrustedDeviceRequirement;
 }
 /**
  * UserType indicates whether the user was created through an SSO provider or in Teleport itself.
@@ -369,7 +389,8 @@ class Cluster$Type extends MessageType<Cluster> {
             { no: 8, name: "features", kind: "message", T: () => Features },
             { no: 9, name: "auth_cluster_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] }
+            { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] },
+            { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Cluster>): Cluster {
@@ -382,6 +403,7 @@ class Cluster$Type extends MessageType<Cluster> {
         message.authClusterId = "";
         message.proxyVersion = "";
         message.showResources = 0;
+        message.profileStatusError = "";
         if (value !== undefined)
             reflectionMergePartial<Cluster>(this, message, value);
         return message;
@@ -420,6 +442,9 @@ class Cluster$Type extends MessageType<Cluster> {
                     break;
                 case /* teleport.lib.teleterm.v1.ShowResources show_resources */ 11:
                     message.showResources = reader.int32();
+                    break;
+                case /* string profile_status_error */ 12:
+                    message.profileStatusError = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -463,6 +488,9 @@ class Cluster$Type extends MessageType<Cluster> {
         /* teleport.lib.teleterm.v1.ShowResources show_resources = 11; */
         if (message.showResources !== 0)
             writer.tag(11, WireType.Varint).int32(message.showResources);
+        /* string profile_status_error = 12; */
+        if (message.profileStatusError !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.profileStatusError);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -484,7 +512,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
             { no: 5, name: "active_requests", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "requestable_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] }
+            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] },
+            { no: 9, name: "is_device_trusted", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 10, name: "trusted_device_requirement", kind: "enum", T: () => ["types.TrustedDeviceRequirement", TrustedDeviceRequirement, "TRUSTED_DEVICE_REQUIREMENT_"] }
         ]);
     }
     create(value?: PartialMessage<LoggedInUser>): LoggedInUser {
@@ -496,6 +526,8 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         message.suggestedReviewers = [];
         message.requestableRoles = [];
         message.userType = 0;
+        message.isDeviceTrusted = false;
+        message.trustedDeviceRequirement = 0;
         if (value !== undefined)
             reflectionMergePartial<LoggedInUser>(this, message, value);
         return message;
@@ -528,6 +560,12 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                     break;
                 case /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type */ 8:
                     message.userType = reader.int32();
+                    break;
+                case /* bool is_device_trusted */ 9:
+                    message.isDeviceTrusted = reader.bool();
+                    break;
+                case /* types.TrustedDeviceRequirement trusted_device_requirement */ 10:
+                    message.trustedDeviceRequirement = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -565,6 +603,12 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8; */
         if (message.userType !== 0)
             writer.tag(8, WireType.Varint).int32(message.userType);
+        /* bool is_device_trusted = 9; */
+        if (message.isDeviceTrusted !== false)
+            writer.tag(9, WireType.Varint).bool(message.isDeviceTrusted);
+        /* types.TrustedDeviceRequirement trusted_device_requirement = 10; */
+        if (message.trustedDeviceRequirement !== 0)
+            writer.tag(10, WireType.Varint).int32(message.trustedDeviceRequirement);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

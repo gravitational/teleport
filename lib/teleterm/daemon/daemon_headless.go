@@ -70,28 +70,6 @@ func (s *Service) StartHeadlessWatcher(rootClusterURI string, waitInit bool) err
 	return trace.Wrap(err)
 }
 
-// StartHeadlessWatchers starts headless watchers for all connected clusters.
-func (s *Service) StartHeadlessWatchers() error {
-	s.headlessWatcherClosersMu.Lock()
-	defer s.headlessWatcherClosersMu.Unlock()
-
-	clusters, err := s.cfg.Storage.ListRootClusters()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, c := range clusters {
-		if c.Connected() {
-			// Don't wait for the headless watcher to initialize as this could slow down startup.
-			if err := s.startHeadlessWatcher(c, false /* waitInit */); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
 // startHeadlessWatcher starts a headless watcher for the given cluster.
 //
 // If waitInit is true, this method will wait for the watcher to connect to the
@@ -294,10 +272,10 @@ func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *typ
 		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
 	}
 
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := s.headlessAuthSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	defer s.importantModalSemaphore.Release()
+	defer s.headlessAuthSemaphore.Release()
 
 	_, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(ctx, req)
 	return trace.Wrap(err)

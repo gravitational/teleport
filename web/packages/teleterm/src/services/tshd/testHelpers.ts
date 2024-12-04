@@ -17,6 +17,7 @@
  */
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import * as tsh from './types';
 import { TshdRpcError } from './cloneableClient';
@@ -90,6 +91,7 @@ export const makeRootCluster = (
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
   showResources: ShowResources.REQUESTABLE,
+  profileStatusError: '',
   ...props,
 });
 
@@ -104,6 +106,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  profileStatusError: '',
   showResources: ShowResources.UNSPECIFIED,
   ...props,
 });
@@ -113,6 +116,8 @@ export const makeLoggedInUser = (
 ): tsh.LoggedInUser => ({
   activeRequests: [],
   name: 'alice',
+  isDeviceTrusted: false,
+  trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
   acl: {
     recordedSessions: {
       list: true,

@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { render, fireEvent } from 'design/utils/testing';
 
-import DialogConfirmation from './DialogConfirmation';
+import { DialogConfirmation } from './DialogConfirmation';
 
 test('onClose is respected', () => {
   const onClose = jest.fn();

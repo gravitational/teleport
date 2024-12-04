@@ -88,6 +88,9 @@ function getClientMocks(): Partial<TshdClient> {
       .fn()
       .mockReturnValueOnce(new MockedUnaryCall(gatewayMock)),
     removeGateway: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    startHeadlessWatcher: jest
+      .fn()
+      .mockReturnValueOnce(new MockedUnaryCall({})),
   };
 }
 
@@ -182,13 +185,15 @@ test('remove cluster', async () => {
 });
 
 test('sync root cluster', async () => {
-  const { getCluster, listLeafClusters } = getClientMocks();
+  const { getCluster, listLeafClusters, startHeadlessWatcher } =
+    getClientMocks();
   const service = createService({
     getCluster,
     listLeafClusters,
+    startHeadlessWatcher,
   });
 
-  await service.syncRootClusterAndCatchErrors(clusterUri);
+  await service.syncAndWatchRootClusterWithErrorHandling(clusterUri);
 
   const clusterMockWithRequests = {
     ...clusterMock,
@@ -201,6 +206,9 @@ test('sync root cluster', async () => {
     leafClusterMock
   );
   expect(listLeafClusters).toHaveBeenCalledWith({ clusterUri });
+  expect(startHeadlessWatcher).toHaveBeenCalledWith({
+    rootClusterUri: clusterUri,
+  });
 });
 
 test('login into cluster and sync cluster', async () => {

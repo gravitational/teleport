@@ -876,7 +876,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 	}
 
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.Close(); err != nil && !errors.Is(err, io.EOF) {
 		t.log.WithError(err).Error("Unable to close client web socket.")
 		return
 	}
