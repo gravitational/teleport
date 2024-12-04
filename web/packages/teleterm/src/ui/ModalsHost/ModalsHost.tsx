@@ -34,6 +34,7 @@ import { UserJobRole } from './modals/UserJobRole';
 import { ReAuthenticate } from './modals/ReAuthenticate';
 import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
+import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
@@ -195,6 +196,56 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
             handleClose();
             dialog.onConfirm();
           }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-pin': {
+      return (
+        <AskPin
+          req={dialog.req}
+          onSuccess={res => {
+            handleClose();
+            dialog.onSuccess(res);
+          }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-touch': {
+      return (
+        <Touch
+          req={dialog.req}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-pin-change': {
+      return (
+        <ChangePin
+          req={dialog.req}
+          onSuccess={dialog.onSuccess}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-slot-overwrite': {
+      return (
+        <OverwriteSlot
+          req={dialog.req}
+          onConfirm={dialog.onConfirm}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

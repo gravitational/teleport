@@ -22,7 +22,8 @@ import (
 // HardwareKeyPrompt provides methods to interact with a YubiKey hardware key.
 type HardwareKeyPrompt interface {
 	// AskPIN prompts the user for a PIN.
-	AskPIN(ctx context.Context, message string) (string, error)
+	// The requirement tells if the PIN is required or optional.
+	AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error)
 	// Touch prompts the user to touch the hardware key.
 	Touch(ctx context.Context) error
 	// ChangePIN asks for a new PIN.
@@ -34,6 +35,16 @@ type HardwareKeyPrompt interface {
 	// ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
 	ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error)
 }
+
+// PINPromptRequirement specifies whether a PIN is required.
+type PINPromptRequirement int
+
+const (
+	// PINOptional allows the user to proceed without entering a PIN.
+	PINOptional PINPromptRequirement = iota
+	// PINRequired enforces that a PIN must be entered to proceed.
+	PINRequired
+)
 
 // PINAndPUK describes a response returned from HardwareKeyPrompt.ChangePIN.
 type PINAndPUK struct {
