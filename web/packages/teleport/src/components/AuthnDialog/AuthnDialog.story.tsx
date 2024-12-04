@@ -29,18 +29,20 @@ export const LoadedWithMultipleOptions = () => {
     ...defaultProps,
     mfa: {
       ...defaultProps.mfa,
-      ssoChallenge: {
-        redirectUrl: 'hi',
-        requestId: '123',
-        channelId: '123',
-        device: {
-          connectorId: '123',
-          connectorType: 'saml',
-          displayName: 'Okta',
+      mfaChallenge: {
+        ssoChallenge: {
+          redirectUrl: 'hi',
+          requestId: '123',
+          channelId: '123',
+          device: {
+            connectorId: '123',
+            connectorType: 'saml',
+            displayName: 'Okta',
+          },
         },
-      },
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
@@ -52,8 +54,10 @@ export const LoadedWithSingleOption = () => {
     ...defaultProps,
     mfa: {
       ...defaultProps.mfa,
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+      mfaChallenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
@@ -65,7 +69,10 @@ export const Error = () => {
     ...defaultProps,
     mfa: {
       ...defaultProps.mfa,
-      errorText: 'Something went wrong',
+      submitAttempt: {
+        status: 'failed',
+        statusText: 'Something went wrong',
+      },
     },
   };
   return <AuthnDialog {...props} />;

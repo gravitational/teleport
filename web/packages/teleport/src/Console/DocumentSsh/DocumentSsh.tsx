@@ -62,7 +62,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
     getDownloader,
     getUploader,
     fileTransferRequests,
-  } = useFileTransfer(tty, session, doc, mfa.addMfaToScpUrls);
+  } = useFileTransfer(tty, session, doc, mfa.mfaRequired);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -76,7 +76,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.requested]);
+  }, [visible, mfa.mfaChallenge]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -143,7 +143,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      {mfa.mfaChallenge && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
       {status === 'initialized' && terminal}
     </Document>
   );
