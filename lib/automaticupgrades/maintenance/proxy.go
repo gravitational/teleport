@@ -33,6 +33,9 @@ type proxyMaintenanceClient struct {
 	client *webclient.ReusableClient
 }
 
+// Get does the HTTPS call to the Teleport Proxy sevrice to check if the update should happen now.
+// If the proxy response does not contain the auto_update.agent_version field,
+// this means the proxy does not support autoupdates. In this case we return trace.NotImplementedErr.
 func (b *proxyMaintenanceClient) Get(ctx context.Context) (bool, error) {
 	resp, err := b.client.Find()
 	if err != nil {

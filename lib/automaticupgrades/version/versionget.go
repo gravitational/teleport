@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -67,8 +67,10 @@ func ValidVersionChange(ctx context.Context, current, next string) bool {
 	// Cannot upgrade to a non-valid version
 	if !semver.IsValid(next) {
 		log.Error(
-			trace.BadParameter("next version is not following semver"), "version change is invalid", "nextVersion",
-			next,
+			trace.BadParameter("next version is not following semver"),
+			"version change is invalid",
+			"current_version", current,
+			"next_version", next,
 		)
 		return false
 	}
