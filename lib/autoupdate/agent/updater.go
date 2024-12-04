@@ -271,7 +271,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
@@ -313,7 +313,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Note: skip_version is never set on failed enable, only failed update.
 
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	return nil
@@ -325,7 +325,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 func (u *Updater) Remove(ctx context.Context) error {
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
@@ -361,7 +361,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		return nil
 	}
 	if err != nil {
-		return trace.Errorf("failed to link: %w", err)
+		return trace.Wrap(err, "failed to link")
 	}
 
 	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Restoring packaged version of Teleport before removing.")
@@ -391,7 +391,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		if ok := revertConfig(ctx); ok {
 			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 		}
-		return trace.Errorf("failed to validate configuration for system package version of Teleport: %w", err)
+		return trace.Wrap(err, "failed to validate configuration for system package version of Teleport")
 	}
 
 	// Restart Teleport.
@@ -414,7 +414,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 			}
 		}
-		return trace.Errorf("failed to start system package version of Teleport: %w", err)
+		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
 	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport packaged.", "version", activeVersion)
 	if err := u.Teardown(ctx); err != nil {
@@ -430,7 +430,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	// Read configuration from update.yaml.
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return out, trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
@@ -452,7 +452,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 func (u *Updater) Disable(ctx context.Context) error {
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates already disabled.")
@@ -460,7 +460,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 	}
 	cfg.Spec.Enabled = false
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
 }
@@ -470,7 +470,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 func (u *Updater) Unpin(ctx context.Context) error {
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if !cfg.Spec.Pinned {
 		u.Log.InfoContext(ctx, "Current version not pinned.", activeVersionKey, cfg.Status.ActiveVersion)
@@ -478,7 +478,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 	}
 	cfg.Spec.Pinned = false
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
 }
@@ -492,7 +492,7 @@ func (u *Updater) Update(ctx context.Context) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
@@ -552,7 +552,7 @@ func (u *Updater) Update(ctx context.Context) error {
 	updateErr := u.update(ctx, cfg, targetVersion, resp.Flags)
 	writeErr := writeConfig(u.ConfigPath, cfg)
 	if writeErr != nil {
-		writeErr = trace.Errorf("failed to write %s: %w", updateConfigName, writeErr)
+		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
 	} else {
 		u.Log.InfoContext(ctx, "Configuration updated.")
 	}
@@ -565,7 +565,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	}
 	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
 	if err != nil {
-		return FindResp{}, trace.Errorf("failed to parse proxy server address: %w", err)
+		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
@@ -576,7 +576,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		Pool:        u.Pool,
 	})
 	if err != nil {
-		return FindResp{}, trace.Errorf("failed to request version from proxy: %w", err)
+		return FindResp{}, trace.Wrap(err, "failed to request version from proxy")
 	}
 	var flags InstallFlags
 	switch resp.Edition {
@@ -623,7 +623,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	}
 	err := u.Installer.Install(ctx, targetVersion, template, flags)
 	if err != nil {
-		return trace.Errorf("failed to install: %w", err)
+		return trace.Wrap(err, "failed to install")
 	}
 
 	// If the target version has fewer binaries, this will leave old binaries linked.
@@ -633,7 +633,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 
 	revert, err := u.Installer.Link(ctx, targetVersion)
 	if err != nil {
-		return trace.Errorf("failed to link: %w", err)
+		return trace.Wrap(err, "failed to link")
 	}
 
 	// If we fail to revert after this point, the next update/enable will
@@ -665,7 +665,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		if ok := revertConfig(ctx); ok {
 			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 		}
-		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", targetVersion, err)
+		return trace.Wrap(err, "failed to validate configuration for new version %q of Teleport", targetVersion)
 	}
 
 	// Restart Teleport if necessary.
@@ -689,7 +689,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 					u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 				}
 			}
-			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
+			return trace.Wrap(err, "failed to start new version %q of Teleport", targetVersion)
 		}
 		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
 		cfg.Status.ActiveVersion = targetVersion
@@ -743,7 +743,7 @@ func (u *Updater) cleanup(ctx context.Context, keep []string) error {
 func (u *Updater) LinkPackage(ctx context.Context) error {
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
@@ -764,12 +764,12 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 		u.Log.WarnContext(ctx, "Automatic updates is disabled, but a non-package version of Teleport is linked.", activeVersionKey, activeVersion)
 		return nil
 	} else if err != nil {
-		return trace.Errorf("failed to link system package installation: %w", err)
+		return trace.Wrap(err, "failed to link system package installation")
 	}
 	if err := u.Process.Sync(ctx); errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Systemd is not installed. Skipping sync.")
 	} else if err != nil {
-		return trace.Errorf("failed to sync systemd configuration: %w", err)
+		return trace.Wrap(err, "failed to sync systemd configuration")
 	}
 	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
 	return nil
@@ -779,12 +779,12 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 // This function is idempotent.
 func (u *Updater) UnlinkPackage(ctx context.Context) error {
 	if err := u.Installer.UnlinkSystem(ctx); err != nil {
-		return trace.Errorf("failed to unlink system package installation: %w", err)
+		return trace.Wrap(err, "failed to unlink system package installation")
 	}
 	if err := u.Process.Sync(ctx); errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Systemd is not installed. Skipping sync.")
 	} else if err != nil {
-		return trace.Errorf("failed to sync systemd configuration: %w", err)
+		return trace.Wrap(err, "failed to sync systemd configuration")
 	}
 	u.Log.InfoContext(ctx, "Successfully unlinked system package installation.")
 	return nil

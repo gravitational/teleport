@@ -103,10 +103,10 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 
 	linked, err := li.isLinked(filepath.Join(versionDir, "bin"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return trace.Errorf("failed to determine if linked: %w", err)
+		return trace.Wrap(err, "failed to determine if linked")
 	}
 	if linked {
-		return trace.Errorf("refusing to remove: %w", ErrLinked)
+		return trace.Wrap(ErrLinked, "refusing to remove")
 	}
 
 	// invalidate checksum first, to protect against partially-removed
@@ -142,7 +142,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	checksumURI := uri + "." + checksumType
 	newSum, err := li.getChecksum(ctx, checksumURI)
 	if err != nil {
-		return trace.Errorf("failed to download checksum from %s: %w", checksumURI, err)
+		return trace.Wrap(err, "failed to download checksum from %s", checksumURI)
 	}
 	oldSum, err := readChecksum(sumPath)
 	if err == nil {
@@ -164,11 +164,11 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	// Verify that we have enough free temp space, then download tgz
 	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), li.ReservedFreeTmpDisk)
 	if err != nil {
-		return trace.Errorf("failed to calculate free disk: %w", err)
+		return trace.Wrap(err, "failed to calculate free disk")
 	}
 	f, err := os.CreateTemp("", "teleport-update-")
 	if err != nil {
-		return trace.Errorf("failed to create temporary file: %w", err)
+		return trace.Wrap(err, "failed to create temporary file")
 	}
 	defer func() {
 		_ = f.Close() // data never read after close
@@ -178,11 +178,11 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	}()
 	pathSum, err := li.download(ctx, f, int64(freeTmp), uri)
 	if err != nil {
-		return trace.Errorf("failed to download teleport: %w", err)
+		return trace.Wrap(err, "failed to download teleport")
 	}
 	// Seek to the start of the tgz file after writing
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return trace.Errorf("failed seek to start of download: %w", err)
+		return trace.Wrap(err, "failed seek to start of download")
 	}
 
 	// If interrupted, close the file immediately to stop extracting.
@@ -198,11 +198,11 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
 	if err != nil {
-		return trace.Errorf("failed to determine uncompressed size: %w", err)
+		return trace.Wrap(err, "failed to determine uncompressed size")
 	}
 	// Seek to start of tgz after reading size
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return trace.Errorf("failed seek to start: %w", err)
+		return trace.Wrap(err, "failed seek to start")
 	}
 
 	// If there's an error after we start extracting, delete the version dir.
@@ -216,12 +216,12 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 
 	// Extract tgz into version directory.
 	if err := li.extract(ctx, versionDir, f, n, flags); err != nil {
-		return trace.Errorf("failed to extract teleport: %w", err)
+		return trace.Wrap(err, "failed to extract teleport")
 	}
 	// Write the checksum last. This marks the version directory as valid.
 	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode)
 	if err != nil {
-		return trace.Errorf("failed to write checksum: %w", err)
+		return trace.Wrap(err, "failed to write checksum")
 	}
 	return nil
 }
@@ -346,7 +346,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
 	if err != nil {
-		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
+		return trace.Wrap(err, "failed to calculate free disk in %q", dstDir)
 	}
 	// Bail if there's not enough free disk space at the target
 	if d := int64(free) - max; d < 0 {
@@ -354,7 +354,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	zr, err := gzip.NewReader(src)
 	if err != nil {
-		return trace.Errorf("requires gzip-compressed body: %w", err)
+		return trace.Wrap(err, "requires gzip-compressed body")
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
@@ -551,7 +551,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
-		return revert, trace.Errorf("failed to find Teleport binary directory: %w", err)
+		return revert, trace.Wrap(err, "failed to find Teleport binary directory")
 	}
 	var linked int
 	for _, entry := range entries {
@@ -562,7 +562,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
 		orig, err := forceLink(oldname, newname)
 		if err != nil && !errors.Is(err, os.ErrExist) {
-			return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+			return revert, trace.Wrap(err, "failed to create symlink for %s", filepath.Base(oldname))
 		}
 		if orig != "" {
 			revertLinks = append(revertLinks, symlink{
@@ -580,7 +580,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 
 	orig, err := li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return revert, trace.Errorf("failed to copy service: %w", err)
+		return revert, trace.Wrap(err, "failed to copy service")
 	}
 	if orig != nil {
 		revertFiles = append(revertFiles, *orig)
@@ -688,7 +688,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 	removeService := false
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
-		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+		return trace.Wrap(err, "failed to find Teleport binary directory")
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -704,7 +704,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 			continue
 		}
 		if err != nil {
-			return trace.Errorf("error reading link for %s: %w", filepath.Base(newname), err)
+			return trace.Wrap(err, "error reading link for %s", filepath.Base(newname))
 		}
 		if v != oldname {
 			li.Log.DebugContext(ctx, "Skipping link to different binary.", "oldname", oldname, "newname", newname)
@@ -740,7 +740,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		return nil
 	}
 	if err := os.Remove(li.CopyServiceFile); err != nil {
-		return trace.Errorf("error removing copy of %s: %w", filepath.Base(li.CopyServiceFile), err)
+		return trace.Wrap(err, "error removing copy of %s", filepath.Base(li.CopyServiceFile))
 	}
 	return nil
 }
@@ -766,7 +766,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	var linked int
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
-		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+		return trace.Wrap(err, "failed to find Teleport binary directory")
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -776,7 +776,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
 		ok, err := needsLink(oldname, newname)
 		if err != nil {
-			return trace.Errorf("error evaluating link for %s: %w", filepath.Base(oldname), err)
+			return trace.Wrap(err, "error evaluating link for %s", filepath.Base(oldname))
 		}
 		if ok {
 			links = append(links, symlink{oldname, newname})
@@ -791,14 +791,14 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	// link binaries that are missing links
 	for _, link := range links {
 		if err := os.Symlink(link.oldname, link.newname); err != nil {
-			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(link.oldname), err)
+			return trace.Wrap(err, "failed to create symlink for %s", filepath.Base(link.oldname))
 		}
 	}
 
 	// if any binaries are linked from binDir, always link the service from svcDir
 	_, err = li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return trace.Errorf("failed to copy service: %w", err)
+		return trace.Wrap(err, "failed to copy service")
 	}
 
 	return nil
@@ -828,7 +828,7 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 		return false, trace.Wrap(err)
 	}
 	if orig != oldname {
-		return false, trace.Errorf("refusing to replace link at %s: %w", newname, ErrLinked)
+		return false, trace.Wrap(ErrLinked, "refusing to replace link at %s", newname)
 	}
 	return false, nil
 }
