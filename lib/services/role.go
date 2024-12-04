@@ -256,10 +256,6 @@ func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 		opt(&options)
 	}
 
-	if r.GetOptions().SSHPortForwarding != nil && r.GetOptions().PortForwarding != nil {
-		return trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
-	}
-
 	if err := CheckAndSetDefaults(r); err != nil {
 		return trace.Wrap(err)
 	}
