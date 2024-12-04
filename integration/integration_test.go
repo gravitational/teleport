@@ -196,6 +196,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
+	t.Run("ValidatedTrustedClusters", suite.bind(testValidatedTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
@@ -2946,6 +2947,9 @@ type trustedClusterTest struct {
 	// useLabels turns on trusted cluster labels and
 	// verifies RBAC
 	useLabels bool
+	// validateName uses UpsertValidatedTrustedCluster and ensures that a
+	// valid cluster name is provided before upserting the trusted cluster.
+	validateName bool
 }
 
 // TestTrustedClusters tests remote clusters scenarios
@@ -3007,6 +3011,15 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	defer tr.Stop()
 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
+}
+
+// TestValidatedTrustedClusters tests remote clusters scenarios
+// using validated trusted clusters
+func testValidatedTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedClusters(t, suite, trustedClusterTest{validateName: true})
 }
 
 func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]*servicecfg.FileDescriptor) *helpers.InstanceListeners {
@@ -3212,8 +3225,21 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
 	// recreating the trusted cluster should re-establish connection
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
+	if test.validateName {
+		// Note that the trusted cluster resource name must match the cluster name.
+		// Modify the trusted cluster resource name and expect the upsert to fail.
+		trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+		_, err = aux.Process.GetAuthServer().UpsertValidatedTrustedCluster(ctx, trustedCluster)
+		require.Error(t, err, "expected failure due to tc name mismatch")
+
+		// Modify the trusted cluster resource name back to what it was orignally.
+		trustedCluster.SetName(main.Secrets.SiteName)
+		_, err = aux.Process.GetAuthServer().UpsertValidatedTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	} else {
+		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		require.NoError(t, err)
+	}
 
 	// check that remote cluster has been re-provisioned
 	remoteClusters, err = main.Process.GetAuthServer().GetRemoteClusters(ctx)

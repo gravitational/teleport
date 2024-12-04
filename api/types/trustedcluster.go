@@ -29,8 +29,8 @@ import (
 // TrustedCluster holds information needed for a cluster that can not be directly
 // accessed (maybe be behind firewall without any open ports) to join a parent cluster.
 type TrustedCluster interface {
-	// Resource provides common resource properties
-	Resource
+	// ResourceWithOrigin provides common resource properties
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetEnabled returns the state of the TrustedCluster.
@@ -182,6 +182,16 @@ func (c *TrustedClusterV2) GetName() string {
 // SetName sets the name of the TrustedCluster.
 func (c *TrustedClusterV2) SetName(e string) {
 	c.Metadata.Name = e
+}
+
+// Origin returns the origin value of the resource.
+func (c *TrustedClusterV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *TrustedClusterV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
 }
 
 // GetEnabled returns the state of the TrustedCluster.

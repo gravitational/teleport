@@ -2935,6 +2935,8 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *emptypb.Empty) (
 }
 
 // UpsertTrustedCluster upserts a Trusted Cluster.
+//
+// Deprecated: Use [GRPCServer.UpsertTrustedClusterV2] instead.
 func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2948,6 +2950,26 @@ func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.Tr
 		return nil, trace.Wrap(err)
 	}
 
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+	}
+	return trustedClusterV2, nil
+}
+
+// UpsertTrustedClusterV2 upserts a Trusted Cluster.
+func (g *GRPCServer) UpsertTrustedClusterV2(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tc, err := auth.ServerWithRoles.UpsertValidatedTrustedCluster(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)

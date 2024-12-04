@@ -3218,7 +3218,13 @@ service AuthService {
   // GetTrustedClusters gets all current Trusted Cluster resources.
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
-  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+  //
+  // Deprecated: Use UpsertTrustedClusterV2 instead.
+  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2) {
+    option deprecated = true;
+  }
+  // UpsertTrustedClusterV2 upserts a Trusted Cluster in a backend.
+  rpc UpsertTrustedClusterV2(types.TrustedClusterV2) returns (types.TrustedClusterV2);
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 

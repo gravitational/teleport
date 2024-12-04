@@ -46,6 +46,19 @@ import (
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	upserted, err := a.upsertTrustedCluster(ctx, tc, false)
+	return upserted, trace.Wrap(err)
+}
+
+// UpsertValidatedTrustedCluster creates or toggles a Trusted Cluster relationship.
+// The trusted cluster resource name must match the cluster name.
+func (a *Server) UpsertValidatedTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	upserted, err := a.upsertTrustedCluster(ctx, tc, true)
+	return upserted, trace.Wrap(err)
+}
+
+// upsertTrustedCluster creates or toggles a Trusted Cluster relationship.
+func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
@@ -67,7 +80,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 
 	// if there is no existing cluster, switch to the create case
 	if existingCluster == nil {
-		return a.createTrustedCluster(ctx, tc)
+		return a.createTrustedCluster(ctx, tc, validateName)
 	}
 
 	if err := existingCluster.CanChangeStateTo(tc); err != nil {
@@ -103,8 +116,8 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 	return tc, nil
 }
 
-func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	remoteCAs, err := a.establishTrust(ctx, tc)
+func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
+	remoteCAs, err := a.establishTrust(ctx, tc, validateName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,7 +280,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return nil
 }
 
-func (a *Server) establishTrust(ctx context.Context, trustedCluster types.TrustedCluster) ([]types.CertAuthority, error) {
+func (a *Server) establishTrust(ctx context.Context, trustedCluster types.TrustedCluster, validateName bool) ([]types.CertAuthority, error) {
 	var localCertAuthorities []types.CertAuthority
 
 	domainName, err := a.GetDomainName()
@@ -322,9 +335,10 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 			if remoteClusterName == domainName {
 				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
 			}
-			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
-			// different from cluster name (we had no way of checking this before x509,
-			// because SSH CA was a public key, not a cert with metadata)
+			if validateName && trustedCluster.GetName() != remoteClusterName {
+				return nil, trace.CompareFailed("trusted cluster resource name must be the same as the remote cluster name. got: %q, expected: %q",
+					trustedCluster.GetName(), remoteClusterName)
+			}
 		}
 	}
 

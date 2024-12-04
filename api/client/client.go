@@ -2277,16 +2277,29 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if trustedCluster.Origin() != types.OriginKubernetes {
+		resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
+		return resp, trace.Wrap(err)
 	}
-	return resp, nil
+	// The Kubernetes Operator must use UpsertTrustedClusterV2 to ensure that
+	// the trusted_cluster resource name is valid before it is created.
+	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
+	if trace.IsNotImplemented(err) {
+		// Try to print a nicer error message when newer clients connect to
+		// older auth servers that don't recognize the new gRPC.
+		authVersion := "unknown"
+		if pingResp, err := c.Ping(ctx); err == nil && pingResp.ServerVersion != "" {
+			authVersion = pingResp.ServerVersion
+		}
+		return resp, trace.Wrap(err, "client version (%s) is likely newer than your auth server version (%s), "+
+			"consider upgrading your auth server", api.Version, authVersion)
+	}
+	return resp, trace.Wrap(err)
 }
 
 // DeleteTrustedCluster deletes a Trusted Cluster by name.
