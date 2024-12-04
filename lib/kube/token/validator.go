@@ -111,7 +111,7 @@ func (v *TokenReviewValidator) getClient(ctx context.Context) (kubernetes.Interf
 	// We do a self-review to recover the default cluster audience
 	audiences, err := getTokenAudiences(ctx, client, config.BearerToken)
 	if err != nil {
-		audiences = []string{kubernetesAudience}
+		return nil, nil, trace.Wrap(err, "doing a self-review")
 	}
 
 	v.client = client
