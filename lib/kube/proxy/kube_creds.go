@@ -203,7 +203,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 	}
 	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
-		log:         cfg.log,
+		log:         cfg.log.WithField("cluster", cfg.kubeCluster.GetName()),
 		closeC:      make(chan struct{}),
 		client:      cfg.client,
 		renewTicker: cfg.clock.NewTicker(cfg.initialRenewInterval),
@@ -221,8 +221,10 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 		for {
 			select {
 			case <-dyn.closeC:
+				dyn.log.Warn("Closed clientset.")
 				return
 			case <-dyn.renewTicker.Chan():
+				dyn.log.Warn("Renewing clientset.")
 				if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
 					logrus.WithError(err).Warnf("Unable to renew cluster %q credentials.", cfg.kubeCluster.GetName())
 				}
@@ -285,18 +287,31 @@ func (d *dynamicKubeCreds) getTransport() http.RoundTripper {
 // renewClientset generates the credentials required for accessing the cluster using the client function.
 func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	// get auth config
+	d.log.WithFields(logrus.Fields{
+		"cluster": cluster.GetName(),
+	}).Debug("Renewing clientset.")
 	restConfig, exp, err := d.client(d.ctx, cluster)
 	if err != nil {
+		d.log.WithError(err).Errorf("Failed to renew clientset for cluster %q.", cluster.GetName())
 		return trace.Wrap(err)
 	}
 	creds, err := extractKubeCreds(d.ctx, d.component, cluster.GetName(), restConfig, d.log, d.checker)
 	if err != nil {
+		d.log.WithError(err).Errorf("Failed to extract kube credentials for cluster %q.", cluster.GetName())
 		return trace.Wrap(err)
 	}
 
 	d.Lock()
 	defer d.Unlock()
 	d.staticCreds = creds
+	// renewTicker is stopped if the expiration time is zero
+
+	d.log.WithFields(logrus.Fields{
+		"cluster":      cluster.GetName(),
+		"exp":          exp,
+		"now":          d.clock.Now(),
+		"next_renewal": exp.Sub(d.clock.Now()) / 2,
+	}).Warn("Renewed clientset.")
 	// prepares the next renew cycle
 	if !exp.IsZero() {
 		reset := exp.Sub(d.clock.Now()) / 2

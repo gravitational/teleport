@@ -266,6 +266,14 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
 	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers, clock: cfg.clock, component: cfg.component}
+	cfg.log.WithFields(logrus.Fields{
+		"cluster":      cfg.cluster.GetName(),
+		"current_time": cfg.clock.Now(),
+		"is_dynamic":   true,
+		"is_azure":     cfg.cluster.IsAzure(),
+		"is_aws":       cfg.cluster.IsAWS(),
+		"is_gcp":       cfg.cluster.IsGCP(),
+	}).Warnf("Creating dynamic credentials for cluster %q", cfg.cluster.GetName())
 	switch {
 	case cfg.cluster.IsKubeconfig():
 		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
@@ -346,6 +354,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, r
 		if awsAssume := getAWSResourceMatcherToCluster(cluster, resourceMatchers); awsAssume != nil {
 			opts = append(opts, cloud.WithAssumeRole(awsAssume.AssumeRoleARN, awsAssume.ExternalID))
 		}
+		logrus.WithField("cluster", cluster.GetName()).Warnf("Creating dynamic credentials for cluster %q", cluster.GetName())
 		regionalClient, err := cloudClients.GetAWSEKSClient(ctx, region, opts...)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
