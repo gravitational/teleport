@@ -320,7 +320,7 @@ func (i *InstallFlags) UnmarshalYAML(n *yaml.Node) error {
 		return trace.Wrap(err)
 	}
 	if i == nil {
-		return trace.Errorf("nil install flags while parsing YAML")
+		return trace.BadParameter("nil install flags while parsing YAML")
 	}
 	*i = NewInstallFlagsFromStrings(s)
 	return nil
