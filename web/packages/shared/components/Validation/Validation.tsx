@@ -183,7 +183,7 @@ export function Validation(props: {
   );
 }
 
-export function useValidation(): Validator | undefined {
+export function useValidation(): Validator {
   const validator = React.useContext(ValidationContext);
   if (!validator) {
     throw new Error('useValidation() called without a validation context');

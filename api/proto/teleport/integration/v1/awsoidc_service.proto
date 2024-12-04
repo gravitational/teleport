@@ -57,6 +57,9 @@ service AWSOIDCService {
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
+  // ListDeployedDatabaseServices returns the deployed Database Services in Amazon ECS.
+  rpc ListDeployedDatabaseServices(ListDeployedDatabaseServicesRequest) returns (ListDeployedDatabaseServicesResponse);
+
   // DeployService deploys an ECS Service to Amazon ECS.
   rpc DeployService(DeployServiceRequest) returns (DeployServiceResponse);
 
@@ -380,6 +383,40 @@ message DeployDatabaseServiceResponse {
   // ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
   // specific cluster service if a single deployment was requested.
   string cluster_dashboard_url = 2;
+}
+
+// ListDeployedDatabaseServicesRequest is a request for listing the deployed database services in Amazon ECS.
+message ListDeployedDatabaseServicesRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// DeployedDatabaseService contains a database service that was deployed to Amazon ECS.
+message DeployedDatabaseService {
+  // Name is the Amazon ECS Service name.
+  string name = 1;
+  // ServiceDashboardURL is a link to the Amazon ECS Service dashboard.
+  string service_dashboard_url = 2;
+  // ContainerEntryPoint is the entry point for the container 0 that is running in the ECS Task.
+  repeated string container_entry_point = 3;
+  // ContainerCommand is the list of arguments that are passed into the ContainerEntryPoint.
+  repeated string container_command = 4;
+}
+
+// ListDeployedDatabaseServicesResponse contains the list of the database services that were deployed in Amazon ECS.
+message ListDeployedDatabaseServicesResponse {
+  // DeployedDatabaseServices contains a page of  page of EC2.
+  repeated DeployedDatabaseService deployed_database_services = 1;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 2;
 }
 
 // DeployServiceRequest is a request to deploy .

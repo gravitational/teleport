@@ -89,6 +89,15 @@ annotations:
   # put on the `Deployment` resource created by the chart.
   serviceAccount: {}
 
+# annotations --
+labels:
+  # labels.deployment(object) -- contains the Kubernetes labels
+  # put on the `Deployment` resource created by the chart.
+  deployment: {}
+  # labels.pod(object) -- contains the Kubernetes labels
+  # put on the `Pod` resources created by the chart.
+  pod: {}
+
 # serviceAccount --
 serviceAccount:
   # serviceAccount.create(bool) -- controls if the chart should create the Kubernetes
