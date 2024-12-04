@@ -141,8 +141,8 @@ const session = {
       return false;
     }
 
-    // Renew session if token expiry time is less than renewTime (with a floor
-    // of 30s and a ceiling of 3m).
+    // Renew session if token expiry time is less than renewTime (with MIN_ and
+    // MAX_RENEW_TOKEN_TIME as floor and ceiling, respectively).
     // Browsers have js timer throttling behavior in inactive tabs that can go
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
