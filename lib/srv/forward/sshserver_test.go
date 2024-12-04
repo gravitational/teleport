@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -190,6 +191,7 @@ func TestDirectTCPIP(t *testing.T) {
 	cases := []struct {
 		name           string
 		login          string
+		accessChecker  services.AccessChecker
 		expectAccepted bool
 		expectRejected bool
 	}{
@@ -207,6 +209,19 @@ func TestDirectTCPIP(t *testing.T) {
 				return u.Username
 			}(),
 			expectAccepted: true,
+			// expectRejected is set to true because we are using mock channel
+			// which return errors on accept.
+			expectRejected: true,
+		},
+		{
+			name: "port forwarding denied",
+			login: func() string {
+				u, err := user.Current()
+				require.NoError(t, err)
+				return u.Username
+			}(),
+			accessChecker:  &fakePortForwardChecker{mode: services.SSHPortForwardModeOff},
+			expectAccepted: false,
 			// expectRejected is set to true because we are using mock channel
 			// which return errors on accept.
 			expectRejected: true,
@@ -270,6 +285,15 @@ func TestCheckTCPIPForward(t *testing.T) {
 			tt.assert(t, err)
 		})
 	}
+}
+
+type fakePortForwardChecker struct {
+	services.AccessChecker
+	mode services.SSHPortForwardMode
+}
+
+func (f *fakePortForwardChecker) SSHPortForwardMode() services.SSHPortForwardMode {
+	return f.mode
 }
 
 // TODO(atburke): Add test for handleForwardedTCPIPRequest once we have

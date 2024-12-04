@@ -1422,7 +1422,7 @@ func (s *Server) canPortForward(scx *srv.ServerContext, mode services.SSHPortFor
 	// Check if the role allows port forwarding for this user.
 	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, mode)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return nil

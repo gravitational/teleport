@@ -249,11 +249,15 @@ func withWarningReporter(f func(error)) validateRoleOption {
 	}
 }
 
-// ValidateRole parses validates the role, and sets default values.
+// ValidateRole parses, validates, and sets default values on a role.
 func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 	options := defaultValidateRoleOptions()
 	for _, opt := range opts {
 		opt(&options)
+	}
+
+	if r.GetOptions().SSHPortForwarding != nil && r.GetOptions().PortForwarding != nil {
+		return trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
 	if err := CheckAndSetDefaults(r); err != nil {
@@ -2846,6 +2850,7 @@ func (set RoleSet) CanForwardAgents() bool {
 	return false
 }
 
+// SSHPortForwardMode enumerates the possible SSH port forwarding modes available at a given time.
 type SSHPortForwardMode int
 
 const (
@@ -2884,14 +2889,11 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 		config := role.GetOptions().SSHPortForwarding
 		// only consider legacy allows when config isn't provided on the same role
 		if config == nil {
-			// TODO (eriktate): remove legacy check in v20
-			//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
-			legacy := role.GetOptions().PortForwarding
-			if legacy != nil {
+			//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+			if legacy := role.GetOptions().PortForwarding; legacy != nil {
 				if legacy.Value {
 					return SSHPortForwardModeOn
 				}
-
 				legacyDeny = true
 			}
 
@@ -2901,7 +2903,6 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 		if config.Remote != nil && config.Remote.Enabled != nil {
 			if !config.Remote.Enabled.Value {
 				denyRemote = true
-
 			}
 
 			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
@@ -2933,7 +2934,7 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 	}
 }
 
-// CanPortForward returns true if a role in the RoleSet allows port forwarding.
+// CanPortForward returns true if the RoleSet allows both local and remote port forwarding.
 func (set RoleSet) CanPortForward() bool {
 	return set.SSHPortForwardMode() == SSHPortForwardModeOn
 }

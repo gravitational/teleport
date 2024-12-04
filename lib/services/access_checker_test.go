@@ -593,7 +593,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	})
 
 	allow := newRole(func(rv *types.RoleV6) {
-		rv.SetName("all-allow")
+		rv.SetName("allow")
 		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
@@ -604,7 +604,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	})
 
 	deny := newRole(func(rv *types.RoleV6) {
-		rv.SetName("all-deny")
+		rv.SetName("deny")
 		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
@@ -623,7 +623,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	})
 
 	legacyDeny := newRole(func(rv *types.RoleV6) {
-		rv.SetName("legacy-allow")
+		rv.SetName("legacy-deny")
 		rv.SetOptions(types.RoleOptions{
 			PortForwarding: types.NewBoolOption(false),
 		})
@@ -631,7 +631,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	})
 
 	remoteAllow := newRole(func(rv *types.RoleV6) {
-		rv.SetName("remote-deny")
+		rv.SetName("remote-allow")
 		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
@@ -651,7 +651,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	})
 
 	localAllow := newRole(func(rv *types.RoleV6) {
-		rv.SetName("local-deny")
+		rv.SetName("local-allow")
 		rv.SetOptions(types.RoleOptions{
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},

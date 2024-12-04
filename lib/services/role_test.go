@@ -833,6 +833,19 @@ func TestValidateRole(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid port forwarding config",
+			spec: types.RoleSpecV6{
+				Options: types.RoleOptions{
+					PortForwarding:    types.NewBoolOption(true),
+					SSHPortForwarding: &types.SSHPortForwarding{},
+				},
+				Allow: types.RoleConditions{
+					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
+				},
+			},
+			expectError: trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set"),
+		},
+		{
 			name: "invalid role condition login syntax",
 			spec: types.RoleSpecV6{
 				Allow: types.RoleConditions{

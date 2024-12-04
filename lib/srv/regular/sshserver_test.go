@@ -769,15 +769,43 @@ func TestLockInForce(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, legacy, remote, local *types.BoolOption) {
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	roleOptions.ForwardAgent = types.NewBool(true)
+	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
+	roleOptions.PortForwarding = legacy
+
+	if remote != nil || local != nil {
+		roleOptions.SSHPortForwarding = &types.SSHPortForwarding{
+			Remote: &types.SSHRemotePortForwarding{
+				Enabled: remote,
+			},
+			Local: &types.SSHLocalPortForwarding{
+				Enabled: local,
+			},
+		}
+	}
+
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+}
+
 // TestDirectTCPIP ensures that the server can create a "direct-tcpip"
 // channel to the target address. The "direct-tcpip" channel is what port
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
+	ctx := context.Background()
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 
 	// Startup a test server that will reply with "hello, world\n"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		fmt.Fprintln(w, "hello, world")
 	}))
 	defer ts.Close()
@@ -786,26 +814,58 @@ func TestDirectTCPIP(t *testing.T) {
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
 
-	// Build a http.Client that will dial through the server to establish the
-	// connection. That's why a custom dialer is used and the dialer uses
-	// s.clt.Dial (which performs the "direct-tcpip" request).
-	httpClient := http.Client{
-		Transport: &http.Transport{
-			Dial: func(network string, addr string) (net.Conn, error) {
-				return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+	t.Run("Local forwarding is successful", func(t *testing.T) {
+		// Build a http.Client that will dial through the server to establish the
+		// connection. That's why a custom dialer is used and the dialer uses
+		// s.clt.Dial (which performs the "direct-tcpip" request).
+		httpClient := http.Client{
+			Transport: &http.Transport{
+				Dial: func(network string, addr string) (net.Conn, error) {
+					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+				},
 			},
-		},
-	}
+		}
 
-	// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
-	resp, err := httpClient.Get(ts.URL)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+		resp, err := httpClient.Get(ts.URL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
 
-	// Make sure the response is what was expected.
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, []byte("hello, world\n"), body)
+		// Make sure the response is what was expected.
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, []byte("hello, world\n"), body)
+	})
+
+	t.Run("Local forwarding fails when access is denied", func(t *testing.T) {
+		httpClient := http.Client{
+			Transport: &http.Transport{
+				Dial: func(network string, addr string) (net.Conn, error) {
+					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+				},
+			},
+		}
+
+		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
+		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+		_, err := httpClient.Get(ts.URL)
+		require.Error(t, err)
+	})
+
+	t.Run("Local forwarding fails when access is denied by legacy config", func(t *testing.T) {
+		httpClient := http.Client{
+			Transport: &http.Transport{
+				Dial: func(network string, addr string) (net.Conn, error) {
+					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+				},
+			},
+		}
+
+		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
+		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+		_, err := httpClient.Get(ts.URL)
+		require.Error(t, err)
+	})
 
 	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
@@ -832,8 +892,12 @@ func TestTCPIPForward(t *testing.T) {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 	tests := []struct {
-		name       string
-		listenAddr string
+		name        string
+		listenAddr  string
+		legacyAllow *types.BoolOption
+		remoteAllow *types.BoolOption
+		localAllow  *types.BoolOption
+		expectErr   bool
 	}{
 		{
 			name:       "localhost",
@@ -847,14 +911,37 @@ func TestTCPIPForward(t *testing.T) {
 			name:       "hostname",
 			listenAddr: hostname + ":0",
 		},
+		{
+			name:        "remote deny",
+			listenAddr:  "localhost:0",
+			remoteAllow: types.NewBoolOption(false),
+			expectErr:   true,
+		},
+		{
+			name:        "legacy deny",
+			listenAddr:  "localhost:0",
+			legacyAllow: types.NewBoolOption(false),
+			expectErr:   true,
+		},
+		{
+			name:       "local deny",
+			listenAddr: "localhost:0",
+			localAllow: types.NewBoolOption(false),
+			expectErr:  false,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixtureWithoutDiskBasedLogging(t)
-
+			setPortForwarding(t, context.Background(), f, tc.legacyAllow, tc.remoteAllow, tc.localAllow)
 			// Request a listener from the server.
 			listener, err := f.ssh.clt.Listen("tcp", tc.listenAddr)
-			require.NoError(t, err)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
 
 			// Start up a test server that uses the port forwarded listener.
 			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -870,7 +957,7 @@ func TestTCPIPForward(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
 			require.NoError(t, err)
 			resp, err := ts.Client().Do(req)
-			require.NoError(t, err)
+
 			t.Cleanup(func() {
 				require.NoError(t, resp.Body.Close())
 			})
