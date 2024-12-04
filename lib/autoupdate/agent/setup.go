@@ -69,6 +69,9 @@ RandomizedDelaySec=1m
 [Install]
 WantedBy={{.TeleportService}}
 `
+
+	// /etc/needrestart/conf.d/90-teleport.conf
+	needrestartDisableConf = `$nrconf{override_rc}{qr(^teleport\.service)} = 0;` + "\n"
 )
 
 // Namespace represents a namespace within various system paths for a isolated installation of Teleport.
