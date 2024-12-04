@@ -52,9 +52,9 @@ const (
 // decision.
 type DecisionServiceClient interface {
 	// EvaluateSSHAccess decides wether or not to permit an SSH access attempt.
-	EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*SSHAccessPermit, error)
+	EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*EvaluateSSHAccessResponse, error)
 	// EvaluateDatabaseAccess decides wether or not to permit a database access attempt.
-	EvaluateDatabaseAccess(ctx context.Context, in *EvaluateDatabaseAccessRequest, opts ...grpc.CallOption) (*DatabaseAccessPermit, error)
+	EvaluateDatabaseAccess(ctx context.Context, in *EvaluateDatabaseAccessRequest, opts ...grpc.CallOption) (*EvaluateDatabaseAccessResponse, error)
 }
 
 type decisionServiceClient struct {
@@ -65,9 +65,9 @@ func NewDecisionServiceClient(cc grpc.ClientConnInterface) DecisionServiceClient
 	return &decisionServiceClient{cc}
 }
 
-func (c *decisionServiceClient) EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*SSHAccessPermit, error) {
+func (c *decisionServiceClient) EvaluateSSHAccess(ctx context.Context, in *EvaluateSSHAccessRequest, opts ...grpc.CallOption) (*EvaluateSSHAccessResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SSHAccessPermit)
+	out := new(EvaluateSSHAccessResponse)
 	err := c.cc.Invoke(ctx, DecisionService_EvaluateSSHAccess_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (c *decisionServiceClient) EvaluateSSHAccess(ctx context.Context, in *Evalu
 	return out, nil
 }
 
-func (c *decisionServiceClient) EvaluateDatabaseAccess(ctx context.Context, in *EvaluateDatabaseAccessRequest, opts ...grpc.CallOption) (*DatabaseAccessPermit, error) {
+func (c *decisionServiceClient) EvaluateDatabaseAccess(ctx context.Context, in *EvaluateDatabaseAccessRequest, opts ...grpc.CallOption) (*EvaluateDatabaseAccessResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DatabaseAccessPermit)
+	out := new(EvaluateDatabaseAccessResponse)
 	err := c.cc.Invoke(ctx, DecisionService_EvaluateDatabaseAccess_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -100,9 +100,9 @@ func (c *decisionServiceClient) EvaluateDatabaseAccess(ctx context.Context, in *
 // decision.
 type DecisionServiceServer interface {
 	// EvaluateSSHAccess decides wether or not to permit an SSH access attempt.
-	EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*SSHAccessPermit, error)
+	EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error)
 	// EvaluateDatabaseAccess decides wether or not to permit a database access attempt.
-	EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*DatabaseAccessPermit, error)
+	EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*EvaluateDatabaseAccessResponse, error)
 	mustEmbedUnimplementedDecisionServiceServer()
 }
 
@@ -113,10 +113,10 @@ type DecisionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDecisionServiceServer struct{}
 
-func (UnimplementedDecisionServiceServer) EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*SSHAccessPermit, error) {
+func (UnimplementedDecisionServiceServer) EvaluateSSHAccess(context.Context, *EvaluateSSHAccessRequest) (*EvaluateSSHAccessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EvaluateSSHAccess not implemented")
 }
-func (UnimplementedDecisionServiceServer) EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*DatabaseAccessPermit, error) {
+func (UnimplementedDecisionServiceServer) EvaluateDatabaseAccess(context.Context, *EvaluateDatabaseAccessRequest) (*EvaluateDatabaseAccessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EvaluateDatabaseAccess not implemented")
 }
 func (UnimplementedDecisionServiceServer) mustEmbedUnimplementedDecisionServiceServer() {}

@@ -17,8 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "teleport/decision/v1alpha1/identity.proto";
-import "teleport/decision/v1alpha1/permit_metadata.proto";
-import "teleport/decision/v1alpha1/request_metadata.proto";
+import "teleport/decision/v1alpha1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionv1alpha1";
 
@@ -32,9 +31,24 @@ message EvaluateDatabaseAccessRequest {
   // TODO
 }
 
+// EvaluateDatabaseAccessResponse describes the result of a database access evaluation.
+message EvaluateDatabaseAccessResponse {
+  oneof result {
+    DatabaseAccessPermit permit = 1;
+    DatabaseAccessDenial denial = 2;
+  }
+}
+
 // DatabaseAccessPermit describes the parameters/constraints of a permissible database access attempt.
 message DatabaseAccessPermit {
   PermitMetadata metadata = 1;
+
+  // TODO
+}
+
+// DatabaseAccessDenial describes the details of a database access denial.
+message DatabaseAccessDenial {
+  DenialMetadata metadata = 1;
 
   // TODO
 }

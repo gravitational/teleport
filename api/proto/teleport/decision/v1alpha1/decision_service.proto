@@ -32,8 +32,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // decision.
 service DecisionService {
   // EvaluateSSHAccess decides wether or not to permit an SSH access attempt.
-  rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (SSHAccessPermit);
+  rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (EvaluateSSHAccessResponse);
 
   // EvaluateDatabaseAccess decides wether or not to permit a database access attempt.
-  rpc EvaluateDatabaseAccess(EvaluateDatabaseAccessRequest) returns (DatabaseAccessPermit);
+  rpc EvaluateDatabaseAccess(EvaluateDatabaseAccessRequest) returns (EvaluateDatabaseAccessResponse);
 }

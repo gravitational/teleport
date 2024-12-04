@@ -20,3 +20,12 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // Metadata common for authorization Request operations.
 message RequestMetadata {}
+
+// Metadata common for access permits.
+message PermitMetadata {}
+
+// Metadata common for access denials.
+message DenialMetadata {
+  // UserMessage is a sanitized message safe for return to the subject identity of the decision request.
+  string user_message = 1;
+}
