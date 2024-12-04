@@ -78,8 +78,8 @@ const (
 	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
-	// oracleBin is the Oracle CLI program name.
-	oracleBin = "sql"
+	// sqlclBin is the SQLcl program name (Oracle client).
+	sqlclBin = "sql"
 	// spannerBin is a Google Spanner interactive CLI program name.
 	spannerBin = "spanner-cli"
 )
@@ -780,38 +780,48 @@ func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-type jdbcOracleThinConnection struct {
-	host     string
-	port     int
-	db       string
-	tnsAdmin string
+func (c *CLICommandBuilder) getOracleTNSDescriptorString() string {
+	return fmt.Sprintf("/@(DESCRIPTION=(SDU=8000)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d)))(CONNECT_DATA=(SERVICE_NAME=%s)))", c.host, c.port, c.db.Database)
 }
 
-func (j *jdbcOracleThinConnection) ConnString() string {
-	return fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, j.host, j.port, j.db, j.tnsAdmin)
+func (c *CLICommandBuilder) getOracleDirectConnectionString() string {
+	return fmt.Sprintf("/@%s:%d/%s", c.host, c.port, c.db.Database)
 }
 
-func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+func (c *CLICommandBuilder) getOracleJDBCConnectionString() string {
 	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
 	if runtime.GOOS == constants.WindowsOS {
 		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
 	}
-	cs := jdbcOracleThinConnection{
-		host:     c.host,
-		port:     c.port,
-		db:       c.db.Database,
-		tnsAdmin: tnsAdminPath,
-	}
 	// Quote the address for printing as the address contains "?".
-	connString := cs.ConnString()
+	connString := fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, c.host, c.port, c.db.Database, tnsAdminPath)
 	if c.options.printFormat {
 		connString = fmt.Sprintf(`'%s'`, connString)
 	}
-	args := []string{
-		"-L", // dont retry
-		connString,
+	return connString
+}
+
+func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	c.options.log.Debugf("Building Oracle command.")
+	c.options.log.Debugf("Found servers with TCP support: %v.", c.options.oracle.hasTCPServers)
+	c.options.log.Debugf("All servers support TCP: %v.", c.options.oracle.canUseTCP)
+
+	c.options.log.Debugf("Connection strings:")
+	c.options.log.Debugf("- JDBC: %s", c.getOracleJDBCConnectionString())
+	if c.options.oracle.hasTCPServers {
+		c.options.log.Debugf("- TNS descriptor: %s", c.getOracleTNSDescriptorString())
+		c.options.log.Debugf("- Direct: %s", c.getOracleDirectConnectionString())
 	}
-	return exec.Command(oracleBin, args...), nil
+
+	args := []string{"-L"}
+
+	if c.options.oracle.canUseTCP {
+		args = append(args, c.getOracleDirectConnectionString())
+	} else {
+		args = append(args, c.getOracleJDBCConnectionString())
+	}
+
+	return exec.Command(sqlclBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
@@ -909,6 +919,7 @@ type connectionCommandOpts struct {
 	exe                      Execer
 	password                 string
 	gcp                      types.GCPCloudSQL
+	oracle                   oracleOpts
 	getDatabase              GetDatabaseFunc
 }
 
@@ -996,6 +1007,19 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 func WithExecer(exe Execer) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.exe = exe
+	}
+}
+
+type oracleOpts struct {
+	canUseTCP     bool
+	hasTCPServers bool
+}
+
+// WithOracleOpts configures Oracle-specific options.
+func WithOracleOpts(canUseTCP bool, hasTCPServers bool) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.oracle.canUseTCP = canUseTCP
+		opts.oracle.hasTCPServers = hasTCPServers
 	}
 }
 

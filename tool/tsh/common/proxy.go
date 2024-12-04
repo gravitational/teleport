@@ -33,6 +33,7 @@ import (
 	"text/template"
 	"unicode"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -244,6 +245,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
+		opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
@@ -341,6 +343,59 @@ func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClien
 	}
 }
 
+func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) []dbcmd.ConnectCommandFunc {
+	// minimum version to support TCPS-less connection.
+	cutoffVersion := semver.Version{
+		Major:      17,
+		Minor:      2,
+		Patch:      0,
+		PreRelease: "",
+	}
+
+	devV17Version := semver.Version{
+		Major:      17,
+		Minor:      0,
+		Patch:      0,
+		PreRelease: "dev",
+	}
+
+	dbServers, err := getDatabaseServers(ctx, tc, dbInfo.ServiceName)
+	if err != nil {
+		// log, but treat this error as non-fatal.
+		log.Warnf("Error getting database servers: %s", err.Error())
+		return opts
+	}
+
+	var oldServers, newServers int
+
+	for _, server := range dbServers {
+		ver, err := semver.NewVersion(server.GetTeleportVersion())
+		if err != nil {
+			log.Debugf("Failed to parse teleport version %q: %v", server.GetTeleportVersion(), err)
+			continue
+		}
+
+		if ver.Equal(devV17Version) {
+			newServers++
+		} else {
+			if ver.LessThan(cutoffVersion) {
+				oldServers++
+			} else {
+				newServers++
+			}
+		}
+	}
+
+	log.Debugf("Agents for database %q with Oracle support: total %v, old %v, new %v.", dbInfo.ServiceName, len(dbServers), oldServers, newServers)
+
+	if oldServers > 0 {
+		log.Warnf("Detected database agents older than %v. For improved client support upgrade all database agents in your cluster to a newer version.", cutoffVersion)
+	}
+
+	opts = append(opts, dbcmd.WithOracleOpts(oldServers == 0, newServers > 0))
+	return opts
+}
+
 type templateCommandItem struct {
 	Description string
 	Command     string
@@ -352,7 +407,14 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 		templateArgs["command"] = formatCommand(commands[0].Command)
 		switch dbInfo.Protocol {
 		case defaults.ProtocolOracle:
-			templateArgs["args"] = commands[0].Command.Args
+			jdbcConnectionString := ""
+			for _, arg := range commands[0].Command.Args {
+				if strings.Contains(arg, "jdbc:oracle:") {
+					jdbcConnectionString = arg
+				}
+			}
+			templateArgs["jdbcConnectionString"] = jdbcConnectionString
+			templateArgs["canUseTCP"] = jdbcConnectionString == ""
 			return dbProxyOracleAuthTpl
 		case defaults.ProtocolSpanner:
 			templateArgs["databaseName"] = "<database>"
@@ -715,21 +777,19 @@ Or use the following JDBC connection string to connect with other GUI/CLI client
 jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
-// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
-var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
+var dbProxyOracleAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
-` + dbProxyConnectAd + `
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
-or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
-{{- range $val := .args}}
-  {{- if contains $val "jdbc:oracle:"}}
-  {{$val}}
-  {{- end}}
-{{- end}}
+{{if .canUseTCP }}or use a direct connection to {{.address}} without a username and password with other GUI/CLI clients.
+{{else }}or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
+  {{.jdbcConnectionString}}
+
+Note: for improved client compatibility, upgrade your Teleport cluster. For details rerun this command with --debug.
+{{- end }}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.

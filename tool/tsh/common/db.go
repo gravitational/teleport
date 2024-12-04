@@ -677,6 +677,11 @@ type localProxyConfig struct {
 }
 
 func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile *client.ProfileStatus) (net.Listener, error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if route.Protocol == defaults.ProtocolOracle {
 		localCert, err := tls.LoadX509KeyPair(
 			profile.DatabaseLocalCAPath(),
@@ -685,14 +690,15 @@ func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		l, err := tls.Listen("tcp", addr, &tls.Config{
+		config := &tls.Config{
 			Certificates: []tls.Certificate{localCert},
 			ServerName:   "localhost",
-		})
-		return l, trace.Wrap(err)
+		}
+
+		l = NewTLSMuxListener(l, config)
 	}
-	l, err := net.Listen("tcp", addr)
-	return l, trace.Wrap(err)
+
+	return l, nil
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -789,6 +795,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
 	}
+	opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
 	cmd, err := bb.GetConnectCommand(cf.Context)
@@ -1107,6 +1114,29 @@ func getDatabase(ctx context.Context, tc *client.TeleportClient, name string) (t
 		return nil, trace.NotFound("database %q not found among registered databases in cluster %v", name, tc.SiteName)
 	}
 	return databases[0], nil
+}
+
+func getDatabaseServers(ctx context.Context, tc *client.TeleportClient, name string) ([]types.DatabaseServer, error) {
+	var databases []types.DatabaseServer
+
+	err := client.RetryWithRelogin(ctx, tc, func() error {
+		matchName := makeNamePredicate(name)
+
+		var err error
+		predicate := makePredicateConjunction(matchName, tc.PredicateExpression)
+		log.Debugf("Listing databases with predicate (%v) and labels %v", predicate, tc.Labels)
+
+		databases, err = tc.ListDatabaseServersWithFilters(ctx, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: predicate,
+			Labels:              tc.Labels,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
+		})
+		return trace.Wrap(err)
+	})
+
+	return databases, trace.Wrap(err)
 }
 
 // getDatabaseByNameOrDiscoveredName fetches a database that unambiguously
