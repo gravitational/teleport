@@ -19,7 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.34.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
@@ -219,7 +219,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -271,7 +271,7 @@ require (
 	github.com/prometheus/client_model v0.6.0 // indirect
 	github.com/prometheus/common v0.51.1 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/rivo/uniseg v0.4.4 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rubenv/sql-migrate v1.5.2 // indirect
 	github.com/russellhaering/gosaml2 v0.9.1 // indirect

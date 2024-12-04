@@ -39,7 +39,7 @@ import (
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
