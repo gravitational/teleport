@@ -91,12 +91,12 @@ type LocalInstaller struct {
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
+func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 	// os.RemoveAll is dangerous because it can remove an entire directory tree.
 	// We must validate the version to ensure that we remove only a single path
 	// element under the InstallDir, and not InstallDir or its parents.
-	// versionDir performs these validations.
-	versionDir, err := li.versionDir(version)
+	// revisionDir performs these validations.
+	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,15 +124,15 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) (err error) {
-	versionDir, err := li.versionDir(version)
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template string) (err error) {
+	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
-	uri, err := makeURL(template, version, flags)
+	uri, err := makeURL(template, rev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -147,16 +147,16 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	oldSum, err := readChecksum(sumPath)
 	if err == nil {
 		if bytes.Equal(oldSum, newSum) {
-			li.Log.InfoContext(ctx, "Version already present.", "version", version)
+			li.Log.InfoContext(ctx, "Version already present.", "version", rev)
 			return nil
 		}
-		li.Log.WarnContext(ctx, "Removing version that does not match checksum.", "version", version)
-		if err := li.Remove(ctx, version); err != nil {
+		li.Log.WarnContext(ctx, "Removing version that does not match checksum.", "version", rev)
+		if err := li.Remove(ctx, rev); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
-		li.Log.WarnContext(ctx, "Removing version with unreadable checksum.", "version", version, "error", err)
-		if err := li.Remove(ctx, version); err != nil {
+		li.Log.WarnContext(ctx, "Removing version with unreadable checksum.", "version", rev, "error", err)
+		if err := li.Remove(ctx, rev); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -215,7 +215,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	}()
 
 	// Extract tgz into version directory.
-	if err := li.extract(ctx, versionDir, f, n, flags); err != nil {
+	if err := li.extract(ctx, versionDir, f, n, rev.Flags); err != nil {
 		return trace.Wrap(err, "failed to extract teleport")
 	}
 	// Write the checksum last. This marks the version directory as valid.
@@ -227,7 +227,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 }
 
 // makeURL to download the Teleport tgz.
-func makeURL(uriTmpl, version string, flags InstallFlags) (string, error) {
+func makeURL(uriTmpl string, rev Revision) (string, error) {
 	tmpl, err := template.New("uri").Parse(uriTmpl)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -238,10 +238,10 @@ func makeURL(uriTmpl, version string, flags InstallFlags) (string, error) {
 		FIPS, Enterprise  bool
 	}{
 		OS:         runtime.GOOS,
-		Version:    version,
+		Version:    rev.Version,
 		Arch:       runtime.GOARCH,
-		FIPS:       flags&FlagFIPS != 0,
-		Enterprise: flags&(FlagEnterprise|FlagFIPS) != 0,
+		FIPS:       rev.Flags&FlagFIPS != 0,
+		Enterprise: rev.Flags&(FlagEnterprise|FlagFIPS) != 0,
 	}
 	err = tmpl.Execute(&uriBuf, params)
 	if err != nil {
@@ -346,11 +346,11 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
 	if err != nil {
-		return trace.Wrap(err, "failed to calculate free disk in %q", dstDir)
+		return trace.Wrap(err, "failed to calculate free disk in %s", dstDir)
 	}
 	// Bail if there's not enough free disk space at the target
 	if d := int64(free) - max; d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
+		return trace.Errorf("%s needs %d additional bytes of disk space for decompression", dstDir, -d)
 	}
 	zr, err := gzip.NewReader(src)
 	if err != nil {
@@ -401,7 +401,7 @@ func uncompressedSize(f io.Reader) (int64, error) {
 }
 
 // List installed versions of Teleport.
-func (li *LocalInstaller) List(ctx context.Context) (versions []string, err error) {
+func (li *LocalInstaller) List(ctx context.Context) (revs []Revision, err error) {
 	entries, err := os.ReadDir(li.InstallDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,17 +410,21 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 		if !entry.IsDir() {
 			continue
 		}
-		versions = append(versions, entry.Name())
+		rev, err := NewRevisionFromDir(entry.Name())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		revs = append(revs, rev)
 	}
-	return versions, nil
+	return revs, nil
 }
 
 // Link the specified version into the system LinkBinDir and CopyServiceFile.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
+func (li *LocalInstaller) Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error) {
 	revert = func(context.Context) bool { return true }
-	versionDir, err := li.versionDir(version)
+	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
@@ -445,8 +449,8 @@ func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.C
 // TryLink links the specified version, but only in the case that
 // no installation of Teleport is already linked or partially linked.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
-	versionDir, err := li.versionDir(version)
+func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error {
+	versionDir, err := li.revisionDir(revision)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -465,8 +469,8 @@ func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
 
 // Unlink unlinks a version from LinkBinDir and CopyServiceFile.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Unlink(ctx context.Context, version string) error {
-	versionDir, err := li.versionDir(version)
+func (li *LocalInstaller) Unlink(ctx context.Context, rev Revision) error {
+	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -833,15 +837,15 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 	return false, nil
 }
 
-// versionDir returns the storage directory for a Teleport version.
-// versionDir will fail if the version cannot be used to construct the directory name.
+// revisionDir returns the storage directory for a Teleport revision.
+// revisionDir will fail if the revision cannot be used to construct the directory name.
 // For example, it ensures that ".." cannot be provided to return a system directory.
-func (li *LocalInstaller) versionDir(version string) (string, error) {
+func (li *LocalInstaller) revisionDir(rev Revision) (string, error) {
 	installDir, err := filepath.Abs(li.InstallDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	versionDir := filepath.Join(installDir, version)
+	versionDir := filepath.Join(installDir, rev.Dir())
 	if filepath.Dir(versionDir) != filepath.Clean(installDir) {
 		return "", trace.Errorf("refusing to link directory outside of version directory")
 	}

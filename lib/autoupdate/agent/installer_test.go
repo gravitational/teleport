@@ -124,7 +124,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ReservedFreeInstallDisk: tt.reservedInstall,
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, version, server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}", tt.flags)
+			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}")
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -406,7 +406,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				},
 			}
 			ctx := context.Background()
-			revert, err := installer.Link(ctx, version)
+			revert, err := installer.Link(ctx, NewRevision(version, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -659,7 +659,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				},
 			}
 			ctx := context.Background()
-			err = installer.TryLink(ctx, version)
+			err = installer.TryLink(ctx, NewRevision(version, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -809,10 +809,10 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			ctx := context.Background()
 
 			if tt.linkedVersion != "" {
-				_, err = installer.Link(ctx, tt.linkedVersion)
+				_, err = installer.Link(ctx, NewRevision(tt.linkedVersion, 0))
 				require.NoError(t, err)
 			}
-			err = installer.Remove(ctx, tt.removeVersion)
+			err = installer.Remove(ctx, NewRevision(tt.removeVersion, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -981,7 +981,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				},
 			}
 			ctx := context.Background()
-			err = installer.Unlink(ctx, version)
+			err = installer.Unlink(ctx, NewRevision(version, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -1024,7 +1024,10 @@ func TestLocalInstaller_List(t *testing.T) {
 		Log:        slog.Default(),
 	}
 	ctx := context.Background()
-	versions, err := installer.List(ctx)
+	revisions, err := installer.List(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []string{"v1", "v2"}, versions)
+	require.Equal(t, []Revision{
+		NewRevision("v1", 0),
+		NewRevision("v2", 0),
+	}, revisions)
 }
