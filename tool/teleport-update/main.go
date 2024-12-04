@@ -199,7 +199,7 @@ func Run(args []string) int {
 		modules.GetModules().PrintVersion()
 	default:
 		// This should only happen when there's a missing switch case above.
-		err = trace.Errorf("command %q not configured", command)
+		err = trace.Errorf("command %s not configured", command)
 	}
 	if errors.Is(err, autoupdate.ErrNotSupported) {
 		return autoupdate.CodeNotSupported
@@ -447,7 +447,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 	// Ensure update can't run concurrently.
 	unlock, err := libutils.FSWriteLock(lockFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to grab concurrent execution lock %q", lockFile)
+		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
 	defer func() {
 		if err := unlock(); err != nil {
