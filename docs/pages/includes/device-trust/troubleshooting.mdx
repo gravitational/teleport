@@ -83,6 +83,14 @@ follow the steps below:
 If all of the above steps are done, try logging out from the Web UI and logging
 in again.
 
+### "device web authentication IP mismatch" errors
+
+"IP mismatch" errors in audit logs indicate that the IP checks performed by the
+device web authentication ceremony failed. In this case it's likely that your
+Teleport cluster isn't propagating user IPs correctly. Consider enabling the
+[PROXY protocol](../../admin-guides/management/security/proxy-protocol.mdx) in
+your Teleport deployment.
+
 ### Checking Device Trust authorization status in the web UI
 
 When successfully authorized to use Device Trust in the web UI, the user will see a green
