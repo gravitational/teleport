@@ -1009,6 +1009,10 @@ message IdentityCenterPermissionSet {
 
   // Name is the human-readable name of the Permission Set.
   string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+
+  // AssignmentID is the ID of the Teelport Account Assignment resource that
+  // represents this permission being assigned on the enclosing Account.
+  string AssignmentID = 3 [(gogoproto.jsontag) = "assignment_name,omitempty"];
 }
 
 // AppIdentityCenter encapsulates information about an AWS Identity Center
