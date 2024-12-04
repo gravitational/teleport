@@ -236,7 +236,8 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-<Details title="Direct connections to agents">
+<Details open>
+<summary>Direct connections to agents</summary>
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
 the Teleport Auth
@@ -258,5 +259,4 @@ You can only access enrolled applications and desktops through the Teleport
 Proxy Service. The Teleport Application Service and Teleport Database Service
 use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
-
 </Details>
