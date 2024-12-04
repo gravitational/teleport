@@ -75,20 +75,23 @@ func contextForAuthorizer(ctx context.Context, protoIdentity *decision.Identity)
 	panic("not implemented")
 }
 
+var _ decision.DecisionServiceServer = (*DecisionService)(nil)
+
 // DecisionService is a service that evaluates authorization decision requests. This is the core abstraction/boundary layer
 // that separates Policy Decision Point (PDP) and Policy Enforcement Point (PEP) in most teleport access-control systems.
 type DecisionService struct {
+	decision.UnimplementedDecisionServiceServer
 	cfg DecisionServiceConfig
 }
 
-func (s *DecisionService) EvaluateSSHAccess(ctx context.Context, req *decision.EvaluateSSHAccessRequest) (*decision.SSHAccessPermit, error) {
+func (s *DecisionService) EvaluateSSHAccess(ctx context.Context, req *decision.EvaluateSSHAccessRequest) (*decision.EvaluateSSHAccessResponse, error) {
 
 	// TODO(fspmarshall): finish refactoring srv.IdentityContext so we have a suitable conversion target for decision.SSHIdentity
 
 	panic("not implemented")
 }
 
-func (s *DecisionService) EvaluateDatabaseAccess(ctx context.Context, req *decision.EvaluateDatabaseAccessRequest) (*decision.DatabaseAccessPermit, error) {
+func (s *DecisionService) EvaluateDatabaseAccess(ctx context.Context, req *decision.EvaluateDatabaseAccessRequest) (*decision.EvaluateDatabaseAccessResponse, error) {
 	if req.User == nil {
 		return nil, trace.Wrap(errNoIdentity)
 	}
