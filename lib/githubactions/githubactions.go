@@ -21,6 +21,8 @@ package githubactions
 import (
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // GitHub Workload Identity
@@ -117,4 +119,25 @@ func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 		return nil, trace.Wrap(err)
 	}
 	return res, nil
+}
+
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
+	attrs := &workloadidentityv1pb.JoinAttrsGitHub{
+		Sub:             c.Sub,
+		Actor:           c.Actor,
+		Environment:     c.Environment,
+		Ref:             c.Ref,
+		RefType:         c.RefType,
+		Repository:      c.Repository,
+		RepositoryOwner: c.RepositoryOwner,
+		Workflow:        c.Workflow,
+		EventName:       c.EventName,
+		Sha:             c.SHA,
+		RunId:           c.RunID,
+	}
+
+	return attrs
 }

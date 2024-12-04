@@ -579,7 +579,10 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		)
 
 		joined := i.Status.InitialAuthentication.AuthenticatedAt.AsTime().Format(time.RFC3339)
-		initialJoinMethod := i.Status.InitialAuthentication.JoinMethod
+		initialJoinMethod := cmp.Or(
+			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
+			i.Status.InitialAuthentication.JoinMethod,
+		)
 
 		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
 
@@ -590,8 +593,12 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 			generation = fmt.Sprint(auth.Generation)
 
-			if auth.JoinMethod == initialJoinMethod {
-				joinMethod = auth.JoinMethod
+			authJM := cmp.Or(
+				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
+				auth.JoinMethod,
+			)
+			if authJM == initialJoinMethod {
+				joinMethod = authJM
 			} else {
 				// If the join method changed, show the original method and latest
 				joinMethod = fmt.Sprintf("%s (%s)", auth.JoinMethod, initialJoinMethod)
@@ -835,9 +842,13 @@ func splitEntries(flag string) []string {
 func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuthentication) string {
 	table := asciitable.MakeHeadlessTable(2)
 	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"Join Token:", record.JoinToken})
-	table.AddRow([]string{"Join Metadata:", record.Metadata.String()})
+	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
+	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
+	var meta fmt.Stringer = record.GetJoinAttrs()
+	if meta == nil {
+		meta = record.Metadata
+	}
+	table.AddRow([]string{"Join Metadata:", meta.String()})
 	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
 	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
 

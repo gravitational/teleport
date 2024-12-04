@@ -19,8 +19,7 @@
 package terraformcloud
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // IDTokenClaims
@@ -52,20 +51,17 @@ type IDTokenClaims struct {
 	RunPhase string `json:"terraform_run_phase"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsTerraformCloud {
+	return &workloadidentityv1pb.JoinAttrsTerraformCloud{
+		Sub:              c.Sub,
+		OrganizationName: c.OrganizationName,
+		ProjectName:      c.ProjectName,
+		WorkspaceName:    c.WorkspaceName,
+		FullWorkspace:    c.FullWorkspace,
+		RunId:            c.RunID,
+		RunPhase:         c.RunPhase,
 	}
-
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
 }

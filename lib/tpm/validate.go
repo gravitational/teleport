@@ -27,6 +27,8 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // ValidateParams are the parameters required to validate a TPM.
@@ -63,14 +65,17 @@ type ValidatedTPM struct {
 	EKCertVerified bool `json:"ek_cert_verified"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"ek_pub_hash":      c.EKPubHash,
-		"ek_cert_serial":   c.EKCertSerial,
-		"ek_cert_verified": c.EKCertVerified,
-	}, nil
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *ValidatedTPM) JoinAttrs() *workloadidentityv1pb.JoinAttrsTPM {
+	attrs := &workloadidentityv1pb.JoinAttrsTPM{
+		EkPubHash:      c.EKPubHash,
+		EkCertSerial:   c.EKCertSerial,
+		EkCertVerified: c.EKCertVerified,
+	}
+
+	return attrs
 }
 
 // Validate takes the parameters from a remote TPM and performs the necessary

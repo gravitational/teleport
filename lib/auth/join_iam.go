@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/utils"
@@ -172,6 +173,18 @@ type awsIdentity struct {
 	Arn     string `json:"Arn"`
 }
 
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *awsIdentity) JoinAttrs() *workloadidentityv1pb.JoinAttrsAWSIAM {
+	attrs := &workloadidentityv1pb.JoinAttrsAWSIAM{
+		Account: c.Account,
+		Arn:     c.Arn,
+	}
+
+	return attrs
+}
+
 // getCallerIdentityReponse is used for JSON parsing
 type getCallerIdentityResponse struct {
 	GetCallerIdentityResult awsIdentity `json:"GetCallerIdentityResult"`
@@ -260,41 +273,41 @@ func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types
 
 // checkIAMRequest checks if the given request satisfies the token rules and
 // included the required challenge.
-func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) error {
+func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) (*awsIdentity, error) {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		return trace.Wrap(err, "getting token")
+		return nil, trace.Wrap(err, "getting token")
 	}
 	if provisionToken.GetJoinMethod() != types.JoinMethodIAM {
-		return trace.AccessDenied("this token does not support the IAM join method")
+		return nil, trace.AccessDenied("this token does not support the IAM join method")
 	}
 
 	// parse the incoming http request to the sts:GetCallerIdentity endpoint
 	identityRequest, err := parseSTSRequest(req.StsIdentityRequest)
 	if err != nil {
-		return trace.Wrap(err, "parsing STS request")
+		return nil, trace.Wrap(err, "parsing STS request")
 	}
 
 	// validate that the host, method, and headers are correct and the expected
 	// challenge is included in the signed portion of the request
 	if err := validateSTSIdentityRequest(identityRequest, challenge, cfg); err != nil {
-		return trace.Wrap(err, "validating STS request")
+		return nil, trace.Wrap(err, "validating STS request")
 	}
 
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
 	identity, err := executeSTSIdentityRequest(ctx, a.httpClientForAWSSTS, identityRequest)
 	if err != nil {
-		return trace.Wrap(err, "executing STS request")
+		return nil, trace.Wrap(err, "executing STS request")
 	}
 
 	// check that the node identity matches an allow rule for this token
 	if err := checkIAMAllowRules(identity, provisionToken.GetName(), provisionToken.GetAllowRules()); err != nil {
-		return trace.Wrap(err, "checking allow rules")
+		return identity, trace.Wrap(err, "checking allow rules")
 	}
 
-	return nil
+	return identity, nil
 }
 
 func generateIAMChallenge() (string, error) {
@@ -341,11 +354,12 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 ) (certs *proto.Certs, err error) {
 	var provisionToken types.ProvisionToken
 	var joinRequest *types.RegisterUsingTokenRequest
+	var joinFailureMetadata any
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				err, provisionToken, nil, joinRequest,
+				err, provisionToken, joinFailureMetadata, joinRequest,
 			)
 		}
 	}()
@@ -377,15 +391,27 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	// check that the GetCallerIdentity request is valid and matches the token
-	if err := a.checkIAMRequest(ctx, challenge, req, cfg); err != nil {
+	verifiedIdentity, err := a.checkIAMRequest(ctx, challenge, req, cfg)
+	if verifiedIdentity != nil {
+		joinFailureMetadata = verifiedIdentity
+	}
+	if err != nil {
 		return nil, trace.Wrap(err, "checking iam request")
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req.RegisterUsingTokenRequest,
+			verifiedIdentity,
+			&workloadidentityv1pb.JoinAttrs{
+				Iam: verifiedIdentity.JoinAttrs(),
+			},
+		)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}
-	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, verifiedIdentity)
 	return certs, trace.Wrap(err, "generating certs")
 }
 
