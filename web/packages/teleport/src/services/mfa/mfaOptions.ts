@@ -6,11 +6,11 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   const mfaOptions: MfaOption[] = [];
 
   if (mfaChallenge?.webauthnPublicKey) {
-    mfaOptions.push(webauthnOption);
+    mfaOptions.push(MFA_OPTION_WEBAUTHN);
   }
 
   if (mfaChallenge?.totpChallenge) {
-    mfaOptions.push(totpOption);
+    mfaOptions.push(MFA_OPTION_TOTP);
   }
 
   if (mfaChallenge?.ssoChallenge) {
@@ -24,11 +24,11 @@ export function getMfaRegisterOptions(auth2faType: Auth2faType) {
   const mfaOptions: MfaOption[] = [];
 
   if (auth2faType === 'webauthn' || auth2faType === 'on') {
-    mfaOptions.push(webauthnOption);
+    mfaOptions.push(MFA_OPTION_WEBAUTHN);
   }
 
   if (auth2faType === 'otp' || auth2faType === 'on') {
-    mfaOptions.push(totpOption);
+    mfaOptions.push(MFA_OPTION_TOTP);
   }
 
   return mfaOptions;
@@ -39,12 +39,15 @@ export type MfaOption = {
   label: string;
 };
 
-const webauthnOption: MfaOption = {
+const MFA_OPTION_WEBAUTHN: MfaOption = {
   value: 'webauthn',
   label: 'Passkey or Security Key',
 };
 
-const totpOption: MfaOption = { value: 'totp', label: 'Authenticator App' };
+const MFA_OPTION_TOTP: MfaOption = {
+  value: 'totp',
+  label: 'Authenticator App',
+};
 
 const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
   return {
