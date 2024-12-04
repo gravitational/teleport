@@ -34,7 +34,7 @@ import CardSuccess, { CardSuccessLogin } from './CardSuccess';
 import { Indicator } from './Indicator';
 import Input from './Input';
 import Label from './Label';
-import LabelInput from './LabelInput';
+import { LabelInput } from './LabelInput';
 import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
