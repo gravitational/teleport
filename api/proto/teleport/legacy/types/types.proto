@@ -994,6 +994,11 @@ message AppSpecV3 {
   repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
   // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
   CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1033,6 +1038,18 @@ message Header {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Value is the http header value.
   string Value = 2 [(gogoproto.jsontag) = "value"];
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 Port = 1 [(gogoproto.jsontag) = "port"];
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

@@ -2198,6 +2198,10 @@ type certRequest struct {
 	appName string
 	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	appURI string
+	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
+	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
+	// used in other contexts (e.g., access requests).
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2446,6 +2450,8 @@ type AppTestCertRequest struct {
 	TTL time.Duration
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
+	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
@@ -2505,6 +2511,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		appSessionID:      sessionID,
 		appPublicAddr:     req.PublicAddr,
+		appTargetPort:     req.TargetPort,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
@@ -3282,6 +3289,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
 			URI:               req.appURI,
+			TargetPort:        req.appTargetPort,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,

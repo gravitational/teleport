@@ -2386,8 +2386,8 @@ func TestWindowsDesktopService(t *testing.T) {
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
-		inComment      string
-		outError       bool
+		name           string
+		outErr         require.ErrorAssertionFunc
 	}{
 		{
 			inConfigString: `
@@ -2402,8 +2402,8 @@ app_service:
   - labels:
       '*': '*'
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app and wildcard resources",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2414,8 +2414,8 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is missing name",
-			outError:  true,
+			name:   "config is missing name",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2426,8 +2426,8 @@ app_service:
       name: foo
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2438,8 +2438,8 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
 `,
-			inComment: "config is missing internal address",
-			outError:  true,
+			name:   "config is missing internal address",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2456,19 +2456,62 @@ app_service:
     aws:
       assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
 `,
-			inComment: "assume_role_arn is not supported",
-			outError:  true,
+			name:   "assume_role_arn is not supported",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 1234
+      - port: 30000
+        end_port: 30768
+`,
+			name:   "TCP app with ports",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - end_port: 30000
+`,
+			name:   "TCP app with only end port",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 78787
+`,
+			name:   "TCP app with port bigger than 65535",
+			outErr: require.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		clf := CommandLineFlags{
-			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
-		}
-		cfg := servicecfg.MakeDefaultConfig()
+		t.Run(tt.name, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			}
+			cfg := servicecfg.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg, false)
-		require.Equal(t, err != nil, tt.outError, tt.inComment)
+			err := Configure(&clf, cfg, false)
+			tt.outErr(t, err)
+		})
 	}
 }
 

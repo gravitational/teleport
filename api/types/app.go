@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
 var _ compare.IsEqual[Application] = (*AppV3)(nil)
@@ -86,6 +87,10 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
+	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+	GetTCPPorts() []*PortRange
+	// SetTCPPorts sets port ranges to which connections can be forwarded to.
+	SetTCPPorts([]*PortRange)
 }
 
 // NewAppV3 creates a new app resource.
@@ -306,6 +311,16 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
 }
 
+// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetTCPPorts() []*PortRange {
+	return a.Spec.TCPPorts
+}
+
+// SetTCPPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetTCPPorts(ports []*PortRange) {
+	a.Spec.TCPPorts = ports
+}
+
 // GetIntegration will return the Integration.
 // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 func (a *AppV3) GetIntegration() string {
@@ -379,13 +394,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
 		publicAddr = "//" + publicAddr
 	}
-	url, err := url.Parse(publicAddr)
+	publicAddrURL, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}
 	host := a.Spec.PublicAddr
-	if url.Host != "" {
-		host = url.Host
+	if publicAddrURL.Host != "" {
+		host = publicAddrURL.Host
 	}
 
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
@@ -399,6 +414,42 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
 
+		}
+	}
+
+	if len(a.Spec.TCPPorts) != 0 {
+		if err := a.checkTCPPorts(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (a *AppV3) checkTCPPorts() error {
+	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
+	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
+	uri, err := url.Parse(a.Spec.URI)
+	if err != nil {
+		return trace.BadParameter("invalid app URI format: %v", err)
+	}
+
+	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
+	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
+	// web app gets downgraded to a version which supports multi-port only for TCP apps.
+	//
+	// For now, we simply ignore the Ports field set on non-TCP apps.
+	if uri.Scheme != "tcp" {
+		return nil
+	}
+
+	if uri.Port() != "" {
+		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
+	}
+
+	for _, portRange := range a.Spec.TCPPorts {
+		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
 		}
 	}
 

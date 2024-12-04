@@ -50,6 +50,7 @@ Optional:
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
 - `required_app_names` (List of String) RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
+- `tcp_ports` (Attributes List) TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol. (see [below for nested schema](#nested-schema-for-spectcp_ports))
 - `uri` (String) URI is the web app endpoint.
 - `user_groups` (List of String) UserGroups are a list of user group IDs that this app is associated with.
 
@@ -95,4 +96,13 @@ Optional:
 
 - `name` (String) Name is the http header name.
 - `value` (String) Value is the http header value.
+
+
+
+### Nested Schema for `spec.tcp_ports`
+
+Optional:
+
+- `end_port` (Number) EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.
+- `port` (Number) Port describes the start of the range. It must be between 1 and 65535.
 
