@@ -1928,6 +1928,6 @@ function contactTypeStr(type: number): string {
     case 2:
       return 'Security';
     default:
-      return 'Unknown type' + type;
+      return `Unknown type: ${type}`;
   }
 }
