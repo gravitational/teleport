@@ -257,7 +257,6 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		},
 		ProxyWebAddr:                    *utils.MustParseAddr(s.webServer.Listener.Addr().String()),
 		AuthServers:                     utils.FromAddr(s.testAuthServer.TLS.Addr()),
-		DomainName:                      s.testAuthServer.ClusterName(),
 		ProxySSHAddr:                    *utils.MustParseAddr("127.0.0.1:3023"), // unused
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
@@ -276,7 +275,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			RecoveryCodes: true,
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
-	}, web.SetSessionStreamPollPeriod(200*time.Millisecond), web.SetClock(s.clock))
+	}, web.SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer.Config.Handler = handler
