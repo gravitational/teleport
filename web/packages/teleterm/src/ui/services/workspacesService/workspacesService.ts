@@ -570,10 +570,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
+      // We don't persist 'doc.authorize_web_session' because we don't want to store
+      // a session token and id on disk.
+      // Moreover, the user would not be able to authorize a session at a later time anyway.
+      const documentsToPersist = (
+        workspace.previous?.documents || workspace.documents
+      ).filter(d => d.kind !== 'doc.authorize_web_session');
+
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
-        documents: workspace.previous?.documents || workspace.documents,
+        documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
