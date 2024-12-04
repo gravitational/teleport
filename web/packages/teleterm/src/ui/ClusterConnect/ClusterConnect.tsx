@@ -27,7 +27,10 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
 
-export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
+export function ClusterConnect(props: {
+  dialog: DialogClusterConnect;
+  hidden?: boolean;
+}) {
   const [createdClusterUri, setCreatedClusterUri] = useState<
     RootClusterUri | undefined
   >();
@@ -52,7 +55,8 @@ export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
       })}
       disableEscapeKeyDown={false}
       onClose={props.dialog.onCancel}
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
     >
       {!clusterUri ? (
         <ClusterAdd
