@@ -2352,3 +2352,11 @@ func (m *AutoUpdateVersionUpdate) TrimToMaxSize(_ int) AuditEvent {
 func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
