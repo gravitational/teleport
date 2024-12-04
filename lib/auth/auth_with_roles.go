@@ -195,8 +195,8 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) (types.SessionKind, error) {
-	sessionEnd, err := a.findSessionEndEvent(namespace, sid)
+func (a *ServerWithRoles) actionForKindSession(ctx context.Context, namespace string, sid session.ID) (types.SessionKind, error) {
+	sessionEnd, err := a.findSessionEndEvent(ctx, sid)
 
 	extendContext := func(ctx *services.Context) error {
 		ctx.Session = sessionEnd
@@ -4103,8 +4103,8 @@ func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.Prepared
 	return s.stream.RecordEvent(ctx, pe)
 }
 
-func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
-	sessionEvents, _, err := a.alog.SearchSessionEvents(context.TODO(), events.SearchSessionEventsRequest{
+func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.ID) (apievents.AuditEvent, error) {
+	sessionEvents, _, err := a.alog.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  time.Time{},
 		To:    a.authServer.clock.Now().UTC(),
 		Limit: defaults.EventsIterationLimit,
@@ -4210,7 +4210,7 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
-func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
+func (a *ServerWithRoles) validateRole(role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",
 			types.TeleportDowngradedLabel, downgradeReason)
@@ -4235,6 +4235,16 @@ func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) err
 		}
 	}
 
+	if role.GetRequestReasonMode(types.Deny) != "" {
+		return trace.BadParameter("request reason mode can be provided only for allow rules")
+	}
+	if role.GetRequestReasonMode(types.Allow) != "" {
+		err := role.GetRequestReasonMode(types.Allow).Check()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -4248,7 +4258,7 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4280,7 +4290,7 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4312,7 +4322,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateRole(ctx, role); err != nil {
+	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5954,7 +5964,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	var sessionType types.SessionKind
 	if !isTeleportServer {
 		var err error
-		sessionType, err = a.actionForKindSession(apidefaults.Namespace, sessionID)
+		sessionType, err = a.actionForKindSession(ctx, apidefaults.Namespace, sessionID)
 		if err != nil {
 			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 			e <- trace.Wrap(err)

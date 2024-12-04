@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -47,11 +48,35 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*spanner.Client, error) {
+// SpannerTestClient wraps a [spanner.Client] and provides direct access to the
+// underlying [grpc.ClientConn] of the client.
+type SpannerTestClient struct {
+	ClientConn *grpc.ClientConn
+	*spanner.Client
+}
+
+// WaitForConnectionState waits until the spanner client's underlying gRPC
+// connection transitions into the given state or the context expires.
+func (c *SpannerTestClient) WaitForConnectionState(ctx context.Context, wantState connectivity.State) error {
+	for {
+		s := c.ClientConn.GetState()
+		if s == wantState {
+			return nil
+		}
+		if s == connectivity.Shutdown {
+			return trace.Errorf("spanner test client connection has shutdown")
+		}
+		if !c.ClientConn.WaitForStateChange(ctx, s) {
+			return ctx.Err()
+		}
+	}
+}
+
+func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*SpannerTestClient, error) {
 	return makeTestClient(ctx, config, false)
 }
 
-func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS bool) (*spanner.Client, error) {
+func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS bool) (*SpannerTestClient, error) {
 	databaseID, err := getDatabaseID(ctx, config.RouteToDatabase, config.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,13 +93,13 @@ func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS 
 		transportOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
+	cc, err := grpc.NewClient(config.Address, transportOpt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	opts := []option.ClientOption{
-		// dial with custom transport security
-		option.WithGRPCDialOption(transportOpt),
-		// create 1 connection
-		option.WithGRPCConnectionPool(1),
-		// connect to the Teleport endpoint
-		option.WithEndpoint(config.Address),
+		option.WithGRPCConn(cc),
 		// client should not bring any GCP credentials
 		option.WithoutAuthentication(),
 	}
@@ -86,7 +111,10 @@ func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return clt, nil
+	return &SpannerTestClient{
+		ClientConn: cc,
+		Client:     clt,
+	}, nil
 }
 
 func getDatabaseID(ctx context.Context, route tlsca.RouteToDatabase, getter services.DatabaseServersGetter) (string, error) {

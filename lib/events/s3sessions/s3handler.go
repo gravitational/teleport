@@ -38,6 +38,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -231,6 +232,8 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions)
 
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)

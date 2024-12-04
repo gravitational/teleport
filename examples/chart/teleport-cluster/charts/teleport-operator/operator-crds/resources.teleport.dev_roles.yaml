@@ -357,6 +357,20 @@ spec:
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -908,6 +922,20 @@ spec:
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1738,6 +1766,20 @@ spec:
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -2289,6 +2331,20 @@ spec:
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.

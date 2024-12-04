@@ -1,5 +1,40 @@
 # Changelog
 
+## 17.0.3 (12/3/2024)
+
+* Restore ability to disable multi-factor authentication for local users. [#49692](https://github.com/gravitational/teleport/pull/49692)
+* Bumping one of our dependencies to a more secure version to address CVE-2024-53259. [#49662](https://github.com/gravitational/teleport/pull/49662)
+* Add ability to configure resource labels in `teleport-cluster`'s operator sub-chart. [#49647](https://github.com/gravitational/teleport/pull/49647)
+* Fixed proxy peering listener not using the exact address specified in `peer_listen_addr`. [#49589](https://github.com/gravitational/teleport/pull/49589)
+* Teleport Connect now shows whether it is being used on a trusted device or if enrollment is required for full access. [#49577](https://github.com/gravitational/teleport/pull/49577)
+* Kubernetes in-cluster joining now also accepts tokens whose audience is the Teleport cluster name (before it only allowed the default Kubernetes audience). Kubernetes JWKS joining is unchanged and still requires tokens with the cluster name in the audience. [#49556](https://github.com/gravitational/teleport/pull/49556)
+* Session recording playback in the web UI is now searchable. [#49506](https://github.com/gravitational/teleport/pull/49506)
+* Fixed an incorrect warning indicating that tsh v17.0.2 was incompatible with cluster v17.0.1, despite full compatibility. [#49491](https://github.com/gravitational/teleport/pull/49491)
+* Increase CockroachDB setup timeout from 5 to 30 seconds. This mitigates the Auth Service not being able to configure TTL on slow CockroachDB event backends. [#49469](https://github.com/gravitational/teleport/pull/49469)
+* Fixed a potential panic in login rule and SAML IdP expression parser. [#49429](https://github.com/gravitational/teleport/pull/49429)
+* Support for long-running kube exec/port-forward, respect client_idle_timeout config. [#49421](https://github.com/gravitational/teleport/pull/49421)
+* Fixed a permissions error with Postgres database user auto-provisioning that occurs when the database admin is not a superuser and the database is upgraded to Postgres v16 or higher. [#49390](https://github.com/gravitational/teleport/pull/49390)
+
+Enterprise:
+* Jamf Service sync audit events are attributed to "Jamf Service".
+* Users can now see a list of their enrolled devices on their Account page.
+* Add support for Entra ID groups being members of other groups using Nested Access Lists.
+
+## 17.0.2 (11/25/2024)
+
+* Fixed missing user participants in session recordings listing for non-interactive Kubernetes recordings. [#49343](https://github.com/gravitational/teleport/pull/49343)
+* Support delegated joining for Bitbucket Pipelines in Machine ID. [#49335](https://github.com/gravitational/teleport/pull/49335)
+* Fix a bug in the Teleport Operator chart that causes the operator to not be able to watch secrets during secret injection. [#49327](https://github.com/gravitational/teleport/pull/49327)
+* You can now search text within SSH sessions in the Web UI and Teleport Connect. [#49269](https://github.com/gravitational/teleport/pull/49269)
+* Teleport Connect now refreshes the resources view after dropping an access request. [#49264](https://github.com/gravitational/teleport/pull/49264)
+* Fixed an issue where `teleport park` processes could be leaked causing runaway resource usage. [#49260](https://github.com/gravitational/teleport/pull/49260)
+* Fixed VNet not being able to connect to the daemon. [#49199](https://github.com/gravitational/teleport/pull/49199)
+* The `tsh puttyconfig` command now disables GSSAPI auth settings to avoid a "Not Responding" condition in PuTTY. [#49189](https://github.com/gravitational/teleport/pull/49189)
+* Allow Azure VMs to join from a different subscription than their managed identity. [#49156](https://github.com/gravitational/teleport/pull/49156)
+* Fix an issue loading the license file when Teleport is started without a configuration file. [#49150](https://github.com/gravitational/teleport/pull/49150)
+* Added support for directly configuring JWKS for GitHub joining for circumstances where the GHES is not reachable by the Teleport Auth Service. [#49049](https://github.com/gravitational/teleport/pull/49049)
+* Fixed a bug where Access Lists imported from Microsoft Entra ID fail to be created if their display names include special characters. [#5551](https://github.com/gravitational/teleport.e/pull/5551)
+
 ## 17.0.1 (11/15/2024)
 
 Teleport 17 brings the following new features and improvements:
