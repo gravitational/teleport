@@ -993,6 +993,22 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "Rewrite is a list of rewriting rules to apply to requests and responses.",
 					Optional:    true,
 				},
+				"tcp_ports": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"end_port": {
+							Description: "EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"port": {
+							Description: "Port describes the start of the range. It must be between 1 and 65535.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.",
+					Optional:    true,
+				},
 				"uri": {
 					Description: "URI is the web app endpoint.",
 					Optional:    true,
@@ -10926,6 +10942,69 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["tcp_ports"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.TCPPorts"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.TCPPorts", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.TCPPorts = make([]*github_com_gravitational_teleport_api_types.PortRange, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.TCPPorts", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t *github_com_gravitational_teleport_api_types.PortRange
+											if !v.Null && !v.Unknown {
+												tf := v
+												t = &github_com_gravitational_teleport_api_types.PortRange{}
+												obj := t
+												{
+													a, ok := tf.Attrs["port"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"AppV3.Spec.TCPPorts.Port"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.TCPPorts.Port", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														} else {
+															var t uint32
+															if !v.Null && !v.Unknown {
+																t = uint32(v.Value)
+															}
+															obj.Port = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["end_port"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"AppV3.Spec.TCPPorts.EndPort"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.TCPPorts.EndPort", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														} else {
+															var t uint32
+															if !v.Null && !v.Unknown {
+																t = uint32(v.Value)
+															}
+															obj.EndPort = t
+														}
+													}
+												}
+											}
+											obj.TCPPorts[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -12296,6 +12375,108 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								v.Unknown = false
 								tf.Attrs["identity_center"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["tcp_ports"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.TCPPorts"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.TCPPorts", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["tcp_ports"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TCPPorts)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TCPPorts))
+									}
+								}
+								if obj.TCPPorts != nil {
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if len(obj.TCPPorts) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TCPPorts))
+									}
+									for k, a := range obj.TCPPorts {
+										v, ok := tf.Attrs["tcp_ports"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										if a == nil {
+											v.Null = true
+										} else {
+											obj := a
+											tf := &v
+											{
+												t, ok := tf.AttrTypes["port"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"AppV3.Spec.TCPPorts.Port"})
+												} else {
+													v, ok := tf.Attrs["port"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"AppV3.Spec.TCPPorts.Port", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.TCPPorts.Port", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
+														v.Null = int64(obj.Port) == 0
+													}
+													v.Value = int64(obj.Port)
+													v.Unknown = false
+													tf.Attrs["port"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["end_port"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"AppV3.Spec.TCPPorts.EndPort"})
+												} else {
+													v, ok := tf.Attrs["end_port"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"AppV3.Spec.TCPPorts.EndPort", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.TCPPorts.EndPort", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
+														v.Null = int64(obj.EndPort) == 0
+													}
+													v.Value = int64(obj.EndPort)
+													v.Unknown = false
+													tf.Attrs["end_port"] = v
+												}
+											}
+										}
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.TCPPorts) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["tcp_ports"] = c
 							}
 						}
 					}

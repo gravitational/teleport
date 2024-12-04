@@ -5196,3 +5196,8 @@ func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceCl
 func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
 	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }
+
+// IntegrationsClient returns integrations client.
+func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
+	return c.integrationsClient()
+}
