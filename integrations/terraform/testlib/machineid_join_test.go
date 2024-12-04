@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
@@ -115,7 +115,7 @@ func TestTerraformJoin(t *testing.T) {
 	tempDir := t.TempDir()
 	jwtPath := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
-	require.NoError(t, os.Setenv(kubernetestoken.EnvVarCustomKubernetesTokenPath, jwtPath))
+	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
 
 	// Test setup: craft a Terraform provider configuration
 	terraformConfig := fmt.Sprintf(`
