@@ -46,8 +46,8 @@ const (
 	// Kubernetes should support bound tokens on 1.20 and 1.21,
 	// but we can have an apiserver running 1.21 and kubelets running 1.19.
 	kubernetesBoundTokenSupportVersion = "1.22.0"
-	// kubernetesAudience is the Kubernetes default audience put on SA tokens if we don't specify one.
-	kubernetesAudience = "https://kubernetes.default.svc"
+	// kubernetesAudience is the Kubernetes default audience put on SA tokens if we can't get the default audiences.
+	kubernetesAudience = "https://kubernetes.default.svc.cluster.local"
 )
 
 type ValidationResult struct {
@@ -85,35 +85,59 @@ func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error)
 // Kubernetes TokenRequest API endpoint.
 type TokenReviewValidator struct {
 	mu sync.Mutex
-	// client is protected by mu and should only be accessed via the getClient
-	// method.
-	client kubernetes.Interface
+	// client and clusterAudiences are protected by mu and should only be
+	// accessed via the getClient method.
+	client           kubernetes.Interface
+	clusterAudiences []string
 }
 
 // getClient allows the lazy initialisation of the Kubernetes client
-func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
+func (v *TokenReviewValidator) getClient(ctx context.Context) (kubernetes.Interface, []string, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if v.client != nil {
-		return v.client, nil
+	if v.client != nil && v.clusterAudiences != nil {
+		return v.client, v.clusterAudiences, nil
 	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes config")
+		return nil, nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes config")
 	}
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes client")
+		return nil, nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes client")
+	}
+
+	// We do a self-review to recover the default cluster audience
+	audiences, err := getTokenAudiences(ctx, client, config.BearerToken)
+	if err != nil {
+		audiences = []string{kubernetesAudience}
 	}
 
 	v.client = client
-	return client, nil
+	v.clusterAudiences = audiences
+	return client, audiences, nil
+}
+
+func getTokenAudiences(ctx context.Context, client kubernetes.Interface, token string) ([]string, error) {
+	review := &v1.TokenReview{
+		Spec: v1.TokenReviewSpec{
+			Token: token,
+		},
+	}
+	options := metav1.CreateOptions{}
+
+	reviewResult, err := client.AuthenticationV1().TokenReviews().Create(ctx, review, options)
+	if err != nil {
+		return nil, trace.Wrap(err, "reviewing token and retrieving audience")
+	}
+
+	return reviewResult.Status.Audiences, nil
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
 func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName string) (*ValidationResult, error) {
-	client, err := v.getClient()
+	client, audiences, err := v.getClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,7 +149,7 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 			// But people kept confusing it with JWKS and set the cluster name
 			// as the audience/. To avoid his common footgun we now allow tokens
 			// whose audience is the teleport cluster name.
-			Audiences: []string{kubernetesAudience, clusterName},
+			Audiences: append(audiences, clusterName),
 		},
 	}
 	options := metav1.CreateOptions{}
