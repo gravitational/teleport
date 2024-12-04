@@ -124,7 +124,7 @@ type SSOResponse struct {
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+	if r.TOTPCode != "" && r.WebauthnResponse != nil && r.SSOResponse != nil {
 		return nil, trace.BadParameter("only one MFA response field can be set")
 	}
 
@@ -137,6 +137,15 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 	if r.WebauthnResponse != nil {
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	}
+
+	if r.SSOResponse != nil {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: r.SSOResponse.RequestID,
+				Token:     r.SSOResponse.Token,
+			},
 		}}, nil
 	}
 
