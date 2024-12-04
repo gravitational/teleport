@@ -107,10 +107,10 @@ var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 func NewNamespace(log *slog.Logger, name, dataDir, linkDir string) (*Namespace, error) {
 	if name == defaultNamespace ||
 		name == systemNamespace {
-		return nil, trace.Errorf("namespace %q is reserved", name)
+		return nil, trace.Errorf("namespace %s is reserved", name)
 	}
 	if !alphanum.MatchString(name) {
-		return nil, trace.Errorf("invalid namespace name %q, must be alphanumeric", name)
+		return nil, trace.Errorf("invalid namespace name %s, must be alphanumeric", name)
 	}
 	if name == "" {
 		if dataDir == "" {
