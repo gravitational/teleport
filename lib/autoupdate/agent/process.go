@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	// crashMonitorInterval is the polling interval for determining restart times from LastRestartPath.
+	// crashMonitorInterval is the polling interval for determining restart times from PIDFile.
 	crashMonitorInterval = 2 * time.Second
-	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detect
+	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detected
 	// before the service is determined stable.
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
