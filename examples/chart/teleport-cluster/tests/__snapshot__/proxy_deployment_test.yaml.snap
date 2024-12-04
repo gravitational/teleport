@@ -115,6 +115,7 @@ sets clusterDomain on Deployment Pods:
               sources:
               - serviceAccountToken:
                   path: token
+                  audience: helm-lint
               - configMap:
                   items:
                   - key: ca.crt
@@ -275,6 +276,7 @@ should set nodeSelector when set in values:
         sources:
         - serviceAccountToken:
             path: token
+            audience: helm-lint
         - configMap:
             items:
             - key: ca.crt
@@ -398,6 +400,7 @@ should set resources for wait-auth-update initContainer when set in values:
         sources:
         - serviceAccountToken:
             path: token
+            audience: helm-lint
         - configMap:
             items:
             - key: ca.crt
@@ -506,6 +509,7 @@ should set resources when set in values:
         sources:
         - serviceAccountToken:
             path: token
+            audience: helm-lint
         - configMap:
             items:
             - key: ca.crt
@@ -614,6 +618,7 @@ should set securityContext for initContainers when set in values:
         sources:
         - serviceAccountToken:
             path: token
+            audience: helm-lint
         - configMap:
             items:
             - key: ca.crt
@@ -722,6 +727,7 @@ should set securityContext when set in values:
         sources:
         - serviceAccountToken:
             path: token
+            audience: helm-lint
         - configMap:
             items:
             - key: ca.crt

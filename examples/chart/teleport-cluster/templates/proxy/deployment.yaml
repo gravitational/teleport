@@ -289,6 +289,7 @@ spec:
           sources:
             - serviceAccountToken:
                 path: token
+                audience: {{ $proxy.clusterName }}
             - configMap:
                 items:
                 - key: ca.crt

@@ -935,6 +935,7 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                    audience: helm-lint
                 - configMap:
                     items:
                       - key: ca.crt
@@ -971,6 +972,7 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                    audience: helm-lint
                 - configMap:
                     items:
                       - key: ca.crt
