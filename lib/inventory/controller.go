@@ -237,7 +237,9 @@ type Controller struct {
 	instanceHBEnabled          bool
 	instanceHBVariableDuration *interval.VariableDuration
 	sshHBVariableDuration      *interval.VariableDuration
-	sshServerTTL               time.Duration
+	appHBVariableDuration      *interval.VariableDuration
+	dbHBVariableDuration       *interval.VariableDuration
+	kubeHBVariableDuration     *interval.VariableDuration
 	maxKeepAliveErrs           int
 	usageReporter              usagereporter.UsageReporter
 	testEvents                 chan testEvent
@@ -262,17 +264,37 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		Step:        heartbeatStepSize,
 	})
 
-	var sshHBVariableDuration *interval.VariableDuration
-	sshServerTTL := apidefaults.ServerAnnounceTTL
-	if !variableRateSSHHeartbeatsDisabledEnv() {
-		// by default, SSH heartbeats will scale from 1.5 to 6 minutes, and will
+	var (
+		sshHBVariableDuration  *interval.VariableDuration
+		appHBVariableDuration  *interval.VariableDuration
+		dbHBVariableDuration   *interval.VariableDuration
+		kubeHBVariableDuration *interval.VariableDuration
+	)
+	serverTTL := apidefaults.ServerAnnounceTTL
+	if !variableRateHeartbeatsDisabledEnv() {
+		// by default, heartbeats will scale from 1.5 to 6 minutes, and will
 		// have a TTL of 15 minutes
+		serverTTL = apidefaults.ServerAnnounceTTL * 3 / 2
 		sshHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
 			MinDuration: options.serverKeepAlive,
 			MaxDuration: options.serverKeepAlive * 4,
 			Step:        heartbeatStepSize,
 		})
-		sshServerTTL = apidefaults.ServerAnnounceTTL * 3 / 2
+		appHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
+			MinDuration: options.serverKeepAlive,
+			MaxDuration: options.serverKeepAlive * 4,
+			Step:        heartbeatStepSize,
+		})
+		dbHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
+			MinDuration: options.serverKeepAlive,
+			MaxDuration: options.serverKeepAlive * 4,
+			Step:        heartbeatStepSize,
+		})
+		kubeHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
+			MinDuration: options.serverKeepAlive,
+			MaxDuration: options.serverKeepAlive * 4,
+			Step:        heartbeatStepSize,
+		})
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,12 +302,14 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
 		serverKeepAlive:            options.serverKeepAlive,
-		serverTTL:                  apidefaults.ServerAnnounceTTL,
+		serverTTL:                  serverTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
 		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
 		instanceHBVariableDuration: instanceHBVariableDuration,
 		sshHBVariableDuration:      sshHBVariableDuration,
-		sshServerTTL:               sshServerTTL,
+		appHBVariableDuration:      appHBVariableDuration,
+		dbHBVariableDuration:       dbHBVariableDuration,
+		kubeHBVariableDuration:     kubeHBVariableDuration,
 		maxKeepAliveErrs:           options.maxKeepAliveErrs,
 		auth:                       auth,
 		authID:                     options.authID,
@@ -440,23 +464,33 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			if c.sshHBVariableDuration != nil {
 				c.sshHBVariableDuration.Dec()
 			}
+			handle.sshServer = nil
 		}
 
 		if len(handle.appServers) > 0 {
 			c.onDisconnectFunc(constants.KeepAliveApp, len(handle.appServers))
+			if c.appHBVariableDuration != nil {
+				c.appHBVariableDuration.Add(-len(handle.appServers))
+			}
+			clear(handle.appServers)
 		}
 
 		if len(handle.databaseServers) > 0 {
 			c.onDisconnectFunc(constants.KeepAliveDatabase, len(handle.databaseServers))
+			if c.dbHBVariableDuration != nil {
+				c.dbHBVariableDuration.Add(-len(handle.databaseServers))
+			}
+			clear(handle.databaseServers)
 		}
 
 		if len(handle.kubernetesServers) > 0 {
 			c.onDisconnectFunc(constants.KeepAliveKube, len(handle.kubernetesServers))
+			if c.kubeHBVariableDuration != nil {
+				c.kubeHBVariableDuration.Add(-len(handle.kubernetesServers))
+			}
+			clear(handle.kubernetesServers)
 		}
 
-		clear(handle.appServers)
-		clear(handle.databaseServers)
-		clear(handle.kubernetesServers)
 		c.testEvent(handlerClose)
 	}()
 
@@ -501,9 +535,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 					if appKeepAliveDelay == nil {
 						appKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval: c.serverKeepAlive,
-							Jitter:        retryutils.SeventhJitter,
+							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval:    c.serverKeepAlive,
+							VariableInterval: c.appHBVariableDuration,
+							Jitter:           retryutils.SeventhJitter,
 						})
 					}
 				}
@@ -516,9 +551,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 					if dbKeepAliveDelay == nil {
 						dbKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval: c.serverKeepAlive,
-							Jitter:        retryutils.SeventhJitter,
+							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval:    c.serverKeepAlive,
+							VariableInterval: c.dbHBVariableDuration,
+							Jitter:           retryutils.SeventhJitter,
 						})
 					}
 				}
@@ -531,9 +567,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 					if kubeKeepAliveDelay == nil {
 						kubeKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval: retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval: c.serverKeepAlive,
-							Jitter:        retryutils.SeventhJitter,
+							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
+							FixedInterval:    c.serverKeepAlive,
+							VariableInterval: c.kubeHBVariableDuration,
+							Jitter:           retryutils.SeventhJitter,
 						})
 					}
 				}
@@ -626,10 +663,10 @@ func instanceHeartbeatsDisabledEnv() bool {
 	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
-// variableRateSSHHeartbeatsDisabledEnv checks if variable rate SSH heartbeats
-// have been explicitly disabled via environment variable.
-func variableRateSSHHeartbeatsDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_VARIABLE_RATE_SSH_HEARTBEATS") == "yes"
+// variableRateHeartbeatsDisabledEnv checks if variable rate heartbeats have
+// been explicitly disabled via environment variable.
+func variableRateHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_VARIABLE_RATE_HEARTBEATS") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -752,7 +789,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
-	sshServer.SetExpiry(time.Now().Add(c.sshServerTTL).UTC())
+	sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())
 
 	if handle.sshServer == nil {
 		c.onConnectFunc(constants.KeepAliveNode)
@@ -819,6 +856,9 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 
 	if _, ok := handle.appServers[appKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveApp)
+		if c.appHBVariableDuration != nil {
+			c.appHBVariableDuration.Inc()
+		}
 		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
 	}
 
@@ -870,6 +910,9 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 
 	if _, ok := handle.databaseServers[dbKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveDatabase)
+		if c.dbHBVariableDuration != nil {
+			c.dbHBVariableDuration.Inc()
+		}
 		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
 	}
 
@@ -921,6 +964,9 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 
 	if _, ok := handle.kubernetesServers[kubeKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveKube)
+		if c.kubeHBVariableDuration != nil {
+			c.kubeHBVariableDuration.Inc()
+		}
 		handle.kubernetesServers[kubeKey] = &heartBeatInfo[*types.KubernetesServerV3]{}
 	}
 
@@ -998,6 +1044,9 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 				if shouldRemove {
 					c.testEvent(appKeepAliveDel)
 					c.onDisconnectFunc(constants.KeepAliveApp, 1)
+					if c.appHBVariableDuration != nil {
+						c.appHBVariableDuration.Dec()
+					}
 					delete(handle.appServers, name)
 				}
 			} else {
@@ -1049,6 +1098,9 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 				if shouldRemove {
 					c.testEvent(dbKeepAliveDel)
 					c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
+					if c.dbHBVariableDuration != nil {
+						c.dbHBVariableDuration.Dec()
+					}
 					delete(handle.databaseServers, name)
 				}
 			} else {
@@ -1100,6 +1152,9 @@ func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.
 				if shouldRemove {
 					c.testEvent(kubeKeepAliveDel)
 					c.onDisconnectFunc(constants.KeepAliveKube, 1)
+					if c.kubeHBVariableDuration != nil {
+						c.kubeHBVariableDuration.Dec()
+					}
 					delete(handle.kubernetesServers, name)
 				}
 			} else {
