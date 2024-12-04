@@ -1725,12 +1725,12 @@ export type RawEvents = {
     }
   >;
   [eventCodes.CONTACT_DELETE]: RawEvent<
-  typeof eventCodes.CONTACT_DELETE,
-  {
-    email: string;
-    contact_type: number;
-  }
->;
+    typeof eventCodes.CONTACT_DELETE,
+    {
+      email: string;
+      contact_type: number;
+    }
+  >;
 };
 
 /**

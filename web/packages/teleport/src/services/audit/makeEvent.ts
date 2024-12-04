@@ -1922,12 +1922,12 @@ function formatMembers(members: { member_name: string }[]) {
 }
 
 function contactTypeStr(type: number): string {
-  switch (type){
+  switch (type) {
     case 1:
-        return "Business"
+      return 'Business';
     case 2:
-        return "Security"
+      return 'Security';
     default:
-        return "Unknown type" + type
+      return 'Unknown type' + type;
   }
 }
