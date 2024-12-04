@@ -60,7 +60,7 @@ test('all participant modes are properly listed and in the correct order', () =>
   );
 
   // Make sure that the menu items are in the order of observer -> moderator -> peer.
-  const menuItems = screen.queryAllByRole<HTMLAnchorElement>('link');
+  const menuItems = screen.queryAllByRole('menuitem');
   expect(menuItems).toHaveLength(3);
   expect(menuItems[0]).toHaveTextContent('As an Observer');
   expect(menuItems[1]).toHaveTextContent('As a Moderator');

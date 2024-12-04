@@ -235,6 +235,16 @@ func TestIsValidHostname(t *testing.T) {
 			assert:   require.True,
 		},
 		{
+			name:     "only lower case works",
+			hostname: "only-lower-case-works",
+			assert:   require.True,
+		},
+		{
+			name:     "mixed upper case fails",
+			hostname: "mixed-UPPER-CASE-fails",
+			assert:   require.False,
+		},
+		{
 			name:     "one component",
 			hostname: "example",
 			assert:   require.True,

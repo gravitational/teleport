@@ -45,10 +45,7 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": [
-            "cloud",
-            "enterprise"
-          ]
+          "forScopes": ["cloud", "enterprise"]
         },
         {
           "title": "Upcoming Releases",
@@ -2549,11 +2546,6 @@
       "permanent": true
     },
     {
-      "source": "/upgrading/",
-      "destination": "/upgrading/upgrading/",
-      "permanent": true
-    },
-    {
       "source": "/connect-your-client/",
       "destination": "/connect-your-client/connect-your-client/",
       "permanent": true
@@ -2784,11 +2776,6 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/access-controls/sso/",
-      "destination": "/admin-guides/access-controls/sso/sso/",
-      "permanent": true
-    },
-    {
       "source": "/admin-guides/access-controls/idps/",
       "destination": "/admin-guides/access-controls/idps/idps/",
       "permanent": true
@@ -2841,6 +2828,96 @@
     {
       "source": "/admin-guides/teleport-policy/integrations/",
       "destination": "/admin-guides/teleport-policy/integrations/integrations/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/introduction/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/upcoming-releases/",
+      "destination": "/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/",
+      "destination": "/upgrading/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guide/",
+      "destination": "/admin-guides/admin-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/config/",
+      "destination": "/reference/config/",
+      "permanent": true
+    },
+    {
+      "source": "/quickstart/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/docker-compose/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/enroll-resources/server-access/openssh/openssh-agentless/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/sso/",
+      "destination": "/admin-guides/access-controls/sso/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/management/operations/upgrading/",
+      "destination": "/upgrading/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/adfs/",
+      "destination": "/admin-guides/access-controls/sso/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/overview/",
+      "destination": "/reference/architecture/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/downloads/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/enroll-resources/desktop-access/active-directory/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/tsh/",
+      "destination": "/reference/cli/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/linux-server/",
+      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/adding-nodes/",
+      "destination": "/enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/cli/",
+      "destination": "/reference/cli/cli/",
       "permanent": true
     }
   ]
