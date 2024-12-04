@@ -75,6 +75,7 @@ export const allAccessAcl: Acl = {
   bots: fullAccess,
   accessMonitoringRule: fullAccess,
   discoverConfigs: fullAccess,
+  contacts: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

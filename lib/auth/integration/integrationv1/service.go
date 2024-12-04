@@ -53,6 +53,9 @@ type Cache interface {
 
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter
+
+	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
+	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 }
 
 // KeyStoreManager defines methods to get signers using the server's keystore.

@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -711,6 +712,31 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
+
+  // LastMeasurement stores information about the latest measurement between services.
+  SystemClockMeasurement LastMeasurement = 9;
+}
+
+// SystemClockMeasurement represents the measurement state of the systems clock difference.
+message SystemClockMeasurement {
+  // ControllerSystemClock is the system clock of the inventory controller.
+  google.protobuf.Timestamp ControllerSystemClock = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "controller_system_clock,omitempty"
+  ];
+  // SystemClock is the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
+  // RequestDuration stores information about the request duration between auth and remote service.
+  google.protobuf.Duration RequestDuration = 3 [
+    (gogoproto.jsontag) = "request_duration",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -1028,6 +1054,11 @@ message AppSpecV3 {
   // IdentityCenter encasulates AWS identity-center specific information. Only
   // valid for Identity Center account apps.
   AppIdentityCenter IdentityCenter = 12 [(gogoproto.jsontag) = "identity_center,omitempty"];
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1067,6 +1098,18 @@ message Header {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Value is the http header value.
   string Value = 2 [(gogoproto.jsontag) = "value"];
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 Port = 1 [(gogoproto.jsontag) = "port"];
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -4267,19 +4310,6 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
-}
-
-// TrustedDeviceRequirement indicates whether access may be hindered by the lack
-// of a trusted device.
-enum TrustedDeviceRequirement {
-  // Device requirement not determined.
-  // Does not mean that a device is not required, only that the necessary data
-  // was not considered.
-  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
-  // Trusted device not required.
-  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
-  // Trusted device required by either cluster mode or user roles.
-  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
