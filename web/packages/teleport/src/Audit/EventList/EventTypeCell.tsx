@@ -305,6 +305,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.PLUGIN_CREATE]: Icons.Info,
   [eventCodes.PLUGIN_UPDATE]: Icons.Info,
   [eventCodes.PLUGIN_DELETE]: Icons.Info,
+  [eventCodes.CONTACT_CREATE]: Icons.Info,
+  [eventCodes.CONTACT_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

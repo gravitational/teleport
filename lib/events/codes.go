@@ -697,6 +697,11 @@ const (
 	// WorkloadIdentityDeleteCode is the workload identity delete event code.
 	WorkloadIdentityDeleteCode = "WID003I"
 
+	// ContactCreateCode is the auto update version create event code.
+	ContactCreateCode = "TCTC001I"
+	// ContactDeleteCode is the auto update version delete event code.
+	ContactDeleteCode = "TCTC002I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
