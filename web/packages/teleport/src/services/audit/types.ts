@@ -1923,6 +1923,7 @@ export type Formatters = {
     type: string;
     desc: string;
     format: (json: RawEvents[key]) => string;
+    render?: (e: RawEvents[key]) => JSX.Element;
   };
 };
 
@@ -1935,6 +1936,7 @@ export type Events = {
     code: key;
     codeDesc: string;
     raw: RawEvents[key];
+    render?: (e: RawEvents[key]) => JSX.Element;
   };
 };
 

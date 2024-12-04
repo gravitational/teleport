@@ -16,8 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
+import Box from 'design/Box';
 import { formatDistanceStrict } from 'date-fns';
 import { pluralize } from 'shared/utils/text';
+import * as Icons from 'design/Icon';
 
 import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
 
@@ -44,12 +47,12 @@ const formatElasticsearchEvent: (
   switch (code) {
     case eventCodes.ELASTICSEARCH_REQUEST:
     case eventCodes.OPENSEARCH_REQUEST:
-      message += `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+      message += `User [${user}] ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
       break;
 
     case eventCodes.ELASTICSEARCH_REQUEST_FAILURE:
     case eventCodes.OPENSEARCH_REQUEST_FAILURE:
-      message += `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+      message += `User [${user}] attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
       break;
   }
 
@@ -68,14 +71,12 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been created and is ${state}`,
+    format: ({ id, state }) => `New access request [${id}] is ${state}`,
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
     desc: 'Access Request Updated',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been updated to ${state}`,
+    format: ({ id, state }) => `Access request [${id}] was updated to ${state}`,
   },
   [eventCodes.ACCESS_REQUEST_REVIEWED]: {
     type: 'access_request.review',
@@ -83,29 +84,41 @@ export const formatters: Formatters = {
     format: ({ id, reviewer, state }) => {
       return `User [${reviewer}] ${state.toLowerCase()} access request [${id}]`;
     },
+    render: ({ id, reviewer, state }) => (
+      <Box>
+        <User user={reviewer} /> `${state.toLowerCase()} access request ${id}
+        `;
+      </Box>
+    ),
   },
   [eventCodes.ACCESS_REQUEST_DELETED]: {
     type: 'access_request.delete',
     desc: 'Access Request Deleted',
-    format: ({ id }) => `Access request [${id}] has been deleted`,
+    format: ({ id }) => `Access request [${id}] was deleted`,
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
     desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
+    render: ({ user, resource_type, search_as_roles }) => (
+      <Box>
+        <User user={user} /> searched for {resource_type} with role[s] `$
+        {truncateStr(search_as_roles.join(','), 80)}`
+      </Box>
+    ),
   },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
     desc: 'Session Command',
     format: ({ program, sid }) =>
-      `Program [${program}] has been executed within a session [${sid}]`,
+      `Program [${program}] executed within session [${sid}]`,
   },
   [eventCodes.SESSION_DISK]: {
     type: 'session.disk',
     desc: 'Session File Access',
     format: ({ path, sid, program }) =>
-      `Program [${program}] accessed a file [${path}] within a session [${sid}]`,
+      `Program [${program}] accessed file [${path}] within session [${sid}]`,
   },
   [eventCodes.SESSION_NETWORK]: {
     type: 'session.network',
@@ -121,43 +134,67 @@ export const formatters: Formatters = {
     type: 'session.process_exit',
     desc: 'Session Process Exit',
     format: ({ program, exit_status, sid }) =>
-      `Program [${program}] has exited with status ${exit_status}, within a session [${sid}]`,
+      `Program [${program}] exited with status ${exit_status}, within a session [${sid}]`,
   },
   [eventCodes.SESSION_DATA]: {
     type: 'session.data',
     desc: 'Session Data',
-    format: ({ sid }) =>
-      `Usage report has been updated for session [${sid || ''}]`,
+    format: ({ sid }) => `Usage report updated for session [${sid || ''}]`,
   },
 
   [eventCodes.USER_PASSWORD_CHANGED]: {
     type: 'user.password_change',
     desc: 'User Password Updated',
-    format: ({ user }) => `User [${user}] has changed a password`,
+    format: ({ user }) => `User [${user}] changed their password`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> changed their password
+      </Box>
+    ),
   },
 
   [eventCodes.USER_UPDATED]: {
     type: 'user.update',
     desc: 'User Updated',
     format: ({ name }) => `User [${name}] has been updated`,
+    render: ({ name }) => (
+      <Box>
+        User <User user={name} /> has been updated
+      </Box>
+    ),
   },
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: {
     type: 'reset_password_token.create',
     desc: 'Reset Password Token Created',
     format: ({ name, user }) =>
       `User [${user}] created a password reset token for user [${name}]`,
+    render: ({ name, user }) => (
+      <Box>
+        <User user={user} /> created a password reset token for{' '}
+        <User user={name} />
+      </Box>
+    ),
   },
   [eventCodes.AUTH_ATTEMPT_FAILURE]: {
     type: 'auth',
     desc: 'Auth Attempt Failed',
     format: ({ user, error }) => `User [${user}] failed auth attempt: ${error}`,
+    render: ({ user, error }) => (
+      <Box>
+        <User user={user} /> failed auth attempt: {error}
+      </Box>
+    ),
   },
 
   [eventCodes.CLIENT_DISCONNECT]: {
     type: 'client.disconnect',
     desc: 'Client Disconnected',
-    format: ({ user, reason }) =>
-      `User [${user}] has been disconnected: ${reason}`,
+    format: ({ user, reason }) => `User [${user}] disconnected: ${reason}`,
+    render: ({ user, reason }) => (
+      <Box>
+        <User user={user} /> disconnected: {reason}
+      </Box>
+    ),
   },
   [eventCodes.EXEC]: {
     type: 'exec',
@@ -175,6 +212,30 @@ export const formatters: Formatters = {
         event['server_hostname'] || event['addr.local']
       }`;
     },
+    render: event => {
+      const { proto, kubernetes_cluster, user = '' } = event;
+      if (proto === 'kube') {
+        if (!kubernetes_cluster) {
+          return (
+            <Box>
+              <User user={user} /> executed a Kubernetes command
+            </Box>
+          );
+        }
+        return (
+          <Box>
+            <User user={user} /> executed a command on Kubernetes cluster{' '}
+            {kubernetes_cluster}
+          </Box>
+        );
+      }
+      return (
+        <Box>
+          <User user={user} /> executed a command on node{' '}
+          {event['server_hostname'] || event['addr.local']}
+        </Box>
+      );
+    },
   },
   [eventCodes.EXEC_FAILURE]: {
     type: 'exec',
@@ -183,47 +244,89 @@ export const formatters: Formatters = {
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
       } failed [${exitError}]`,
+    render: ({ user, exitError, ...rest }) => (
+      <Box>
+        <User user={`${user}'s}`} /> command execution on node $
+        {rest['server_hostname'] || rest['addr.local']} failed: [${exitError}
+        ]`
+      </Box>
+    ),
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
     desc: 'GitHub Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created GitHub connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created GitHub Connector {name}
+      </Box>
+    ),
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GitHub Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted GitHub connector {name}
+      </Box>
+    ),
   },
   [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
     type: 'github.updated',
     desc: 'GitHub Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated GitHub connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated GitHub connector {name}
+      </Box>
+    ),
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
     desc: 'OIDC Auth Connector Created',
     format: ({ user, name }) =>
       `User [${user}] created OIDC connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created OIDC connector {name}
+      </Box>
+    ),
   },
   [eventCodes.OIDC_CONNECTOR_DELETED]: {
     type: 'oidc.deleted',
     desc: 'OIDC Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted OIDC connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted OIDC connector {name}
+      </Box>
+    ),
   },
   [eventCodes.OIDC_CONNECTOR_UPDATED]: {
     type: 'oidc.updated',
     desc: 'OIDC Auth Connector Updated',
     format: ({ user, name }) =>
       `User [${user}] updated OIDC connector [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated OIDC connector {name}
+      </Box>
+    ),
   },
   [eventCodes.PORTFORWARD]: {
     type: 'port',
     desc: 'Port Forwarding Started',
     format: ({ user }) => `User [${user}] started port forwarding`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> started port forwarding
+      </Box>
+    ),
   },
   [eventCodes.PORTFORWARD_FAILURE]: {
     type: 'port',
@@ -460,7 +563,7 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_JOIN]: {
     type: 'session.join',
     desc: 'User Joined',
-    format: ({ user, sid }) => `User [${user}] has joined the session [${sid}]`,
+    format: ({ user, sid }) => `User [${user}] joined the session [${sid}]`,
   },
   [eventCodes.SESSION_END]: {
     type: 'session.end',
@@ -472,23 +575,23 @@ export const formatters: Formatters = {
 
       if (event.proto === 'kube') {
         if (!event.kubernetes_cluster) {
-          return `User [${user}] has ended a Kubernetes session [${event.sid}]`;
+          return `User [${user}] ended a Kubernetes session [${event.sid}]`;
         }
-        return `User [${user}] has ended a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
+        return `User [${user}] ended a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
       }
 
       if (!event.interactive) {
-        return `User [${user}] has ended a non-interactive session [${event.sid}] on node [${node}] `;
+        return `User [${user}] ended a non-interactive session [${event.sid}] on node [${node}] `;
       }
 
       if (event.session_start && event.session_stop) {
         const start = new Date(event.session_start);
         const end = new Date(event.session_stop);
         const durationText = formatDistanceStrict(start, end);
-        return `User [${user}] has ended an interactive session lasting ${durationText} [${event.sid}] on node [${node}]`;
+        return `User [${user}] ended an interactive session lasting ${durationText} [${event.sid}] on node [${node}]`;
       }
 
-      return `User [${user}] has ended interactive session [${event.sid}] on node [${node}] `;
+      return `User [${user}] ended interactive session [${event.sid}] on node [${node}] `;
     },
   },
   [eventCodes.SESSION_REJECT]: {
@@ -500,17 +603,17 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_LEAVE]: {
     type: 'session.leave',
     desc: 'User Disconnected',
-    format: ({ user, sid }) => `User [${user}] has left the session [${sid}]`,
+    format: ({ user, sid }) => `User [${user}] left the session [${sid}]`,
   },
   [eventCodes.SESSION_START]: {
     type: 'session.start',
     desc: 'Session Started',
-    format: ({ user, sid }) => `User [${user}] has started a session [${sid}]`,
+    format: ({ user, sid }) => `User [${user}] started a session [${sid}]`,
   },
   [eventCodes.SESSION_UPLOAD]: {
     type: 'session.upload',
     desc: 'Session Uploaded',
-    format: ({ sid }) => `Recorded session [${sid}] has been uploaded`,
+    format: ({ sid }) => `Recorded session [${sid}] uploaded`,
   },
   [eventCodes.APP_SESSION_START]: {
     type: 'app.session.start',
@@ -518,9 +621,9 @@ export const formatters: Formatters = {
     format: event => {
       const { user, app_name, aws_role_arn } = event;
       if (aws_role_arn) {
-        return `User [${user}] has connected to AWS console [${app_name}]`;
+        return `User [${user}] connected to AWS console [${app_name}]`;
       }
-      return `User [${user}] has connected to application [${app_name}]`;
+      return `User [${user}] connected to application [${app_name}]`;
     },
   },
   [eventCodes.APP_SESSION_END]: {
@@ -528,7 +631,7 @@ export const formatters: Formatters = {
     desc: 'App Session Ended',
     format: event => {
       const { user, app_name } = event;
-      return `User [${user}] has disconnected from application [${app_name}]`;
+      return `User [${user}] disconnected from application [${app_name}]`;
     },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
@@ -543,7 +646,7 @@ export const formatters: Formatters = {
     type: 'app.session.dynamodb.request',
     desc: 'App Session DynamoDB Request',
     format: ({ user, app_name, target }) => {
-      let message = `User [${user}] has made a request to application [${app_name}]`;
+      let message = `User [${user}] made a request to application [${app_name}]`;
       if (target) {
         message += `, target: [${target}]`;
       }
@@ -570,27 +673,42 @@ export const formatters: Formatters = {
   [eventCodes.USER_CREATED]: {
     type: 'user.create',
     desc: 'User Created',
-    format: ({ name }) => `User [${name}] has been created`,
+    format: ({ name }) => `User [${name}] created`,
   },
   [eventCodes.USER_DELETED]: {
     type: 'user.delete',
     desc: 'User Deleted',
-    format: ({ name }) => `User [${name}] has been deleted`,
+    format: ({ name }) => `User [${name}] was deleted`,
   },
   [eventCodes.USER_LOCAL_LOGIN]: {
     type: 'user.login',
     desc: 'Local Login',
     format: ({ user }) => `Local user [${user}] successfully logged in`,
+    render: ({ user }) => (
+      <Box>
+        Local user <User user={user} /> successfully logged in
+      </Box>
+    ),
   },
   [eventCodes.USER_LOCAL_LOGINFAILURE]: {
     type: 'user.login',
     desc: 'Local Login Failed',
     format: ({ user, error }) => `Local user [${user}] login failed [${error}]`,
+    render: ({ user, error }) => (
+      <Box>
+        Login for local user <User user={user} /> failed: {error}
+      </Box>
+    ),
   },
   [eventCodes.USER_SSO_LOGIN]: {
     type: 'user.login',
     desc: 'SSO Login',
     format: ({ user }) => `SSO user [${user}] successfully logged in`,
+    render: ({ user }) => (
+      <Box>
+        SSO user <User user={user} /> logged in
+      </Box>
+    ),
   },
   [eventCodes.USER_SSO_LOGINFAILURE]: {
     type: 'user.login',
@@ -602,6 +720,11 @@ export const formatters: Formatters = {
     desc: 'SSO Test Flow Login',
     format: ({ user }) =>
       `SSO Test Flow: user [${user}] successfully logged in`,
+    render: ({ user }) => (
+      <Box>
+        SSO test login for <User user={user} /> succeeded
+      </Box>
+    ),
   },
   [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: {
     type: 'user.login',
@@ -612,23 +735,44 @@ export const formatters: Formatters = {
     type: 'user.login',
     desc: 'Headless Login Requested',
     format: ({ user }) => `Headless login was requested for user [${user}]`,
+    render: ({ user }) => (
+      <Box>
+        Headless login was requested for <User user={user} />
+      </Box>
+    ),
   },
   [eventCodes.USER_HEADLESS_LOGIN_APPROVED]: {
     type: 'user.login',
     desc: 'Headless Login Approved',
     format: ({ user }) =>
       `User [${user}] successfully approved headless login request`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> approved a headless login request
+      </Box>
+    ),
   },
   [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: {
     type: 'user.login',
     desc: 'Headless Login Failed',
     format: ({ user, error }) =>
       `User [${user}] tried to approve headless login request, but got an error [${error}]`,
+    render: ({ user, error }) => (
+      <Box>
+        <User user={user} /> tried to approve headless login request, but
+        encountered an error: {error}
+      </Box>
+    ),
   },
   [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: {
     type: 'user.login',
     desc: 'Headless Login Rejected',
     format: ({ user }) => `User [${user}] rejected headless login request`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> rejected a headless login request
+      </Box>
+    ),
   },
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
@@ -639,111 +783,221 @@ export const formatters: Formatters = {
       }
       return `Passwordless user requested an MFA authentication challenge`;
     },
+    render: ({ user }) => {
+      if (user) {
+        return (
+          <Box>
+            <User user={user} /> requested an MFA authentication challenge
+          </Box>
+        );
+      }
+      return <>Passwordless user requested an MFA authentication challenge</>;
+    },
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Success',
     format: ({ user }) => `User [${user}] completed MFA authentication`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> completed MFA authentication
+      </Box>
+    ),
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Failure',
     format: ({ user }) => `User [${user}] failed MFA authentication`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> failed MFA authentication
+      </Box>
+    ),
   },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',
     format: ({ user, name }) => `User [${user}] created a role [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created role {name}
+      </Box>
+    ),
   },
   [eventCodes.ROLE_DELETED]: {
     type: 'role.deleted',
     desc: 'User Role Deleted',
     format: ({ user, name }) => `User [${user}] deleted a role [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted role {name}
+      </Box>
+    ),
   },
   [eventCodes.ROLE_UPDATED]: {
     type: 'role.updated',
     desc: 'User Role Updated',
     format: ({ user, name }) => `User [${user}] updated a role [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated role {name}
+      </Box>
+    ),
   },
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: {
     type: 'trusted_cluster_token.create',
     desc: 'Trusted Cluster Token Created',
-    format: ({ user }) => `User [${user}] has created a trusted cluster token`,
+    format: ({ user }) => `User [${user}] created a trusted cluster token`,
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> created a trusted cluster token
+      </Box>
+    ),
   },
   [eventCodes.TRUSTED_CLUSTER_CREATED]: {
     type: 'trusted_cluster.create',
     desc: 'Trusted Cluster Created',
     format: ({ user, name }) =>
-      `User [${user}] has created a trusted relationship with cluster [${name}]`,
+      `User [${user}] created a trust relationship with cluster [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created a trust relationship with Teleport cluster{' '}
+        {name}
+      </Box>
+    ),
   },
   [eventCodes.PROVISION_TOKEN_CREATED]: {
     type: 'join_token.create',
     desc: 'Join Token Created',
     format: ({ user, roles, join_method }) =>
       `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
+    render: ({ user, roles, join_method }) => (
+      <Box>
+        <User user={user} /> created a {join_method} token with role(s) {roles}
+      </Box>
+    ),
   },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',
     format: ({ user, name }) =>
-      `User [${user}] has deleted a trusted relationship with cluster [${name}]`,
+      `User [${user}] deleted a trust relationship with cluster [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted a trust relationship with Teleport cluster{' '}
+        {name}
+      </Box>
+    ),
   },
   [eventCodes.KUBE_REQUEST]: {
     type: 'kube.request',
     desc: 'Kubernetes Request',
     format: ({ user, kubernetes_cluster, verb, request_path, response_code }) =>
       `User [${user}] received a [${response_code}] from a [${verb} ${request_path}] request to Kubernetes cluster [${kubernetes_cluster}]`,
+    render: ({
+      user,
+      kubernetes_cluster,
+      verb,
+      request_path,
+      response_code,
+    }) => (
+      <Box>
+        <User user={user} /> received a{' '}
+        {`${response_code} from a [${verb} ${request_path}]`} request to
+        Kubernetes cluster {kubernetes_cluster}
+      </Box>
+    ),
   },
   [eventCodes.KUBE_CREATED]: {
     type: 'kube.create',
     desc: 'Kubernetes Created',
     format: ({ user, name }) =>
       `User [${user}] created Kubernetes cluster [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created Kubernetes clsuter {name}
+      </Box>
+    ),
   },
   [eventCodes.KUBE_UPDATED]: {
     type: 'kube.update',
     desc: 'Kubernetes Updated',
     format: ({ user, name }) =>
       `User [${user}] updated Kubernetes cluster [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated Kubernetes clsuter {name}
+      </Box>
+    ),
   },
   [eventCodes.KUBE_DELETED]: {
     type: 'kube.delete',
     desc: 'Kubernetes Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted Kubernetes cluster [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted Kubernetes clsuter {name}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
     format: ({ user, db_service, db_name, db_user, db_roles }) =>
-      `User [${user}] has connected ${
+      `User [${user}] connected ${
         db_name ? `to database [${db_name}] ` : ''
       }as [${db_user}] ${
         db_roles ? `with roles [${db_roles}] ` : ''
       }on [${db_service}]`,
+    render: ({ user, db_service, db_name, db_user, db_roles }) => (
+      <Box>
+        <User user={user} /> connected{' '}
+        {db_name ? `to database ${db_name} ` : ''}as {db_user}{' '}
+        {db_roles ? `with roles ${db_roles} ` : ''}on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
     desc: 'Database Session Denied',
     format: ({ user, db_service, db_name, db_user }) =>
       `User [${user}] was denied access to database [${db_name}] as [${db_user}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, db_user }) => (
+      <Box>
+        <User user={user} /> was denied access to database {db_name} as{' '}
+        {db_user} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_ENDED]: {
     type: 'db.session.end',
     desc: 'Database Session Ended',
     format: ({ user, db_service, db_name }) =>
-      `User [${user}] has disconnected ${
+      `User [${user}] disconnected ${
         db_name ? `from database [${db_name}] ` : ''
       }on [${db_service}]`,
+    render: ({ user, db_service, db_name }) => (
+      <Box>
+        <User user={user} /> disconnected{' '}
+        {db_name ? `from database ${db_name} ` : ''}on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_QUERY]: {
     type: 'db.session.query',
     desc: 'Database Query',
     format: ({ user, db_service, db_name, db_query }) =>
-      `User [${user}] has executed query [${truncateStr(
+      `User [${user}] executed query [${truncateStr(
         db_query,
         80
       )}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, db_query }) => (
+      <Box>
+        <User user={user} /> executed query {`${truncateStr(db_query, 80)}`} in
+        database {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: {
     type: 'db.session.query.failed',
@@ -753,12 +1007,24 @@ export const formatters: Formatters = {
         db_query,
         80
       )}] in database [${db_name}] on [${db_service}] failed`,
+    render: ({ user, db_service, db_name, db_query }) => (
+      <Box>
+        <User user={user} /> query {truncateStr(db_query, 80)} in database{' '}
+        {db_name} on {db_service} failed
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: {
     type: 'db.session.malformed_packet',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
+    render: ({ user, db_service, db_name }) => (
+      <Box>
+        Received malformed packet from <User user={user} /> in {db_name} on
+        database {db_service}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
     type: 'db.session.permissions.update',
@@ -777,6 +1043,30 @@ export const formatters: Formatters = {
         .join('; ');
       return `Database user [${user}] permissions updated for database [${db_name}] on [${db_service}]: ${summary}`;
     },
+    render: ({ user, db_service, db_name, permission_summary }) => {
+      if (!permission_summary) {
+        return (
+          <Box>
+            Database user {user} permissions updated for database {db_name} on{' '}
+            {db_service}
+          </Box>
+        );
+      }
+      const summary = permission_summary
+        .map(p => {
+          const details = Object.entries(p.counts)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(',');
+          return `${p.permission}:${details}`;
+        })
+        .join('; ');
+      return (
+        <Box>
+          Database user {user} permissions udpated for database {db_name} on{' '}
+          {db_service}: {summary}
+        </Box>
+      );
+    },
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE]: {
     type: 'db.session.user.create',
@@ -787,6 +1077,12 @@ export const formatters: Formatters = {
       }
       return `Database user [${ev.user}] created in database [${ev.db_service}], roles: [${ev.roles}]`;
     },
+    render: ({ roles, user, db_service }) => (
+      <Box>
+        Database user {user} created in database {db_service}
+        {roles && `, roles: ${roles}`}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: {
     type: 'db.session.user.create',
@@ -794,6 +1090,12 @@ export const formatters: Formatters = {
     format: ev => {
       return `Failed to create database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
+    render: ({ user, db_service, error }) => (
+      <Box>
+        Failed to create database user {user} in database {db_service}, error:{' '}
+        {error}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: {
     type: 'db.session.user.deactivate',
@@ -804,6 +1106,14 @@ export const formatters: Formatters = {
       }
       return `Database user [${ev.user}] deleted in database [${ev.db_service}]`;
     },
+    render: ev => {
+      const verb = ev.delete ? 'deleted' : 'disabled';
+      return (
+        <Box>
+          Database user {ev.user} {verb} in database {ev.db_service}
+        </Box>
+      );
+    },
   },
   [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: {
     type: 'db.session.user.deactivate',
@@ -811,88 +1121,169 @@ export const formatters: Formatters = {
     format: ev => {
       return `Failed to disable database user [${ev.user}] in database [${ev.db_service}], error: [${ev.error}]`;
     },
+    render: ({ user, error, db_service }) => (
+      <Box>
+        Failed to disable database user {user} in database {db_service}, error:{' '}
+        {error}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
     desc: 'Database Created',
     format: ({ user, name }) => `User [${user}] created database [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created database {name}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_UPDATED]: {
     type: 'db.update',
     desc: 'Database Updated',
     format: ({ user, name }) => `User [${user}] updated database [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated database {name}
+      </Box>
+    ),
   },
   [eventCodes.DATABASE_DELETED]: {
     type: 'db.delete',
     desc: 'Database Deleted',
     format: ({ user, name }) => `User [${user}] deleted database [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted database {name}
+      </Box>
+    ),
   },
   [eventCodes.APP_CREATED]: {
     type: 'app.create',
     desc: 'Application Created',
     format: ({ user, name }) => `User [${user}] created application [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created application {name}
+      </Box>
+    ),
   },
   [eventCodes.APP_UPDATED]: {
     type: 'app.update',
     desc: 'Application Updated',
     format: ({ user, name }) => `User [${user}] updated application [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated application {name}
+      </Box>
+    ),
   },
   [eventCodes.APP_DELETED]: {
     type: 'app.delete',
     desc: 'Application Deleted',
     format: ({ user, name }) => `User [${user}] deleted application [${name}]`,
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted application {name}
+      </Box>
+    ),
   },
   [eventCodes.POSTGRES_PARSE]: {
     type: 'db.session.postgres.statements.parse',
     desc: 'PostgreSQL Statement Parse',
     format: ({ user, db_service, statement_name, query }) =>
-      `User [${user}] has prepared [${truncateStr(
+      `User [${user}] prepared [${truncateStr(
         query,
         80
       )}] as statement [${statement_name}] on [${db_service}]`,
+    render: ({ user, db_service, statement_name, query }) => (
+      <Box>
+        <User user={user} /> prepared {truncateStr(query, 80)} as statement{' '}
+        {statement_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.POSTGRES_BIND]: {
     type: 'db.session.postgres.statements.bind',
     desc: 'PostgreSQL Statement Bind',
     format: ({ user, db_service, statement_name, portal_name }) =>
-      `User [${user}] has readied statement [${statement_name}] for execution as portal [${portal_name}] on [${db_service}]`,
+      `User [${user}] readied statement [${statement_name}] for execution as portal [${portal_name}] on [${db_service}]`,
+    render: ({ user, db_service, statement_name, portal_name }) => (
+      <Box>
+        <User user={user} /> readied statement {statement_name} for execution as
+        portal {portal_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.POSTGRES_EXECUTE]: {
     type: 'db.session.postgres.statements.execute',
     desc: 'PostgreSQL Statement Execute',
     format: ({ user, db_service, portal_name }) =>
-      `User [${user}] has executed portal [${portal_name}] on [${db_service}]`,
+      `User [${user}] executed portal [${portal_name}] on [${db_service}]`,
+    render: ({ user, db_service, portal_name }) => (
+      <Box>
+        <User user={user} /> executed portal {portal_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.POSTGRES_CLOSE]: {
     type: 'db.session.postgres.statements.close',
     desc: 'PostgreSQL Statement Close',
     format: e => {
-      if (e.portal_name) {
-        return `User [${e.user}] has closed portal [${e.portal_name}] on [${e.db_service}]`;
-      }
-      return `User [${e.user}] has closed statement [${e.statement_name}] on [${e.db_service}]`;
+      const closed = e.portal_name
+        ? `portal ${e.portal_name}`
+        : `statement ${e.statement_name}`;
+      return `User [${e.user}] closed ${closed} on [${e.db_service}]`;
+    },
+    render: e => {
+      const closed = e.portal_name
+        ? `portal ${e.portal_name}`
+        : `statement ${e.statement_name}`;
+      return (
+        <Box>
+          <User user={user} /> closed {closed} on {e.db_service}
+        </Box>
+      );
     },
   },
   [eventCodes.POSTGRES_FUNCTION_CALL]: {
     type: 'db.session.postgres.function',
     desc: 'PostgreSQL Function Call',
     format: ({ user, db_service, function_oid }) =>
-      `User [${user}] has executed function with OID [${function_oid}] on [${db_service}]`,
+      `User [${user}] executed function with OID [${function_oid}] on [${db_service}]`,
+    render: ({ user, db_service, function_oid }) => (
+      <Box>
+        <User user={user} /> executed function with OID {function_oid} on{' '}
+        {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_PREPARE]: {
     type: 'db.session.mysql.statements.prepare',
     desc: 'MySQL Statement Prepare',
     format: ({ user, db_service, db_name, query }) =>
-      `User [${user}] has prepared [${truncateStr(
+      `User [${user}] prepared [${truncateStr(
         query,
         80
       )}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, query }) => (
+      <Box>
+        <User user={user} /> prepared {truncateStr(query, 80)} in database{' '}
+        {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_EXECUTE]: {
     type: 'db.session.mysql.statements.execute',
     desc: 'MySQL Statement Execute',
     format: ({ user, db_service, db_name, statement_id }) =>
-      `User [${user}] has executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, statement_id }) => (
+      <Box>
+        <User user={user} /> executed statement {statement_id} in database{' '}
+        {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_SEND_LONG_DATA]: {
     type: 'db.session.mysql.statements.send_long_data',
@@ -905,91 +1296,141 @@ export const formatters: Formatters = {
       parameter_id,
       data_size,
     }) =>
-      `User [${user}] has sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] sent ${data_size} bytes of data to parameter [${parameter_id}] of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({
+      user,
+      db_service,
+      db_name,
+      statement_id,
+      parameter_id,
+      data_size,
+    }) => (
+      <Box>
+        <User user={user} /> sent {data_size} bytes of data to parameter{' '}
+        {parameter_id} of statement {statement_id} in database {db_name} on{' '}
+        {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_CLOSE]: {
     type: 'db.session.mysql.statements.close',
     desc: 'MySQL Statement Close',
     format: ({ user, db_service, db_name, statement_id }) =>
-      `User [${user}] has closed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] closed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, statement_id }) => (
+      <Box>
+        <User user={user} /> closed statement {statement_id} in database{' '}
+        {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_RESET]: {
     type: 'db.session.mysql.statements.reset',
     desc: 'MySQL Statement Reset',
     format: ({ user, db_service, db_name, statement_id }) =>
-      `User [${user}] has reset statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] reset statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, statement_id }) => (
+      <Box>
+        <User user={user} /> reset statement {statement_id} in database{' '}
+        {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_FETCH]: {
     type: 'db.session.mysql.statements.fetch',
     desc: 'MySQL Statement Fetch',
     format: ({ user, db_service, db_name, rows_count, statement_id }) =>
-      `User [${user}] has fetched ${rows_count} rows of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] fetched ${rows_count} rows of statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, rows_count, statement_id }) => (
+      <Box>
+        <User user={user} /> fetched {rows_count} rows of statement{' '}
+        {statement_id} in database {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_STATEMENT_BULK_EXECUTE]: {
     type: 'db.session.mysql.statements.bulk_execute',
     desc: 'MySQL Statement Bulk Execute',
     format: ({ user, db_service, db_name, statement_id }) =>
-      `User [${user}] has executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] executed statement [${statement_id}] in database [${db_name}] on [${db_service}]`,
+    render: ({ user, db_service, db_name, statement_id }) => (
+      <Box>
+        <User user={user} /> executed statement {statement_id} in database{' '}
+        {db_name} on {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_INIT_DB]: {
     type: 'db.session.mysql.init_db',
     desc: 'MySQL Change Database',
     format: ({ user, db_service, schema_name }) =>
-      `User [${user}] has changed default database to [${schema_name}] on [${db_service}]`,
+      `User [${user}] changed default database to [${schema_name}] on [${db_service}]`,
+    render: ({ user, db_service, schema_name }) => (
+      <Box>
+        <User user={user} /> changed the default database to {schema_name} on{' '}
+        {db_service}
+      </Box>
+    ),
   },
   [eventCodes.MYSQL_CREATE_DB]: {
     type: 'db.session.mysql.create_db',
     desc: 'MySQL Create Database',
     format: ({ user, db_service, schema_name }) =>
-      `User [${user}] has created database [${schema_name}] on [${db_service}]`,
+      `User [${user}] created database [${schema_name}] on [${db_service}]`,
+    render: ({ user, db_service, schema_name }) => (
+      <Box>
+        <User user={user} /> created database {schema_name} on {db_service}
+      </Box>
+    ),
   },
+  // TODO(zmb3) here here
   [eventCodes.MYSQL_DROP_DB]: {
     type: 'db.session.mysql.drop_db',
     desc: 'MySQL Drop Database',
     format: ({ user, db_service, schema_name }) =>
-      `User [${user}] has dropped database [${schema_name}] on [${db_service}]`,
+      `User [${user}] dropped database [${schema_name}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_SHUT_DOWN]: {
     type: 'db.session.mysql.shut_down',
     desc: 'MySQL Shut Down',
     format: ({ user, db_service }) =>
-      `User [${user}] has attempted to shut down [${db_service}]`,
+      `User [${user}] attempted to shut down [${db_service}]`,
   },
   [eventCodes.MYSQL_PROCESS_KILL]: {
     type: 'db.session.mysql.process_kill',
     desc: 'MySQL Kill Process',
     format: ({ user, db_service, process_id }) =>
-      `User [${user}] has attempted to kill process [${process_id}] on [${db_service}]`,
+      `User [${user}] attempted to kill process [${process_id}] on [${db_service}]`,
   },
   [eventCodes.MYSQL_DEBUG]: {
     type: 'db.session.mysql.debug',
     desc: 'MySQL Debug',
     format: ({ user, db_service }) =>
-      `User [${user}] has asked [${db_service}] to dump debug information`,
+      `User [${user}] asked [${db_service}] to dump debug information`,
   },
   [eventCodes.MYSQL_REFRESH]: {
     type: 'db.session.mysql.refresh',
     desc: 'MySQL Refresh',
     format: ({ user, db_service, subcommand }) =>
-      `User [${user}] has sent command [${subcommand}] to [${db_service}]`,
+      `User [${user}] sent command [${subcommand}] to [${db_service}]`,
   },
   [eventCodes.SQLSERVER_RPC_REQUEST]: {
     type: 'db.session.sqlserver.rpc_request',
     desc: 'SQLServer RPC Request',
     format: ({ user, db_service, db_name, proc_name }) =>
-      `User [${user}] has sent RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] sent RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.CASSANDRA_BATCH_EVENT]: {
     type: 'db.session.cassandra.batch',
     desc: 'Cassandra Batch',
     format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Batch to [${db_service}]`,
+      `User [${user}] sent Cassandra Batch to [${db_service}]`,
   },
   [eventCodes.CASSANDRA_PREPARE_EVENT]: {
     type: 'db.session.cassandra.prepare',
     desc: 'Cassandra Prepare Event',
     format: ({ user, db_service, query }) =>
-      `User [${user}] has sent Cassandra Prepare [${truncateStr(
+      `User [${user}] sent Cassandra Prepare [${truncateStr(
         query,
         80
       )}] to [${db_service}]`,
@@ -998,13 +1439,13 @@ export const formatters: Formatters = {
     type: 'db.session.cassandra.execute',
     desc: 'Cassandra Execute',
     format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Execute to [${db_service}]`,
+      `User [${user}] sent Cassandra Execute to [${db_service}]`,
   },
   [eventCodes.CASSANDRA_REGISTER_EVENT]: {
     type: 'db.session.cassandra.register',
     desc: 'Cassandra Register',
     format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Register to [${db_service}]`,
+      `User [${user}] sent Cassandra Register to [${db_service}]`,
   },
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
@@ -1030,7 +1471,7 @@ export const formatters: Formatters = {
     type: 'db.session.dynamodb.request',
     desc: 'DynamoDB Request',
     format: ({ user, db_service, target }) => {
-      let message = `User [${user}] has made a request to database [${db_service}]`;
+      let message = `User [${user}] made a request to database [${db_service}]`;
       if (target) {
         message += `, target API: [${target}]`;
       }
@@ -1063,22 +1504,22 @@ export const formatters: Formatters = {
   [eventCodes.BILLING_CARD_CREATE]: {
     type: 'billing.create_card',
     desc: 'Credit Card Added',
-    format: ({ user }) => `User [${user}] has added a credit card`,
+    format: ({ user }) => `User [${user}] added a credit card`,
   },
   [eventCodes.BILLING_CARD_DELETE]: {
     type: 'billing.delete_card',
     desc: 'Credit Card Deleted',
-    format: ({ user }) => `User [${user}] has deleted a credit card`,
+    format: ({ user }) => `User [${user}] deleted a credit card`,
   },
   [eventCodes.BILLING_CARD_UPDATE]: {
     type: 'billing.update_card',
     desc: 'Credit Card Updated',
-    format: ({ user }) => `User [${user}] has updated a credit card`,
+    format: ({ user }) => `User [${user}] updated a credit card`,
   },
   [eventCodes.BILLING_INFORMATION_UPDATE]: {
     type: 'billing.update_info',
     desc: 'Billing Information Updated',
-    format: ({ user }) => `User [${user}] has updated the billing information`,
+    format: ({ user }) => `User [${user}] updated the billing information`,
   },
   [eventCodes.LOCK_CREATED]: {
     type: 'lock.created',
@@ -1147,7 +1588,7 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session ${sid} for Windows desktop ${desktopMessage} ended for user [${user}]`;
       return message;
     },
   },
@@ -1204,32 +1645,32 @@ export const formatters: Formatters = {
     desc: 'Device Registered',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has registered a device`
-        : `User [${user}] has failed to register a device`,
+        ? `User [${user}] registered a device`
+        : `User [${user}] failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
     type: 'device.delete',
     desc: 'Device Deleted',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has deleted a device`
-        : `User [${user}] has failed to delete a device`,
+        ? `User [${user}] deleted a device`
+        : `User [${user}] failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
     type: 'device.authenticate',
     desc: 'Device Authenticated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has successfully authenticated their device`
-        : `User [${user}] has failed to authenticate their device`,
+        ? `User [${user}] successfully authenticated their device`
+        : `User [${user}] failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
     type: 'device.enroll',
     desc: 'Device Enrolled',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has successfully enrolled their device`
-        : `User [${user}] has failed to enroll their device`,
+        ? `User [${user}] successfully enrolled their device`
+        : `User [${user}] failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
     type: 'device.token.create',
@@ -1237,45 +1678,45 @@ export const formatters: Formatters = {
     format: ({ user, status, success }) =>
       success || (status && status.success)
         ? `User [${user}] created a device enroll token`
-        : `User [${user}] has failed to create a device enroll token`,
+        : `User [${user}] failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
     type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has spent a device enroll token`
-        : `User [${user}] has failed to spend a device enroll token`,
+        ? `User [${user}] spent a device enroll token`
+        : `User [${user}] failed to spend a device enroll token`,
   },
   [eventCodes.DEVICE_UPDATE]: {
     type: 'device.update',
     desc: 'Device Updated',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has updated a device`
-        : `User [${user}] has failed to update a device`,
+        ? `User [${user}] updated a device`
+        : `User [${user}] failed to update a device`,
   },
   [eventCodes.DEVICE_WEB_TOKEN_CREATE]: {
     type: 'device.webtoken.create',
     desc: 'Device Web Token Created',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has issued a device web token`
-        : `User [${user}] has failed to issue a device web token`,
+        ? `User [${user}] issued a device web token`
+        : `User [${user}] failed to issue a device web token`,
   },
   [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
     type: 'device.authenticate.confirm',
     desc: 'Device Web Authentication Confirmed',
     format: ({ user, status, success }) =>
       success || (status && status.success)
-        ? `User [${user}] has confirmed device web authentication`
-        : `User [${user}] has failed to confirm device web authentication`,
+        ? `User [${user}] confirmed device web authentication`
+        : `User [${user}] failed to confirm device web authentication`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
     format: ({ user }) =>
-      `User [${user}] has requested x11 forwarding for a session`,
+      `User [${user}] requested x11 forwarding for a session`,
   },
   [eventCodes.X11_FORWARD_FAILURE]: {
     type: 'x11-forward',
@@ -1296,6 +1737,20 @@ export const formatters: Formatters = {
         return `User certificate issued for [${user}]`;
       }
       return `Certificate of type [${cert_type}] issued for [${user}]`;
+    },
+    render: ({ cert_type, identity: { user } }) => {
+      if (cert_type === 'user') {
+        return (
+          <Box>
+            User certificate issued for <User user={user} />
+          </Box>
+        );
+      }
+      return (
+        <>
+          Certificate of type {cert_type} issued for <User user={user} />
+        </>
+      );
     },
   },
   [eventCodes.UPGRADE_WINDOW_UPDATED]: {
@@ -1471,27 +1926,27 @@ export const formatters: Formatters = {
   },
   [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
     type: 'okta.assignment.process',
-    desc: 'Okta assignment has been processed',
+    desc: 'Okta assignment processed',
     format: ({ name, source, user }) =>
-      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully processed`,
+      `Okta assignment [${name}], source [${source}], user [${user}] successfully processed`,
   },
   [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: {
     type: 'okta.assignment.process',
     desc: 'Okta assignment failed to process',
     format: ({ name, source, user }) =>
-      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
+      `Okta assignment [${name}], source [${source}], user [${user}] processing failed`,
   },
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
     type: 'okta.assignment.cleanup',
-    desc: 'Okta assignment has been cleaned up',
+    desc: 'Okta assignment cleaned up',
     format: ({ name, source, user }) =>
-      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully cleaned up`,
+      `Okta assignment [${name}], source [${source}], user [${user}] successfully cleaned up`,
   },
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: {
     type: 'okta.assignment.cleanup',
     desc: 'Okta assignment failed to clean up',
     format: ({ name, source, user }) =>
-      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup failed`,
   },
   [eventCodes.OKTA_USER_SYNC]: {
     type: 'okta.user.sync',
@@ -1719,22 +2174,37 @@ export const formatters: Formatters = {
     type: 'discovery_config.create',
     desc: 'Discovery Config Created',
     format: ({ user, name }) => {
-      return `User [${user}] created a discovery config [${name}]`;
+      return `User [${user}] created discovery config [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created discovery config {name}
+      </Box>
+    ),
   },
   [eventCodes.DISCOVERY_CONFIG_UPDATE]: {
     type: 'discovery_config.update',
     desc: 'Discovery Config Updated',
     format: ({ user, name }) => {
-      return `User [${user}] updated a discovery config [${name}]`;
+      return `User [${user}] updated discovery config [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated discovery config {name}
+      </Box>
+    ),
   },
   [eventCodes.DISCOVERY_CONFIG_DELETE]: {
     type: 'discovery_config.delete',
     desc: 'Discovery Config Deleted',
     format: ({ user, name }) => {
-      return `User [${user}] deleted a discovery config [${name}]`;
+      return `User [${user}] deleted discovery config [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted discovery config {name}
+      </Box>
+    ),
   },
   [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: {
     type: 'discovery_config.delete_all',
@@ -1742,6 +2212,11 @@ export const formatters: Formatters = {
     format: ({ user }) => {
       return `User [${user}] deleted all discovery configs`;
     },
+    render: ({ user }) => (
+      <Box>
+        <User user={user} /> deleted all discovery configs
+      </Box>
+    ),
   },
   [eventCodes.INTEGRATION_CREATE]: {
     type: 'integration.create',
@@ -1749,6 +2224,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] created an integration [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created integration {name}
+      </Box>
+    ),
   },
   [eventCodes.INTEGRATION_UPDATE]: {
     type: 'integration.update',
@@ -1756,6 +2236,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] updated an integration [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated integration {name}
+      </Box>
+    ),
   },
   [eventCodes.INTEGRATION_DELETE]: {
     type: 'integration.delete',
@@ -1763,6 +2248,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] deleted an integration [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted integration {name}
+      </Box>
+    ),
   },
   [eventCodes.STATIC_HOST_USER_CREATE]: {
     type: 'static_host_user.create',
@@ -1770,6 +2260,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] created a static host user [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created static host user {name}
+      </Box>
+    ),
   },
   [eventCodes.STATIC_HOST_USER_UPDATE]: {
     type: 'static_host_user.update',
@@ -1777,6 +2272,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] updated a static host user [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated static host user {name}
+      </Box>
+    ),
   },
   [eventCodes.STATIC_HOST_USER_DELETE]: {
     type: 'static_host_user.delete',
@@ -1784,6 +2284,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] deleted a static host user [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted static host user {name}
+      </Box>
+    ),
   },
   [eventCodes.CROWN_JEWEL_CREATE]: {
     type: 'access_graph.crown_jewel.create',
@@ -1791,6 +2296,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] created a crown jewel [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created crown jewel {name}
+      </Box>
+    ),
   },
   [eventCodes.CROWN_JEWEL_UPDATE]: {
     type: 'access_graph.crown_jewel.update',
@@ -1798,6 +2308,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] updated a crown jewel [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated crown jewel {name}
+      </Box>
+    ),
   },
   [eventCodes.CROWN_JEWEL_DELETE]: {
     type: 'access_graph.crown_jewel.delete',
@@ -1805,6 +2320,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] deleted a crown jewel [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted crown jewel {name}
+      </Box>
+    ),
   },
   [eventCodes.USER_TASK_CREATE]: {
     type: 'user_task.create',
@@ -1812,6 +2332,11 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] created a user task [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> created user task {name}
+      </Box>
+    ),
   },
   [eventCodes.USER_TASK_UPDATE]: {
     type: 'user_task.update',
@@ -1819,13 +2344,23 @@ export const formatters: Formatters = {
     format: ({ user, name }) => {
       return `User [${user}] updated a user task [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> updated user task {name}
+      </Box>
+    ),
   },
   [eventCodes.USER_TASK_DELETE]: {
     type: 'user_task.delete',
     desc: 'User Task Deleted',
     format: ({ user, name }) => {
-      return `User [${user}] deleted a user task [${name}]`;
+      return `User [${user}] deleted user task [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted user task {name}
+      </Box>
+    ),
   },
   [eventCodes.SFTP_SUMMARY]: {
     type: 'sftp_summary',
@@ -1833,6 +2368,11 @@ export const formatters: Formatters = {
     format: ({ user, server_hostname }) => {
       return `User [${user}] completed a file transfer on [${server_hostname}]`;
     },
+    render: ({ user, server_hostname }) => (
+      <Box>
+        <User user={user} /> completed a file transfer on {server_hostname}
+      </Box>
+    ),
   },
   [eventCodes.PLUGIN_CREATE]: {
     type: 'plugin.create',
@@ -1840,6 +2380,11 @@ export const formatters: Formatters = {
     format: ({ user, name, plugin_type }) => {
       return `User [${user}] created a plugin [${name}] of type [${plugin_type}]`;
     },
+    render: ({ user, name, plugin_type }) => (
+      <Box>
+        <User user={user} /> created {plugin_type} plugin {name}
+      </Box>
+    ),
   },
   [eventCodes.PLUGIN_UPDATE]: {
     type: 'plugin.update',
@@ -1847,13 +2392,23 @@ export const formatters: Formatters = {
     format: ({ user, name, plugin_type }) => {
       return `User [${user}] updated a plugin [${name}] of type [${plugin_type}]`;
     },
+    render: ({ user, name, plugin_type }) => (
+      <Box>
+        <User user={user} /> updated {plugin_type} plugin {name}
+      </Box>
+    ),
   },
   [eventCodes.PLUGIN_DELETE]: {
     type: 'plugin.delete',
     desc: 'Plugin Deleted',
     format: ({ user, name }) => {
-      return `User [${user}] deleted a plugin [${name}]`;
+      return `User [${user}] deleted plugin [${name}]`;
     },
+    render: ({ user, name }) => (
+      <Box>
+        <User user={user} /> deleted plugin {name}
+      </Box>
+    ),
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
@@ -1862,6 +2417,25 @@ export const formatters: Formatters = {
       `Unknown '${unknown_type}' event (${unknown_code})`,
   },
 };
+
+function User({ user }: { user: string }) {
+  return IconText({ text: user, Icon: Icons.User });
+}
+
+function IconText({ text, Icon }: { text: string; Icon: React.Component }) {
+  return (
+    <InlineFlex>
+      <Icon size="small" />
+      <b>{text}</b>
+    </InlineFlex>
+  );
+}
+
+const InlineFlex = styled.div`
+  display: inline-flex;
+  vertical-align: top;
+  gap: ${p => p.theme.space[1]}px;
+`;
 
 const unknownFormatter = {
   desc: 'Unknown',
@@ -1879,6 +2453,7 @@ export default function makeEvent(json: any): Event {
     user: json.user,
     time: new Date(json.time),
     raw: json,
+    render: formatter.render,
   };
 }
 
