@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -385,7 +386,7 @@ describe('addMetadataGeneric: onchange with errors', () => {
       } else {
         expect(screen.getByText(error)).toBeInTheDocument();
       }
-      validator.reset();
+      act(() => validator.reset());
     }
   );
 });
