@@ -312,10 +312,6 @@ function NewRequest(props: State) {
                 <ServersideSearchPanel
                   params={agentFilter}
                   setParams={setAgentFilter}
-                  // the following two parameters aren't needed as we don't need url
-                  // filtering to work inside access requests so we can no-op them
-                  pathname={''}
-                  replaceHistory={() => {}}
                 />
               </Flex>
             }
