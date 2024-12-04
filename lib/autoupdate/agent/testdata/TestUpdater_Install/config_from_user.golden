@@ -7,5 +7,7 @@ spec:
     enabled: true
     pinned: false
 status:
-    active_version: new-version
-    backup_version: old-version
+    active:
+        version: new-version
+    backup:
+        version: old-version

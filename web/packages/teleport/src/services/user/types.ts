@@ -107,6 +107,7 @@ export interface Acl {
   accessGraph: Access;
   bots: Access;
   accessMonitoringRule: Access;
+  contacts: Access;
 }
 
 // AllTraits represent all the traits defined for a user.

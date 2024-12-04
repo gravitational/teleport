@@ -116,6 +116,8 @@ type UserACL struct {
 	AccessGraphSettings ResourceAccess `json:"accessGraphSettings"`
 	// ReviewRequests defines the ability to review requests
 	ReviewRequests bool `json:"reviewRequests"`
+	// Contact defines the ability to manage contacts
+	Contact ResourceAccess `json:"contact"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -216,6 +218,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
 	}
 
+	contact := newAccess(userRoles, ctx, types.KindContact)
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -257,5 +261,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
 		AccessGraphSettings:     accessGraphSettings,
+		Contact:                 contact,
 	}
 }
