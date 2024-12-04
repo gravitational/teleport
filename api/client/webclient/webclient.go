@@ -48,6 +48,11 @@ import (
 )
 
 const (
+	// AgentUpdateGroupParameter is the parameter used to specify the updater
+	// group when doing a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified group. e.g. some groups might need to update
+	// before others.
 	AgentUpdateGroupParameter = "group"
 )
 

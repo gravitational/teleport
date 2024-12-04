@@ -70,7 +70,7 @@ func (h *Handler) autoUpdateAgentShouldUpdate(ctx context.Context, group, update
 			return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
 		}
 		// Something is broken, we don't want to fallback to channels, this would be harmful.
-		return false, trace.Wrap(err, "Failed to get auto-update rollout")
+		return false, trace.Wrap(err, "failed to get auto-update rollout")
 	}
 
 	return getTriggerFromRollout(rollout, group, updaterUUID)
@@ -115,7 +115,7 @@ func getVersionFromRollout(
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return rollout.GetSpec().GetTargetVersion(), nil
 	default:
-		return "", trace.NotImplemented("Unsupported group state %q", group.GetState())
+		return "", trace.NotImplemented("unsupported group state %q", group.GetState())
 	}
 }
 
@@ -208,10 +208,8 @@ func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName
 	})
 
 	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
-	if err == nil {
-		if cmc.WithinUpgradeWindow(h.clock.Now()) {
-			return true, nil
-		}
+	if err == nil && cmc.WithinUpgradeWindow(h.clock.Now()) {
+		return true, nil
 	}
 
 	return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
