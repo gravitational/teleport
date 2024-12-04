@@ -199,6 +199,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -553,6 +554,7 @@ type Cache struct {
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
+	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
 
 	// closed indicates that the cache has been closed
@@ -788,6 +790,8 @@ type Config struct {
 
 	// IdentityCenter is the upstream Identity Center service that we're caching
 	IdentityCenter services.IdentityCenter
+	// PluginStaticCredentials is the plugin static credentials services
+	PluginStaticCredentials services.PluginStaticCredentials
 
 	// GitServers is the Git serever service.
 	GitServers services.GitServerGetter
@@ -1030,6 +1034,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	gitServersCache, err := local.NewGitServerService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1083,6 +1093,7 @@ func New(config Config) (*Cache, error) {
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
+		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
@@ -3572,6 +3583,19 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	defer rg.Release()
 
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
 }
 
 // ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments

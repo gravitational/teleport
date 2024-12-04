@@ -49,6 +49,11 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
+// IntegrationGitHub contains the specific fields for the `github` subkind integration.
+type IntegrationGitHub struct {
+	Organization string `json:"organization"`
+}
+
 // CheckAndSetDefaults for the aws oidc integration spec.
 func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	if r.RoleARN == "" {
@@ -104,6 +109,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// GitHub contains the fields for `github` subkind integration.
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -119,6 +126,16 @@ func (r *Integration) CheckAndSetDefaults() error {
 
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	switch r.SubKind {
+	case types.IntegrationSubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing spec for GitHub integrations")
+		}
+		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -194,6 +211,14 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+		}
+	case types.IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for GitHub integrations")
+		}
+		ret.GitHub = &IntegrationGitHub{
+			Organization: spec.Organization,
 		}
 	}
 

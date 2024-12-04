@@ -17,17 +17,19 @@
  */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
 
 import styled, { useTheme } from 'styled-components';
-import { P } from 'design/Text/Text';
-import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { ToolTipInfo } from './ToolTip';
+import { Text, Flex, ButtonPrimary } from 'design';
+import { P } from 'design/Text/Text';
+import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
+
+import { IconTooltip } from './IconTooltip';
 import { HoverTooltip } from './HoverTooltip';
 
 export default {
-  title: 'Shared/ToolTip',
+  title: 'Design/Tooltip',
 };
 
 export const ShortContent = () => (
@@ -36,25 +38,25 @@ export const ShortContent = () => (
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="bottom">"some popover content"</ToolTipInfo>
+      <IconTooltip position="bottom">"some popover content"</IconTooltip>
     </div>
     <div style={{ gridColumn: '1/2' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="right">"some popover content"</ToolTipInfo>
+      <IconTooltip position="right">"some popover content"</IconTooltip>
     </div>
     <div style={{ gridColumn: '3/4' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="left">"some popover content"</ToolTipInfo>
+      <IconTooltip position="left">"some popover content"</IconTooltip>
     </div>
     <div style={{ gridColumn: '2/3' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <ToolTipInfo position="top">"some popover content"</ToolTipInfo>
+      <IconTooltip position="top">"some popover content"</IconTooltip>
     </div>
   </Grid>
 );
@@ -65,13 +67,18 @@ const Grid = styled.div`
   grid-template-rows: repeat(3, 100px);
 `;
 
+const logos = {
+  light: AGPLLogoLight,
+  dark: AGPLLogoDark,
+};
+
 export const LongContent = () => {
   const theme = useTheme();
   return (
     <>
       <Flex alignItems="center" mb={3}>
         <Text mr={1}>Hover the icon</Text>
-        <ToolTipInfo>
+        <IconTooltip>
           <P>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
             eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
@@ -84,7 +91,7 @@ export const LongContent = () => {
             cupidatat non proident, sunt in culpa qui officia deserunt mollit
             anim id est laborum.
           </P>
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
       <P>
         Here's some content that shouldn't interfere with the semi-transparent
@@ -92,7 +99,7 @@ export const LongContent = () => {
       </P>
       <P>
         <div style={{ float: 'left', margin: '0 10px 10px 0' }}>
-          <img src={logos.oss[theme.type]} style={{ float: 'left' }} />
+          <img src={logos[theme.type]} style={{ float: 'left' }} />
         </div>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -113,7 +120,7 @@ export const WithMutedIconColor = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo muteIconColor>"some popover content"</ToolTipInfo>
+    <IconTooltip muteIconColor>"some popover content"</IconTooltip>
   </>
 );
 
@@ -122,7 +129,7 @@ export const WithKindWarning = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo kind="warning">"some popover content"</ToolTipInfo>
+    <IconTooltip kind="warning">"some popover content"</IconTooltip>
   </>
 );
 
@@ -131,7 +138,7 @@ export const WithKindError = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <ToolTipInfo kind="error">"some popover content"</ToolTipInfo>
+    <IconTooltip kind="error">"some popover content"</IconTooltip>
   </>
 );
 

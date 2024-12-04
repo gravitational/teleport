@@ -176,6 +176,7 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
 }
 
@@ -784,6 +785,20 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
+
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
 
 		case types.KindGitServer:
 			if c.GitServers == nil {

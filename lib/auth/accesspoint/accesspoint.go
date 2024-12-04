@@ -108,6 +108,7 @@ type Config struct {
 	AutoUpdateService       services.AutoUpdateServiceGetter
 	ProvisioningStates      services.ProvisioningStates
 	IdentityCenter          services.IdentityCenter
+	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
 }
 
@@ -206,6 +207,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
 		ProvisioningStates:      cfg.ProvisioningStates,
 		IdentityCenter:          cfg.IdentityCenter,
+		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
 	}
 

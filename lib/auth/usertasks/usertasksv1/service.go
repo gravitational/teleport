@@ -160,7 +160,7 @@ func (s *Service) emitCreateAuditEvent(ctx context.Context, req *usertasksv1.Use
 func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserTaskStateEvent {
 	ret := &usagereporter.UserTaskStateEvent{
 		TaskType:  ut.GetSpec().GetTaskType(),
-		IssueType: ut.GetSpec().GetTaskType(),
+		IssueType: ut.GetSpec().GetIssueType(),
 		State:     ut.GetSpec().GetState(),
 	}
 	if ut.GetSpec().GetTaskType() == usertasks.TaskTypeDiscoverEC2 {
