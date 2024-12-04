@@ -3,7 +3,7 @@ import React from 'react';
 import { ScheduleUpgrades, Props } from './ScheduleUpgrades';
 
 export default {
-  title: 'Teleport/Support/ScheduleUpgrades',
+  title: 'Teleport/Clusters/ManageClusters/ScheduleUpgrades',
 };
 
 export const Loaded = () => {

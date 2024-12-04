@@ -26,9 +26,10 @@ import { ClusterInfo } from 'teleport/services/clusters';
 import { Alert } from 'design/Alert';
 
 import { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
-import { ScheduleUpgrades } from 'e-teleport/Support/ScheduleUpgrades/ScheduleUpgrades';
-import { useUpgradeWindowStart } from 'e-teleport/Support/useUpgradeWindowStart';
 import useTeleportE from 'e-teleport/useTeleportE';
+
+import { useUpgradeWindowStart } from './useUpgradeWindowStart';
+import { ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
 
 export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);
@@ -174,7 +175,6 @@ function ScheduledUpgrades({
           )}
         </Row>
       </MultiRowBox>
-      {/* TODO(mcbattirola): move scheduleupgrades component to this package */}
       {showScheduleUpgrade && (
         <ScheduleUpgrades
           onSave={onUpdate}
