@@ -74,9 +74,9 @@ FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
 
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
-LICENSE="Apache-2.0"
+LICENSE="AGPL-3.0-or-later"
 VENDOR="Gravitational"
-DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
+DESCRIPTION="Teleport provides on-demand, least-privileged access to your infrastructure, on a foundation of cryptographic identity and zero trust, with built-in identity and policy governance"
 DOCS_URL="https://goteleport.com/docs"
 
 # check that curl is installed
