@@ -92,6 +92,7 @@ Optional:
 - `proxy_ids` (List of String) ProxyIDs is a list of proxy IDs this server is expected to be connected to.
 - `public_addrs` (List of String) PublicAddrs is a list of public addresses where this server can be reached.
 - `rotation` (Attributes) Rotation specifies server rotation (see [below for nested schema](#nested-schema-for-specrotation))
+- `use_pam_auth` (Boolean) UsePAMAuth specifies if this server is configured to use interactive PAM authentication modules. Only applies to OpenSSH servers.
 - `use_tunnel` (Boolean) UseTunnel indicates that connections to this server should occur over a reverse tunnel.
 - `version` (String) TeleportVersion is the teleport version that the server is running on
 

@@ -871,6 +871,9 @@ message ServerSpecV2 {
   // GitHub contains info about GitHub proxies where each server represents a
   // GitHub organization.
   GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
+  // UsePAMAuth specifies if this server is configured to use interactive PAM
+  // authentication modules. Only applies to OpenSSH servers.
+  bool UsePAMAuth = 16 [(gogoproto.jsontag) = "use_pam_auth,omitempty"];
 
   reserved 8;
   reserved 10;

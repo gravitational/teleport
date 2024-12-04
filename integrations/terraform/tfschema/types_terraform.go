@@ -753,6 +753,11 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Description: "Rotation specifies server rotation",
 					Optional:    true,
 				},
+				"use_pam_auth": {
+					Description: "UsePAMAuth specifies if this server is configured to use interactive PAM authentication modules. Only applies to OpenSSH servers.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
 				"use_tunnel": {
 					Description: "UseTunnel indicates that connections to this server should occur over a reverse tunnel.",
 					Optional:    true,
@@ -9022,6 +9027,23 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["use_pam_auth"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.UsePAMAuth"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.UsePAMAuth", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.UsePAMAuth = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -10088,6 +10110,28 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 								v.Unknown = false
 								tf.Attrs["github"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["use_pam_auth"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.UsePAMAuth"})
+						} else {
+							v, ok := tf.Attrs["use_pam_auth"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ServerV2.Spec.UsePAMAuth", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.UsePAMAuth", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.UsePAMAuth) == false
+							}
+							v.Value = bool(obj.UsePAMAuth)
+							v.Unknown = false
+							tf.Attrs["use_pam_auth"] = v
 						}
 					}
 				}

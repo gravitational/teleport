@@ -543,29 +543,122 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
 }
 
+func (s *Server) keyboardInteractiveCallback(ctx context.Context, netConfig types.ClusterNetworkingConfig, user string, perms *ssh.Permissions) func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	type kbdResult struct {
+		clt *tracessh.Client
+		err error
+	}
+
+	type prompt struct {
+		instruction string
+		questions   []string
+		echos       []bool
+	}
+
+	type response struct {
+		answers []string
+		err     error
+	}
+	promptC := make(chan prompt)
+	responseC := make(chan response)
+	resultC := make(chan kbdResult)
+	go func() {
+		defer func() {
+			close(responseC)
+			close(promptC)
+		}()
+
+		clt, err := s.newRemoteClient(ctx, user, netConfig, func(name, instruction string, questions []string, echos []bool) (answers []string, err error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case promptC <- prompt{instruction: instruction, questions: questions, echos: echos}:
+			}
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case r := <-responseC:
+				return r.answers, r.err
+			}
+		})
+
+		select {
+		case resultC <- kbdResult{
+			clt: clt,
+			err: err,
+		}:
+		case <-ctx.Done():
+			if clt != nil {
+				_ = clt.Close()
+			}
+
+			resultC <- kbdResult{err: ctx.Err()}
+			return
+		}
+	}()
+
+	return func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+		for {
+			select {
+			case p := <-promptC:
+				answers, err := client(conn.User(), p.instruction, p.questions, p.echos)
+				responseC <- response{answers, err}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			case res := <-resultC:
+				if res.err != nil {
+					return nil, res.err
+				}
+
+				s.remoteClient = res.clt
+				return perms, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+}
+
 func (s *Server) Serve() {
-	var (
-		succeeded bool
-		config    = &ssh.ServerConfig{}
-	)
-
-	// Configure callback for user certificate authentication.
-	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
-
-	// Set host certificate the in-memory server will present to clients.
-	config.AddHostKey(s.hostCertificate)
-
-	// Set the ciphers, KEX, and MACs that the client will send to the target
-	// server in its SSH_MSG_KEXINIT.
-	config.Ciphers = s.ciphers
-	config.KeyExchanges = s.kexAlgorithms
-	config.MACs = s.macAlgorithms
+	var succeeded bool
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.log.Errorf("Unable to fetch cluster config: %v.", err)
 		return
 	}
+
+	ctx := s.closeContext
+	config := &ssh.ServerConfig{
+		Config: ssh.Config{
+			// Set the ciphers, KEX, and MACs that the client will send to the target
+			// server in its SSH_MSG_KEXINIT.
+			Ciphers:      s.ciphers,
+			KeyExchanges: s.kexAlgorithms,
+			MACs:         s.macAlgorithms,
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			perms, err := s.authHandlers.UserKeyAuth(conn, key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if s.targetServer == nil || !s.targetServer.UsePAMAuth() {
+				return perms, nil
+			}
+
+			return nil, &ssh.PartialSuccessError{
+				Next: ssh.ServerAuthCallbacks{
+					KeyboardInteractiveCallback: s.keyboardInteractiveCallback(ctx, netConfig, conn.User(), perms),
+				},
+			}
+		},
+	}
+
+	// Set host certificate the in-memory server will present to clients.
+	config.AddHostKey(s.hostCertificate)
 
 	s.log.Debugf("Supported ciphers: %q.", s.ciphers)
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
@@ -592,7 +685,23 @@ func (s *Server) Serve() {
 	}
 	s.sconn = sconn
 
-	ctx := context.Background()
+	// The remote client may have already been constructed during the SSH
+	// handshake if using keyboard-interactive auth.
+	if s.remoteClient == nil {
+		rc, err := s.newRemoteClient(ctx, sconn.User(), netConfig, nil)
+		if err != nil {
+			// Reject the connection with an error so the client doesn't hang then
+			// close the connection.
+			s.rejectChannel(chans, err.Error())
+			sconn.Close()
+
+			s.log.Errorf("Unable to create remote connection: %v", err)
+			return
+		}
+
+		s.remoteClient = rc
+	}
+
 	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn, sshutils.SetConnectionContextClock(s.clock))
 
 	// Take connection and extract identity information for the user from it.
@@ -624,19 +733,6 @@ func (s *Server) Serve() {
 
 			s.agentlessSigner = sshSigner
 		}
-	}
-
-	// Connect and authenticate to the remote node.
-	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
-	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User(), netConfig)
-	if err != nil {
-		// Reject the connection with an error so the client doesn't hang then
-		// close the connection.
-		s.rejectChannel(chans, err.Error())
-		sconn.Close()
-
-		s.log.Errorf("Unable to create remote connection: %v", err)
-		return
 	}
 
 	// Once the client and server connections are established, ensure we forward
@@ -755,7 +851,9 @@ func (s *Server) Close() error {
 
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig, kbdCB ssh.KeyboardInteractiveChallenge) (*tracessh.Client, error) {
+	s.log.Debugf("Creating remote connection to %s@%s", systemLogin, s.clientConn.RemoteAddr())
+
 	// the proxy will use the agentless signer as the auth method when
 	// connecting to the remote host if it is available, otherwise the
 	// forwarded agent is used
@@ -769,13 +867,18 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 			return nil, trace.Wrap(err)
 		}
 	}
-	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
+
+	authMethods := []ssh.AuthMethod{
+		ssh.PublicKeysCallback(signersWithSHA1Fallback(signers)),
+	}
+
+	if kbdCB != nil {
+		authMethods = append(authMethods, ssh.RetryableAuthMethod(ssh.KeyboardInteractive(kbdCB), 0))
+	}
 
 	clientConfig := &ssh.ClientConfig{
-		User: systemLogin,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
+		User:            systemLogin,
+		Auth:            authMethods,
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),
 	}

@@ -97,6 +97,11 @@ type Server interface {
 	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
 	IsEICE() bool
 
+	// UsePAMAuth returns whether the Node is required to use
+	// PAM authentication modules. This only applies to SubKindOpenSSHNode, all
+	// other types will always return false.
+	UsePAMAuth() bool
+
 	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
@@ -417,6 +422,12 @@ func (s *ServerV2) setStaticFields() {
 // This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
 	return IsOpenSSHNodeSubKind(s.SubKind)
+}
+
+// UsePAMAuth returns whether the Node is required to use
+// PAM authentication modules.
+func (s *ServerV2) UsePAMAuth() bool {
+	return s.SubKind == SubKindOpenSSHNode && s.Spec.UsePAMAuth
 }
 
 // IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
