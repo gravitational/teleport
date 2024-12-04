@@ -7671,11 +7671,9 @@ message ContactDelete {
   ContactType ContactType = 7 [(gogoproto.jsontag) = "contact_type"];
 }
 
-// TODO comments
+// ContactType is the type of contact being added.
 enum ContactType {
   CONTACT_TYPE_UNSPECIFIED = 0;
-
   CONTACT_TYPE_BUSINESS = 1;
-
   CONTACT_TYPE_SECURITY = 2;
 }
