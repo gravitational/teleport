@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	// crashMonitorInterval is the polling interval for determining restart times from LastRestartPath.
+	// crashMonitorInterval is the polling interval for determining restart times from PIDFile.
 	crashMonitorInterval = 2 * time.Second
-	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detect
+	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detected
 	// before the service is determined stable.
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
@@ -298,14 +298,14 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
-		return false, trace.Errorf("unable to determine if systemd service %q is enabled", s.ServiceName)
+		return false, trace.Errorf("unable to determine if systemd service %s is enabled", s.ServiceName)
 	case code == 0:
 		return true, nil
 	}
 	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
-		return false, trace.Errorf("unable to determine if systemd service %q is active", s.ServiceName)
+		return false, trace.Errorf("unable to determine if systemd service %s is active", s.ServiceName)
 	case code == 0:
 		return true, nil
 	}

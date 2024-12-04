@@ -227,10 +227,10 @@ func TestUpdater_Update(t *testing.T) {
 		setupErr   error
 		reloadErr  error
 
-		removedVersions   []string
-		installedVersion  string
+		removedRevisions  []Revision
+		installedRevision Revision
 		installedTemplate string
-		linkedVersion     string
+		linkedRevision    Revision
 		requestGroup      string
 		reloadCalls       int
 		revertCalls       int
@@ -248,15 +248,15 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 			inWindow: true,
 
-			removedVersions:   []string{"unknown-version"},
-			installedVersion:  "16.3.0",
+			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -272,7 +272,7 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     false,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 			inWindow: true,
@@ -288,7 +288,7 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 			requestGroup: "group",
@@ -304,7 +304,7 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     false,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 		},
@@ -334,7 +334,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow:   true,
 			installErr: errors.New("install error"),
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
 			errMatch:          "install error",
 		},
@@ -348,7 +348,7 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "16.3.0",
+					Active: NewRevision("16.3.0", 0),
 				},
 			},
 			inWindow: true,
@@ -363,7 +363,7 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "16.3.0",
+					Active: NewRevision("16.3.0", 0),
 				},
 			},
 		},
@@ -377,18 +377,21 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 			inWindow: true,
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
-			removedVersions:   []string{"backup-version", "unknown-version"},
-			reloadCalls:       1,
-			setupCalls:        1,
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevisions: []Revision{
+				NewRevision("backup-version", 0),
+				NewRevision("unknown-version", 0),
+			},
+			reloadCalls: 1,
+			setupCalls:  1,
 		},
 		{
 			name: "backup version kept when no change",
@@ -400,8 +403,8 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "16.3.0",
-					BackupVersion: "backup-version",
+					Active: NewRevision("16.3.0", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 			inWindow: true,
@@ -419,19 +422,22 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", FlagEnterprise|FlagFIPS),
+					Backup: toPtr(NewRevision("backup-version", FlagEnterprise|FlagFIPS)),
 				},
 			},
 			inWindow: true,
 			flags:    FlagEnterprise | FlagFIPS,
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
-			removedVersions:   []string{"backup-version", "unknown-version"},
-			reloadCalls:       1,
-			setupCalls:        1,
+			linkedRevision:    NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
+			removedRevisions: []Revision{
+				NewRevision("backup-version", FlagEnterprise|FlagFIPS),
+				NewRevision("unknown-version", 0),
+			},
+			reloadCalls: 1,
+			setupCalls:  1,
 		},
 		{
 			name:     "invalid metadata",
@@ -448,21 +454,23 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 			inWindow: true,
 			setupErr: errors.New("setup error"),
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
-			removedVersions:   []string{"backup-version"},
-			reloadCalls:       0,
-			revertCalls:       1,
-			setupCalls:        1,
-			errMatch:          "setup error",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevisions: []Revision{
+				NewRevision("backup-version", 0),
+			},
+			reloadCalls: 0,
+			revertCalls: 1,
+			setupCalls:  1,
+			errMatch:    "setup error",
 		},
 		{
 			name: "reload fails",
@@ -474,21 +482,23 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 			inWindow:  true,
 			reloadErr: errors.New("reload error"),
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
-			removedVersions:   []string{"backup-version"},
-			reloadCalls:       2,
-			revertCalls:       1,
-			setupCalls:        1,
-			errMatch:          "reload error",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevisions: []Revision{
+				NewRevision("backup-version", 0),
+			},
+			reloadCalls: 2,
+			revertCalls: 1,
+			setupCalls:  1,
+			errMatch:    "reload error",
 		},
 		{
 			name: "skip version",
@@ -500,9 +510,9 @@ func TestUpdater_Update(t *testing.T) {
 					Enabled:     true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
-					SkipVersion:   "16.3.0",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
+					Skip:   toPtr(NewRevision("16.3.0", 0)),
 				},
 			},
 			inWindow: true,
@@ -518,8 +528,8 @@ func TestUpdater_Update(t *testing.T) {
 					Pinned:      true,
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 			inWindow: true,
@@ -567,39 +577,37 @@ func TestUpdater_Update(t *testing.T) {
 			}
 
 			var (
-				installedVersion  string
+				installedRevision Revision
 				installedTemplate string
-				linkedVersion     string
-				removedVersions   []string
-				installedFlags    InstallFlags
+				linkedRevision    Revision
+				removedRevisions  []Revision
 				revertFuncCalls   int
 				setupCalls        int
 				revertSetupCalls  int
 				reloadCalls       int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
-					installedVersion = version
+				FuncInstall: func(_ context.Context, rev Revision, template string) error {
+					installedRevision = rev
 					installedTemplate = template
-					installedFlags = flags
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
-					linkedVersion = version
+				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
 						return true
 					}, nil
 				},
-				FuncList: func(_ context.Context) (versions []string, err error) {
-					return slices.Compact([]string{
-						installedVersion,
-						tt.cfg.Status.ActiveVersion,
-						"unknown-version",
+				FuncList: func(_ context.Context) (revs []Revision, err error) {
+					return slices.Compact([]Revision{
+						installedRevision,
+						tt.cfg.Status.Active,
+						NewRevision("unknown-version", 0),
 					}), nil
 				},
-				FuncRemove: func(_ context.Context, version string) error {
-					removedVersions = append(removedVersions, version)
+				FuncRemove: func(_ context.Context, rev Revision) error {
+					removedRevisions = append(removedRevisions, rev)
 					return nil
 				},
 			}
@@ -626,11 +634,11 @@ func TestUpdater_Update(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.installedVersion, installedVersion)
+			require.Equal(t, tt.installedRevision, installedRevision)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.linkedVersion, linkedVersion)
-			require.Equal(t, tt.removedVersions, removedVersions)
-			require.Equal(t, tt.flags, installedFlags)
+			require.Equal(t, tt.linkedRevision, linkedRevision)
+			require.Equal(t, tt.removedRevisions, removedRevisions)
+			require.Equal(t, tt.flags, installedRevision.Flags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
@@ -835,14 +843,7 @@ func TestUpdater_Remove(t *testing.T) {
 		errMatch        string
 	}{
 		{
-			name: "no config",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Status: UpdateStatus{
-					ActiveVersion: "",
-				},
-			},
+			name:          "no config",
 			teardownCalls: 1,
 		},
 		{
@@ -859,7 +860,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemErr:   ErrNoBinaries,
@@ -873,7 +874,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemErr:   ErrNoBinaries,
@@ -887,7 +888,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemErr:   ErrNoBinaries,
@@ -902,7 +903,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemCalls: 1,
@@ -916,7 +917,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemCalls: 1,
@@ -932,7 +933,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemCalls: 1,
@@ -947,7 +948,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemCalls: 1,
@@ -962,7 +963,7 @@ func TestUpdater_Remove(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: version,
+					Active: NewRevision(version, 0),
 				},
 			},
 			linkSystemCalls: 1,
@@ -1011,8 +1012,8 @@ func TestUpdater_Remove(t *testing.T) {
 						return true
 					}, tt.linkSystemErr
 				},
-				FuncUnlink: func(_ context.Context, version string) error {
-					unlinkedVersion = version
+				FuncUnlink: func(_ context.Context, rev Revision) error {
+					unlinkedVersion = rev.Version
 					return nil
 				},
 			}
@@ -1064,10 +1065,10 @@ func TestUpdater_Install(t *testing.T) {
 		setupErr   error
 		reloadErr  error
 
-		removedVersion    string
-		installedVersion  string
+		removedRevision   Revision
+		installedRevision Revision
 		installedTemplate string
-		linkedVersion     string
+		linkedRevision    Revision
 		requestGroup      string
 		reloadCalls       int
 		revertCalls       int
@@ -1085,13 +1086,13 @@ func TestUpdater_Install(t *testing.T) {
 					URLTemplate: "https://example.com",
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: "https://example.com",
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1106,7 +1107,7 @@ func TestUpdater_Install(t *testing.T) {
 					URLTemplate: "https://example.com/old",
 				},
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 			userCfg: OverrideConfig{
@@ -1118,9 +1119,9 @@ func TestUpdater_Install(t *testing.T) {
 				ForceVersion: "new-version",
 			},
 
-			installedVersion:  "new-version",
+			installedRevision: NewRevision("new-version", 0),
 			installedTemplate: "https://example.com/new",
-			linkedVersion:     "new-version",
+			linkedRevision:    NewRevision("new-version", 0),
 			requestGroup:      "new-group",
 			reloadCalls:       1,
 			setupCalls:        1,
@@ -1131,13 +1132,13 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
+					Active: NewRevision("old-version", 0),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1147,14 +1148,14 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					SkipVersion:   "16.3.0",
+					Active: NewRevision("old-version", 0),
+					Skip:   toPtr(NewRevision("16.3.0", 0)),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1178,8 +1179,7 @@ func TestUpdater_Install(t *testing.T) {
 			},
 			installErr: errors.New("install error"),
 
-			installedVersion:  "16.3.0",
-			linkedVersion:     "",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
 			errMatch:          "install error",
 		},
@@ -1189,13 +1189,13 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: "16.3.0",
+					Active: NewRevision("16.3.0", 0),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
 		},
@@ -1205,15 +1205,15 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: "old-version",
-					BackupVersion: "backup-version",
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
-			removedVersion:    "backup-version",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevision:   NewRevision("backup-version", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1223,33 +1223,32 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Status: UpdateStatus{
-					ActiveVersion: "16.3.0",
-					BackupVersion: "backup-version",
+					Active: NewRevision("16.3.0", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
-			removedVersion:    "",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			setupCalls:        1,
 		},
 		{
 			name: "config does not exist",
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
 		{
 			name:              "FIPS and Enterprise flags",
 			flags:             FlagEnterprise | FlagFIPS,
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", FlagEnterprise|FlagFIPS),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1262,9 +1261,9 @@ func TestUpdater_Install(t *testing.T) {
 			name:     "setup fails",
 			setupErr: errors.New("setup error"),
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -1274,9 +1273,9 @@ func TestUpdater_Install(t *testing.T) {
 			name:      "reload fails",
 			reloadErr: errors.New("reload error"),
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       2,
 			revertCalls:       1,
 			setupCalls:        1,
@@ -1287,9 +1286,9 @@ func TestUpdater_Install(t *testing.T) {
 			reloadErr: ErrNotSupported,
 			setupErr:  ErrNotSupported,
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1297,9 +1296,9 @@ func TestUpdater_Install(t *testing.T) {
 			name:      "no need to reload",
 			reloadErr: ErrNotNeeded,
 
-			installedVersion:  "16.3.0",
+			installedRevision: NewRevision("16.3.0", 0),
 			installedTemplate: cdnURITemplate,
-			linkedVersion:     "16.3.0",
+			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
 		},
@@ -1348,35 +1347,33 @@ func TestUpdater_Install(t *testing.T) {
 			}
 
 			var (
-				installedVersion  string
+				installedRevision Revision
 				installedTemplate string
-				linkedVersion     string
-				removedVersion    string
-				installedFlags    InstallFlags
+				linkedRevision    Revision
+				removedRevision   Revision
 				revertFuncCalls   int
 				reloadCalls       int
 				setupCalls        int
 				revertSetupCalls  int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
-					installedVersion = version
+				FuncInstall: func(_ context.Context, rev Revision, template string) error {
+					installedRevision = rev
 					installedTemplate = template
-					installedFlags = flags
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
-					linkedVersion = version
+				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
 						return true
 					}, nil
 				},
-				FuncList: func(_ context.Context) (versions []string, err error) {
-					return []string{}, nil
+				FuncList: func(_ context.Context) (revs []Revision, err error) {
+					return []Revision{}, nil
 				},
-				FuncRemove: func(_ context.Context, version string) error {
-					removedVersion = version
+				FuncRemove: func(_ context.Context, rev Revision) error {
+					removedRevision = rev
 					return nil
 				},
 			}
@@ -1403,11 +1400,11 @@ func TestUpdater_Install(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.installedVersion, installedVersion)
+			require.Equal(t, tt.installedRevision, installedRevision)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
-			require.Equal(t, tt.linkedVersion, linkedVersion)
-			require.Equal(t, tt.removedVersion, removedVersion)
-			require.Equal(t, tt.flags, installedFlags)
+			require.Equal(t, tt.linkedRevision, linkedRevision)
+			require.Equal(t, tt.removedRevision, removedRevision)
+			require.Equal(t, tt.flags, installedRevision.Flags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
 			require.Equal(t, tt.reloadCalls, reloadCalls)
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
@@ -1439,50 +1436,50 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, version, template string, flags InstallFlags) error
-	FuncRemove        func(ctx context.Context, version string) error
-	FuncLink          func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
+	FuncInstall       func(ctx context.Context, rev Revision, template string) error
+	FuncRemove        func(ctx context.Context, rev Revision) error
+	FuncLink          func(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
-	FuncTryLink       func(ctx context.Context, version string) error
+	FuncTryLink       func(ctx context.Context, rev Revision) error
 	FuncTryLinkSystem func(ctx context.Context) error
-	FuncUnlink        func(ctx context.Context, version string) error
+	FuncUnlink        func(ctx context.Context, rev Revision) error
 	FuncUnlinkSystem  func(ctx context.Context) error
-	FuncList          func(ctx context.Context) (versions []string, err error)
+	FuncList          func(ctx context.Context) (revs []Revision, err error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
-	return ti.FuncInstall(ctx, version, template, flags)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, template string) error {
+	return ti.FuncInstall(ctx, rev, template)
 }
 
-func (ti *testInstaller) Remove(ctx context.Context, version string) error {
-	return ti.FuncRemove(ctx, version)
+func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {
+	return ti.FuncRemove(ctx, rev)
 }
 
-func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
-	return ti.FuncLink(ctx, version)
+func (ti *testInstaller) Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+	return ti.FuncLink(ctx, rev)
 }
 
 func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
 	return ti.FuncLinkSystem(ctx)
 }
 
-func (ti *testInstaller) TryLink(ctx context.Context, version string) error {
-	return ti.FuncTryLink(ctx, version)
+func (ti *testInstaller) TryLink(ctx context.Context, rev Revision) error {
+	return ti.FuncTryLink(ctx, rev)
 }
 
 func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {
 	return ti.FuncTryLinkSystem(ctx)
 }
 
-func (ti *testInstaller) Unlink(ctx context.Context, version string) error {
-	return ti.FuncUnlink(ctx, version)
+func (ti *testInstaller) Unlink(ctx context.Context, rev Revision) error {
+	return ti.FuncUnlink(ctx, rev)
 }
 
 func (ti *testInstaller) UnlinkSystem(ctx context.Context) error {
 	return ti.FuncUnlinkSystem(ctx)
 }
 
-func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {
+func (ti *testInstaller) List(ctx context.Context) (revs []Revision, err error) {
 	return ti.FuncList(ctx)
 }
 

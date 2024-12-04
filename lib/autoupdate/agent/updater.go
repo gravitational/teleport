@@ -61,10 +61,10 @@ const (
 
 // Log keys
 const (
-	targetVersionKey = "target_version"
-	activeVersionKey = "active_version"
-	backupVersionKey = "backup_version"
-	errorKey         = "error"
+	targetKey = "target_version"
+	activeKey = "active_version"
+	backupKey = "backup_version"
+	errorKey  = "error"
 )
 
 // NewLocalUpdater returns a new Updater that auto-updates local
@@ -181,37 +181,37 @@ type Updater struct {
 
 // Installer provides an API for installing Teleport agents.
 type Installer interface {
-	// Install the Teleport agent at version from the download template.
+	// Install the Teleport agent at revision from the download template.
 	// Install must be idempotent.
-	Install(ctx context.Context, version, template string, flags InstallFlags) error
-	// Link the Teleport agent at the specified version of Teleport into the linking locations.
+	Install(ctx context.Context, rev Revision, template string) error
+	// Link the Teleport agent at the specified revision of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent. Link's revert function must be idempotent.
-	Link(ctx context.Context, version string) (revert func(context.Context) bool, err error)
+	Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
 	// LinkSystem links the system installation of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// LinkSystem must be idempotent. LinkSystem's revert function must be idempotent.
 	LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error)
-	// TryLink links the specified version of Teleport into the linking locations.
+	// TryLink links the specified revision of Teleport into the linking locations.
 	// Unlike Link, TryLink will fail if existing links to other locations are present.
 	// TryLink must be idempotent.
-	TryLink(ctx context.Context, version string) error
+	TryLink(ctx context.Context, rev Revision) error
 	// TryLinkSystem links the system (package) installation of Teleport into the linking locations.
 	// Unlike LinkSystem, TryLinkSystem will fail if existing links to other locations are present.
 	// TryLinkSystem must be idempotent.
 	TryLinkSystem(ctx context.Context) error
-	// Unlink unlinks the specified version of Teleport from the linking locations.
+	// Unlink unlinks the specified revision of Teleport from the linking locations.
 	// Unlink must be idempotent.
-	Unlink(ctx context.Context, version string) error
+	Unlink(ctx context.Context, rev Revision) error
 	// UnlinkSystem unlinks the system (package) installation of Teleport from the linking locations.
 	// UnlinkSystem must be idempotent.
 	UnlinkSystem(ctx context.Context) error
-	// List the installed versions of Teleport.
-	List(ctx context.Context) (versions []string, err error)
-	// Remove the Teleport agent at version.
+	// List the installed revisions of Teleport.
+	List(ctx context.Context) (revisions []Revision, err error)
+	// Remove the Teleport agent at revision.
 	// Must return ErrLinked if unable to remove due to being linked.
 	// Remove must be idempotent.
-	Remove(ctx context.Context, version string) error
+	Remove(ctx context.Context, rev Revision) error
 }
 
 var (
@@ -263,6 +263,18 @@ type OverrideConfig struct {
 	ForceFlags InstallFlags
 }
 
+func deref[T any](ptr *T) T {
+	if ptr != nil {
+		return *ptr
+	}
+	var t T
+	return t
+}
+
+func toPtr[T any](t T) *T {
+	return &t
+}
+
 // Install attempts an initial installation of Teleport.
 // If the initial installation succeeds, the override configuration is persisted.
 // Otherwise, the configuration is not changed.
@@ -277,8 +289,8 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		return trace.Wrap(err)
 	}
 
-	activeVersion := cfg.Status.ActiveVersion
-	skipVersion := cfg.Status.SkipVersion
+	active := cfg.Status.Active
+	skip := deref(cfg.Status.Skip)
 
 	// Lookup target version from the proxy.
 
@@ -286,27 +298,28 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	targetVersion := resp.TargetVersion
-	flags := resp.Flags
-	flags |= override.ForceFlags
+	targetVersion := resp.Target.Version
+	targetFlags := resp.Target.Flags
+	targetFlags |= override.ForceFlags
 	if override.ForceVersion != "" {
 		targetVersion = override.ForceVersion
 	}
+	target := NewRevision(targetVersion, targetFlags)
 
-	switch targetVersion {
+	switch target.Version {
 	case "":
 		return trace.Errorf("agent version not available from Teleport cluster")
-	case skipVersion:
-		u.Log.WarnContext(ctx, "Target version was previously marked as broken. Retrying update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+	case skip.Version:
+		u.Log.WarnContext(ctx, "Target version was previously marked as broken. Retrying update.", targetKey, target, activeKey, active)
 	default:
-		u.Log.InfoContext(ctx, "Initiating installation.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
 
-	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
+	if err := u.update(ctx, cfg, target); err != nil {
 		return trace.Wrap(err)
 	}
-	if targetVersion == cfg.Status.SkipVersion {
-		cfg.Status.SkipVersion = ""
+	if target.Version == skip.Version {
+		cfg.Status.Skip = nil
 	}
 
 	// Only write the configuration file if the initial update succeeds.
@@ -330,8 +343,8 @@ func (u *Updater) Remove(ctx context.Context) error {
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	activeVersion := cfg.Status.ActiveVersion
-	if activeVersion == "" {
+	active := cfg.Status.Active
+	if active.Version == "" {
 		u.Log.InfoContext(ctx, "No installation of Teleport managed by the updater. Removing updater configuration.")
 		if err := u.Teardown(ctx); err != nil {
 			return trace.Wrap(err)
@@ -350,10 +363,10 @@ func (u *Updater) Remove(ctx context.Context) error {
 		if ok {
 			return trace.Errorf("refusing to remove active installation of Teleport, please disable Teleport first")
 		}
-		if err := u.Installer.Unlink(ctx, activeVersion); err != nil {
+		if err := u.Installer.Unlink(ctx, active); err != nil {
 			return trace.Wrap(err)
 		}
-		u.Log.InfoContext(ctx, "Teleport uninstalled.", "version", activeVersion)
+		u.Log.InfoContext(ctx, "Teleport uninstalled.", "version", active)
 		if err := u.Teardown(ctx); err != nil {
 			return trace.Wrap(err)
 		}
@@ -416,7 +429,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		}
 		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
-	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport packaged.", "version", activeVersion)
+	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport packaged.", "version", active)
 	if err := u.Teardown(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -473,7 +486,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if !cfg.Spec.Pinned {
-		u.Log.InfoContext(ctx, "Current version not pinned.", activeVersionKey, cfg.Status.ActiveVersion)
+		u.Log.InfoContext(ctx, "Current version not pinned.", activeKey, cfg.Status.Active)
 		return nil
 	}
 	cfg.Spec.Pinned = false
@@ -497,10 +510,10 @@ func (u *Updater) Update(ctx context.Context) error {
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	activeVersion := cfg.Status.ActiveVersion
-	skipVersion := cfg.Status.SkipVersion
+	active := cfg.Status.Active
+	skip := deref(cfg.Status.Skip)
 	if !cfg.Spec.Enabled {
-		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeKey, active)
 		return nil
 	}
 
@@ -508,48 +521,51 @@ func (u *Updater) Update(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	targetVersion := resp.TargetVersion
+	target := resp.Target
 
 	if cfg.Spec.Pinned {
-		switch targetVersion {
-		case activeVersion:
-			u.Log.InfoContext(ctx, "Teleport is up-to-date. Installation is pinned to prevent future updates.", activeVersionKey, activeVersion)
+		switch target {
+		case active:
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. Installation is pinned to prevent future updates.", activeKey, active)
 		default:
-			u.Log.InfoContext(ctx, "Teleport version is pinned. Skipping update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+			u.Log.InfoContext(ctx, "Teleport version is pinned. Skipping update.", targetKey, target, activeKey, active)
 		}
 		return nil
 	}
+
+	// If a version fails and is marked skip, we ignore any edition changes as well.
+	// If a cluster is broadcasting a version that failed to start, changing ent/fips is unlikely to fix the issue.
 
 	if !resp.InWindow {
-		switch targetVersion {
-		case "":
+		switch {
+		case target.Version == "":
 			u.Log.WarnContext(ctx, "Cannot determine target agent version. Waiting for both version and update window.")
-		case activeVersion:
-			u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is not active.", activeVersionKey, activeVersion)
-		case skipVersion:
-			u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Update window is not active.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		case target == active:
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is not active.", activeKey, active)
+		case target.Version == skip.Version:
+			u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Update window is not active.", targetKey, target, activeKey, active)
 		default:
-			u.Log.InfoContext(ctx, "Update available, but update window is not active.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+			u.Log.InfoContext(ctx, "Update available, but update window is not active.", targetKey, target, activeKey, active)
 		}
 		return nil
 	}
 
-	switch targetVersion {
-	case "":
-		u.Log.ErrorContext(ctx, "Update window is active, but target version is not available.", activeVersionKey, activeVersion)
+	switch {
+	case target.Version == "":
+		u.Log.ErrorContext(ctx, "Update window is active, but target version is not available.", activeKey, active)
 		return trace.Errorf("target version missing")
-	case activeVersion:
-		u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeVersionKey, activeVersion)
+	case target == active:
+		u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeKey, active)
 		return nil
-	case skipVersion:
-		u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Skipping update during the update window.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+	case target.Version == skip.Version:
+		u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Skipping update during the update window.", targetKey, target, activeKey, active)
 		return nil
 	default:
-		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
 	time.Sleep(resp.Jitter)
 
-	updateErr := u.update(ctx, cfg, targetVersion, resp.Flags)
+	updateErr := u.update(ctx, cfg, target)
 	writeErr := writeConfig(u.ConfigPath, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
@@ -591,27 +607,26 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	}
 	jitterSec := resp.AutoUpdate.AgentUpdateJitterSeconds
 	return FindResp{
-		TargetVersion: resp.AutoUpdate.AgentVersion,
-		Flags:         flags,
-		InWindow:      resp.AutoUpdate.AgentAutoUpdate,
-		Jitter:        time.Duration(jitterSec) * time.Second,
+		Target:   NewRevision(resp.AutoUpdate.AgentVersion, flags),
+		InWindow: resp.AutoUpdate.AgentAutoUpdate,
+		Jitter:   time.Duration(jitterSec) * time.Second,
 	}, nil
 }
 
-func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion string, flags InstallFlags) error {
-	activeVersion := cfg.Status.ActiveVersion
-	backupVersion := cfg.Status.BackupVersion
-	switch backupVersion {
-	case "", targetVersion, activeVersion:
+func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision) error {
+	active := cfg.Status.Active
+	backup := deref(cfg.Status.Backup)
+	switch backup {
+	case Revision{}, target, active:
 	default:
-		if targetVersion == activeVersion {
+		if target == active {
 			// Keep backup version if we are only verifying active version
 			break
 		}
-		err := u.Installer.Remove(ctx, backupVersion)
+		err := u.Installer.Remove(ctx, backup)
 		if err != nil {
 			// this could happen if it was already removed due to a failed installation
-			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", errorKey, err, backupVersionKey, backupVersion)
+			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", errorKey, err, backupKey, backup)
 		}
 	}
 
@@ -621,7 +636,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	if template == "" {
 		template = cdnURITemplate
 	}
-	err := u.Installer.Install(ctx, targetVersion, template, flags)
+	err := u.Installer.Install(ctx, target, template)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}
@@ -631,7 +646,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	// Cleanup logic at the end of this function will ensure that they are removed
 	// eventually.
 
-	revert, err := u.Installer.Link(ctx, targetVersion)
+	revert, err := u.Installer.Link(ctx, target)
 	if err != nil {
 		return trace.Wrap(err, "failed to link")
 	}
@@ -640,7 +655,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 	// fix the link to restore the active version.
 
 	revertConfig := func(ctx context.Context) bool {
-		cfg.Status.SkipVersion = targetVersion
+		if target.Version != "" {
+			cfg.Status.Skip = toPtr(target)
+		}
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
 			return false
@@ -665,13 +682,13 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		if ok := revertConfig(ctx); ok {
 			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
 		}
-		return trace.Wrap(err, "failed to validate configuration for new version %q of Teleport", targetVersion)
+		return trace.Wrap(err, "failed to validate configuration for new version %s of Teleport", target)
 	}
 
 	// Restart Teleport if necessary.
 
-	if cfg.Status.ActiveVersion != targetVersion {
-		u.Log.InfoContext(ctx, "Target version successfully installed.", targetVersionKey, targetVersion)
+	if cfg.Status.Active != target {
+		u.Log.InfoContext(ctx, "Target version successfully installed.", targetKey, target)
 		err = u.Process.Reload(ctx)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("reload canceled")
@@ -689,37 +706,37 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 					u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 				}
 			}
-			return trace.Wrap(err, "failed to start new version %q of Teleport", targetVersion)
+			return trace.Wrap(err, "failed to start new version %s of Teleport", target)
 		}
-		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
-		cfg.Status.ActiveVersion = targetVersion
+		if r := cfg.Status.Active; r.Version != "" {
+			cfg.Status.Backup = toPtr(r)
+		}
+		cfg.Status.Active = target
 	} else {
-		u.Log.InfoContext(ctx, "Target version successfully validated.", targetVersionKey, targetVersion)
+		u.Log.InfoContext(ctx, "Target version successfully validated.", targetKey, target)
 	}
-	if v := cfg.Status.BackupVersion; v != "" {
-		u.Log.InfoContext(ctx, "Backup version set.", backupVersionKey, v)
+	if r := deref(cfg.Status.Backup); r.Version != "" {
+		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
 
-	return trace.Wrap(u.cleanup(ctx, []string{
-		targetVersion,
-		activeVersion,
-		backupVersion,
+	return trace.Wrap(u.cleanup(ctx, []Revision{
+		target, active, backup,
 	}))
 }
 
 // cleanup orphan installations
-func (u *Updater) cleanup(ctx context.Context, keep []string) error {
-	versions, err := u.Installer.List(ctx)
+func (u *Updater) cleanup(ctx context.Context, keep []Revision) error {
+	revs, err := u.Installer.List(ctx)
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
 		return nil
 	}
-	if len(versions) < 3 {
+	if len(revs) < 3 {
 		return nil
 	}
-	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(versions))
-	for _, v := range versions {
-		if v == "" || slices.Contains(keep, v) {
+	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(revs))
+	for _, v := range revs {
+		if v.Version == "" || slices.Contains(keep, v) {
 			continue
 		}
 		err := u.Installer.Remove(ctx, v)
@@ -748,20 +765,20 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	activeVersion := cfg.Status.ActiveVersion
+	active := cfg.Status.Active
 	if cfg.Spec.Enabled {
-		u.Log.InfoContext(ctx, "Automatic updates is enabled. Skipping system package link.", activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Automatic updates is enabled. Skipping system package link.", activeKey, active)
 		return nil
 	}
 	if cfg.Spec.Pinned {
-		u.Log.InfoContext(ctx, "Automatic update version is pinned. Skipping system package link.", activeVersionKey, activeVersion)
+		u.Log.InfoContext(ctx, "Automatic update version is pinned. Skipping system package link.", activeKey, active)
 		return nil
 	}
 	// If an active version is set, but auto-updates is disabled, try to link the system installation in case the config is stale.
 	// If any links are present, this will return ErrLinked and not create any system links.
 	// This state is important to log as a warning,
 	if err := u.Installer.TryLinkSystem(ctx); errors.Is(err, ErrLinked) {
-		u.Log.WarnContext(ctx, "Automatic updates is disabled, but a non-package version of Teleport is linked.", activeVersionKey, activeVersion)
+		u.Log.WarnContext(ctx, "Automatic updates is disabled, but a non-package version of Teleport is linked.", activeKey, active)
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err, "failed to link system package installation")
