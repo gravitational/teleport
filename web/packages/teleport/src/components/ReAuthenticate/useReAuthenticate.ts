@@ -37,8 +37,6 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
   // component.
   const { attempt, setAttempt } = useAttempt('');
 
-  const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>(null);
-
   // Provide a custom error handler to catch a webauthn frontend error that occurs
   // on Firefox and replace it with a more helpful error message.
   const handleError = (err: Error) => {
@@ -55,9 +53,12 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
     }
   };
 
+  const [mfaChallenge, setMfaChallenge] =
+    useState<MfaAuthenticateChallenge>(null);
+
   async function getMfaChallenge() {
-    if (challenge) {
-      return challenge;
+    if (mfaChallenge) {
+      return mfaChallenge;
     }
 
     return auth.getMfaChallenge({ scope: props.challengeScope }).then(chal => {
@@ -105,6 +106,8 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
   return {
     attempt,
     clearAttempt,
+    mfaChallenge,
+    setMfaChallenge,
     getMfaChallenge,
     getMfaChallengeOptions,
     submitWithMfa,
@@ -120,6 +123,8 @@ export type ReauthProps = {
 export type ReauthState = {
   attempt: Attempt;
   clearAttempt: () => void;
+  mfaChallenge: MfaAuthenticateChallenge;
+  setMfaChallenge: (challenge: MfaAuthenticateChallenge) => void;
   getMfaChallenge: () => Promise<MfaAuthenticateChallenge>;
   getMfaChallengeOptions: () => Promise<MfaOption[]>;
   submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => Promise<void>;

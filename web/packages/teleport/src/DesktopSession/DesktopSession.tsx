@@ -186,9 +186,9 @@ const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
     <AuthnDialog
       mfa={mfa}
       onCancel={() => {
-        mfa.setErrorText(
-          'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.'
-        );
+        mfa.submitAttempt.status = 'failed';
+        mfa.submitAttempt.statusText =
+          'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.';
       }}
     />
   );
@@ -294,7 +294,7 @@ const nextScreenState = (
 
   // Otherwise, calculate a new screen state.
   const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.requested;
+  const showMfa = webauthn.mfaChallenge;
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
     tdpConnection.status === 'failed' || // TDP connection failed
