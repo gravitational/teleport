@@ -346,11 +346,11 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
 	if err != nil {
-		return trace.Wrap(err, "failed to calculate free disk in %q", dstDir)
+		return trace.Wrap(err, "failed to calculate free disk in %s", dstDir)
 	}
 	// Bail if there's not enough free disk space at the target
 	if d := int64(free) - max; d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
+		return trace.Errorf("%s needs %d additional bytes of disk space for decompression", dstDir, -d)
 	}
 	zr, err := gzip.NewReader(src)
 	if err != nil {

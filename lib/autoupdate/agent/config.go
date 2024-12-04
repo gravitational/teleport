@@ -170,10 +170,10 @@ func readConfig(path string) (*UpdateConfig, error) {
 		return nil, trace.Wrap(err, "failed to parse")
 	}
 	if k := cfg.Kind; k != updateConfigKind {
-		return nil, trace.Errorf("invalid kind %q", k)
+		return nil, trace.Errorf("invalid kind %s", k)
 	}
 	if v := cfg.Version; v != updateConfigVersion {
-		return nil, trace.Errorf("invalid version %q", v)
+		return nil, trace.Errorf("invalid version %s", v)
 	}
 	return &cfg, nil
 }
