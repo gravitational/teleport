@@ -17,6 +17,7 @@
  */
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import * as tsh from './types';
 import { TshdRpcError } from './cloneableClient';
@@ -117,6 +118,8 @@ export const makeLoggedInUser = (
 ): tsh.LoggedInUser => ({
   activeRequests: [],
   name: 'alice',
+  isDeviceTrusted: false,
+  trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
   acl: {
     recordedSessions: {
       list: true,

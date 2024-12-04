@@ -210,18 +210,15 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 }
 
 // PublicPeerAddr attempts to returns the public address the proxy advertises
-// for proxy peering clients if available. It falls back to PeerAddr othewise.
+// for proxy peering clients if available; otherwise, it falls back to trying to
+// guess an appropriate public address based on the listen address.
 func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 	addr := &c.PeerPublicAddr
-	if addr.IsEmpty() || addr.IsHostUnspecified() {
-		return c.PeerAddr()
+	if !addr.IsEmpty() && !addr.IsHostUnspecified() {
+		return addr, nil
 	}
-	return addr, nil
-}
 
-// PeerAddr returns the address the proxy advertises for proxy peering clients.
-func (c ProxyConfig) PeerAddr() (*utils.NetAddr, error) {
-	addr := &c.PeerAddress
+	addr = &c.PeerAddress
 	if addr.IsEmpty() {
 		addr = defaults.ProxyPeeringListenAddr()
 	}
@@ -241,6 +238,15 @@ func (c ProxyConfig) PeerAddr() (*utils.NetAddr, error) {
 	}
 
 	return addr, nil
+}
+
+// PeerListenAddr returns the proxy peering listen address that was configured,
+// or the default one otherwise.
+func (c ProxyConfig) PeerListenAddr() *utils.NetAddr {
+	if c.PeerAddress.IsEmpty() {
+		return defaults.ProxyPeeringListenAddr()
+	}
+	return &c.PeerAddress
 }
 
 // KubeProxyConfig specifies the Kubernetes configuration for Teleport's proxy service
