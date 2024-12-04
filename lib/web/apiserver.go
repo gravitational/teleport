@@ -331,6 +331,13 @@ type Config struct {
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
+
+	// DatabasesAddrs is the list of separate listeners addresses per database
+	// protocol.
+	DatabasesAddrs map[string]utils.NetAddr
+
+	// DatabaseREPLGetter is used for retrieving database REPL.
+	DatabaseREPLGetter DatabaseREPLGetter
 }
 
 // SetDefaults ensures proper default values are set if
@@ -839,6 +846,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
 	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -3581,6 +3589,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	term, err := NewTerminal(ctx, TerminalHandlerConfig{
+		Logger:             h.logger,
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		UserAuthClient:     clt,
@@ -3733,6 +3742,7 @@ func (h *Handler) podConnect(
 		ws:                  ws,
 		keepAliveInterval:   keepAliveInterval,
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		logger:              h.logger.With(teleport.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,

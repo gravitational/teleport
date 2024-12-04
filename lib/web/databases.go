@@ -21,28 +21,44 @@ package web
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
+	gogoproto "github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -387,13 +403,407 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	return nil, trace.Wrap(err)
 }
 
+// DatabaseREPLStartConfig represents the database REPL sessions start
+// configuration.
+type DatabaseREPLStartConfig interface {
+	// Client returns the user terminal client.
+	Client() io.ReadWriter
+	// Addr returns the address the REPL should connect to start the database
+	// connection.
+	Addr() *utils.NetAddr
+	// TLSConfig returns the TLS configuration used to connect to the Addr().
+	TLSConfig() *tls.Config
+	// Route returns the session routing information.
+	Route() tlsca.RouteToDatabase
+}
+
+var _ DatabaseREPLStartConfig = (*databaseREPLStartConfig)(nil)
+
+// databaseREPLStartConfig implements [DatabaseREPLStartConfig]
+type databaseREPLStartConfig struct {
+	client    io.ReadWriter
+	addr      utils.NetAddr
+	tlsConfig *tls.Config
+	route     tlsca.RouteToDatabase
+}
+
+// Addr implements [DatabaseREPLStartConfig].
+func (d *databaseREPLStartConfig) Addr() *utils.NetAddr {
+	return &d.addr
+}
+
+// Client implements [DatabaseREPLStartConfig].
+func (d *databaseREPLStartConfig) Client() io.ReadWriter {
+	return d.client
+}
+
+// Route implements [DatabaseREPLStartConfig].
+func (d *databaseREPLStartConfig) Route() tlsca.RouteToDatabase {
+	return d.route
+}
+
+// TLSConfig implements [DatabaseREPLStartConfig].
+func (d *databaseREPLStartConfig) TLSConfig() *tls.Config {
+	return d.tlsConfig
+}
+
+// DatabaseREPLStartFunc defines the start function for database REPL sessions.
+type DatabaseREPLStartFunc func(context.Context, DatabaseREPLStartConfig) (DatabaseREPLSession, error)
+
+// DatabaseREPLSession represents the lifecycle of a database REPL session.
+type DatabaseREPLSession interface {
+	// Wait ensures the caller can block until the REPL completes.
+	Wait() error
+	// Close guarantees proper cleanup of resources associated with the REPL.
+	Close()
+}
+
+// DatabaseServersGetter is an interface for retrieving REPL start functions
+// given the database protocol.
+type DatabaseREPLGetter interface {
+	// GetREPL returns a start function for the specified protocol.
+	GetREPL(ctx context.Context, dbProtocol string) (DatabaseREPLStartFunc, error)
+}
+
+func (h *Handler) dbConnect(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) (interface{}, error) {
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
+	ctx, cancel := context.WithCancel(tctx)
+	defer cancel()
+	h.logger.DebugContext(ctx, "Received database interactive connection")
+
+	req, err := readDatabaseSessionRequest(ws)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || terminal.IsOKWebsocketCloseError(trace.Unwrap(err)) {
+			h.logger.DebugContext(ctx, "Database interactive session closed before receiving request")
+			return nil, nil
+		}
+
+		var netError net.Error
+		if errors.As(trace.Unwrap(err), &netError) && netError.Timeout() {
+			return nil, trace.BadParameter("timed out waiting for database connect request data on websocket connection")
+		}
+
+		return nil, trace.Wrap(err)
+	}
+	h.logger.DebugContext(
+		ctx,
+		"Received database interactive session request",
+		"service_name", req.ServiceName,
+		"database_name", req.DatabaseName,
+		"database_user", req.DatabaseUser,
+		"database_roles", req.DatabaseRoles,
+	)
+
+	accessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	netConfig, err := accessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	db, err := retrieveDatabase(ctx, clt, req.ServiceName, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log := h.logger.With("protocol", db.GetProtocol())
+
+	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(ctx, db.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localAddr, err := h.getDatabaseProxyServerAddr(netConfig, db.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
+	defer stream.Close()
+
+	sess := &databaseInteractiveSession{
+		ctx:               ctx,
+		log:               log,
+		req:               req,
+		db:                db,
+		stream:            stream,
+		ws:                ws,
+		sctx:              sctx,
+		site:              site,
+		accessPoint:       accessPoint,
+		authClient:        h.cfg.ProxyClient,
+		keepAliveInterval: netConfig.GetKeepAliveInterval(),
+		replStartFunc:     replStartFunc,
+		localAddr:         localAddr,
+	}
+	defer sess.Close()
+
+	if err := sess.Run(); err != nil {
+		log.ErrorContext(ctx, "Database interactive session exited with error", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+// getDatabaseProxyServerAddr returns the local address used to connect to
+// database proxy server.
+func (h *Handler) getDatabaseProxyServerAddr(netConfig types.ClusterNetworkingConfig, protocol string) (utils.NetAddr, error) {
+	if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+		return h.cfg.ProxyWebAddr, nil
+	}
+
+	// In case multiplexing is disabled, we need to fallback into separate
+	// listeners (if available).
+	if addr, ok := h.cfg.DatabasesAddrs[protocol]; ok {
+		return addr, nil
+	}
+
+	switch protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL, defaults.ProtocolMongoDB:
+		return utils.NetAddr{}, trace.BadParameter("database listener not available")
+	default:
+		return utils.NetAddr{}, trace.BadParameter("%q database protocol is only available with TLS routing enabled", protocol)
+	}
+}
+
+// DatabaseSessionRequest describes a request to create a web-based terminal
+// database session.
+type DatabaseSessionRequest struct {
+	// ServiceName is the database resource ID the user will be connected.
+	ServiceName string `json:"serviceName"`
+	// DatabaseName is the database name the session will use.
+	DatabaseName string `json:"dbName"`
+	// DatabaseUser is the database user used on the session.
+	DatabaseUser string `json:"dbUser"`
+	// DatabaseRoles are ratabase roles that will be attached to the user when
+	// connecting to the database.
+	DatabaseRoles []string `json:"dbRoles"`
+}
+
+// databaseConnectionRequestWaitTimeout defines how long the server will wait
+// for the user to send the connection request.
+const databaseConnectionRequestWaitTimeout = defaults.HeadlessLoginTimeout
+
+// readDatabaseSessionRequest reads the database session requestion message from
+// websocket connection.
+func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, error) {
+	err := ws.SetReadDeadline(time.Now().Add(databaseConnectionRequestWaitTimeout))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	messageType, bytes, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := ws.SetReadDeadline(time.Time{}); err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	if messageType != websocket.BinaryMessage {
+		return nil, trace.BadParameter("expected binary message of type websocket.BinaryMessage, got %v", messageType)
+	}
+
+	var envelope terminal.Envelope
+	if err := gogoproto.Unmarshal(bytes, &envelope); err != nil {
+		return nil, trace.BadParameter("failed to parse envelope: %v", err)
+	}
+
+	if envelope.Type != defaults.WebsocketDatabaseSessionRequest {
+		return nil, trace.BadParameter("expected database session request but got %q", envelope.Type)
+	}
+
+	var req DatabaseSessionRequest
+	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
+}
+
+type databaseInteractiveSession struct {
+	ctx               context.Context
+	stream            *terminal.Stream
+	log               *slog.Logger
+	req               *DatabaseSessionRequest
+	sctx              *SessionContext
+	ws                *websocket.Conn
+	site              reversetunnelclient.RemoteSite
+	accessPoint       authclient.RemoteProxyAccessPoint
+	authClient        authclient.ClientI
+	keepAliveInterval time.Duration
+	db                types.Database
+	replStartFunc     DatabaseREPLStartFunc
+	localAddr         utils.NetAddr
+}
+
+func (s *databaseInteractiveSession) Run() error {
+	tlsCert, err := s.issueCerts()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.sendSessionMetadata(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
+
+	tlsConfig, err := s.sctx.ClientTLSConfig(s.ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsConfig.NextProtos = []string{s.db.GetProtocol()}
+	tlsConfig.ServerName = constants.APIDomain
+	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+
+	repl, err := s.replStartFunc(s.ctx, &databaseREPLStartConfig{
+		addr:      s.localAddr,
+		client:    s.stream,
+		tlsConfig: tlsConfig.Clone(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer repl.Close()
+
+	s.log.DebugContext(s.ctx, "Started database interactive session")
+	if err := repl.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.DebugContext(s.ctx, "Database interactive session exited with success")
+	return nil
+}
+
+func (s *databaseInteractiveSession) Close() error {
+	return s.ws.Close()
+}
+
+func (s *databaseInteractiveSession) issueCerts() (tls.Certificate, error) {
+	clt, err := s.sctx.GetUserClient(s.ctx, s.site)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	pk, err := keys.ParsePrivateKey(s.sctx.cfg.Session.GetTLSPriv())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "failed getting user private key from the session")
+	}
+
+	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "failed to marshal public key")
+	}
+
+	routeToDatabase := clientproto.RouteToDatabase{
+		Protocol:    s.db.GetProtocol(),
+		ServiceName: s.req.ServiceName,
+		Username:    s.req.DatabaseUser,
+		Database:    s.req.DatabaseName,
+		Roles:       s.req.DatabaseRoles,
+	}
+
+	certsReq := clientproto.UserCertsRequest{
+		TLSPublicKey:    publicKeyPEM,
+		Username:        s.sctx.GetUser(),
+		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
+		Format:          constants.CertificateFormatStandard,
+		RouteToCluster:  s.site.GetName(),
+		Usage:           clientproto.UserCertsRequest_Database,
+		RouteToDatabase: routeToDatabase,
+	}
+
+	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+		CurrentAuthClient: clt,
+		RootAuthClient:    s.sctx.cfg.RootClient,
+		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
+		MFARequiredReq: &clientproto.IsMFARequiredRequest{
+			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
+		},
+		CertsReq: &certsReq,
+	})
+	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
+		return tls.Certificate{}, trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if certs == nil {
+		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err, "failed issuing user certs")
+		}
+	}
+
+	tlsCert, err := pk.TLSCertificate(certs.TLS)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	return tlsCert, nil
+}
+
+func (s *databaseInteractiveSession) sendSessionMetadata() error {
+	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: session.Session{
+		// TODO(gabrielcorado): Have a consistent Session ID. Right now, the
+		// initial session ID returned won't be correct as the session is only
+		// initialized by the database server after the REPL starts.
+		ID:          session.NewID(),
+		ClusterName: s.site.GetName(),
+	}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	envelope := &terminal.Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+		Payload: string(sessionMetadataResponse),
+	}
+
+	envelopeBytes, err := gogoproto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
+	return retrieveDatabase(ctx, clt, databaseName, r.URL.Query().Get("searchAsRoles") == "yes")
+}
+
+func retrieveDatabase(ctx context.Context, clt resourcesAPIGetter, databaseName string, searchAsRoles bool) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
-		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
+		UseSearchAsRoles:    searchAsRoles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

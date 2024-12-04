@@ -20,25 +20,36 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -522,6 +533,246 @@ func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
 			require.Contains(t, escapedURIResult[1], url.QueryEscape(c))
 		})
 	}
+}
+
+func TestConnectDatabaseInteractiveSession(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	databaseProtocol := defaults.ProtocolPostgres
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer proxyListener.Close()
+
+	// Use a mock REPL and modify it adding the additiona configuration when
+	// it is set.
+	repl := &mockDatabaseREPL{message: "hello from repl"}
+	getter := &mockDatabaseREPLGetter{
+		replStartFunc: func(ctx context.Context, c DatabaseREPLStartConfig) (DatabaseREPLSession, error) {
+			repl.setConfig(c)
+			return repl, nil
+		},
+	}
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		authPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:           constants.Local,
+			ConnectorName:  constants.PasswordlessConnector,
+			SecondFactor:   constants.SecondFactorOn,
+			RequireMFAType: types.RequireMFAType_SESSION,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		},
+		databaseREPLGetter: getter,
+		databasesAddrs: map[string]utils.NetAddr{
+			databaseProtocol: utils.FromAddr(proxyListener.Addr()),
+		},
+	})
+
+	// Starts a dummy database proxy server that will accept connections
+	// and perform the TLS handshake. The TLS config should mimic what the real
+	// database proxy server uses.
+	serverIdentity, err := auth.NewServerIdentity(s.server.Auth(), proxyListener.Addr().String(), types.RoleProxy)
+	require.NoError(t, err)
+	tlsConfig, err := serverIdentity.TLSConfig(nil)
+	require.NoError(t, err)
+
+	proxyServerErrChan := make(chan error, 1)
+	go func() {
+		conn, err := proxyListener.Accept()
+		if err != nil {
+			proxyServerErrChan <- err
+			return
+		}
+		defer conn.Close()
+
+		tlsConn := tls.Server(conn, tlsConfig)
+		proxyServerErrChan <- tlsConn.Handshake()
+	}()
+
+	accessRole, err := types.NewRole("access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:  []string{types.Wildcard},
+			DatabaseUsers:  []string{types.Wildcard},
+		},
+	})
+	require.NoError(t, err)
+	pack := s.authPackWithMFA(t, "user", accessRole)
+
+	databaseName := "db"
+	selfHosted, err := types.NewDatabaseV3(types.Metadata{
+		Name: databaseName,
+	}, types.DatabaseSpecV3{
+		Protocol: databaseProtocol,
+		URI:      "localhost:12345",
+	})
+	require.NoError(t, err)
+
+	_, err = s.server.Auth().UpsertDatabaseServer(ctx, mustCreateDatabaseServer(t, selfHosted))
+	require.NoError(t, err)
+
+	u := url.URL{
+		Host:   s.webServer.Listener.Addr().String(),
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%s/db/exec/ws", s.server.ClusterName()),
+	}
+
+	header := http.Header{}
+	for _, cookie := range pack.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	ws, resp, err := dialer.DialContext(ctx, u.String(), header)
+	require.NoError(t, err)
+	defer ws.Close()
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, makeAuthReqOverWS(ws, pack.session.Token))
+
+	req := DatabaseSessionRequest{
+		ServiceName:   databaseName,
+		DatabaseName:  "postgres",
+		DatabaseUser:  "postgres",
+		DatabaseRoles: []string{"reader"},
+	}
+	encodedReq, err := json.Marshal(req)
+	require.NoError(t, err)
+	reqWebSocketMessage, err := proto.Marshal(&terminal.Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketDatabaseSessionRequest,
+		Payload: string(encodedReq),
+	})
+	require.NoError(t, err)
+	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, reqWebSocketMessage))
+
+	performMFACeremonyWS(t, ws, pack)
+
+	// After the MFA is performed we expect the WebSocket to receive the
+	// session data information.
+	sessionData := receiveWSMessage(t, ws)
+	require.Equal(t, defaults.WebsocketSessionMetadata, sessionData.Type)
+
+	// Assert data written by the REPL comes as raw data.
+	replResp := receiveWSMessage(t, ws)
+	require.Equal(t, defaults.WebsocketRaw, replResp.Type)
+	require.Equal(t, repl.message, replResp.Payload)
+
+	require.NoError(t, ws.Close())
+	require.True(t, repl.getClosed(), "expected REPL instance to be closed after websocket.Conn is closed")
+
+	select {
+	case err := <-proxyServerErrChan:
+		require.NoError(t, err, "expected proxy test server to have no errors")
+	case <-ctx.Done():
+		require.Fail(t, "expected proxy test server to have exited")
+	}
+}
+
+func receiveWSMessage(t *testing.T, ws *websocket.Conn) terminal.Envelope {
+	t.Helper()
+
+	typ, raw, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.BinaryMessage, typ)
+	var env terminal.Envelope
+	require.NoError(t, proto.Unmarshal(raw, &env))
+	return env
+}
+
+func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
+	t.Helper()
+
+	ty, raw, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.BinaryMessage, ty, "got unexpected websocket message type %d", ty)
+
+	var env terminal.Envelope
+	require.NoError(t, proto.Unmarshal(raw, &env))
+
+	var challenge client.MFAAuthenticateChallenge
+	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
+
+	res, err := pack.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
+	})
+	require.NoError(t, err)
+
+	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+	require.NoError(t, err)
+
+	envelopeBytes, err := proto.Marshal(&terminal.Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketMFAChallenge,
+		Payload: string(webauthnResBytes),
+	})
+	require.NoError(t, err)
+	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+type mockDatabaseREPLGetter struct {
+	replStartFunc DatabaseREPLStartFunc
+}
+
+func (m *mockDatabaseREPLGetter) GetREPL(_ context.Context, _ string) (DatabaseREPLStartFunc, error) {
+	if m.replStartFunc == nil {
+		return nil, trace.NotImplemented("REPL not implemented")
+	}
+
+	return m.replStartFunc, nil
+}
+
+type mockDatabaseREPL struct {
+	mu      sync.Mutex
+	message string
+	cfg     DatabaseREPLStartConfig
+	closed  bool
+}
+
+func (m *mockDatabaseREPL) Wait() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, err := m.cfg.Client().Write([]byte(m.message)); err != nil {
+		return err
+	}
+
+	conn, err := tls.Dial("tcp", m.cfg.Addr().String(), m.cfg.TLSConfig())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("Hello")); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *mockDatabaseREPL) setConfig(c DatabaseREPLStartConfig) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cfg = c
+}
+
+func (m *mockDatabaseREPL) getClosed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.closed
+}
+
+func (m *mockDatabaseREPL) Close() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.closed = true
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {

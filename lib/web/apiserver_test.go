@@ -210,6 +210,12 @@ type webSuiteConfig struct {
 
 	// clock to use for all server components
 	clock clockwork.FakeClock
+
+	// databaseREPLGetter allows setting custom database REPLs.
+	databaseREPLGetter DatabaseREPLGetter
+
+	// databasesAddrs allows setting custom database proxy addresses.
+	databasesAddrs map[string]utils.NetAddr
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -509,6 +515,8 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		DatabaseREPLGetter:    cfg.databaseREPLGetter,
+		DatabasesAddrs:        cfg.databasesAddrs,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {

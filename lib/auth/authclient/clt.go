@@ -1897,4 +1897,8 @@ type ClientI interface {
 
 	// GitServerClient returns git server client.
 	GitServerClient() gitserverv1.GitServerServiceClient
+
+	// SignDatabaseCSR generates client certificate used by proxy to
+	// authenticate with a remote database service.
+	SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error)
 }

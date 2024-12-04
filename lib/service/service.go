@@ -4641,6 +4641,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
+			DatabasesAddrs: map[string]utils.NetAddr{
+				defaults.ProtocolPostgres: cfg.Proxy.PostgresAddr,
+				defaults.ProtocolMySQL:    cfg.Proxy.MySQLAddr,
+				defaults.ProtocolMongoDB:  cfg.Proxy.MongoAddr,
+			},
+			// TODO(gabrielcorado): place the database REPL getter from
+			//                      lib/client/db package once it gets merged.
+			// DatabaseREPLGetter: ,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

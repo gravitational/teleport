@@ -20,11 +20,11 @@ package web
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type WebsocketIO struct {
@@ -71,8 +71,8 @@ type wsPinger interface {
 // to prevent the connection between web client and teleport proxy from becoming idle.
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when the context is canceled.
-func startWSPingLoop(ctx context.Context, pinger wsPinger, keepAliveInterval time.Duration, log logrus.FieldLogger, onClose func() error) {
-	log.Debugf("Starting websocket ping loop with interval %v.", keepAliveInterval)
+func startWSPingLoop(ctx context.Context, pinger wsPinger, keepAliveInterval time.Duration, log *slog.Logger, onClose func() error) {
+	log.DebugContext(ctx, "Starting websocket ping loop with interval", "interval", keepAliveInterval)
 	tickerCh := time.NewTicker(keepAliveInterval)
 	defer tickerCh.Stop()
 
@@ -83,16 +83,16 @@ func startWSPingLoop(ctx context.Context, pinger wsPinger, keepAliveInterval tim
 			// If this is just a temporary issue, we will retry shortly anyway.
 			deadline := time.Now().Add(time.Second)
 			if err := pinger.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				log.WithError(err).Error("Unable to send ping frame to web client")
+				log.ErrorContext(ctx, "Unable to send ping frame to web client", "error", err)
 				if onClose != nil {
 					if err := onClose(); err != nil {
-						log.WithError(err).Error("OnClose handler failed")
+						log.ErrorContext(ctx, "OnClose handler failed", "error", err)
 					}
 				}
 				return
 			}
 		case <-ctx.Done():
-			log.Debug("Terminating websocket ping loop.")
+			log.DebugContext(ctx, "Terminating websocket ping loop.")
 			return
 		}
 	}
