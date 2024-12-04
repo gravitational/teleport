@@ -221,6 +221,25 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * Document to authorize a web session with device trust.
+ * Unlike other documents, it is not persisted on disk.
+ */
+export interface DocumentAuthorizeWebSession extends DocumentBase {
+  kind: 'doc.authorize_web_session';
+  // `DocumentAuthorizeWebSession` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+  webSessionRequest: WebSessionRequest;
+}
+
+export interface WebSessionRequest {
+  id: string;
+  token: string;
+  redirectUri: string;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -234,7 +253,8 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentAuthorizeWebSession;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
