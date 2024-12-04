@@ -3,7 +3,6 @@ package accessrequest
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -175,10 +174,8 @@ func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *acces
 	// If the user is already a member, or doesn't meet the requirements to be assigned to the access list,
 	// then the access list is not a valid suggestion.
 	membershipType, err := accesslists.IsAccessListMember(ctx, v.requester, list, v.dataGetter, nil, v.clock)
-	if err != nil {
-		if !trace.IsAccessDenied(err) {
-			return false, trace.Wrap(err)
-		}
+	if err != nil && !trace.IsAccessDenied(err) {
+		return false, trace.Wrap(err)
 	}
 	// If the user is not a member, then the access list may be a valid suggestion.
 	if membershipType != accesslists.MembershipOrOwnershipTypeNone {
@@ -189,18 +186,10 @@ func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *acces
 		return false, nil
 	}
 
-	// TODO(jakule/mdwn): This can be unified with userloginstate.Generator.addAccessListsToState().
-	// Clone the requester's roles and traits and add the access list's roles and traits.
-	// We need them to check if the additional roles and traits provide access to the requested resources.
-	allRoles := append(slices.Clone(v.requester.GetRoles()), list.GetGrants().Roles...)
-	allTraits := map[string][]string{}
-	maps.Copy(allTraits, v.requester.GetTraits())
-	maps.Copy(allTraits, list.GetGrants().Traits)
-
 	// Access lists that don't provide access to the requested resources are irrelevant
 	accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:  allRoles,
-		Traits: allTraits,
+		Roles:  list.GetGrants().Roles,
+		Traits: map[string][]string(list.GetGrants().Traits),
 	}, "", v.dataGetter)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -247,7 +236,10 @@ func computeAccessListRelevancy(requestRoles []string, list *accesslist.AccessLi
 	return score
 }
 
-// GenerateAccessRequestPromotions returns a list of access lists that are suggested for a given access request.
+// GenerateAccessRequestPromotions returns a list of Access Lists that are suggested for a given
+// Access Request. The list is always empty for role-based requests. An Access List is included in
+// the returned list if it allows all requested resources and the user is not a member of the
+// Access List.
 func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	if len(accessRequest.GetRequestedResourceIDs()) == 0 {
 		// Suggestions are only available for resource-based access requests.
