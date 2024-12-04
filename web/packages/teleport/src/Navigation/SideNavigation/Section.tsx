@@ -23,7 +23,7 @@ import styled, { css, useTheme } from 'styled-components';
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
 import { Theme } from 'design/theme';
 import { ArrowLineLeft } from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 
@@ -470,9 +470,9 @@ function LicenseFooter({
     <StyledFooterBox py={3} px={4}>
       <Flex alignItems="center" gap={2}>
         <Text>{title}</Text>
-        <ToolTipInfo position="right" sticky>
+        <IconTooltip position="right" sticky>
           {infoContent}
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
