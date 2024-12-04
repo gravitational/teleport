@@ -350,7 +350,7 @@ func (AdminActionsMFAStatus) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_007ba1c3d6266d56, []int{7}
 }
 
-// TODO comments
+// ContactType is the type of contact being added.
 type ContactType int32
 
 const (
