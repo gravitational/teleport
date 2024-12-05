@@ -855,3 +855,12 @@ func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
 	}
 	return "", false
 }
+
+// GetOrganizationURL returns the URL to the GitHub organization.
+func (m *GitHubServerMetadata) GetOrganizationURL() string {
+	if m == nil {
+		return ""
+	}
+	// Public github.com for now.
+	return fmt.Sprintf("%s/%s", GithubURL, m.Organization)
+}

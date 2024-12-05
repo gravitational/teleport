@@ -1248,6 +1248,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
+	gitCmd := newGitCommands(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1625,6 +1627,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetAdminSetupCmd.run(&cf)
 	case vnetDaemonCmd.FullCommand():
 		err = vnetDaemonCmd.run(&cf)
+	case gitCmd.list.FullCommand():
+		err = gitCmd.list.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
