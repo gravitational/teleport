@@ -158,6 +158,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup,
+		types.KindIdentityCenterAccount,
 		types.KindGitServer:
 		specResource = resource
 	case types.KindKubeServer:

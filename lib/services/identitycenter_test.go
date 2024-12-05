@@ -48,7 +48,7 @@ func TestIdentityCenterAccountClone(t *testing.T) {
 	}
 
 	// WHEN I clone the resource
-	dst := src.CloneResource()
+	dst := src.CloneResource().(IdentityCenterAccount)
 
 	// EXPECT that the resulting clone compares equally
 	require.Equal(t, src, dst)
@@ -82,7 +82,7 @@ func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
 	}
 
 	// WHEN I clone the resource
-	dst := src.CloneResource()
+	dst := src.CloneResource().(IdentityCenterAccountAssignment)
 
 	// EXPECT that the resulting clone compares equally
 	require.Equal(t, src, dst)

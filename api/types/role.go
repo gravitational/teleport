@@ -284,6 +284,10 @@ type Role interface {
 	GetGitHubPermissions(RoleConditionType) []GitHubPermission
 	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
 	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
+
+	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
+	// Assignments for the role
+	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 }
 
 // NewRole constructs new standard V7 role.
@@ -2061,6 +2065,15 @@ func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers 
 	}
 }
 
+// GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
+	if rct == Allow {
+		return r.Spec.Allow.AccountAssignments
+	}
+	return r.Spec.Deny.AccountAssignments
+}
+
 // LabelMatcherKinds is the complete list of resource kinds that support label
 // matchers.
 var LabelMatcherKinds = []string{
@@ -2285,4 +2298,9 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 // IsEnabled returns true if database automatic user provisioning is enabled.
 func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
+// GetAccount fetches the Account ID from a Role Condition Account Assignment
+func (a IdentityCenterAccountAssignment) GetAccount() string {
+	return a.Account
 }
