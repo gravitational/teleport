@@ -18,6 +18,8 @@ package types
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -561,6 +563,51 @@ func TestNewAppV3(t *testing.T) {
 			require.Equal(t, tt.want, actual)
 		})
 	}
+}
+
+func TestPortRangesContains(t *testing.T) {
+	portRanges := PortRanges([]*PortRange{
+		&PortRange{Port: 10, EndPort: 20},
+		&PortRange{Port: 42},
+	})
+
+	tests := []struct {
+		port int
+		want require.BoolAssertionFunc
+	}{
+		{port: 10, want: require.True},
+		{port: 20, want: require.True},
+		{port: 15, want: require.True},
+		{port: 42, want: require.True},
+		{port: 30, want: require.False},
+		{port: 0, want: require.False},
+	}
+
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.port), func(t *testing.T) {
+			tt.want(t, portRanges.Contains(tt.port))
+		})
+	}
+}
+
+func TestPortRangesSort(t *testing.T) {
+	portRanges := PortRanges([]*PortRange{
+		&PortRange{Port: 10, EndPort: 20},
+		&PortRange{Port: 10, EndPort: 15},
+		&PortRange{Port: 42, EndPort: 43},
+		&PortRange{Port: 42},
+		&PortRange{Port: 5},
+	})
+	sort.Sort(portRanges)
+
+	expected := PortRanges([]*PortRange{
+		&PortRange{Port: 5},
+		&PortRange{Port: 10, EndPort: 15},
+		&PortRange{Port: 10, EndPort: 20},
+		&PortRange{Port: 42},
+		&PortRange{Port: 42, EndPort: 43},
+	})
+	require.Equal(t, expected, portRanges)
 }
 
 func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
