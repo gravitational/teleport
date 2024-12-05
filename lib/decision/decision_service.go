@@ -92,11 +92,11 @@ func (s *DecisionService) EvaluateSSHAccess(ctx context.Context, req *decision.E
 }
 
 func (s *DecisionService) EvaluateDatabaseAccess(ctx context.Context, req *decision.EvaluateDatabaseAccessRequest) (*decision.EvaluateDatabaseAccessResponse, error) {
-	if req.User == nil {
+	if req.Identity == nil {
 		return nil, trace.Wrap(errNoIdentity)
 	}
 
-	authCtx, err := s.cfg.Authorizer.Authorize(contextForAuthorizer(ctx, req.User))
+	authCtx, err := s.cfg.Authorizer.Authorize(contextForAuthorizer(ctx, req.Identity))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
