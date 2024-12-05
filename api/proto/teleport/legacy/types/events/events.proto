@@ -7710,6 +7710,12 @@ message WorkloadIdentityCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // WorkloadIdentityData is a copy of the WorkloadIdentity resource
+  google.protobuf.Struct WorkloadIdentityData = 5 [
+    (gogoproto.jsontag) = "workload_identity_data,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // WorkloadIdentityUpdate is emitted when a WorkloadIdentity is updated.
@@ -7740,6 +7746,12 @@ message WorkloadIdentityUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // WorkloadIdentityData is a copy of the WorkloadIdentity resource
+  google.protobuf.Struct WorkloadIdentityData = 5 [
+    (gogoproto.jsontag) = "workload_identity_data,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 
