@@ -222,14 +222,14 @@ type awsResourcesStatus struct {
 
 // awsResourceGroup is the key for the summary
 type awsResourceGroup struct {
-	discoveryConfig string
-	integration     string
+	discoveryConfigName string
+	integration         string
 }
 
 func awsResourceGroupFromLabels(labels map[string]string) awsResourceGroup {
 	return awsResourceGroup{
-		discoveryConfig: labels[types.TeleportInternalDiscoveryConfigName],
-		integration:     labels[types.TeleportInternalDiscoveryIntegrationName],
+		discoveryConfigName: labels[types.TeleportInternalDiscoveryConfigName],
+		integration:         labels[types.TeleportInternalDiscoveryIntegrationName],
 	}
 }
 
@@ -252,7 +252,7 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 	defer ars.mu.RUnlock()
 
 	for group, groupResult := range ars.awsResourcesResults {
-		if group.discoveryConfig != discoveryConfigName {
+		if group.discoveryConfigName != discoveryConfigName {
 			continue
 		}
 
@@ -333,11 +333,11 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 	}
 
 	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-		discoveryConfig: result.DiscoveryConfig,
-		integration:     result.IntegrationName,
+		discoveryConfigName: result.DiscoveryConfigName,
+		integration:         result.IntegrationName,
 	}, 1)
 
-	s.updateDiscoveryConfigStatus(result.DiscoveryConfig)
+	s.updateDiscoveryConfigStatus(result.DiscoveryConfigName)
 
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
@@ -350,7 +350,7 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 		},
 		&usertasksv1.DiscoverEC2Instance{
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
-			DiscoveryConfig: result.DiscoveryConfig,
+			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
 			InstanceId:      result.SSMRunEvent.InstanceID,

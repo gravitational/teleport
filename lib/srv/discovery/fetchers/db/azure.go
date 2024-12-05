@@ -91,8 +91,8 @@ type azureFetcherConfig struct {
 	Regions []string
 	// regionSet is a set of regions, used for efficient region match lookup.
 	regionSet map[string]struct{}
-	// DiscoveryConfig is the name of the discovery config which originated the resource.
-	DiscoveryConfig string
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	DiscoveryConfigName string
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
@@ -158,12 +158,12 @@ func (f *azureFetcher[DBType, ListClient]) IntegrationName() string {
 	return ""
 }
 
-// DiscoveryConfigName is the name of the discovery config which originated the resource.
+// GetDiscoveryConfigName is the name of the discovery config which originated the resource.
 // It is used to report stats for a given discovery config.
 // Might be empty when the fetcher is using static matchers:
 // ie teleport.yaml/discovery_service.<cloud>.<matcher>
-func (f *azureFetcher[DBType, ListClient]) DiscoveryConfigName() string {
-	return f.cfg.DiscoveryConfig
+func (f *azureFetcher[DBType, ListClient]) GetDiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfigName
 }
 
 // Get returns Azure DB servers matching the watcher's selectors.

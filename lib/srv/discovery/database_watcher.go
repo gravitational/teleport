@@ -78,7 +78,7 @@ func (s *Server) startDatabaseWatchers() error {
 				discoveryConfigs := slices.FilterMapUnique(
 					s.getAllDatabaseFetchers(),
 					func(f common.Fetcher) (s string, skip bool) {
-						return f.DiscoveryConfigName(), f.DiscoveryConfigName() != ""
+						return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 					},
 				)
 				s.updateDiscoveryConfigStatus(discoveryConfigs...)
@@ -108,7 +108,7 @@ func (s *Server) startDatabaseWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfig] = struct{}{}
+					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					dbs = append(dbs, db)
 				}

@@ -42,9 +42,9 @@ type Fetcher interface {
 	// GetMatchingInstances finds Instances from the list of nodes
 	// that the fetcher matches.
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
-	// GetDiscoveryConfig returns the DiscoveryConfig name that created this fetcher.
+	// GetDiscoveryConfigName returns the DiscoveryConfig name that created this fetcher.
 	// Empty for Fetchers created from `teleport.yaml/discovery_service.aws.<Matcher>` matchers.
-	GetDiscoveryConfig() string
+	GetDiscoveryConfigName() string
 }
 
 // WithTriggerFetchC sets a poll trigger to manual start a resource polling.
