@@ -85,7 +85,9 @@ func TestQuery(t *testing.T) {
 		lines         []string
 		expectedQuery string
 	}{
-		"query":                               {lines: []string{"SELECT 1;"}, expectedQuery: "SELECT 1;"},
+		"query":                     {lines: []string{"SELECT 1;"}, expectedQuery: "SELECT 1;"},
+		"query multiple semicolons": {lines: []string{"SELECT 1; ;;"}, expectedQuery: "SELECT 1; ;;"},
+		"query multiple semicolons with trailing space": {lines: []string{"SELECT 1; ;;  "}, expectedQuery: "SELECT 1; ;;"},
 		"multiline query":                     {lines: []string{"SELECT", "1", ";"}, expectedQuery: "SELECT\r\n1\r\n;"},
 		"malformatted":                        {lines: []string{"SELECT err;"}, expectedQuery: "SELECT err;"},
 		"query with special characters":       {lines: []string{"SELECT 'special_chars_!@#$%^&*()';"}, expectedQuery: "SELECT 'special_chars_!@#$%^&*()';"},

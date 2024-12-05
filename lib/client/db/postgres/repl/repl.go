@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type REPL struct {
@@ -43,9 +44,15 @@ type REPL struct {
 }
 
 func New(ctx context.Context, client io.ReadWriteCloser, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s@%s/%s", route.Username, hostnamePlaceholder, route.Database))
+	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", hostnamePlaceholder))
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	config.User = route.Username
+	config.Database = route.Database
+	config.ConnectTimeout = defaults.DatabaseConnectTimeout
+	config.RuntimeParams = map[string]string{
+		applicationNameParamName: applicationNameParamValue,
 	}
 	config.TLSConfig = nil
 
@@ -252,3 +259,30 @@ const (
 	// errorReplyPrefix is the prefix presented when there is a execution error.
 	errorReplyPrefix = "ERR "
 )
+
+const (
+	// applicationNameParamName defines the application name parameter name.
+	//
+	// https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-CONNECT-APPLICATION-NAME
+	applicationNameParamName = "application_name"
+	// applicationNameParamValue defines the application name parameter value.
+	applicationNameParamValue = "teleport-repl"
+)
+
+// descriptiveLimitations defines a user-friendly text containing the REPL
+// limitations.
+var descriptiveLimitations = []string{
+	`Query cancellation is not supported. Once a query is sent, its execution
+cannot be canceled. Note that Teleport sends a terminate message to the database
+when the database session terminates. This flow doesn't guarantee that any
+running queries will be canceled.
+See https://www.postgresql.org/docs/17/protocol-flow.html#PROTOCOL-FLOW-TERMINATION for more details on the termination flow.`,
+	// This limitation is due to our terminal emulator not fully supporting this
+	// shortcut's custom handler. Instead, it will close the terminal, leading
+	// to terminating the session. To avoid having users accidentally
+	// terminating their sessions, we're turning this off until we have a better
+	// solution and propose the behavior for it.
+	//
+	// This shortcut filtered out by the WebUI key handler.
+	"Pressing CTRL-C will have no effect on this shell.",
+}

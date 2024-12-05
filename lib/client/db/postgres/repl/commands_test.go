@@ -50,7 +50,7 @@ func TestCommandExecution(t *testing.T) {
 		"empty command":                                {line: "\\", expectUnknown: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			commandArgsChan := make(chan string)
+			commandArgsChan := make(chan string, 1)
 			instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()

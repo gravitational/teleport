@@ -55,8 +55,10 @@ type command struct {
 	// Description provides a user-friendly explanation of what the command
 	// does.
 	Description string
-	// ExecFunc is the function to execute the command.
-	ExecFunc func(*REPL, string) (string, bool)
+	// ExecFunc is the function to execute the command. The commands can either
+	// return a reply (that will be sent back to the client) as a string. Or
+	// it can terminates the REPL by returning bool on the second argument.
+	ExecFunc func(r *REPL, args string) (reply string, exit bool)
 }
 
 func initCommands() map[string]*command {
@@ -70,7 +72,20 @@ func initCommands() map[string]*command {
 			Type:        commandTypeGeneral,
 			Description: "Show Teleport interactive shell information, such as execution limitations.",
 			ExecFunc: func(_ *REPL, _ string) (string, bool) {
-				return fmt.Sprintf("Teleport PostgreSQL interactive shell (v%s)", teleport.Version), false
+				// Formats limitiations in a dash list. Example:
+				// - hello
+				//   multi line
+				// - another item
+				var limitations strings.Builder
+				for _, l := range descriptiveLimitations {
+					limitations.WriteString("- " + strings.Join(strings.Split(l, "\n"), "\n  "))
+				}
+
+				return fmt.Sprintf(
+					"Teleport PostgreSQL interactive shell (v%s)\n\nLimitations: \n%s",
+					teleport.Version,
+					limitations.String(),
+				), false
 			},
 		},
 		"?": {
