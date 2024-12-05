@@ -184,7 +184,7 @@ export function Roles(props: State) {
         <Alert children={serverSidePagination.attempt.statusText} />
       )}
       <Flex flex="1">
-        <Box width="100%" mr="6" mb="4">
+        <Box flex="1" mr="6" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
@@ -299,7 +299,7 @@ function RoleEditorAdapter({
       p={4}
       borderLeft={1}
       borderColor={theme.colors.interactive.tonal.neutral[0]}
-      width="900px"
+      width="700px"
     >
       {convertAttempt.status === 'processing' && (
         <Flex
