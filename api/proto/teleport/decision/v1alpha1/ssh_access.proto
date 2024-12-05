@@ -17,7 +17,9 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/duration.proto";
-import "teleport/decision/v1alpha1/metadata.proto";
+import "teleport/decision/v1alpha1/denial_metadata.proto";
+import "teleport/decision/v1alpha1/permit_metadata.proto";
+import "teleport/decision/v1alpha1/request_metadata.proto";
 import "teleport/decision/v1alpha1/resource.proto";
 import "teleport/decision/v1alpha1/ssh_identity.proto";
 

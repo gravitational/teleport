@@ -36,46 +36,9 @@ message RequestMetadata {
   string pep_version_hint = 2;
 }
 
-// Metadata for access permits.
-message PermitMetadata {
-  // FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
-  // Enforcement Point) *must* implement in order to correctly enforce the
-  // decision. Note that where possible new features should be structured to
-  // "fail safe" rather than relying on feature assertions.
-  repeated EnforcementFeature feature_assertions = 1;
-
-  // PdpVersion is the version of the PDP (Policy Decision Point) that evaluated
-  // the decision request.
-  string pdp_version = 2;
-}
-
-// Metadata for access denials.
-message DenialMetadata {
-  // FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
-  // Enforcement Point) *must* implement in order to correctly enforce the
-  // decision. Note that denials rarely need feature assertions since they
-  // typically "fail safe" anyway.
-  repeated EnforcementFeature feature_assertions = 1;
-
-  // PdpVersion is the version of the PDP (Policy Decision Point) that evaluated
-  // the decision request.
-  string pdp_version = 2;
-
-  // UserMessage is a sanitized message safe for return to the subject identity
-  // of the decision request.
-  string user_message = 3;
-}
-
 // DecisionFeature represents supported PDP (Policy Decision Point) features.
 enum DecisionFeature {
   // DECISION_FEATURE_UNSPECIFIED is the default/unspecified value for
   // DecisionFeature. Asserting this feature has no effect.
   DECISION_FEATURE_UNSPECIFIED = 0;
-}
-
-// EnforcementFeature represents PEP (Policy Enforcement Point) features.
-enum EnforcementFeature {
-  // ENFORCEMENT_FEATURE_UNSPECIFIED is the default/unspecified value for
-  // EnforcementFeature. Asserting this feature has no effect.
-  ENFORCEMENT_FEATURE_UNSPECIFIED = 0;
 }
