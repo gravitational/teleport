@@ -1543,7 +1543,6 @@ type AccessGraphAWSSync struct {
 type AccessGraphAzureSync struct {
 	Regions        []string `yaml:"regions,omitempty"`
 	SubscriptionID string   `yaml:"subscription_id,omitempty"`
-	UMIClientID    string   `yaml:"umi_client_id,omitempty"`
 	Integration    string   `yaml:"integration,omitempty"`
 }
 

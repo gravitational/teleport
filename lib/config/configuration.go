@@ -1760,12 +1760,10 @@ kubernetes matchers are present`)
 				return trace.BadParameter("missing regions in access_graph.azure")
 			}
 			subscriptionID := azureMatcher.SubscriptionID
-			umiClientID := azureMatcher.UMIClientID
 			integration := azureMatcher.Integration
 			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
 				Regions:        regions,
 				SubscriptionID: subscriptionID,
-				UMIClientID:    umiClientID,
 				Integration:    integration,
 			})
 		}
