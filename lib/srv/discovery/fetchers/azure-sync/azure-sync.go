@@ -43,6 +43,7 @@ const (
 
 const FetcherConcurrency = 5
 
+// Config defines parameters required for fetching resources from Azure
 type Config struct {
 	CloudClients        cloud.Clients
 	SubscriptionID      string
@@ -51,6 +52,7 @@ type Config struct {
 	DiscoveryConfigName string
 }
 
+// Resources represents the set of resources fetched from Azure
 type Resources struct {
 	Principals      []*accessgraphv1alpha.AzurePrincipal
 	RoleDefinitions []*accessgraphv1alpha.AzureRoleDefinition
@@ -58,18 +60,22 @@ type Resources struct {
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 }
 
+// RoleDefinitionsClient specifies the methods used to fetch roles from Azure
 type RoleDefinitionsClient interface {
 	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
 }
 
+// RoleAssignmentsClient specifies the methods used to fetch role assignments from Azure
 type RoleAssignmentsClient interface {
 	ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error)
 }
 
+// VirtualMachinesClient specifies the methods used to fetch virtual machines from Azure
 type VirtualMachinesClient interface {
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
 
+// Fetcher provides the functionality for fetching resources from Azure
 type Fetcher struct {
 	Config
 	lastError               error
@@ -81,6 +87,7 @@ type Fetcher struct {
 	roleAssignClient RoleAssignmentsClient
 }
 
+// NewFetcher returns a new fetcher based on configuration parameters
 func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	// Establish the credential from the managed identity
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
@@ -121,8 +128,7 @@ type Features struct {
 	AKSClusters      bool
 }
 
-// BuildFeatures builds the feature flags based on supported types returned by Access Graph
-// Azure endpoints.
+// BuildFeatures builds the feature flags based on supported types returned by Access Graph Azure endpoints.
 func BuildFeatures(values ...string) Features {
 	features := Features{}
 	for _, value := range values {
@@ -141,6 +147,7 @@ func BuildFeatures(values ...string) Features {
 	return features
 }
 
+// Poll fetches and deduplicates Azure resources specified by the Access Graph
 func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
 	res, err := a.fetch(ctx, feats)
 	if res == nil {
@@ -153,6 +160,7 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 	return res, trace.Wrap(err)
 }
 
+// fetch returns the resources specified by the Access Graph
 func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
 	// Accumulate Azure resources
 	eg, ctx := errgroup.WithContext(ctx)
@@ -229,23 +237,22 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	return result, nil
 }
 
+// Status returns the number of resources last fetched and/or the last fetching/reconciling error
 func (a *Fetcher) Status() (uint64, error) {
 	return a.lastDiscoveredResources, a.lastError
 }
+
+// DiscoveryConfigName returns the name of the configured discovery
 func (a *Fetcher) DiscoveryConfigName() string {
 	return a.Config.DiscoveryConfigName
 }
+
+// IsFromDiscoveryConfig returns whether the discovery is from configuration or dynamic
 func (a *Fetcher) IsFromDiscoveryConfig() bool {
 	return a.Config.DiscoveryConfigName != ""
 }
+
+// GetSubscriptionID returns the ID of the Azure subscription
 func (a *Fetcher) GetSubscriptionID() string {
 	return a.Config.SubscriptionID
-}
-
-func ptrsToList(ptrs []*string) []string {
-	strList := make([]string, len(ptrs))
-	for _, ptr := range ptrs {
-		strList = append(strList, *ptr)
-	}
-	return strList
 }

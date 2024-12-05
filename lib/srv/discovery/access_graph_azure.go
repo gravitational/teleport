@@ -38,6 +38,8 @@ import (
 	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
 )
 
+// reconcileAccessGraphAzure fetches Azure resources, creates a set of resources to delete and upsert based on
+// the previous fetch, and then sends the delete and upsert results to the Access Graph stream
 func (s *Server) reconcileAccessGraphAzure(
 	ctx context.Context,
 	currentTAGResources *azure_sync.Resources,
@@ -114,6 +116,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	return nil
 }
 
+// azurePushUpsertInBatches upserts resources to the Access Graph in batches
 func azurePushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	upsert *accessgraphv1alpha.AzureResourceList,
@@ -139,6 +142,7 @@ func azurePushUpsertInBatches(
 	return nil
 }
 
+// azurePushDeleteInBatches deletes resources from the Access Graph in batches
 func azurePushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	toDel *accessgraphv1alpha.AzureResourceList,
@@ -164,6 +168,7 @@ func azurePushDeleteInBatches(
 	return nil
 }
 
+// azurePush upserts and deletes Azure resources to/from the Access Graph
 func azurePush(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	upsert *accessgraphv1alpha.AzureResourceList,
@@ -365,7 +370,9 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (s *Server) accessGraphAzureFetchersFromMatchers(matchers Matchers, discoveryConfigName string) ([]*azure_sync.Fetcher, error) {
+// accessGraphAzureFetchersFromMatchers converts matcher configuration to fetchers for Azure resource synchronization
+func (s *Server) accessGraphAzureFetchersFromMatchers(
+	matchers Matchers, discoveryConfigName string) ([]*azure_sync.Fetcher, error) {
 	var fetchers []*azure_sync.Fetcher
 	var errs []error
 	if matchers.AccessGraph == nil {

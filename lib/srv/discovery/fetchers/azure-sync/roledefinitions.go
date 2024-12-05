@@ -56,3 +56,11 @@ func (a *Fetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraphv1alp
 	}
 	return pbRoleDefs, nil
 }
+
+func ptrsToList(ptrs []*string) []string {
+	strList := make([]string, len(ptrs))
+	for _, ptr := range ptrs {
+		strList = append(strList, *ptr)
+	}
+	return strList
+}

@@ -27,10 +27,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// RoleDefinitionsClient wraps the Azure API to provide a high level subset of functionality
 type RoleDefinitionsClient struct {
 	cli *armauthorization.RoleDefinitionsClient
 }
 
+// NewRoleDefinitionsClient creates a new client for a given subscription and credentials
 func NewRoleDefinitionsClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (*RoleDefinitionsClient, error) {
 	clientFactory, err := armauthorization.NewClientFactory(subscription, cred, options)
 	if err != nil {
@@ -40,6 +42,7 @@ func NewRoleDefinitionsClient(subscription string, cred azcore.TokenCredential, 
 	return &RoleDefinitionsClient{cli: roleDefCli}, nil
 }
 
+// ListRoleDefinitions returns role definitions for a given scope
 func (c *RoleDefinitionsClient) ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error) {
 	pager := c.cli.NewListPager(scope, nil)
 	roleDefs := make([]*armauthorization.RoleDefinition, 0, 128)

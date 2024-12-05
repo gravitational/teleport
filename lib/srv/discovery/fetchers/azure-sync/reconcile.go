@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
+// MergeResources merges Azure resources fetched from multiple configured Azure fetchers
 func MergeResources(results ...*Resources) *Resources {
 	if len(results) == 0 {
 		return &Resources{}
@@ -38,18 +39,25 @@ func MergeResources(results ...*Resources) *Resources {
 	for _, r := range results {
 		result.Principals = append(result.Principals, r.Principals...)
 		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
+		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
+		result.RoleAssignments = append(result.RoleAssignments, r.RoleAssignments...)
 	}
 	result.Principals = common.DeduplicateSlice(result.Principals, azurePrincipalsKey)
 	result.VirtualMachines = common.DeduplicateSlice(result.VirtualMachines, azureVmKey)
+	result.RoleDefinitions = common.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
+	result.RoleAssignments = common.DeduplicateSlice(result.RoleAssignments, azureRoleAssignKey)
 	return result
 }
 
+// newResourceList creates a new resource list message
 func newResourceList() *accessgraphv1alpha.AzureResourceList {
 	return &accessgraphv1alpha.AzureResourceList{
 		Resources: make([]*accessgraphv1alpha.AzureResource, 0),
 	}
 }
 
+// ReconcileResults compares previously and currently fetched results and determines which resources to upsert and
+// which to delete.
 func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgraphv1alpha.AzureResourceList) {
 	upsert, delete = newResourceList(), newResourceList()
 	reconciledResources := []*reconcilePair{
@@ -65,10 +73,12 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 	return upsert, delete
 }
 
+// reconcilePair contains the Azure resources to upsert and delete
 type reconcilePair struct {
 	upsert, delete *accessgraphv1alpha.AzureResourceList
 }
 
+// reconcile compares old and new items to build a list of resources to upsert and delete in the Access Graph
 func reconcile[T proto.Message](
 	oldItems []T,
 	newItems []T,

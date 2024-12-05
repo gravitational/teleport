@@ -27,10 +27,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// RoleAssignmentsClient wraps the Azure API to provide a high level subset of functionality
 type RoleAssignmentsClient struct {
 	cli *armauthorization.RoleAssignmentsClient
 }
 
+// NewRoleAssignmentsClient creates a new client for a given subscription and credentials
 func NewRoleAssignmentsClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (*RoleAssignmentsClient, error) {
 	clientFactory, err := armauthorization.NewClientFactory(subscription, cred, options)
 	if err != nil {
@@ -40,6 +42,7 @@ func NewRoleAssignmentsClient(subscription string, cred azcore.TokenCredential, 
 	return &RoleAssignmentsClient{cli: roleDefCli}, nil
 }
 
+// ListRoleAssignments returns role assignments for a given scope
 func (c *RoleAssignmentsClient) ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error) {
 	pager := c.cli.NewListForScopePager(scope, nil)
 	roleDefs := make([]*armauthorization.RoleAssignment, 0, 128)
