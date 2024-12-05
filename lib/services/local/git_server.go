@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -144,16 +143,16 @@ type gitServerParser struct {
 func (p *gitServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(gitServerPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		components := event.Item.Key.Components()
+		if len(components) < 2 {
+			return nil, trace.NotFound("failed parsing %s", event.Item.Key)
 		}
 
 		return &types.ResourceHeader{
 			Kind:    types.KindGitServer,
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      components[1],
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil

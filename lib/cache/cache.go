@@ -792,8 +792,7 @@ type Config struct {
 	IdentityCenter services.IdentityCenter
 	// PluginStaticCredentials is the plugin static credentials services
 	PluginStaticCredentials services.PluginStaticCredentials
-
-	// GitServers is the Git serever service.
+	// GitServers is the Git server service.
 	GitServers services.GitServerGetter
 }
 

@@ -41,7 +41,7 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 }
 
 func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServers")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListGitServers")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.gitServers)

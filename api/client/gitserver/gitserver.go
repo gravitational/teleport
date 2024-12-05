@@ -121,5 +121,5 @@ func (c *Client) DeleteGitServer(ctx context.Context, name string) error {
 
 // DeleteAllGitServers removes all Git server resources.
 func (c *Client) DeleteAllGitServers(ctx context.Context) error {
-	return trace.NotImplemented("delete all git servers not implemented")
+	return trace.NotImplemented("DeleteAllGitServers servers not implemented")
 }
