@@ -18,19 +18,20 @@ package teleport.decision.v1alpha1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
-// Resource is the conventional reference type used to refer to the "object" of an action that is
-// being considered for an authorization decision. For example, a call to EvaluateSSHAccess
-// would use the Resource type to reference the ssh node being accessed.
+// Resource is the conventional reference type used to refer to the "object" of
+// an action that is being considered for an authorization decision. For
+// example, a call to EvaluateSSHAccess would use the Resource type to reference
+// the ssh node being accessed.
 message Resource {
-  // Kind is the type of the resource. Wether or not this field is required depends on
-  // wether the request is for a method that supports multiple types. Typically safe to omit.
+  // Kind is the type of the resource. Required for requests that support
+  // multiple types, otherwise safe to omit.
   string kind = 1;
 
-  // SubKind is the subtype of the resource. This is usually not required as most resource
-  // types either don't have subkinds, or their subkinds do not have an effect on authorization
-  // decisions.
+  // SubKind is the subtype of the resource. Usually not required as most
+  // resources don't have subkinds, or their subkinds do not have an effect on
+  // authorization decisions.
   string sub_kind = 2;
 
-  // Name is the unique name of the resource. This is usually required.
+  // Name is the unique name of the resource.
   string name = 3;
 }
