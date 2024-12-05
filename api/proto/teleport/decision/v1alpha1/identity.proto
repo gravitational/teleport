@@ -245,55 +245,5 @@ message Identity {
 
 // SSHIdentity is the identity used for SSH connections.
 message SSHIdentity {
-  // TeleportUser is the Teleport user associated with the connection.
-  string teleport_user = 1;
-
-  // Impersonator is a user acting on behalf of other user.
-  string impersonator = 2;
-
-  // Login is the operating system user associated with the connection.
-  string login = 3;
-
-  // UnmappedRoles lists the original roles of this Teleport user without
-  // trusted-cluster-related role mapping being applied.
-  repeated string unmapped_roles = 4;
-
-  // CertValidBefore is set to the expiry time of a certificate, or
-  // empty, if cert does not expire.
-  google.protobuf.Timestamp cert_valid_before = 5;
-
-  // RouteToCluster is derived from the certificate.
-  string route_to_cluster = 6;
-
-  // ActiveRequests is active access request IDs.
-  repeated string active_requests = 7;
-
-  // DisallowReissue is a flag that, if set, instructs the auth server to
-  // deny any requests from this identity to generate new certificates.
-  bool disallow_reissue = 8;
-
-  // Renewable indicates this certificate is renewable.
-  bool renewable = 9;
-
-  // Generation counts the number of times this identity's certificate has
-  // been renewed.
-  uint64 generation = 10;
-
-  // BotName is the name of the Machine ID bot this identity is associated
-  // with, if any.
-  string bot_name = 11;
-
-  // BotInstanceID is the unique identifier of the Machine ID bot instance
-  // this identity is associated with, if any.
-  string bot_instance_id = 12;
-
-  // AllowedResourceIDs lists the resources this identity should be allowed to
-  // access
-  repeated ResourceID allowed_resource_ids = 13;
-
-  // PreviousIdentityExpires is the expiry time of the identity/cert that this
-  // identity/cert was derived from. It is used to determine a session's hard
-  // deadline in cases where both require_session_mfa and disconnect_expired_cert
-  // are enabled. See https://github.com/gravitational/teleport/issues/18544.
-  google.protobuf.Timestamp previous_identity_expires = 14;
+  // TODO
 }
