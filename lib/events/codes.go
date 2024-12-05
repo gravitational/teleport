@@ -673,7 +673,7 @@ const (
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
 	ContactDeleteCode = "TCTC002I"
-	
+
 	// WorkloadIdentityCreateCode is the workload identity create event code.
 	WorkloadIdentityCreateCode = "WID001I"
 	// WorkloadIdentityUpdateCode is the workload identity update event code.
