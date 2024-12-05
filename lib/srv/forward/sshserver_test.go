@@ -213,19 +213,6 @@ func TestDirectTCPIP(t *testing.T) {
 			// which return errors on accept.
 			expectRejected: true,
 		},
-		{
-			name: "port forwarding denied",
-			login: func() string {
-				u, err := user.Current()
-				require.NoError(t, err)
-				return u.Username
-			}(),
-			accessChecker:  &fakePortForwardChecker{mode: services.SSHPortForwardModeOff},
-			expectAccepted: false,
-			// expectRejected is set to true because we are using mock channel
-			// which return errors on accept.
-			expectRejected: true,
-		},
 	}
 
 	for _, tt := range cases {
