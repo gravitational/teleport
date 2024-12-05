@@ -421,22 +421,20 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const workspaceDefaultState = this.getWorkspaceDefaultState(
           persistedWorkspace?.localClusterUri || cluster.uri
         );
-        const restorableDocuments = getRestorableDocuments(
-          persistedWorkspace?.documents || []
-        );
+        const persistedWorkspaceDocuments = persistedWorkspace?.documents;
 
         workspaces[cluster.uri] = {
           ...workspaceDefaultState,
           previous: this.canReopenPreviousDocuments({
-            previousDocuments: restorableDocuments,
+            previousDocuments: persistedWorkspaceDocuments,
             currentDocuments: workspaceDefaultState.documents,
           })
             ? {
                 location: getLocationToRestore(
-                  restorableDocuments,
+                  persistedWorkspaceDocuments,
                   persistedWorkspace.location
                 ),
-                documents: restorableDocuments,
+                documents: persistedWorkspaceDocuments,
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
@@ -575,20 +573,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
-      const documentsToPersist = (
+      const documentsToPersist = getDocumentsToPersist(
         workspace.previous?.documents || workspace.documents
-      ).map(d =>
-        d.kind === 'doc.authorize_web_session'
-          ? {
-              ...d,
-              // Do not store potentially sensitive properties.
-              webSessionRequest: {
-                id: '',
-                token: '',
-                redirectUri: '',
-              },
-            }
-          : d
       );
 
       stateToSave.workspaces[w] = {
@@ -650,19 +636,19 @@ export const useWorkspaceServiceState = () => {
   return useStoreSelector('workspacesService', identitySelector);
 };
 
-function getRestorableDocuments(documents: Document[]): Document[] {
+function getDocumentsToPersist(documents: Document[]): Document[] {
   return (
     documents
-      // We don't restore 'doc.authorize_web_session' because the user would not
-      // be able to authorize a session at a later time anyway.
+      // We don't persist 'doc.authorize_web_session' because we don't want to store
+      // a session token and id on disk.
+      // Moreover, the user would not be able to authorize a session at a later time anyway.
       .filter(d => d.kind !== 'doc.authorize_web_session')
   );
 }
 
-/** Assumes that there is at least one document to restore. */
 function getLocationToRestore(
   documents: Document[],
   location: DocumentUri
-): DocumentUri {
-  return documents.find(d => d.uri === location) ? location : documents[0]!.uri;
+): DocumentUri | undefined {
+  return documents.find(d => d.uri === location) ? location : documents[0]?.uri;
 }
