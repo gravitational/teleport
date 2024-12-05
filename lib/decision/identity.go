@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func IdentityToProto(identity tlsca.Identity) *decision.Identity {
-	return &decision.Identity{
+func TLSIdentityToProto(identity tlsca.Identity) *decision.TLSIdentity {
+	return &decision.TLSIdentity{
 		Username:                identity.Username,
 		Impersonator:            identity.Impersonator,
 		Groups:                  identity.Groups,
@@ -70,7 +70,7 @@ func IdentityToProto(identity tlsca.Identity) *decision.Identity {
 	}
 }
 
-func IdentityFromProto(identity *decision.Identity) tlsca.Identity {
+func TLSIdentityFromProto(identity *decision.TLSIdentity) tlsca.Identity {
 	return tlsca.Identity{
 		Username:                identity.Username,
 		Impersonator:            identity.Impersonator,

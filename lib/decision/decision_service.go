@@ -41,7 +41,7 @@ type DecisionServiceConfig struct {
 // contextForAuthorizer creates a context with which to present authz.Authorizer with the supplied identity. The returned
 // context inherets deadline/cancellation from the supplied parent but does not inherit any values, ensuring that we don't
 // corrupt the decision with state originating outside of the decision request message.
-func contextForAuthorizer(ctx context.Context, protoIdentity *decision.Identity) context.Context {
+func contextForAuthorizer(ctx context.Context, protoIdentity *decision.TLSIdentity) context.Context {
 	// start with background context to ensure we don't carry-over any values from the parent context
 	dctx := context.Background()
 
@@ -60,7 +60,7 @@ func contextForAuthorizer(ctx context.Context, protoIdentity *decision.Identity)
 		}()
 	}
 
-	identity := IdentityFromProto(protoIdentity)
+	identity := TLSIdentityFromProto(protoIdentity)
 
 	_ = identity
 
@@ -92,11 +92,11 @@ func (s *DecisionService) EvaluateSSHAccess(ctx context.Context, req *decision.E
 }
 
 func (s *DecisionService) EvaluateDatabaseAccess(ctx context.Context, req *decision.EvaluateDatabaseAccessRequest) (*decision.EvaluateDatabaseAccessResponse, error) {
-	if req.Identity == nil {
+	if req.TlsIdentity == nil {
 		return nil, trace.Wrap(errNoIdentity)
 	}
 
-	authCtx, err := s.cfg.Authorizer.Authorize(contextForAuthorizer(ctx, req.Identity))
+	authCtx, err := s.cfg.Authorizer.Authorize(contextForAuthorizer(ctx, req.TlsIdentity))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
