@@ -34,13 +34,17 @@ message PermissionSetInfo {
   // Role is an optional ARN indicating role provisioned to this account. May be
   // empty if the permission set is not provisioned or is not relevant in the
   string role = 3;
+
+  // AssignmentID is the name of a Teleport Account Assignment resource
+  // representing this permission set assigned to the enclosing Account.
+  string assignment_id = 4;
 }
 
 // AccountStatus represents any commonly-changing data about an Identity
 // Center account.
 message AccountStatus {}
 
-// Account is an Identity-Ceneter-managed AWS account
+// Account is an Identity-Center-managed AWS account
 message Account {
   string kind = 1;
   string sub_kind = 2;

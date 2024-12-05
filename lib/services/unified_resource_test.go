@@ -35,8 +35,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	apimetadata "github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,10 +58,16 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		services.Presence
 		services.WindowsDesktops
 		services.SAMLIdPServiceProviders
+		services.IdentityCenterAccounts
 		types.Events
 	}
 
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	require.NoError(t, err)
+
+	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: bk,
+	})
 	require.NoError(t, err)
 
 	clt := &client{
@@ -66,6 +75,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		WindowsDesktops:         local.NewWindowsDesktopService(bk),
 		SAMLIdPServiceProviders: samlService,
 		Events:                  local.NewEventsService(bk),
+		IdentityCenterAccounts:  icService,
 	}
 	// Add node to the backend.
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
@@ -142,8 +152,11 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	err = clt.UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
+	icAcct := newIdentityCenterAccount(t, ctx, clt)
+
 	// we expect each of the resources above to exist
-	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win}
+	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
+		types.Resource153ToUnifiedResource(icAcct)}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		return len(res) == len(expectedRes)
@@ -156,6 +169,19 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
+
+		// Allow comparison of the wrapped resource inside a resource153ToLegacyAdapter
+		cmp.Transformer("Unwrap",
+			func(t types.Resource153Unwrapper) types.Resource153 {
+				return t.Unwrap()
+			}),
+
+		// Ignore unexported values in RFD153-style resources
+		cmpopts.IgnoreUnexported(
+			headerv1.Metadata{},
+			identitycenterv1.Account{},
+			identitycenterv1.AccountSpec{},
+			identitycenterv1.PermissionSetInfo{}),
 	))
 
 	// // Update and remove some resources.
@@ -166,7 +192,9 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
-	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win}
+	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
+		types.Resource153ToUnifiedResource(icAcct)}
+
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
@@ -182,6 +210,20 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+
+		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
+		cmp.Transformer("Unwrap",
+			func(t types.Resource153Unwrapper) types.Resource153 {
+				return t.Unwrap()
+			}),
+
+		// Ignore unexported values in RFD153-style resources
+		cmpopts.IgnoreUnexported(
+			headerv1.Metadata{},
+			identitycenterv1.Account{},
+			identitycenterv1.AccountSpec{},
+			identitycenterv1.PermissionSetInfo{}),
+
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -199,17 +241,24 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 		services.Presence
 		services.WindowsDesktops
 		services.SAMLIdPServiceProviders
+		services.IdentityCenterAccountGetter
 		types.Events
 	}
 
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
 	require.NoError(t, err)
 
+	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: bk,
+	})
+	require.NoError(t, err)
+
 	clt := &client{
-		Presence:                local.NewPresenceService(bk),
-		WindowsDesktops:         local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders: samlService,
-		Events:                  local.NewEventsService(bk),
+		Presence:                    local.NewPresenceService(bk),
+		WindowsDesktops:             local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders:     samlService,
+		Events:                      local.NewEventsService(bk),
+		IdentityCenterAccountGetter: icService,
 	}
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -255,10 +304,16 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		services.Presence
 		services.WindowsDesktops
 		services.SAMLIdPServiceProviders
+		services.IdentityCenterAccounts
 		types.Events
 	}
 
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	require.NoError(t, err)
+
+	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: bk,
+	})
 	require.NoError(t, err)
 
 	clt := &client{
@@ -266,6 +321,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		WindowsDesktops:         local.NewWindowsDesktopService(bk),
 		SAMLIdPServiceProviders: samlService,
 		Events:                  local.NewEventsService(bk),
+		IdentityCenterAccounts:  icService,
 	}
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -360,9 +416,12 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
+
+	icAcct := newIdentityCenterAccount(t, ctx, clt)
+
 	assert.Eventually(t, func() bool {
 		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 6
+		return len(res) == 7
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// delete everything
@@ -377,6 +436,8 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
 	require.NoError(t, err)
 	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+	require.NoError(t, err)
+	err = clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().GetName()))
 	require.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
@@ -440,3 +501,39 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+func newIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
+	t.Helper()
+
+	accountID := t.Name()
+
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+		Account: &identitycenterv1.Account{
+			Kind:    types.KindIdentityCenterAccount,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: t.Name(),
+				Labels: map[string]string{
+					types.OriginLabel: common.OriginIntegrationAWSOIDC,
+				},
+			},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:          accountID,
+				Arn:         "arn:aws:sso:::account/" + accountID,
+				Name:        "Test AWS Account",
+				Description: "Used for testing",
+				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+					{
+						Name: "Alpha",
+						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+					},
+					{
+						Name: "Beta",
+						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
+					},
+				},
+			},
+		}})
+	require.NoError(t, err, "creating Identity Center Account")
+	return icAcct
+}
