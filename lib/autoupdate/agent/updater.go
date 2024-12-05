@@ -501,7 +501,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 // Otherwise, the auto-updates configuration is not changed.
 // Unlike Enable, Update will not validate or repair the current version.
 // This function is idempotent.
-func (u *Updater) Update(ctx context.Context) error {
+func (u *Updater) Update(ctx context.Context, now bool) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.ConfigPath)
 	if err != nil {
@@ -536,7 +536,7 @@ func (u *Updater) Update(ctx context.Context) error {
 	// If a version fails and is marked skip, we ignore any edition changes as well.
 	// If a cluster is broadcasting a version that failed to start, changing ent/fips is unlikely to fix the issue.
 
-	if !resp.InWindow {
+	if !resp.InWindow && !now {
 		switch {
 		case target.Version == "":
 			u.Log.WarnContext(ctx, "Cannot determine target agent version. Waiting for both version and update window.")
@@ -552,18 +552,26 @@ func (u *Updater) Update(ctx context.Context) error {
 
 	switch {
 	case target.Version == "":
-		u.Log.ErrorContext(ctx, "Update window is active, but target version is not available.", activeKey, active)
+		if resp.InWindow {
+			u.Log.ErrorContext(ctx, "Update window is active, but target version is not available.", activeKey, active)
+		}
 		return trace.Errorf("target version missing")
 	case target == active:
-		u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeKey, active)
+		if resp.InWindow {
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeKey, active)
+		} else {
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. No action is needed.", activeKey, active)
+		}
 		return nil
 	case target.Version == skip.Version:
-		u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Skipping update during the update window.", targetKey, target, activeKey, active)
+		u.Log.InfoContext(ctx, "Update available, but the new version is marked as broken. Skipping update.", targetKey, target, activeKey, active)
 		return nil
 	default:
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
-	time.Sleep(resp.Jitter)
+	if !now {
+		time.Sleep(resp.Jitter)
+	}
 
 	updateErr := u.update(ctx, cfg, target)
 	writeErr := writeConfig(u.ConfigPath, cfg)

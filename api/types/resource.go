@@ -139,6 +139,20 @@ type EnrichedResource struct {
 	RequiresRequest bool
 }
 
+// EnrichedResources is a wrapper of []*EnrichedResource.
+// A EnrichedResource is a [ResourceWithLabels] wrapped with additional
+// user-specific information.
+type EnrichedResources []*EnrichedResource
+
+// ToResourcesWithLabels converts to ResourcesWithLabels.
+func (r EnrichedResources) ToResourcesWithLabels() ResourcesWithLabels {
+	ret := make(ResourcesWithLabels, 0, len(r))
+	for _, resource := range r {
+		ret = append(ret, resource.ResourceWithLabels)
+	}
+	return ret
+}
+
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
@@ -464,8 +478,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
+
 	if m.Namespace == "" {
 		m.Namespace = defaults.Namespace
+	}
+	if err := ValidateNamespaceDefault(m.Namespace); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// adjust expires time to UTC if it's set
