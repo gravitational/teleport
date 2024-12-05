@@ -63,8 +63,8 @@ TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
 # linux package configuration
-LINUX_BINARY_DIR=/usr/local/teleport-system/bin
-LINUX_SYSTEMD_DIR=/usr/local/teleport-system/lib/systemd/system
+LINUX_BINARY_DIR=/opt/teleport/system/bin
+LINUX_SYSTEMD_DIR=/opt/teleport/system/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 

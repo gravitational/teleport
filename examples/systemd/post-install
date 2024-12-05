@@ -5,4 +5,4 @@
 set -eu
 
 echo "Teleport system symlinks creation..."
-/usr/local/teleport-system/bin/teleport-update link-package
+/opt/teleport/system/bin/teleport-update link-package
