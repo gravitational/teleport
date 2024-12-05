@@ -25,8 +25,8 @@ import "teleport/decision/v1alpha1/ssh_identity.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
-// EvaluateSSHAccessRequest describes a request to evaluate wether or not a given
-// ssh access attempt should be permitted.
+// EvaluateSSHAccessRequest describes a request to evaluate whether or not a
+// given ssh access attempt should be permitted.
 message EvaluateSSHAccessRequest {
   // Metadata holds common authorization decision request fields.
   RequestMetadata metadata = 1;
@@ -36,9 +36,6 @@ message EvaluateSSHAccessRequest {
 
   // Node references the target node the user is attempting to access.
   Resource node = 3;
-
-  // Login is the host login associated with the access attempt.
-  string login = 4;
 }
 
 // EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
@@ -49,48 +46,30 @@ message EvaluateSSHAccessResponse {
   }
 }
 
-// SSHAccessPermit describes the parameters/constraints of a permissible SSH access attempt.
+// SSHAccessPermit describes the parameters/constraints of a permissible SSH
+// access attempt.
 message SSHAccessPermit {
   PermitMetadata metadata = 1;
-
   repeated string logins = 2;
-
   bool forward_agent = 3;
-
   google.protobuf.Duration max_session_ttl = 4;
-
   bool port_forwarding = 5;
-
   int64 client_idle_timeout = 6;
-
   bool disconnect_expired_cert = 7;
-
   repeated string bpf = 8;
-
   bool x11_forwarding = 9;
-
   int64 max_connections = 10;
-
   int64 max_sessions = 11;
-
   string lock = 12;
-
   bool create_host_user = 13;
-
   bool ssh_file_copy = 14;
-
   string create_host_user_mode = 15;
-
   string create_host_user_shell = 16;
-
   repeated string host_groups = 17;
-
   repeated string host_sudoers = 18;
-
-  // TODO(fspmarshall) more stuff here...
 }
 
-// SSHAccessDenial describes the details of an SSH access denial.
+// SSHAccessDenial describes an SSH access denial.
 message SSHAccessDenial {
   DenialMetadata metadata = 1;
 }

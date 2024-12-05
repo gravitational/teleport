@@ -19,4 +19,6 @@ package teleport.decision.v1alpha1;
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
 // SSHIdentity is the identity used for SSH connections.
-message SSHIdentity {}
+message SSHIdentity {
+  // TBD
+}
