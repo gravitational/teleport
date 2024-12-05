@@ -50,6 +50,10 @@ type WorkloadIdentities interface {
 	UpdateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// UpsertWorkloadIdentity creates or updates a WorkloadIdentity.
+	UpsertWorkloadIdentity(
+		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
+	) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
 // MarshalWorkloadIdentity marshals the WorkloadIdentity object into a JSON byte
