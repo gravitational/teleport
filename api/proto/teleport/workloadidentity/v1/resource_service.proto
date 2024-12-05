@@ -29,7 +29,14 @@ service WorkloadIdentityResourceService {
   rpc CreateWorkloadIdentity(CreateWorkloadIdentityRequest) returns (WorkloadIdentity);
   // UpdateWorkloadIdentity updates an existing workload identity, it will refuse
   // to update a workload identity if one does not already exist with the same name.
+  //
+  // ConditionalUpdate semantics are applied, e.g, the update will only succeed
+  // if the revision of the provided WorkloadIdentity matches the revision of
+  // the existing WorkloadIdentity.
   rpc UpdateWorkloadIdentity(UpdateWorkloadIdentityRequest) returns (WorkloadIdentity);
+  // UpsertWorkloadIdentity creates or updates a workload identity. You should
+  // prefer to call Create or Update.
+  rpc UpsertWorkloadIdentity(UpsertWorkloadIdentityRequest) returns (WorkloadIdentity);
   // GetWorkloadIdentity retrieves a workload identity by name.
   rpc GetWorkloadIdentity(GetWorkloadIdentityRequest) returns (WorkloadIdentity);
   // DeleteWorkloadIdentity deletes a workload identity by name.
@@ -48,6 +55,12 @@ message CreateWorkloadIdentityRequest {
 // The request for UpdateWorkloadIdentity.
 message UpdateWorkloadIdentityRequest {
   // The workload identity to update.
+  WorkloadIdentity workload_identity = 1;
+}
+
+// The request for UpsertWorkloadIdentityRequest.
+message UpsertWorkloadIdentityRequest {
+  // The workload identity to upsert.
   WorkloadIdentity workload_identity = 1;
 }
 

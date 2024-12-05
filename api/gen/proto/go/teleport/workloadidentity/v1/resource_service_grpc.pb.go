@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	WorkloadIdentityResourceService_CreateWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/CreateWorkloadIdentity"
 	WorkloadIdentityResourceService_UpdateWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpdateWorkloadIdentity"
+	WorkloadIdentityResourceService_UpsertWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/UpsertWorkloadIdentity"
 	WorkloadIdentityResourceService_GetWorkloadIdentity_FullMethodName    = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/GetWorkloadIdentity"
 	WorkloadIdentityResourceService_DeleteWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/DeleteWorkloadIdentity"
 	WorkloadIdentityResourceService_ListWorkloadIdentities_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityResourceService/ListWorkloadIdentities"
@@ -53,7 +54,14 @@ type WorkloadIdentityResourceServiceClient interface {
 	CreateWorkloadIdentity(ctx context.Context, in *CreateWorkloadIdentityRequest, opts ...grpc.CallOption) (*WorkloadIdentity, error)
 	// UpdateWorkloadIdentity updates an existing workload identity, it will refuse
 	// to update a workload identity if one does not already exist with the same name.
+	//
+	// ConditionalUpdate semantics are applied, e.g, the update will only succeed
+	// if the revision of the provided WorkloadIdentity matches the revision of
+	// the existing WorkloadIdentity.
 	UpdateWorkloadIdentity(ctx context.Context, in *UpdateWorkloadIdentityRequest, opts ...grpc.CallOption) (*WorkloadIdentity, error)
+	// UpsertWorkloadIdentity creates or updates a workload identity. You should
+	// prefer to call Create or Update.
+	UpsertWorkloadIdentity(ctx context.Context, in *UpsertWorkloadIdentityRequest, opts ...grpc.CallOption) (*WorkloadIdentity, error)
 	// GetWorkloadIdentity retrieves a workload identity by name.
 	GetWorkloadIdentity(ctx context.Context, in *GetWorkloadIdentityRequest, opts ...grpc.CallOption) (*WorkloadIdentity, error)
 	// DeleteWorkloadIdentity deletes a workload identity by name.
@@ -85,6 +93,16 @@ func (c *workloadIdentityResourceServiceClient) UpdateWorkloadIdentity(ctx conte
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkloadIdentity)
 	err := c.cc.Invoke(ctx, WorkloadIdentityResourceService_UpdateWorkloadIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workloadIdentityResourceServiceClient) UpsertWorkloadIdentity(ctx context.Context, in *UpsertWorkloadIdentityRequest, opts ...grpc.CallOption) (*WorkloadIdentity, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkloadIdentity)
+	err := c.cc.Invoke(ctx, WorkloadIdentityResourceService_UpsertWorkloadIdentity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +151,14 @@ type WorkloadIdentityResourceServiceServer interface {
 	CreateWorkloadIdentity(context.Context, *CreateWorkloadIdentityRequest) (*WorkloadIdentity, error)
 	// UpdateWorkloadIdentity updates an existing workload identity, it will refuse
 	// to update a workload identity if one does not already exist with the same name.
+	//
+	// ConditionalUpdate semantics are applied, e.g, the update will only succeed
+	// if the revision of the provided WorkloadIdentity matches the revision of
+	// the existing WorkloadIdentity.
 	UpdateWorkloadIdentity(context.Context, *UpdateWorkloadIdentityRequest) (*WorkloadIdentity, error)
+	// UpsertWorkloadIdentity creates or updates a workload identity. You should
+	// prefer to call Create or Update.
+	UpsertWorkloadIdentity(context.Context, *UpsertWorkloadIdentityRequest) (*WorkloadIdentity, error)
 	// GetWorkloadIdentity retrieves a workload identity by name.
 	GetWorkloadIdentity(context.Context, *GetWorkloadIdentityRequest) (*WorkloadIdentity, error)
 	// DeleteWorkloadIdentity deletes a workload identity by name.
@@ -156,6 +181,9 @@ func (UnimplementedWorkloadIdentityResourceServiceServer) CreateWorkloadIdentity
 }
 func (UnimplementedWorkloadIdentityResourceServiceServer) UpdateWorkloadIdentity(context.Context, *UpdateWorkloadIdentityRequest) (*WorkloadIdentity, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWorkloadIdentity not implemented")
+}
+func (UnimplementedWorkloadIdentityResourceServiceServer) UpsertWorkloadIdentity(context.Context, *UpsertWorkloadIdentityRequest) (*WorkloadIdentity, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertWorkloadIdentity not implemented")
 }
 func (UnimplementedWorkloadIdentityResourceServiceServer) GetWorkloadIdentity(context.Context, *GetWorkloadIdentityRequest) (*WorkloadIdentity, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWorkloadIdentity not implemented")
@@ -220,6 +248,24 @@ func _WorkloadIdentityResourceService_UpdateWorkloadIdentity_Handler(srv interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkloadIdentityResourceServiceServer).UpdateWorkloadIdentity(ctx, req.(*UpdateWorkloadIdentityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkloadIdentityResourceService_UpsertWorkloadIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertWorkloadIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkloadIdentityResourceServiceServer).UpsertWorkloadIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkloadIdentityResourceService_UpsertWorkloadIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkloadIdentityResourceServiceServer).UpsertWorkloadIdentity(ctx, req.(*UpsertWorkloadIdentityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -292,6 +338,10 @@ var WorkloadIdentityResourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateWorkloadIdentity",
 			Handler:    _WorkloadIdentityResourceService_UpdateWorkloadIdentity_Handler,
+		},
+		{
+			MethodName: "UpsertWorkloadIdentity",
+			Handler:    _WorkloadIdentityResourceService_UpsertWorkloadIdentity_Handler,
 		},
 		{
 			MethodName: "GetWorkloadIdentity",
