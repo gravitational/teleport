@@ -161,6 +161,7 @@ function buildAuthorizedSessionUrl(
   confirmationToken: DeviceConfirmationToken
 ): string {
   const { redirectUri } = webSessionRequest;
+
   let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${confirmationToken.id}&token=${confirmationToken.token}`;
   if (redirectUri) {
     url = `${url}&redirect_uri=${redirectUri}`;
@@ -172,6 +173,9 @@ function buildUnauthorizedSessionUrl(
   rootCluster: Cluster,
   webSessionRequest: WebSessionRequest
 ): string {
+  // processedRedirectUri is the path part of the redirectUri.
+  // Unlike in buildAuthorizedSessionUrl, here we return a full path to open
+  // instead of including redirection as the `redirect_uri` query parameter.
   const processedRedirectUri = processRedirectUri(
     webSessionRequest.redirectUri
   );
