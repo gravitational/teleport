@@ -24,7 +24,7 @@ import { Option as BaseOption } from 'shared/components/Select';
 
 export type Option = BaseOption & {
   isAdded?: boolean;
-  kind: 'app' | 'user_group' | 'namespace';
+  kind: 'app' | 'user_group' | 'namespace' | 'aws_ic_account_assignment';
 };
 
 export const CheckableOptionComponent = (

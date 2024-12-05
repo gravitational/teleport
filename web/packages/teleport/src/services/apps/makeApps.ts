@@ -36,9 +36,9 @@ export default function makeApp(json: any): App {
     friendlyName = '',
     requiresRequest,
     integration = '',
-    subkind,
     samlAppPreset,
     permission_sets,
+    subKind,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -69,11 +69,9 @@ export default function makeApp(json: any): App {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
   }
 
-  const appKind = (subkind == 'aws_ic_account') ? 'aws_ic_account' : undefined
-
   return {
     kind: 'app',
-    appKind: appKind,
+    subKind,
     id,
     name,
     description,
