@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -43,7 +44,6 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -1893,5 +1893,5 @@ type ClientI interface {
 	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
 	// GitServerClient returns git server client.
-	GitServerClient() gitserverv1.GitServerServiceClient
+	GitServerClient() *gitserver.Client
 }

@@ -103,6 +103,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
 	types.KindDatabaseObject:        {},
+	types.KindGitServer:             {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -200,6 +201,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindPluginStaticCredentials},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -257,6 +259,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -554,6 +557,7 @@ type Cache struct {
 	identityCenterCache          *local.IdentityCenterService
 	workloadIdentityCache        workloadIdentityCacher
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
+	gitServersCache              *local.GitServerService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -793,6 +797,8 @@ type Config struct {
 	IdentityCenter services.IdentityCenter
 	// PluginStaticCredentials is the plugin static credentials services
 	PluginStaticCredentials services.PluginStaticCredentials
+	// GitServers is the Git server service.
+	GitServers services.GitServerGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1044,6 +1050,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gitServersCache, err := local.NewGitServerService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1093,6 +1105,7 @@ func New(config Config) (*Cache, error) {
 		identityCenterCache:          identityCenterCache,
 		workloadIdentityCache:        workloadIdentityCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
+		gitServersCache:              gitServersCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),

@@ -49,7 +49,6 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -2028,6 +2027,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	case types.KindGitServer:
+		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
 	case types.KindAutoUpdateConfig:
 		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
 			return trace.Wrap(err)
@@ -2038,11 +2042,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateVersion has been deleted\n")
-	case types.KindGitServer:
-		if _, err := client.GitServerClient().DeleteGitServer(ctx, &gitserverv1.DeleteGitServerRequest{Name: rc.ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3311,29 +3310,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
 	case types.KindGitServer:
-		var servers []types.Server
+		var page, servers []types.Server
 
 		// TODO(greedy52) use unified resource request once available.
 		if rc.ref.Name != "" {
-			server, err := client.GitServerClient().GetGitServer(ctx, &gitserverv1.GetGitServerRequest{Name: rc.ref.Name})
+			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &serverCollection{servers: append(servers, server)}, nil
 		}
-		req := &gitserverv1.ListGitServersRequest{}
+		var err error
+		var token string
 		for {
-			resp, err := client.GitServerClient().ListGitServers(ctx, req)
+			page, token, err = client.GitServerClient().ListGitServers(ctx, 0, token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, server := range resp.Servers {
-				servers = append(servers, server)
-			}
-			if resp.NextPageToken == "" {
+			servers = append(servers, page...)
+			if token == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
 		}
 		// TODO(greedy52) consider making dedicated git server collection.
 		return &serverCollection{servers: servers}, nil
@@ -3755,14 +3752,10 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
 	if rc.IsForced() {
-		_, err = client.GitServerClient().UpsertGitServer(ctx, &gitserverv1.UpsertGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
 	} else {
-		_, err = client.GitServerClient().CreateGitServer(ctx, &gitserverv1.CreateGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().CreateGitServer(ctx, server)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3775,11 +3768,7 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
-	_, err = client.GitServerClient().UpdateGitServer(ctx, &gitserverv1.UpdateGitServerRequest{Server: serverV2})
+	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
