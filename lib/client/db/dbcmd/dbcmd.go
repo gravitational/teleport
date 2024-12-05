@@ -250,6 +250,15 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives(ctx context.Context) (
 }
 
 func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
+	// When Teleport installed "psql" using brew, it installs only the CLI
+	// tools into /opt/homebrew/opt/libpq/bin, check in this path first.
+	brewBin := filepath.Join("/", "opt", "homebrew", "opt", "libpq", "bin", postgresBin)
+	_, err := exec.LookPath(brewBin)
+	fmt.Printf("--> lookup brew: %v %v\n", brewBin, err)
+	if err == nil {
+		return exec.Command(brewBin, c.getPostgresConnString())
+	}
+
 	return exec.Command(postgresBin, c.getPostgresConnString())
 }
 

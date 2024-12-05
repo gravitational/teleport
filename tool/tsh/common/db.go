@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"slices"
 	"sort"
 	"strings"
@@ -788,6 +789,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if _, err := exec.LookPath("psql"); err != nil {
+		cmd := exec.Command("brew", "install", "libpq")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
