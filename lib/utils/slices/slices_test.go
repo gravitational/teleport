@@ -24,48 +24,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCollectValues(t *testing.T) {
+func TestFilterMapUnique(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		input     []string
-		collector func(string) (s string, skip bool)
+		collector func(string) (s string, include bool)
 		expected  []string
 	}{
 		{
 			name:  "no elements",
 			input: []string{},
-			collector: func(in string) (s string, skip bool) {
-				return in, false
+			collector: func(in string) (s string, include bool) {
+				return in, true
 			},
 			expected: []string{},
 		},
 		{
 			name:  "multiple strings, all match",
 			input: []string{"x", "y"},
-			collector: func(in string) (s string, skip bool) {
-				return in, false
+			collector: func(in string) (s string, include bool) {
+				return in, true
 			},
 			expected: []string{"x", "y"},
 		},
 		{
 			name:  "deduplicates items",
 			input: []string{"x", "y", "z", "x"},
-			collector: func(in string) (s string, skip bool) {
-				return in, false
+			collector: func(in string) (s string, include bool) {
+				return in, true
 			},
 			expected: []string{"x", "y", "z"},
 		},
 		{
-			name:  "skipped values are not returned",
+			name:  "includeped values are not returned",
 			input: []string{"x", "y", "z", ""},
-			collector: func(in string) (s string, skip bool) {
-				return in, in == ""
+			collector: func(in string) (s string, include bool) {
+				return in, in != ""
 			},
 			expected: []string{"x", "y", "z"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CollectValues(tt.input, tt.collector)
+			got := FilterMapUnique(tt.input, tt.collector)
 			require.Equal(t, tt.expected, got)
 		})
 	}
