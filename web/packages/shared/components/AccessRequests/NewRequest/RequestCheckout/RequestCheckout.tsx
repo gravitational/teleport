@@ -39,6 +39,8 @@ import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 
+import { HoverTooltip } from 'design/Tooltip';
+
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
@@ -47,7 +49,6 @@ import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';

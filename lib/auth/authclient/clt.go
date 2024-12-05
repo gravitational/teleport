@@ -1892,6 +1892,9 @@ type ClientI interface {
 	// ProvisioningServiceClient returns provisioning service client.
 	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
+
 	// GitServerClient returns git server client.
 	GitServerClient() gitserverv1.GitServerServiceClient
 }
