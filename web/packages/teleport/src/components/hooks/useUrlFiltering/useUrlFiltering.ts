@@ -85,7 +85,7 @@ export function useUrlFiltering(
         searchString: newParams.search || newParams.query,
         sort: newParams.sort,
         kinds: newParams.kinds,
-        isAdvancedSearch: !!params.query,
+        isAdvancedSearch: !!newParams.query,
         pinnedOnly: newParams.pinnedOnly,
       })
     );
