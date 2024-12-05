@@ -88,10 +88,12 @@ events.
 ### "device web authentication IP mismatch" errors
 
 "IP mismatch" errors in audit logs indicate that the IP checks performed by the
-device web authentication ceremony failed. In this case it's likely that your
-Teleport cluster isn't propagating user IPs correctly. Consider enabling the
-[PROXY protocol](../../admin-guides/management/security/proxy-protocol.mdx) in
-your Teleport deployment.
+device web authentication ceremony failed. In this case it's likely that
+end-user IPs are not propagated correctly to your Teleport deployment.
+
+* L7 load balancer: make sure it propagates the X-Forwarded-For header
+* L4 load balancer: enable [PROXY protocol](
+  ../../admin-guides/management/security/proxy-protocol.mdx)
 
 ### Checking Device Trust authorization status in the web UI
 
