@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
 var _ compare.IsEqual[Application] = (*AppV3)(nil)
@@ -312,6 +313,16 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
 }
 
+// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetTCPPorts() []*PortRange {
+	return a.Spec.TCPPorts
+}
+
+// SetTCPPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetTCPPorts(ports []*PortRange) {
+	a.Spec.TCPPorts = ports
+}
+
 // GetIntegration will return the Integration.
 // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 func (a *AppV3) GetIntegration() string {
@@ -504,7 +515,7 @@ func (a Apps) AsResources() (resources ResourcesWithLabels) {
 	}
 	return resources
 }
-q
+
 // Len returns the slice length.
 func (a Apps) Len() int { return len(a) }
 

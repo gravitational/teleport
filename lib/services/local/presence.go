@@ -1802,7 +1802,7 @@ func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource := types.Resource153ToLegacy(
+	resource := types.Resource153ToUnifiedResource(
 		services.IdentityCenterAccount{Account: assignment},
 	)
 	return resource.(types.ResourceWithLabels), nil
@@ -1817,7 +1817,7 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource := types.Resource153ToLegacy(
+	resource := types.Resource153ToUnifiedResource(
 		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
 	)
 	return resource.(types.ResourceWithLabels), nil

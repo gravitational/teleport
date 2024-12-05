@@ -957,10 +957,35 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 	case types.KindIdentityCenterAccountAssignment:
-		var err error
-		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		unwrapper, ok := resource.(types.Resource153Unwrapper)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		assignment, ok := unwrapper.Unwrap().(IdentityCenterAccountAssignment)
+		if !ok {
+			return nil, trace.BadParameter(
+				"Unexpected type for Identity Center Account Assignment: %T",
+				unwrapper.Unwrap())
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_IdentityCenterAccountAssignment{
+				IdentityCenterAccountAssignment: &proto.IdentityCenterAccountAssignment{
+					Kind:        types.KindIdentityCenterAccountAssignment,
+					Version:     resource.GetVersion(),
+					Metadata:    resource.GetMetadata(),
+					DisplayName: assignment.GetSpec().GetDisplay(),
+					Account: &proto.IdentityCenterAccount{
+						AccountName: assignment.GetSpec().GetAccountName(),
+						ID:          assignment.GetSpec().GetAccountId(),
+					},
+					PermissionSet: &proto.IdentityCenterPermissionSet{
+						ARN:  assignment.GetSpec().GetPermissionSet().GetArn(),
+						Name: assignment.GetSpec().GetPermissionSet().GetName(),
+					},
+				},
+			},
+			RequiresRequest: requiresRequest,
 		}
 
 	default:
@@ -979,7 +1004,7 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 	}
 	acct, ok := unwrapper.Unwrap().(IdentityCenterAccount)
 	if !ok {
-		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, resource)
+		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, unwrapper.Unwrap())
 	}
 	srcPSs := acct.GetSpec().GetPermissionSetInfo()
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))

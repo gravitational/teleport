@@ -4022,6 +4022,10 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindIdentityCenterAccount:
+				resource = respResource.GetAppServer()
+			case types.KindIdentityCenterAccountAssignment:
+				resource = respResource.GetIdentityCenterAccountAssignment()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -4090,6 +4094,10 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindIdentityCenterAccount:
+				resource = respResource.GetAppServer()
+			case types.KindIdentityCenterAccountAssignment:
+				resource = respResource.GetIdentityCenterAccountAssignment()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
