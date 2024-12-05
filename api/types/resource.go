@@ -478,8 +478,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
+
 	if m.Namespace == "" {
 		m.Namespace = defaults.Namespace
+	}
+	if err := ValidateNamespaceDefault(m.Namespace); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// adjust expires time to UTC if it's set

@@ -1071,8 +1071,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if len(r.Spec.Options.BPF) == 0 {
 		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
-	if r.Spec.Allow.Namespaces == nil {
-		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Allow.Namespaces); err != nil {
+		// Using trace.BadParameter instead of trace.Wrap for a better error message.
+		return trace.BadParameter("allow: %s", err)
 	}
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
@@ -1175,8 +1176,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
 
-	if r.Spec.Deny.Namespaces == nil {
-		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
+		// Using trace.BadParameter instead of trace.Wrap for a better error message.
+		return trace.BadParameter("deny: %s", err)
 	}
 
 	// Validate request.kubernetes_resources fields are all valid.
@@ -1316,6 +1318,27 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {
+	// If nil use the default.
+	// This distinguishes between nil and empty (in accordance to legacy code).
+	if *namespaces == nil {
+		*namespaces = []string{defaults.Namespace}
+		return nil
+	}
+
+	for i, ns := range *namespaces {
+		if ns == Wildcard {
+			continue // OK, wildcard is accepted.
+		}
+		if err := ValidateNamespaceDefault(ns); err != nil {
+			// Using trace.BadParameter instead of trace.Wrap for a better error message.
+			return trace.BadParameter("namespaces[%d]: %s", i, err)
 		}
 	}
 
