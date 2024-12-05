@@ -137,6 +137,54 @@ describe('restoring workspace', () => {
       },
     });
   });
+
+  it('does not restore doc.authorize_web_session documents', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.authorize_web_session',
+          rootClusterUri: cluster.uri,
+          uri: '/docs/authorize_web_session_uri',
+          webSessionRequest: {
+            id: '',
+            token: '',
+            redirectUri: '',
+          },
+          title: 'Authorize Web Session',
+        },
+      ],
+      location: '/docs/authorize_web_session_uri',
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    await workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(cluster.uri).previous).toStrictEqual({
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/terminal_shell_uri', // location no longer points to the document that was omitted
+    });
+  });
 });
 
 describe('setActiveWorkspace', () => {
