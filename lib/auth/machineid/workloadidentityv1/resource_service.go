@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -217,7 +218,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityCreate{
+	evt := &apievents.WorkloadIdentityCreate{
 		Metadata: apievents.Metadata{
 			Code: events.WorkloadIdentityCreateCode,
 			Type: events.WorkloadIdentityCreateEvent,
@@ -227,7 +228,16 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.WorkloadIdentity.Metadata.Name,
 		},
-	}); err != nil {
+	}
+	evt.WorkloadIdentityData, err = resourceToStruct(created)
+	if err != nil {
+		s.logger.ErrorContext(
+			ctx,
+			"Failed to convert WorkloadIdentity to struct for audit log",
+			"error", err,
+		)
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for creation of WorkloadIdentity",
 			"error", err,
@@ -258,7 +268,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityUpdate{
+	evt := &apievents.WorkloadIdentityUpdate{
 		Metadata: apievents.Metadata{
 			Code: events.WorkloadIdentityUpdateCode,
 			Type: events.WorkloadIdentityUpdateEvent,
@@ -268,7 +278,16 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.WorkloadIdentity.Metadata.Name,
 		},
-	}); err != nil {
+	}
+	evt.WorkloadIdentityData, err = resourceToStruct(created)
+	if err != nil {
+		s.logger.ErrorContext(
+			ctx,
+			"Failed to convert WorkloadIdentity to struct for audit log",
+			"error", err,
+		)
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for updating of WorkloadIdentity",
 			"error", err,
@@ -301,17 +320,26 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityUpdate{
+	evt := &apievents.WorkloadIdentityCreate{
 		Metadata: apievents.Metadata{
-			Code: events.WorkloadIdentityUpdateCode,
-			Type: events.WorkloadIdentityUpdateEvent,
+			Code: events.WorkloadIdentityCreateCode,
+			Type: events.WorkloadIdentityCreateEvent,
 		},
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.WorkloadIdentity.Metadata.Name,
 		},
-	}); err != nil {
+	}
+	evt.WorkloadIdentityData, err = resourceToStruct(created)
+	if err != nil {
+		s.logger.ErrorContext(
+			ctx,
+			"Failed to convert WorkloadIdentity to struct for audit log",
+			"error", err,
+		)
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for upsertion of WorkloadIdentity",
 			"error", err,
@@ -319,4 +347,16 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 	}
 
 	return created, nil
+}
+
+func resourceToStruct(in *workloadidentityv1pb.WorkloadIdentity) (*apievents.Struct, error) {
+	data, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling resource for audit log")
+	}
+	out := &apievents.Struct{}
+	if err := out.UnmarshalJSON(data); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling resource for audit log")
+	}
+	return out, nil
 }
