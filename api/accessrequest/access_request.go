@@ -60,7 +60,7 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 		// We're interested in hostname or friendly name details. These apply to
 		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindApp, types.KindUserGroup:
+		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
