@@ -151,13 +151,12 @@ type Handler struct {
 
 	sync.Mutex
 	httprouter.Router
-	cfg                     Config
-	auth                    *sessionCache
-	sessionStreamPollPeriod time.Duration
-	clock                   clockwork.Clock
-	limiter                 *limiter.RateLimiter
-	highLimiter             *limiter.RateLimiter
-	healthCheckAppServer    healthCheckAppServerFunc
+	cfg                  Config
+	auth                 *sessionCache
+	clock                clockwork.Clock
+	limiter              *limiter.RateLimiter
+	highLimiter          *limiter.RateLimiter
+	healthCheckAppServer healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -175,11 +174,6 @@ type Handler struct {
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
-	// wsIODeadline is used to set a deadline for receiving a message from
-	// an authenticated websocket so unauthenticated sockets dont get left
-	// open.
-	wsIODeadline time.Duration
-
 	// findEndpointCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high
 	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
 	// caller specified its Automatic Updates UUID or group.
@@ -189,17 +183,6 @@ type Handler struct {
 // HandlerOption is a functional argument - an option that can be passed
 // to NewHandler function
 type HandlerOption func(h *Handler) error
-
-// SetSessionStreamPollPeriod sets polling period for session streams
-func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
-	return func(h *Handler) error {
-		if period < 0 {
-			return trace.BadParameter("period should be non zero")
-		}
-		h.sessionStreamPollPeriod = period
-		return nil
-	}
-}
 
 // SetClock sets the clock on a handler
 func SetClock(clock clockwork.Clock) HandlerOption {
@@ -213,7 +196,7 @@ type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
-// PresenceChecker is a function that executes an mfa prompt to enforce
+// PresenceChecker is a function that executes an MFA prompt to enforce
 // that a user is present.
 type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
@@ -226,8 +209,6 @@ type Config struct {
 	Proxy reversetunnelclient.Tunnel
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
-	// DomainName is a domain name served by web handler
-	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient authclient.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
@@ -472,7 +453,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
-		wsIODeadline:         wsIODeadline,
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {

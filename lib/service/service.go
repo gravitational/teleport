@@ -4609,7 +4609,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webConfig := web.Config{
 			Proxy:                     tsrv,
 			AuthServers:               cfg.AuthServerAddresses()[0],
-			DomainName:                cfg.Hostname,
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              cfg.Proxy.WebAddr,
