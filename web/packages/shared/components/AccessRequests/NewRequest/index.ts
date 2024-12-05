@@ -17,7 +17,7 @@
  */
 
 export * from './RequestCheckout';
-export * from './ResourceList';
+export * from './Roles';
 export type { ResourceMap, RequestableResourceKind } from './resource';
 export { getEmptyResourceState } from './resource';
 export { isKubeClusterWithNamespaces } from './kube';
