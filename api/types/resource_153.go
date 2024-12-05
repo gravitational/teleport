@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ResourceMetadata is the smallest interface that defines a Teleport resource.
@@ -116,7 +117,8 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 }
 
 // Resource153ToLegacy transforms an RFD 153 style resource into a legacy
-// [Resource] type.
+// [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
+// wrapped resource supports cloning).
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
@@ -130,6 +132,8 @@ type Resource153Unwrapper interface {
 	Unwrap() Resource153
 }
 
+// resource153ToLegacyAdapter wraps a new-style resource in a type implementing
+// the legacy resource interfaces
 type resource153ToLegacyAdapter struct {
 	inner Resource153
 }
@@ -211,4 +215,112 @@ func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
 
 func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
+}
+
+// ClonableResource153 adds a restriction on [Resource153] such that implementors
+// must have a CloneResource() method.
+type ClonableResource153 interface {
+	Resource153
+	CloneResource() ClonableResource153
+}
+
+// UnifiedResource represents the combined set of interfaces that a resource
+// must implement to be used with the Teleport Unified Resource Cache
+type UnifiedResource interface {
+	ResourceWithLabels
+	CloneResource() ResourceWithLabels
+}
+
+// Resource153ToUnifiedResource wraps an RFD153-style resource in a type that
+// implements the legacy [ResourceWithLabels] interface and is suitable for use
+// with the Teleport Unified Resources Cache.
+//
+// The same caveats that apply to [Resource153ToLegacy] apply.
+func Resource153ToUnifiedResource(r ClonableResource153) UnifiedResource {
+	return &resource153ToUnifiedResourceAdapter{
+		resource153ToLegacyAdapter: resource153ToLegacyAdapter{
+			inner: r,
+		},
+	}
+}
+
+// resource153ToUnifiedResourceAdapter wraps a [resource153ToLegacyAdapter] to
+// provide an implementation of [UnifiedResource]
+type resource153ToUnifiedResourceAdapter struct {
+	resource153ToLegacyAdapter
+}
+
+// Origin implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) Origin() string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return ""
+	}
+	return m.Labels[OriginLabel]
+}
+
+// SetOrigin implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) SetOrigin(origin string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels[OriginLabel] = origin
+}
+
+// GetLabel implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) GetLabel(key string) (value string, ok bool) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return "", false
+	}
+	value, ok = m.Labels[key]
+	return
+}
+
+// GetAllLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) GetAllLabels() map[string]string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return nil
+	}
+	return m.Labels
+}
+
+// GetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) GetStaticLabels() map[string]string {
+	return r.GetAllLabels()
+}
+
+// SetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToUnifiedResourceAdapter) SetStaticLabels(labels map[string]string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels = labels
+}
+
+// MatchSearch implements ResourceWithLabels for the adapter. If the underlying
+// type exposes a MatchSearch method, this method will defer to that, otherwise
+// it will match against the resource label values and name.
+func (r *resource153ToUnifiedResourceAdapter) MatchSearch(searchValues []string) bool {
+	if matcher, ok := r.inner.(interface{ MatchSearch([]string) bool }); ok {
+		return matcher.MatchSearch(searchValues)
+	}
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// CloneResource clones the underlying resource and wraps it in
+func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels {
+	// We assume that this type assertion will work because we force `inner`
+	// to implement ClonableResource153 in [Resource153ToUnifiedResource], which
+	// is the only externally-visible constructor function
+	clone := r.inner.(ClonableResource153).CloneResource()
+	return &resource153ToUnifiedResourceAdapter{
+		resource153ToLegacyAdapter: resource153ToLegacyAdapter{
+			inner: clone,
+		},
+	}
 }

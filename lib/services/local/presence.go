@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -1373,6 +1374,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
+	case types.KindIdentityCenterAccount:
+		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterAccount
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1759,6 +1763,21 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resource := types.Resource153ToUnifiedResource(
+		services.IdentityCenterAccount{Account: assignment},
+	)
+	return resource.(types.ResourceWithLabels), nil
 }
 
 const (
