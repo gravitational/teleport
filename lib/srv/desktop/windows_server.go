@@ -1000,7 +1000,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
-		Entry:                 logrus.NewEntry(logrus.StandardLogger()),
+		Logger:                s.cfg.Logger,
 		Emitter:               s.cfg.Emitter,
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,

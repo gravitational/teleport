@@ -4561,7 +4561,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       cfg.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.GracefulExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4925,7 +4925,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ServerID:       serverID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.log,
+		Logger:         process.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5143,7 +5143,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       process.Config.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.ExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6025,7 +6025,7 @@ func (process *TeleportProcess) initApps() {
 			ServerID:            process.Config.HostUUID,
 			Emitter:             asyncEmitter,
 			EmitterContext:      process.ExitContext(),
-			Logger:              process.log,
+			Logger:              process.logger,
 			MonitorCloseChannel: process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {

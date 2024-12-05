@@ -8303,7 +8303,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ServerID:       proxyID,
 		Emitter:        client,
 		EmitterContext: ctx,
-		Logger:         log,
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

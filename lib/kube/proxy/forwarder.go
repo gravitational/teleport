@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -2348,9 +2349,11 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Context:               s.connCtx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
-		Entry:                 s.parent.log,
-		Emitter:               s.parent.cfg.AuthClient,
-		EmitterContext:        s.parent.ctx,
+		// TODO(tross) update this to use the child logger
+		// once Forwarder is converted to use a slog.Logger
+		Logger:         slog.Default(),
+		Emitter:        s.parent.cfg.AuthClient,
+		EmitterContext: s.parent.ctx,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)
