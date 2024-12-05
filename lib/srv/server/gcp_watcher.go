@@ -91,14 +91,15 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfig string) []Fetcher {
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher {
 	fetchers := make([]Fetcher, 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
-			Matcher:        matcher,
-			GCPClient:      gcpClient,
-			projectsClient: projectsClient,
+			Matcher:             matcher,
+			GCPClient:           gcpClient,
+			projectsClient:      projectsClient,
+			DiscoveryConfigName: discoveryConfigName,
 		}))
 	}
 
@@ -106,22 +107,22 @@ func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.In
 }
 
 type gcpFetcherConfig struct {
-	Matcher         types.GCPMatcher
-	GCPClient       gcp.InstancesClient
-	projectsClient  gcp.ProjectsClient
-	DiscoveryConfig string
+	Matcher             types.GCPMatcher
+	GCPClient           gcp.InstancesClient
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
 }
 
 type gcpInstanceFetcher struct {
-	GCP             gcp.InstancesClient
-	ProjectIDs      []string
-	Zones           []string
-	ProjectID       string
-	ServiceAccounts []string
-	Labels          types.Labels
-	Parameters      map[string]string
-	projectsClient  gcp.ProjectsClient
-	DiscoveryConfig string
+	GCP                 gcp.InstancesClient
+	ProjectIDs          []string
+	Zones               []string
+	ProjectID           string
+	ServiceAccounts     []string
+	Labels              types.Labels
+	Parameters          map[string]string
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
@@ -147,8 +148,8 @@ func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Ins
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
-func (f *gcpInstanceFetcher) GetDiscoveryConfig() string {
-	return f.DiscoveryConfig
+func (f *gcpInstanceFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
