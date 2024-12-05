@@ -2361,12 +2361,42 @@ func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
-func (m *WorkloadIdentityCreate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadIdentityCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.WorkloadIdentityData = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.WorkloadIdentityData.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.WorkloadIdentityData = m.WorkloadIdentityData.trimToMaxSize(maxFieldsSize)
+
+	return out
 }
 
-func (m *WorkloadIdentityUpdate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadIdentityUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.WorkloadIdentityData = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.WorkloadIdentityData.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.WorkloadIdentityData = m.WorkloadIdentityData.trimToMaxSize(maxFieldsSize)
+
+	return out
 }
 
 func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
