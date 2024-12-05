@@ -333,10 +333,6 @@ type Config struct {
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
 
-	// DatabasesAddrs is the list of separate listeners addresses per database
-	// protocol.
-	DatabasesAddrs map[string]utils.NetAddr
-
 	// DatabaseREPLGetter is used for retrieving database REPL.
 	DatabaseREPLGetter dbrepl.REPLGetter
 }

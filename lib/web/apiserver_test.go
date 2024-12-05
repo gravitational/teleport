@@ -214,9 +214,6 @@ type webSuiteConfig struct {
 
 	// databaseREPLGetter allows setting custom database REPLs.
 	databaseREPLGetter dbrepl.REPLGetter
-
-	// databasesAddrs allows setting custom database proxy addresses.
-	databasesAddrs map[string]utils.NetAddr
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -517,7 +514,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 		DatabaseREPLGetter:    cfg.databaseREPLGetter,
-		DatabasesAddrs:        cfg.databasesAddrs,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {

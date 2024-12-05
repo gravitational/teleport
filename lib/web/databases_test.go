@@ -41,7 +41,6 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
@@ -567,31 +566,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			},
 		},
 		databaseREPLGetter: getter,
-		databasesAddrs: map[string]utils.NetAddr{
-			databaseProtocol: utils.FromAddr(proxyListener.Addr()),
-		},
 	})
-
-	// Starts a dummy database proxy server that will accept connections
-	// and perform the TLS handshake. The TLS config should mimic what the real
-	// database proxy server uses.
-	serverIdentity, err := auth.NewServerIdentity(s.server.Auth(), proxyListener.Addr().String(), types.RoleProxy)
-	require.NoError(t, err)
-	tlsConfig, err := serverIdentity.TLSConfig(nil)
-	require.NoError(t, err)
-
-	proxyServerErrChan := make(chan error, 1)
-	go func() {
-		conn, err := proxyListener.Accept()
-		if err != nil {
-			proxyServerErrChan <- err
-			return
-		}
-		defer conn.Close()
-
-		tlsConn := tls.Server(conn, tlsConfig)
-		proxyServerErrChan <- tlsConn.Handshake()
-	}()
 
 	accessRole, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -667,13 +642,6 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 
 	require.NoError(t, ws.Close())
 	require.True(t, repl.getClosed(), "expected REPL instance to be closed after websocket.Conn is closed")
-
-	select {
-	case err := <-proxyServerErrChan:
-		require.NoError(t, err, "expected proxy test server to have no errors")
-	case <-ctx.Done():
-		require.Fail(t, "expected proxy test server to have exited")
-	}
 }
 
 func receiveWSMessage(t *testing.T, ws *websocket.Conn) terminal.Envelope {
@@ -744,17 +712,11 @@ func (m *mockDatabaseREPL) Run(_ context.Context) error {
 	}()
 
 	if _, err := m.cfg.Client.Write([]byte(m.message)); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
-	conn, err := tls.Dial("tcp", m.cfg.Addr.String(), m.cfg.TLSConfig)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	if _, err := conn.Write([]byte("Hello")); err != nil {
-		return err
+	if _, err := m.cfg.ServerConn.Write([]byte("Hello")); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

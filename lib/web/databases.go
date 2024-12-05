@@ -54,10 +54,12 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
@@ -469,14 +471,15 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	localAddr, err := h.getDatabaseProxyServerAddr(netConfig, db.GetProtocol())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// localAddr, err := h.getDatabaseProxyServerAddr(netConfig, db.GetProtocol())
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
 	defer stream.Close()
 
+	replConn, alpnConn := net.Pipe()
 	sess := &databaseInteractiveSession{
 		ctx:               ctx,
 		log:               log,
@@ -486,11 +489,12 @@ func (h *Handler) dbConnect(
 		ws:                ws,
 		sctx:              sctx,
 		site:              site,
-		accessPoint:       accessPoint,
-		authClient:        h.cfg.ProxyClient,
+		clt:               clt,
+		replConn:          replConn,
+		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		replNewFunc:       replStartFunc,
-		localAddr:         localAddr,
+		localAddr:         h.cfg.ProxyWebAddr,
 	}
 	defer sess.Close()
 
@@ -500,27 +504,6 @@ func (h *Handler) dbConnect(
 	}
 
 	return nil, nil
-}
-
-// getDatabaseProxyServerAddr returns the local address used to connect to
-// database proxy server.
-func (h *Handler) getDatabaseProxyServerAddr(netConfig types.ClusterNetworkingConfig, protocol string) (utils.NetAddr, error) {
-	if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		return h.cfg.ProxyWebAddr, nil
-	}
-
-	// In case multiplexing is disabled, we need to fallback into separate
-	// listeners (if available).
-	if addr, ok := h.cfg.DatabasesAddrs[protocol]; ok {
-		return addr, nil
-	}
-
-	switch protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolMySQL, defaults.ProtocolMongoDB:
-		return utils.NetAddr{}, trace.BadParameter("database listener not available")
-	default:
-		return utils.NetAddr{}, trace.BadParameter("%q database protocol is only available with TLS routing enabled", protocol)
-	}
 }
 
 // DatabaseSessionRequest describes a request to create a web-based terminal
@@ -581,14 +564,15 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 
 type databaseInteractiveSession struct {
 	ctx               context.Context
+	ws                *websocket.Conn
 	stream            *terminal.Stream
 	log               *slog.Logger
 	req               *DatabaseSessionRequest
 	sctx              *SessionContext
-	ws                *websocket.Conn
 	site              reversetunnelclient.RemoteSite
-	accessPoint       authclient.RemoteProxyAccessPoint
-	authClient        authclient.ClientI
+	clt               authclient.ClientI
+	replConn          net.Conn
+	alpnConn          net.Conn
 	keepAliveInterval time.Duration
 	db                types.Database
 	replNewFunc       dbrepl.REPLNewFunc
@@ -596,7 +580,7 @@ type databaseInteractiveSession struct {
 }
 
 func (s *databaseInteractiveSession) Run() error {
-	tlsCert, err := s.issueCerts()
+	tlsCert, route, err := s.issueCerts()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -605,20 +589,28 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
-	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
-
-	tlsConfig, err := s.sctx.ClientTLSConfig(s.ctx)
+	alpnProtocol, err := alpncommon.ToALPNProtocol(route.Protocol)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig.NextProtos = []string{s.db.GetProtocol()}
-	tlsConfig.ServerName = constants.APIDomain
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+
+	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
+
+	err = client.RunALPNAuthTunnel(s.ctx, client.ALPNAuthTunnelConfig{
+		AuthClient:      s.clt,
+		Listener:        listener.NewSingleUseListener(s.alpnConn),
+		Protocol:        alpnProtocol,
+		PublicProxyAddr: s.localAddr.String(),
+		RouteToDatabase: *route,
+		TLSCert:         tlsCert,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	repl, err := s.replNewFunc(s.ctx, &dbrepl.NewREPLConfig{
-		Addr:      s.localAddr,
-		Client:    s.stream,
-		TLSConfig: tlsConfig.Clone(),
+		Client:     s.stream,
+		ServerConn: s.replConn,
 		Route: tlsca.RouteToDatabase{
 			Protocol:    s.db.GetProtocol(),
 			ServiceName: s.req.ServiceName,
@@ -641,23 +633,21 @@ func (s *databaseInteractiveSession) Run() error {
 }
 
 func (s *databaseInteractiveSession) Close() error {
+	s.replConn.Close()
 	return s.ws.Close()
 }
 
-func (s *databaseInteractiveSession) issueCerts() (tls.Certificate, error) {
-	clt, err := s.sctx.GetUserClient(s.ctx, s.site)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
+// issueCerts performs the MFA (if required) and generate the user session
+// certificates.
+func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, *clientproto.RouteToDatabase, error) {
 	pk, err := keys.ParsePrivateKey(s.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "failed getting user private key from the session")
+		return nil, nil, trace.Wrap(err, "failed getting user private key from the session")
 	}
 
 	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "failed to marshal public key")
+		return nil, nil, trace.Wrap(err, "failed to marshal public key")
 	}
 
 	routeToDatabase := clientproto.RouteToDatabase{
@@ -679,7 +669,7 @@ func (s *databaseInteractiveSession) issueCerts() (tls.Certificate, error) {
 	}
 
 	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
-		CurrentAuthClient: clt,
+		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
 		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
@@ -689,22 +679,22 @@ func (s *databaseInteractiveSession) issueCerts() (tls.Certificate, error) {
 		CertsReq: &certsReq,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
-		return tls.Certificate{}, trace.Wrap(err, "failed performing mfa ceremony")
+		return nil, nil, trace.Wrap(err, "failed performing mfa ceremony")
 	}
 
 	if certs == nil {
 		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
 		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err, "failed issuing user certs")
+			return nil, nil, trace.Wrap(err, "failed issuing user certs")
 		}
 	}
 
 	tlsCert, err := pk.TLSCertificate(certs.TLS)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCert, nil
+	return &tlsCert, &routeToDatabase, nil
 }
 
 func (s *databaseInteractiveSession) sendSessionMetadata() error {

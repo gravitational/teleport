@@ -18,23 +18,19 @@ package repl
 
 import (
 	"context"
-	"crypto/tls"
 	"io"
+	"net"
 
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewREPLConfig represents the database REPL constructor config.
 type NewREPLConfig struct {
-	// Client returns the user terminal client.
+	// Client is the user terminal client.
 	Client io.ReadWriter
-	// Addr returns the address the REPL should connect to start the database
-	// connection.
-	Addr utils.NetAddr
-	// TLSConfig returns the TLS configuration used to connect to the Addr().
-	TLSConfig *tls.Config
-	// Route returns the session routing information.
+	// ServerConn is the database server connection.
+	ServerConn net.Conn
+	// Route is the session routing information.
 	Route tlsca.RouteToDatabase
 }
 
