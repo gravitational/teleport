@@ -2797,7 +2797,8 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, false)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
@@ -3615,7 +3616,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, false)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
@@ -3795,7 +3797,8 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, false)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -5618,7 +5621,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, false)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before reload has started to simulate old client
@@ -7549,7 +7553,9 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	t.Cleanup(func() { leaf.StopAll() })
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, false)
+
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
 	_, _, rootProxySSHPort := root.StartNodeAndProxy(t, "root-zero")

@@ -2285,7 +2285,10 @@ func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
 	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
-	return resp, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 // UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
@@ -2295,17 +2298,11 @@ func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster type
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
 	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
-	if trace.IsNotImplemented(err) {
-		// Try to print a nicer error message when newer clients connect to
-		// older auth servers that don't recognize the new gRPC.
-		authVersion := "unknown"
-		if pingResp, err := c.Ping(ctx); err == nil && pingResp.ServerVersion != "" {
-			authVersion = pingResp.ServerVersion
-		}
-		return resp, trace.Wrap(err, "client version (%s) is likely newer than your auth server version (%s), "+
-			"consider upgrading your auth server", api.Version, authVersion)
+	if err != nil && trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err, "control plane does not support this operation, "+
+			"consider upgrading your control plane")
 	}
-	return resp, trace.Wrap(err)
+	return resp, nil
 }
 
 // DeleteTrustedCluster deletes a Trusted Cluster by name.
