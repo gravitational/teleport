@@ -43,6 +43,7 @@ type workloadIdentityReadWriter interface {
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	DeleteWorkloadIdentity(ctx context.Context, name string) error
+	UpsertWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
 // ResourceServiceConfig holds configuration options for the ResourceService.
@@ -270,6 +271,49 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 	}); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for updating of WorkloadIdentity",
+			"error", err,
+		)
+	}
+
+	return created, nil
+}
+
+// UpsertWorkloadIdentity updates or creates an existing WorkloadIdentity.
+// Implements teleport.workloadidentity.v1.ResourceService/UpsertWorkloadIdentity
+func (s *ResourceService) UpsertWorkloadIdentity(
+	ctx context.Context, req *workloadidentityv1pb.UpsertWorkloadIdentityRequest,
+) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(
+		types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.WorkloadIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityUpdate{
+		Metadata: apievents.Metadata{
+			Code: events.WorkloadIdentityUpdateCode,
+			Type: events.WorkloadIdentityUpdateEvent,
+		},
+		UserMetadata:       authz.ClientUserMetadata(ctx),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.WorkloadIdentity.Metadata.Name,
+		},
+	}); err != nil {
+		s.logger.ErrorContext(
+			ctx, "Failed to emit audit event for upsertion of WorkloadIdentity",
 			"error", err,
 		)
 	}
