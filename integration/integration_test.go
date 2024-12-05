@@ -2787,10 +2787,6 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
@@ -3146,7 +3142,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
 
 	if !test.skipNameValidation {
-		// Modify the trusted cluster resource name back to what it was orignally.
+		// Modify the trusted cluster resource name back to what it was originally.
 		trustedCluster.SetName(main.Secrets.SiteName)
 	}
 
