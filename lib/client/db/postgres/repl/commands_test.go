@@ -82,10 +82,12 @@ func TestCommandExecution(t *testing.T) {
 				return
 			}
 
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				args := <-commandArgsChan
+			select {
+			case args := <-commandArgsChan:
 				require.Equal(t, tt.expectedArgs, args)
-			}, time.Second, time.Millisecond)
+			case <-time.After(time.Second):
+				require.Fail(t, "expected to command args from test server but got nothing")
+			}
 
 			// When the command exits, the REPL and the connections will be
 			// closed.

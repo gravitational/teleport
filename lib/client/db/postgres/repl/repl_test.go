@@ -102,10 +102,12 @@ func TestQuery(t *testing.T) {
 				writeLine(t, tc, line)
 			}
 
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				query := <-tc.QueryChan()
+			select {
+			case query := <-tc.QueryChan():
 				require.Equal(t, tt.expectedQuery, query)
-			}, time.Second, time.Millisecond)
+			case <-time.After(time.Second):
+				require.Fail(t, "expected to receive query but got nothing")
+			}
 
 			// Always expect a query reply from the server.
 			_ = readUntilNextLead(t, tc)
@@ -135,10 +137,13 @@ func writeLine(t *testing.T, c *testCtx, line string) {
 		}
 	}(c.conn)
 
+	// Given that the test connections are piped a problem with the reader side
+	// would lead into blocking writing. To avoid this scenario we're using
+	// the Eventually just to ensure a timeout on writing into the connections.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_, err := c.conn.Write(data)
 		require.NoError(t, err)
-	}, 5*time.Second, time.Millisecond)
+	}, 5*time.Second, time.Millisecond, "expected to write into the connection successfully")
 }
 
 // readUntilNextLead reads the contents from the client connection until we
@@ -163,6 +168,9 @@ func readLine(t *testing.T, c *testCtx) string {
 
 	var n int
 	buf := make([]byte, 1024)
+	// Given that the test connections are piped a problem with the writer side
+	// would lead into blocking reading. To avoid this scenario we're using
+	// the Eventually just to ensure a timeout on reading from the connections.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var err error
 		n, err = c.conn.Read(buf[0:])
@@ -248,10 +256,13 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 
 	t.Cleanup(func() {
 		tc.close()
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			err, _ := <-tc.errChan
-			assert.NoError(t, err)
-		}, time.Second, time.Millisecond)
+
+		select {
+		case err := <-tc.errChan:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.Fail(t, "expected to receive the test server close result but got nothing")
+		}
 	})
 
 	go func(c *testCtx) {

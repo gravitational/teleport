@@ -92,6 +92,10 @@ func (r *REPL) Run(ctx context.Context) error {
 		}
 	}()
 
+	if err := r.presentBanner(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var (
 		multilineAcc     strings.Builder
 		readingMultiline bool
@@ -161,7 +165,7 @@ func (r *REPL) Run(ctx context.Context) error {
 
 // formatTermError changes the term.Terminal error to match caller expectations.
 func formatTermError(ctx context.Context, err error) error {
-	// When context is canceled it will immediatly lead read/write errors due
+	// When context is canceled it will immediately lead read/write errors due
 	// to the closed connection. For this cases we return the context error.
 	if ctx.Err() != nil && (errors.Is(err, io.ErrClosedPipe) || errors.Is(err, net.ErrClosed)) {
 		return ctx.Err()

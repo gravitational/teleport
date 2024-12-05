@@ -36,15 +36,13 @@ func (r *REPL) processCommand(line string) (string, bool) {
 	return cmd.ExecFunc(r, args)
 }
 
-// commandType specify the command category.
+// commandType specify the command category. This is used to organize the
+// commands, for example, when showing them in the help command.
 type commandType string
 
 const (
 	// commandTypeGeneral represents a general-purpose command type.
 	commandTypeGeneral commandType = "General"
-	// commandTypeInformational represents a command type used for informational
-	// purposes.
-	commandTypeInformational = "Informational"
 	// commandTypeConnection represents a command type related to connection
 	// operations.
 	commandTypeConnection = "Connection"
