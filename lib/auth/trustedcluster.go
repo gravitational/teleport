@@ -47,16 +47,16 @@ import (
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
-	const validateName = false
-	upserted, err := a.upsertTrustedCluster(ctx, tc, validateName)
+	const validateNameFalse = false
+	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameFalse)
 	return upserted, trace.Wrap(err)
 }
 
 // UpsertTrustedClusterV2 creates or toggles a Trusted Cluster relationship.
 // The trusted cluster resource name must match the cluster name.
 func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
-	const validateName = true
-	upserted, err := a.upsertTrustedCluster(ctx, tc, true)
+	const validateNameTrue = true
+	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameTrue)
 	return upserted, trace.Wrap(err)
 }
 
@@ -302,15 +302,10 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 		}
 	}
 
-	clt, err := a.trustedClusterClient(trustedCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Validate cluster names before establishing trust to avoid unnecessarily
 	// creating a remote_cluster resource on the root cluster.
 	if validateName {
-		if err := a.validateTrustedClusterName(ctx, clt, trustedCluster); err != nil {
+		if err := a.validateTrustedClusterName(ctx, trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -326,7 +321,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	log.Infof("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
-	validateResponse, err := a.sendValidateRequestToProxy(ctx, clt, &validateRequest)
+	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
 		log.Error(err)
 		if strings.Contains(err.Error(), "x509") {
@@ -580,54 +575,10 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(ctx context.Context, clt *roundtrip.Client, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := httplib.ConvertResponse(clt.PostJSON(ctx, clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw authclient.ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
-}
-
-// validateTrustedClusterName validates that the trusted cluster resource name
-// matches the cluster name.
-func (a *Server) validateTrustedClusterName(ctx context.Context, clt *roundtrip.Client, trustedCluster types.TrustedCluster) error {
-	out, err := httplib.ConvertResponse(clt.Get(ctx, clt.Endpoint("webapi", "ping"), nil))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var pingResponse webclient.PingResponse
-	if err = json.Unmarshal(out.Bytes(), &pingResponse); err != nil {
-		return trace.Wrap(err)
-	}
-	if trustedCluster.GetName() != pingResponse.ClusterName {
-		return trace.BadParameter("trusted cluster resource name must be the same as the remote cluster name. got: %q",
-			trustedCluster.GetName())
-	}
-	return nil
-}
-
-// trustedClusterClient returns a roundtrip client for the trusted cluster.
-func (a *Server) trustedClusterClient(trustedCluster types.TrustedCluster) (*roundtrip.Client, error) {
+func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
-		Host:   trustedCluster.GetProxyAddress(),
+		Host:   host,
 	}
 
 	opts := []roundtrip.ClientParam{
@@ -660,7 +611,46 @@ func (a *Server) trustedClusterClient(trustedCluster types.TrustedCluster) (*rou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return clt, err
+	validateRequestRaw, err := validateRequest.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := httplib.ConvertResponse(clt.PostJSON(context.TODO(), clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validateResponseRaw authclient.ValidateTrustedClusterResponseRaw
+	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := validateResponseRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
+}
+
+// validateTrustedClusterName validates that the trusted cluster resource name
+// matches the cluster name.
+func (a *Server) validateTrustedClusterName(ctx context.Context, trustedCluster types.TrustedCluster) error {
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: trustedCluster.GetProxyAddress(),
+		Insecure:  lib.IsInsecureDevMode(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if trustedCluster.GetName() != resp.ClusterName {
+		return trace.BadParameter("trusted cluster resource name must be the same as the remote cluster name. got: %q",
+			trustedCluster.GetName())
+	}
+	return nil
 }
 
 // createReverseTunnel will create a services.ReverseTunnel givenin the
