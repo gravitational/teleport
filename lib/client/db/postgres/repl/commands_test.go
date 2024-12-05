@@ -51,7 +51,14 @@ func TestCommandExecution(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			commandArgsChan := make(chan string)
-			instance, tc := StartWithServer(t, ctx)
+			instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			runErrChan := make(chan error)
+			go func() {
+				runErrChan <- instance.Run(ctx)
+			}()
 
 			// Consume the REPL banner.
 			_ = readUntilNextLead(t, tc)
@@ -88,11 +95,27 @@ func TestCommandExecution(t *testing.T) {
 					_, err := tc.conn.Read(buf[0:])
 					require.ErrorIs(t, err, io.EOF)
 				}, time.Second, time.Millisecond)
+
+				select {
+				case err := <-runErrChan:
+					require.NoError(t, err, "expected the REPL instance exit gracefully")
+				case <-time.After(time.Second):
+					require.Fail(t, "expected REPL run to terminate but got nothing")
+				}
 				return
 			}
 
 			reply := readUntilNextLead(t, tc)
 			require.Equal(t, tt.commandResult, reply)
+
+			// Terminate the REPL run session and wait for the Run results.
+			cancel()
+			select {
+			case err := <-runErrChan:
+				require.ErrorIs(t, err, context.Canceled, "expected the REPL instance to finish running with error due to cancelation")
+			case <-time.After(time.Second):
+				require.Fail(t, "expected REPL run to terminate but got nothing")
+			}
 		})
 	}
 }

@@ -173,6 +173,7 @@ func readLine(t *testing.T, c *testCtx) string {
 }
 
 type testCtx struct {
+	cfg        *testCtxConfig
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 
@@ -187,23 +188,35 @@ type testCtx struct {
 	route    clientproto.RouteToDatabase
 	pgClient *pgproto3.Backend
 	errChan  chan error
-	// handleCustomQueries when set to true the PostgreSQL test server will
-	// accept any query sent and reply with success.
-	handleCustomQueries bool
-	// queryChan when HandleCustomQueries == true the queries received by the
+	// queryChan handling custom queries is enabled the queries received by the
 	// test server will be sent to this channel.
 	queryChan chan string
 }
 
+type testCtxConfig struct {
+	// skipREPLRun when set to true the REPL instance won't be executed.
+	skipREPLRun bool
+	// handleCustomQueries when set to true the PostgreSQL test server will
+	// accept any query sent and reply with success.
+	handleCustomQueries bool
+}
+
 // testCtxOption represents a testCtx option.
-type testCtxOption func(*testCtx)
+type testCtxOption func(*testCtxConfig)
 
 // WithCustomQueries enables sending custom queries to the PostgreSQL test
 // server. Note that when it is enabled, callers must consume the queries on the
 // query channel.
 func WithCustomQueries() testCtxOption {
-	return func(tc *testCtx) {
-		tc.handleCustomQueries = true
+	return func(cfg *testCtxConfig) {
+		cfg.handleCustomQueries = true
+	}
+}
+
+// WithSkipREPLRun disables automatically running the REPL instance.
+func WithSkipREPLRun() testCtxOption {
+	return func(cfg *testCtxConfig) {
+		cfg.skipREPLRun = true
 	}
 }
 
@@ -212,11 +225,17 @@ func WithCustomQueries() testCtxOption {
 func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (*REPL, *testCtx) {
 	t.Helper()
 
+	cfg := &testCtxConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	conn, clientConn := net.Pipe()
 	serverConn, pgConn := net.Pipe()
 	client := pgproto3.NewBackend(pgproto3.NewChunkReader(pgConn), pgConn)
 	ctx, cancelFunc := context.WithCancel(ctx)
 	tc := &testCtx{
+		cfg:        cfg,
 		ctx:        ctx,
 		cancelFunc: cancelFunc,
 		conn:       conn,
@@ -225,10 +244,6 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		pgClient:   client,
 		errChan:    make(chan error, 1),
 		queryChan:  make(chan string),
-	}
-
-	for _, opt := range opts {
-		opt(tc)
 	}
 
 	t.Cleanup(func() {
@@ -246,8 +261,29 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		}
 	}(tc)
 
-	r, err := Start(ctx, tc.clientConn, tc.serverConn, tc.route)
+	r, err := New(ctx, tc.clientConn, tc.serverConn, tc.route)
 	require.NoError(t, err)
+
+	if !cfg.skipREPLRun {
+		// Start the REPL session and return to the caller a channel that will
+		// receive the execution result so it can assert REPL executions.
+		runCtx, cancelRun := context.WithCancel(ctx)
+		runErrChan := make(chan error, 1)
+		go func() {
+			runErrChan <- r.Run(runCtx)
+		}()
+		t.Cleanup(func() {
+			cancelRun()
+
+			select {
+			case err := <-runErrChan:
+				require.ErrorIs(t, err, context.Canceled, "expected the REPL instance to finish running with error due to cancelation")
+			case <-time.After(10 * time.Second):
+				require.Fail(t, "timeout while waiting for REPL Run result")
+			}
+		})
+	}
+
 	return r, tc
 }
 
@@ -305,7 +341,7 @@ func (tc *testCtx) processMessages() error {
 		var messages []pgproto3.BackendMessage
 		switch msg := message.(type) {
 		case *pgproto3.Query:
-			if tc.handleCustomQueries {
+			if tc.cfg.handleCustomQueries {
 				select {
 				case tc.queryChan <- msg.String:
 					messages = []pgproto3.BackendMessage{

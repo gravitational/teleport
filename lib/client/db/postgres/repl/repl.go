@@ -18,6 +18,7 @@ package repl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -33,17 +34,15 @@ import (
 )
 
 type REPL struct {
-	ctx        context.Context
-	cancelFunc context.CancelCauseFunc
-	conn       *pgconn.PgConn
-	client     io.ReadWriter
+	connConfig *pgconn.Config
+	client     io.ReadWriteCloser
 	serverConn net.Conn
 	route      clientproto.RouteToDatabase
 	term       *term.Terminal
 	commands   map[string]*command
 }
 
-func Start(ctx context.Context, client io.ReadWriter, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
+func New(ctx context.Context, client io.ReadWriteCloser, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
 	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s@%s/%s", route.Username, hostnamePlaceholder, route.Database))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,59 +58,40 @@ func Start(ctx context.Context, client io.ReadWriter, serverConn net.Conn, route
 		return serverConn, nil
 	}
 
-	pgConn, err := pgconn.ConnectConfig(ctx, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	replCtx, cancelFunc := context.WithCancelCause(ctx)
-	r := &REPL{
-		ctx:        replCtx,
-		cancelFunc: cancelFunc,
-		conn:       pgConn,
+	return &REPL{
+		connConfig: config,
 		client:     client,
 		serverConn: serverConn,
 		route:      route,
 		term:       term.NewTerminal(client, ""),
 		commands:   initCommands(),
+	}, nil
+}
+
+// Run starts and run the PostgreSQL REPL session. The provided context is used
+// to interrupt the execution and clean up resources.
+func (r *REPL) Run(ctx context.Context) error {
+	pgConn, err := pgconn.ConnectConfig(ctx, r.connConfig)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	defer pgConn.Close(context.TODO())
 
-	go r.start()
-	return r, nil
-}
+	// term.Terminal blocks reads/writes without respecting the context. The
+	// only thing that unblocks it is closing the underlaying connection (in
+	// our case r.client). On this goroutine we only watch for context
+	// cancelation and close the connection. This will unblocks all terminal
+	// reads/writes.
+	ctxCancelCh := make(chan struct{})
+	defer close(ctxCancelCh)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = r.client.Close()
+		case <-ctxCancelCh:
+		}
+	}()
 
-func (r *REPL) Close() {
-	r.close(nil)
-}
-
-func (r *REPL) close(err error) {
-	r.cancelFunc(err)
-	r.conn.Close(r.ctx)
-	r.serverConn.Close()
-}
-
-func (r *REPL) Wait(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.ctx.Done():
-		return r.ctx.Err()
-	}
-}
-
-func (r *REPL) start() {
-	if err := r.presentBanner(); err != nil {
-		r.close(err)
-		return
-	}
-
-	// After loop is done, we always close the REPL to ensure the connections
-	// are cleaned.
-	r.close(r.loop())
-}
-
-// loop implements the main REPL loop.
-func (r *REPL) loop() error {
 	var (
 		multilineAcc     strings.Builder
 		readingMultiline bool
@@ -124,8 +104,9 @@ func (r *REPL) loop() error {
 	for {
 		line, err := r.term.ReadLine()
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(formatTermError(ctx, err))
 		}
+
 		// ReadLine should always return the line without trailing line breaks,
 		// but we still require to remove trailing and leading spaces.
 		line = strings.TrimSpace(line)
@@ -152,7 +133,7 @@ func (r *REPL) loop() error {
 			readingMultiline = false
 			r.term.SetPrompt(lineBreak + lead)
 
-			reply = formatResult(r.conn.Exec(r.ctx, query).ReadAll()) + lineBreak
+			reply = formatResult(pgConn.Exec(ctx, query).ReadAll()) + lineBreak
 		default:
 			// If there wasn't a specific execution, we assume the input is
 			// multi-line. In this case, we need to accumulate the contents.
@@ -173,9 +154,20 @@ func (r *REPL) loop() error {
 		}
 
 		if _, err := r.term.Write([]byte(reply)); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(formatTermError(ctx, err))
 		}
 	}
+}
+
+// formatTermError changes the term.Terminal error to match caller expectations.
+func formatTermError(ctx context.Context, err error) error {
+	// When context is canceled it will immediatly lead read/write errors due
+	// to the closed connection. For this cases we return the context error.
+	if ctx.Err() != nil && (errors.Is(err, io.ErrClosedPipe) || errors.Is(err, net.ErrClosed)) {
+		return ctx.Err()
+	}
+
+	return err
 }
 
 func (r *REPL) presentBanner() error {
