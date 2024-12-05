@@ -47,6 +47,15 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+const (
+	// AgentUpdateGroupParameter is the parameter used to specify the updater
+	// group when doing a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified group. e.g. some groups might need to update
+	// before others.
+	AgentUpdateGroupParameter = "group"
+)
+
 // Config specifies information when building requests with the
 // webclient.
 type Config struct {
@@ -68,6 +77,9 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// UpdateGroup is used to vary the webapi response based on the
+	// client's auto-update group.
+	UpdateGroup string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -173,9 +185,18 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/find",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
+		}.Encode()
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,12 +234,22 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
-	if cfg.ConnectorName != "" {
-		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/ping",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
+		}.Encode()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if cfg.ConnectorName != "" {
+		endpoint = endpoint.JoinPath(cfg.ConnectorName)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
