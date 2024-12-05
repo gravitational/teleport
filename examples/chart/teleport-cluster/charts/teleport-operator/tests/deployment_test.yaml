@@ -59,6 +59,25 @@ tests:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
 
+  - it: sets labels when specified
+    values:
+      - ../.lint/labels.yaml
+    asserts:
+      # Pod labels
+      - equal:
+          path: spec.template.metadata.labels.kubernetes\.io/pod
+          value: test-label
+      - equal:
+          path: spec.template.metadata.labels.kubernetes\.io/pod-different
+          value: 4
+      # Deployment labels
+      - equal:
+          path: metadata.labels.kubernetes\.io/deployment
+          value: test-label
+      - equal:
+          path: metadata.labels.kubernetes\.io/deployment-different
+          value: 3
+
   - it: should mount tls.existingCASecretName and set environment when set in values
     values:
       - ../.lint/existing-tls-ca.yaml
