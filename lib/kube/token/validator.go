@@ -21,6 +21,7 @@ package token
 import (
 	"context"
 	"encoding/json"
+	"github.com/gravitational/teleport/api/utils"
 	"slices"
 	"strings"
 	"sync"
@@ -110,8 +111,8 @@ func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interfac
 		return nil, nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes client")
 	}
 
-	// We do a self-review to recover the default cluster audience
-	audiences, err := getTokenAudiences(config.BearerToken)
+	// We extract the audiences from our own token. This allows us to detect the default Kubernetes audiences.
+	audiences, err := unsafeGetTokenAudiences(config.BearerToken)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "doing a self-review")
 	}
@@ -121,8 +122,11 @@ func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interfac
 	return client, audiences, nil
 }
 
-// getTokenAudiences extracts the audience from
-func getTokenAudiences(token string) ([]string, error) {
+// unsafeGetTokenAudiences extracts the audience from the mounted token.
+// THIS FUNCTION DOES NOT VALIDATE THE TOKEN SIGNATURE.
+// Bound tokens always have audiences and the list will not be empty.
+// Legacy tokens don't have audiences, the result will be an empty list and no error.
+func unsafeGetTokenAudiences(token string) ([]string, error) {
 	jwt, err := josejwt.ParseSigned(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -157,8 +161,10 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 	// We do this only if the Kubernetes cluster supports audiences.
 	// Earlier Kube versions don't have audience
 	// support, in this case, we just do a regular token review.
-	if audiences != nil {
-		review.Spec.Audiences = append([]string{clusterName}, audiences...)
+	if len(audiences) > 0 {
+		// We deduplicate because the Teleport cluster name could be one of the default audiences
+		// And I really don't want to discover if sending the same audience multiple times is valid for Kubernetes.
+		review.Spec.Audiences = utils.Deduplicate(append([]string{clusterName}, audiences...))
 	}
 
 	options := metav1.CreateOptions{}
