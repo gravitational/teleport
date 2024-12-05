@@ -165,7 +165,7 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 }
 
 const gitLoginNote = "" +
-	"(n/a)*: Usernames will be retrieved automatically upon git commands.\n" +
+	"(n/a)*: Username will be retrieved automatically upon running git commands.\n" +
 	"        Alternatively, run `tsh git login --github-org <org>`.\n\n"
 
 const gitCommandsGeneralHint = "" +
