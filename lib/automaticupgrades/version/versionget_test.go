@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,8 +67,99 @@ func TestValidVersionChange(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ValidVersionChange(ctx, tt.current, tt.next))
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				require.Equal(t, tt.want, ValidVersionChange(ctx, tt.current, tt.next))
+			},
+		)
+	}
+}
+
+// checkTraceError is a test helper that converts trace.IsXXXError into a require.ErrorAssertionFunc
+func checkTraceError(check func(error) bool) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, i ...interface{}) {
+		require.True(t, check(err), i...)
+	}
+}
+
+func TestFailoverGetter_GetVersion(t *testing.T) {
+	t.Parallel()
+
+	// Test setup
+	ctx := context.Background()
+	tests := []struct {
+		name         string
+		getters      []Getter
+		expectResult string
+		expectErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "nil",
+			getters:      nil,
+			expectResult: "",
+			expectErr:    checkTraceError(trace.IsNotFound),
+		},
+		{
+			name:         "empty",
+			getters:      []Getter{},
+			expectResult: "",
+			expectErr:    checkTraceError(trace.IsNotFound),
+		},
+		{
+			name: "first getter success",
+			getters: []Getter{
+				StaticGetter{version: semverMid},
+				StaticGetter{version: semverHigh},
+			},
+			expectResult: semverMid,
+			expectErr:    require.NoError,
+		},
+		{
+			name: "first getter failure",
+			getters: []Getter{
+				StaticGetter{err: trace.LimitExceeded("got rate-limited")},
+				StaticGetter{version: semverHigh},
+			},
+			expectResult: "",
+			expectErr:    checkTraceError(trace.IsLimitExceeded),
+		},
+		{
+			name: "first getter skipped, second getter success",
+			getters: []Getter{
+				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
+				StaticGetter{version: semverHigh},
+			},
+			expectResult: semverHigh,
+			expectErr:    require.NoError,
+		},
+		{
+			name: "first getter skipped, second getter failure",
+			getters: []Getter{
+				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
+				StaticGetter{err: trace.LimitExceeded("got rate-limited")},
+			},
+			expectResult: "",
+			expectErr:    checkTraceError(trace.IsLimitExceeded),
+		},
+		{
+			name: "first getter skipped, second getter skipped",
+			getters: []Getter{
+				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
+				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
+			},
+			expectResult: "",
+			expectErr:    checkTraceError(trace.IsNotFound),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				// Test execution
+				getter := FailoverGetter(tt.getters)
+				result, err := getter.GetVersion(ctx)
+				require.Equal(t, tt.expectResult, result)
+				tt.expectErr(t, err)
+			},
+		)
 	}
 }

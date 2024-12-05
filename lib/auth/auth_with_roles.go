@@ -1666,7 +1666,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)

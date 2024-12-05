@@ -505,7 +505,20 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_START]: {
     type: 'session.start',
     desc: 'Session Started',
-    format: ({ user, sid }) => `User [${user}] has started a session [${sid}]`,
+    format: event => {
+      const user = event.user || '';
+
+      if (event.proto === 'kube') {
+        if (!event.kubernetes_cluster) {
+          return `User [${user}] has started a Kubernetes session [${event.sid}]`;
+        }
+        return `User [${user}] has started a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
+      }
+
+      const node =
+        event.server_hostname || event.server_addr || event.server_id;
+      return `User [${user}] has started a session [${event.sid}] on node [${node}] `;
+    },
   },
   [eventCodes.SESSION_UPLOAD]: {
     type: 'session.upload',
@@ -1855,6 +1868,20 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a plugin [${name}]`;
     },
   },
+  [eventCodes.CONTACT_CREATE]: {
+    type: 'contact.create',
+    desc: 'Contact Created',
+    format: ({ user, email, contact_type }) => {
+      return `User [${user}] created a [${contactTypeStr(contact_type)}] contact [${email}]`;
+    },
+  },
+  [eventCodes.CONTACT_DELETE]: {
+    type: 'contact.delete',
+    desc: 'Contact Deleted',
+    format: ({ user, email, contact_type }) => {
+      return `User [${user}] deleted a [${contactTypeStr(contact_type)}] contact [${email}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
@@ -1905,4 +1932,15 @@ function formatMembers(members: { member_name: string }[]) {
   const memberNamesJoined = memberNames.join(', ');
 
   return `${pluralize(memberNames.length, 'member')} [${memberNamesJoined}]`;
+}
+
+function contactTypeStr(type: number): string {
+  switch (type) {
+    case 1:
+      return 'Business';
+    case 2:
+      return 'Security';
+    default:
+      return `Unknown type: ${type}`;
+  }
 }

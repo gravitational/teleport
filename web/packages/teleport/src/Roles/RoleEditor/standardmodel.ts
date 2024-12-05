@@ -17,7 +17,6 @@
  */
 
 import { equalsDeep } from 'shared/utils/highbar';
-
 import { Option } from 'shared/components/Select';
 
 import {
@@ -26,8 +25,11 @@ import {
   Role,
   RoleConditions,
 } from 'teleport/services/resources';
-
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
+import {
+  KubernetesResourceKind,
+  KubernetesVerb,
+} from 'teleport/services/resources/types';
 
 import { defaultOptions } from './withDefaults';
 
@@ -108,29 +110,6 @@ export type KubernetesResourceModel = {
 };
 
 type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
-type KubernetesResourceKind =
-  | '*'
-  | 'pod'
-  | 'secret'
-  | 'configmap'
-  | 'namespace'
-  | 'service'
-  | 'serviceaccount'
-  | 'kube_node'
-  | 'persistentvolume'
-  | 'persistentvolumeclaim'
-  | 'deployment'
-  | 'replicaset'
-  | 'statefulset'
-  | 'daemonset'
-  | 'clusterrole'
-  | 'kube_role'
-  | 'clusterrolebinding'
-  | 'rolebinding'
-  | 'cronjob'
-  | 'job'
-  | 'certificatesigningrequest'
-  | 'ingress';
 
 /**
  * All possible resource kind drop-down options. This array needs to be kept in
@@ -172,19 +151,6 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
 ];
 
 type KubernetesVerbOption = Option<KubernetesVerb, string>;
-type KubernetesVerb =
-  | '*'
-  | 'get'
-  | 'create'
-  | 'update'
-  | 'patch'
-  | 'delete'
-  | 'list'
-  | 'watch'
-  | 'deletecollection'
-  | 'exec'
-  | 'portforward';
-
 /**
  * All possible Kubernetes verb drop-down options. This array needs to be kept
  * in sync with `KubernetesVerbs` in `api/types/constants.go.
@@ -590,7 +556,7 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
   return labels;
 }
 
-function optionsToStrings(opts: readonly Option[]): string[] {
+function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {
   return opts.map(opt => opt.value);
 }
 

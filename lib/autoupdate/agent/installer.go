@@ -307,6 +307,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	startTime := time.Now()
 	resp, err := li.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -330,13 +331,23 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	}
 	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
-	n, err := io.CopyN(w, io.TeeReader(resp.Body, shaReader), size)
+	tee := io.TeeReader(resp.Body, shaReader)
+	tee = io.TeeReader(tee, &progressLogger{
+		ctx:   ctx,
+		log:   li.Log,
+		level: slog.LevelInfo,
+		name:  path.Base(resp.Request.URL.Path),
+		max:   int(resp.ContentLength),
+		lines: 5,
+	})
+	n, err := io.CopyN(w, tee, size)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
 		return nil, trace.Errorf("mismatch in Teleport download size")
 	}
+	li.Log.InfoContext(ctx, "Download complete.", "duration", time.Since(startTime), "size", n)
 	return shaReader.Sum(nil), nil
 }
 
