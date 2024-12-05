@@ -38,7 +38,7 @@ export function DocumentAuthorizeWebSession(props: {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const rootCluster = ctx.clustersService.findCluster(props.doc.rootClusterUri);
-  const [attempt, authorize] = useAsync(async () => {
+  const [authorizeAttempt, authorize] = useAsync(async () => {
     const {
       response: { confirmationToken },
     } = await retryWithRelogin(ctx, props.doc.rootClusterUri, () =>
@@ -47,20 +47,21 @@ export function DocumentAuthorizeWebSession(props: {
         props.doc.webSessionRequest
       )
     );
-    const url = buildAuthorizedSessionUrl(
-      rootCluster,
-      props.doc.webSessionRequest,
-      confirmationToken
-    );
-    // This endpoint verifies the token and "upgrades" the web session and redirects to "/web".
-    window.open(url);
+    return confirmationToken;
   });
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
   const canAuthorize = rootCluster.loggedInUser?.isDeviceTrusted;
 
   async function authorizeAndCloseDocument() {
-    const [, error] = await authorize();
+    const [confirmationToken, error] = await authorize();
     if (!error) {
+      const url = buildAuthorizedSessionUrl(
+        rootCluster,
+        props.doc.webSessionRequest,
+        confirmationToken
+      );
+      // This endpoint verifies the token and "upgrades" the web session and redirects to "/web".
+      window.open(url);
       closeAndNotify();
     }
   }
@@ -112,8 +113,8 @@ export function DocumentAuthorizeWebSession(props: {
               This device is not trusted
             </Alert>
           )}
-          {attempt.status === 'error' && (
-            <Alert mb={0} details={attempt.statusText}>
+          {authorizeAttempt.status === 'error' && (
+            <Alert mb={0} details={authorizeAttempt.statusText}>
               Could not authorize the session
             </Alert>
           )}
@@ -127,17 +128,18 @@ export function DocumentAuthorizeWebSession(props: {
             <ButtonPrimary
               disabled={
                 !canAuthorize ||
-                attempt.status === 'processing' ||
-                attempt.status === 'success'
+                authorizeAttempt.status === 'processing' ||
+                authorizeAttempt.status === 'success'
               }
               size="large"
               onClick={authorizeAndCloseDocument}
             >
-              {getButtonText(attempt)}
+              {getButtonText(authorizeAttempt)}
             </ButtonPrimary>
             <ButtonText
               disabled={
-                attempt.status === 'processing' || attempt.status === 'success'
+                authorizeAttempt.status === 'processing' ||
+                authorizeAttempt.status === 'success'
               }
               onClick={openUnauthorizedAndCloseDocument}
             >
@@ -175,7 +177,7 @@ function buildUnauthorizedSessionUrl(
   return `https://${rootCluster.proxyHost}${processedRedirectUri}`;
 }
 
-function getButtonText(attempt: Attempt<void>): string {
+function getButtonText(attempt: Attempt<unknown>): string {
   switch (attempt.status) {
     case '':
     case 'error':
