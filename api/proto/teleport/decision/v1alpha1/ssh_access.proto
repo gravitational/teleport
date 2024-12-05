@@ -17,9 +17,9 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/duration.proto";
-import "teleport/decision/v1alpha1/identity.proto";
 import "teleport/decision/v1alpha1/metadata.proto";
 import "teleport/decision/v1alpha1/resource.proto";
+import "teleport/decision/v1alpha1/ssh_identity.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
@@ -30,7 +30,7 @@ message EvaluateSSHAccessRequest {
   RequestMetadata metadata = 1;
 
   // User describes the teleport user requesting access.
-  SSHIdentity user = 2;
+  SSHIdentity ssh_identity = 2;
 
   // Node references the target node the user is attempting to access.
   Resource node = 3;
