@@ -20,6 +20,9 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -49,4 +52,40 @@ type REPLInstance interface {
 type REPLGetter interface {
 	// GetREPL returns a start function for the specified protocol.
 	GetREPL(ctx context.Context, dbProtocol string) (REPLNewFunc, error)
+}
+
+// registry implements a default package level registry.
+var registry = &REPLRegistry{repl: make(map[string]REPLNewFunc)}
+
+// REPLRegistry implements a database REPL registry.
+type REPLRegistry struct {
+	mu   sync.Mutex
+	repl map[string]REPLNewFunc
+}
+
+// GetREPL implements REPLGetter.
+func (r *REPLRegistry) GetREPL(_ context.Context, dbProtocol string) (REPLNewFunc, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if startFunc, ok := r.repl[dbProtocol]; ok {
+		return startFunc, nil
+	}
+
+	return nil, trace.NotImplemented("REPL not registered for protocol %q", dbProtocol)
+}
+
+func (r *REPLRegistry) register(dbProtocol string, f REPLNewFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.repl[dbProtocol] = f
+}
+
+// DefaultGetter implements a default instance of REPLGetter.
+var DefaultGetter REPLGetter = registry
+
+// RegisterREPL registers a new REPL for the database protocol.
+func RegisterREPL(dbProtocol string, f REPLNewFunc) {
+	registry.register(dbProtocol, f)
 }

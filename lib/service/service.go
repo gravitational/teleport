@@ -108,6 +108,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -1065,6 +1066,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	if cfg.PluginRegistry == nil {
 		cfg.PluginRegistry = plugin.NewRegistry()
+	}
+
+	if cfg.DatabaseREPLGetter == nil {
+		cfg.DatabaseREPLGetter = dbrepl.DefaultGetter
 	}
 
 	var cloudLabels labels.Importer
@@ -4642,14 +4647,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
-			DatabasesAddrs: map[string]utils.NetAddr{
-				defaults.ProtocolPostgres: cfg.Proxy.PostgresAddr,
-				defaults.ProtocolMySQL:    cfg.Proxy.MySQLAddr,
-				defaults.ProtocolMongoDB:  cfg.Proxy.MongoAddr,
-			},
-			// TODO(gabrielcorado): place the database REPL getter from
-			//                      lib/client/db package once it gets merged.
-			// DatabaseREPLGetter: ,
+			DatabaseREPLGetter:        cfg.DatabaseREPLGetter,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
