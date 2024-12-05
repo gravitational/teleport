@@ -94,6 +94,7 @@ export function DocumentAuthorizeWebSession(props: {
       >
         <H1 mb="4">Authorize Web Session</H1>
         <Flex flexDirection="column" gap={3}>
+          {/*It's technically possible to open a deep link to authorize a session on a device that is not enrolled.*/}
           {!canAuthorize && (
             <Alert
               mb={0}
