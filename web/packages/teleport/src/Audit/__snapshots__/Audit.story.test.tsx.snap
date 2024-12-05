@@ -12800,7 +12800,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
+          User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a] on node [de3800ea-69d9-4d72-a108-97e57f8eb393]
         </td>
         <td
           style="min-width: 120px;"
