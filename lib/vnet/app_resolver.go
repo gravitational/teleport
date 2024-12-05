@@ -325,8 +325,6 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	if len(h.app.GetTCPPorts()) == 0 {
 		localPort = 0
 	}
-	// TODO(ravicious): For multi-port apps, check if localPort is valid and surface the error in UI.
-	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#incorrect-port
 
 	lp, ok := h.portToLocalProxy[localPort]
 	if ok {
@@ -394,6 +392,13 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 // HandleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handler certificate renewal and re-logins.
 func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+	if len(h.app.GetTCPPorts()) > 0 {
+		tcpPorts := types.PortRanges(h.app.GetTCPPorts())
+		if !tcpPorts.Contains(int(localPort)) {
+			return trace.BadParameter("local port %d is not in TCP ports of app %q", localPort, h.app.GetName())
+		}
+	}
+
 	lp, err := h.getOrInitializeLocalProxy(ctx, localPort)
 	if err != nil {
 		return trace.Wrap(err)

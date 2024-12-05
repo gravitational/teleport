@@ -32,6 +32,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -312,15 +313,15 @@ func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 	return p.reissueAppCert(), nil
 }
 
-func (p *echoAppProvider) AreAllRequestedRouteToAppsForPort(publicAddr string, port int) bool {
+func (p *echoAppProvider) RequestedRouteToApps(publicAddr string) []proto.RouteToApp {
 	p.requestedRouteToAppsMu.RLock()
 	defer p.requestedRouteToAppsMu.RUnlock()
 
-	routes := p.requestedRouteToApps[publicAddr]
+	requestedRoutes := p.requestedRouteToApps[publicAddr]
+	returnedRoutes := make([]proto.RouteToApp, len(requestedRoutes))
+	copy(returnedRoutes, requestedRoutes)
 
-	return apiutils.All(routes, func(route proto.RouteToApp) bool {
-		return route.TargetPort == uint32(port)
-	})
+	return returnedRoutes
 }
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
@@ -643,13 +644,15 @@ func TestDialFakeApp(t *testing.T) {
 
 						testEchoConnection(t, conn)
 
+						requestedRoutes := appProvider.RequestedRouteToApps(tc.app)
 						// For multi-port apps, certs should have RouteToApp.TargetPort set to the specified
 						// cert.
 						//
 						// Single-port apps are going to be dialed on defaultPort in tests, but certs for them
 						// need to have RouteToApp.TargetPort set to 0.
-						require.True(t, appProvider.AreAllRequestedRouteToAppsForPort(tc.app, tc.port),
-							"not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
+						require.True(t, apiutils.All(requestedRoutes, func(route proto.RouteToApp) bool {
+							return int(route.TargetPort) == tc.port
+						}), "not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
 					})
 				}
 			})
@@ -657,7 +660,7 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid", func(t *testing.T) {
+	t.Run("invalid FQDN", func(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
@@ -672,6 +675,22 @@ func TestDialFakeApp(t *testing.T) {
 				require.Error(t, err)
 			})
 		}
+	})
+
+	t.Run("invalid target port", func(t *testing.T) {
+		t.Parallel()
+		app := "multi-port.root1.example.com"
+		port := 1000
+
+		_, err := p.dialHost(ctx, app, port)
+		// VNet is expected to refuse the connection rather than let the dial go through and then
+		// immediately close it.
+		require.ErrorContains(t, err, "connection was refused")
+
+		requestedRoutes := appProvider.RequestedRouteToApps(app)
+		require.False(t, slices.ContainsFunc(requestedRoutes, func(route proto.RouteToApp) bool {
+			return int(route.TargetPort) == port
+		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
 	})
 }
 
