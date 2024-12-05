@@ -21,34 +21,35 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("field Spec.Okta must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
-		return nil, trace.BadParameter("static credentials must be present")
-	}
-
 	oktaCredsProvider, creds, err := okta.SelectAuthProviderStaticCredentials(ctx, okta.ParamSelectAuthProviderStaticCredentials{
 		StaticCredentials: deps.staticCredentials,
 		Auth:              deps.parentProcess.GetAuthServer().Cache,
 		CAKeyStore:        deps.parentProcess.GetAuthServer().GetKeyStore(),
 		Clock:             deps.parentProcess.Clock,
 	})
-	if err != nil {
-		if trace.IsNotFound(err) {
-			if oktaSpec.SyncSettings.SyncUsers || oktaSpec.SyncSettings.SyncAccessLists {
-				return nil, trace.Wrap(err)
-			}
-			// There is no API token to call API and only SCIM integration was enabled.
-			// SCIM updates propagated to Teleport by Okta happens only when groups/users are updated in Okta
-			// Report RUNNING status and not really emitting plugin status by okta client during calling okta API.
-			return func() error {
-				if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
-					Code: types.PluginStatusCode_RUNNING,
-				}); err != nil {
-					deps.logger.ErrorContext(ctx, "Failed to emit status", "error", err)
-				}
-				<-deps.lifetime.Done()
-				return nil
-			}, nil
+	if trace.IsNotFound(err) {
+		if oktaSpec.SyncSettings.SyncUsers || oktaSpec.SyncSettings.SyncAccessLists {
+			return nil, trace.Wrap(err)
 		}
+		// This is SSO-only integration (Level 1). Report RUNNING status and not really
+		// emitting plugin status by okta client during calling okta API.
+		return func() error {
+			if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
+				Code: types.PluginStatusCode_RUNNING,
+				Details: &types.PluginStatusV1_Okta{
+					Okta: &types.PluginOktaStatusV1{
+						SsoDetails: &types.PluginOktaStatusDetailsSSO{
+							Enabled: true,
+						},
+					},
+				},
+			}); err != nil {
+				deps.logger.ErrorContext(ctx, "Failed to emit status", "error", err)
+			}
+			<-deps.lifetime.Done()
+			return nil
+		}, nil
+	} else if err != nil {
 		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
 
