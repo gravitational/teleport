@@ -186,6 +186,9 @@ type Handler struct {
 	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
+
+	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
+	clusterMaintenanceConfigCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -502,6 +505,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err, "creating /find cache")
 	}
 	h.findEndpointCache = findCache
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.clusterMaintenanceConfigCache = cmcCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -1605,6 +1620,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+
 	return webclient.PingResponse{
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
@@ -1612,15 +1629,21 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context()),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	cacheKey := "find"
+	if group != "" {
+		cacheKey += "-" + group
+	}
+
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1639,7 +1662,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
-			AutoUpdate:       h.automaticUpdateSettings184(ctx),
+			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
 	return resp, err

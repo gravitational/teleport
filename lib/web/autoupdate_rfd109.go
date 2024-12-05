@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -59,31 +59,25 @@ func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("a channel name is required")
 	}
 
-	// We check if the channel is configured
-	channel, ok := h.cfg.AutomaticUpgradesChannels[channelName]
-	if !ok {
-		return nil, trace.NotFound("channel %s not found", channelName)
-	}
-
 	// Finally, we treat the request based on its type
 	switch requestType {
 	case "version":
 		h.log.Debugf("Agent requesting version for channel %s", channelName)
-		return h.automaticUpgradesVersion109(w, r, channel)
+		return h.automaticUpgradesVersion109(w, r, channelName)
 	case "critical":
 		h.log.Debugf("Agent requesting criticality for channel %s", channelName)
-		return h.automaticUpgradesCritical109(w, r, channel)
+		return h.automaticUpgradesCritical109(w, r, channelName)
 	default:
 		return nil, trace.BadParameter("requestType path must end with 'version' or 'critical'")
 	}
 }
 
 // automaticUpgradesVersion109 handles version requests from upgraders
-func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
-	targetVersion, err := channel.GetVersion(ctx)
+	targetVersion, err := h.autoUpdateAgentVersion(ctx, channelName, "" /* updater UUID */)
 	if err != nil {
 		// If the error is that the upstream channel has no version
 		// We gracefully handle by serving "none"
@@ -96,16 +90,20 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = w.Write([]byte(targetVersion))
+	// RFD 109 specifies that version from channels must have the leading "v".
+	// As h.autoUpdateAgentVersion doesn't, we must add it.
+	_, err = fmt.Fprintf(w, "v%s", targetVersion)
 	return nil, trace.Wrap(err)
 }
 
 // automaticUpgradesCritical109 handles criticality requests from upgraders
-func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
-	critical, err := channel.GetCritical(ctx)
+	// RFD109 agents already retrieve maintenance windows from the CMC, no need to
+	// do a maintenance window lookup for them.
+	critical, err := h.autoUpdateAgentShouldUpdate(ctx, channelName, "" /* updater UUID */, false /* window lookup */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
