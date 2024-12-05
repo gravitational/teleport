@@ -178,6 +178,7 @@ function Wrapper(props: any) {
 const userContext = makeUserContext({
   userName: 'Sam',
   userAcl: {
+    reviewRequests: true,
     accessRequests: {
       list: false,
       read: false,

@@ -109,9 +109,12 @@ function getRequestFlags(
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
 
+  const canReview =
+    ctx.storeUser.getReviewRequests() && !flags.ownRequest && isPendingState;
+
   return {
     ...flags,
     canDelete,
-    canReview: !flags.ownRequest && isPendingState,
+    canReview,
   };
 }
