@@ -174,7 +174,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
-		gitServer,gitServer2,
+		gitServer, gitServer2,
 		types.Resource153ToUnifiedResource(icAcct)}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -212,7 +212,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
-		gitServer,gitServer2,
+		gitServer, gitServer2,
 		types.Resource153ToUnifiedResource(icAcct)}
 
 	assert.Eventually(t, func() bool {
@@ -386,7 +386,6 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	icAcct := newIdentityCenterAccount(t, ctx, clt)
-
 
 	// add git server
 	gitServer := newGitServer(t, "my-org")
