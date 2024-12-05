@@ -38,7 +38,8 @@ export function Transition({
 }>) {
   // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
   // It's especially noticeable on Safari.
-  useLayoutEffect(onEntering, [onEntering]);
+  useLayoutEffect(onEntering, []);
+
   useResizeObserver(paperRef, onPaperResize, {
     enabled: enablePaperResizeObserver,
   });
