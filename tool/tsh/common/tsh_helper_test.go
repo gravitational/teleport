@@ -249,7 +249,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 	s.leaf = runTeleport(t, cfg)
 
-	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
+	_, err = s.leaf.GetAuthServer().UpsertTrustedClusterV2(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 

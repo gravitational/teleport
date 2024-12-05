@@ -1262,7 +1262,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	// test create event for switch case: when tc exists but enabled is false
 	tc.SetEnabled(false)
 
-	_, err = s.a.UpsertTrustedCluster(ctx, tc)
+	_, err = s.a.UpsertTrustedClusterV2(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	createEvt := s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate)
@@ -1272,7 +1272,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	// test create event for switch case: when tc exists but enabled is true
 	tc.SetEnabled(true)
 
-	_, err = s.a.UpsertTrustedCluster(ctx, tc)
+	_, err = s.a.UpsertTrustedClusterV2(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	createEvt = s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate)
