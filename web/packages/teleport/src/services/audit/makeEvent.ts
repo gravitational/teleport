@@ -507,8 +507,6 @@ export const formatters: Formatters = {
     desc: 'Session Started',
     format: event => {
       const user = event.user || '';
-      const node =
-        event.server_hostname || event.server_addr || event.server_id;
 
       if (event.proto === 'kube') {
         if (!event.kubernetes_cluster) {
@@ -517,6 +515,8 @@ export const formatters: Formatters = {
         return `User [${user}] has started a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
       }
 
+      const node =
+        event.server_hostname || event.server_addr || event.server_id;
       return `User [${user}] has started a session [${event.sid}] on node [${node}] `;
     },
   },
