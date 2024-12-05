@@ -421,17 +421,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const workspaceDefaultState = this.getWorkspaceDefaultState(
           persistedWorkspace?.localClusterUri || cluster.uri
         );
-        const persistedWorkspaceDocuments = persistedWorkspace?.documents;
+        const restorableDocuments = getRestorableDocuments(
+          persistedWorkspace?.documents || []
+        );
 
         workspaces[cluster.uri] = {
           ...workspaceDefaultState,
           previous: this.canReopenPreviousDocuments({
-            previousDocuments: persistedWorkspaceDocuments,
+            previousDocuments: restorableDocuments,
             currentDocuments: workspaceDefaultState.documents,
           })
             ? {
-                location: persistedWorkspace.location,
-                documents: persistedWorkspaceDocuments,
+                location: getLocationToRestore(
+                  restorableDocuments,
+                  persistedWorkspace.location
+                ),
+                documents: restorableDocuments,
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
@@ -570,12 +575,21 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
-      // We don't persist 'doc.authorize_web_session' because we don't want to store
-      // a session token and id on disk.
-      // Moreover, the user would not be able to authorize a session at a later time anyway.
       const documentsToPersist = (
         workspace.previous?.documents || workspace.documents
-      ).filter(d => d.kind !== 'doc.authorize_web_session');
+      ).map(d =>
+        d.kind === 'doc.authorize_web_session'
+          ? {
+              ...d,
+              // Do not store potentially sensitive properties.
+              webSessionRequest: {
+                id: '',
+                token: '',
+                redirectUri: '',
+              },
+            }
+          : d
+      );
 
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
@@ -635,3 +649,20 @@ type UnifiedResourcePreferencesSchemaAsRequired = Required<
 export const useWorkspaceServiceState = () => {
   return useStoreSelector('workspacesService', identitySelector);
 };
+
+function getRestorableDocuments(documents: Document[]): Document[] {
+  return (
+    documents
+      // We don't restore 'doc.authorize_web_session' because the user would not
+      // be able to authorize a session at a later time anyway.
+      .filter(d => d.kind !== 'doc.authorize_web_session')
+  );
+}
+
+/** Assumes that there is at least one document to restore. */
+function getLocationToRestore(
+  documents: Document[],
+  location: DocumentUri
+): DocumentUri {
+  return documents.find(d => d.uri === location) ? location : documents[0]!.uri;
+}
