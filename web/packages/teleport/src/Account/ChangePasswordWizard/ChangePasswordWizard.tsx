@@ -147,7 +147,7 @@ const wizardFlows = {
   withoutReauthentication: [ChangePasswordStep],
 };
 
-type ChangePasswordWizardStepProps = StepComponentProps &
+export type ChangePasswordWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   ChangePasswordStepProps;
 
