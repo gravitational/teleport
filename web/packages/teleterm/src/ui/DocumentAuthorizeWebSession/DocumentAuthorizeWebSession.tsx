@@ -103,9 +103,9 @@ export function DocumentAuthorizeWebSession(props: {
                     href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
                     target="_blank"
                   >
-                    enroll your device.
-                  </a>{' '}
-                  Then log out of the app, log back in, and try again.
+                    enroll your device
+                  </a>
+                  . Then log out of the app, log back in, and try again.
                 </>
               }
             >
