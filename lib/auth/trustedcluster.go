@@ -50,9 +50,9 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 	return upserted, trace.Wrap(err)
 }
 
-// UpsertValidatedTrustedCluster creates or toggles a Trusted Cluster relationship.
+// UpsertTrustedClusterV2 creates or toggles a Trusted Cluster relationship.
 // The trusted cluster resource name must match the cluster name.
-func (a *Server) UpsertValidatedTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	upserted, err := a.upsertTrustedCluster(ctx, tc, true)
 	return upserted, trace.Wrap(err)
 }

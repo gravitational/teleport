@@ -4925,8 +4925,9 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
-// UpsertValidatedTrustedCluster creates or updates a trusted cluster.
-func (a *ServerWithRoles) UpsertValidatedTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+// UpsertTrustedClusterV2 creates or updates a trusted cluster while also ensuring that the
+// resource name and cluster name match.
+func (a *ServerWithRoles) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
 	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
@@ -4940,7 +4941,7 @@ func (a *ServerWithRoles) UpsertValidatedTrustedCluster(ctx context.Context, tc 
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertValidatedTrustedCluster(ctx, tc)
+	return a.authServer.UpsertTrustedClusterV2(ctx, tc)
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {

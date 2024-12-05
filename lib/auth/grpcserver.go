@@ -2966,7 +2966,7 @@ func (g *GRPCServer) UpsertTrustedClusterV2(ctx context.Context, cluster *types.
 	if err = services.ValidateTrustedCluster(cluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc, err := auth.ServerWithRoles.UpsertValidatedTrustedCluster(ctx, cluster)
+	tc, err := auth.ServerWithRoles.UpsertTrustedClusterV2(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

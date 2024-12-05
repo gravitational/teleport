@@ -196,7 +196,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
-	t.Run("ValidatedTrustedClusters", suite.bind(testValidatedTrustedClusters))
+	t.Run("TrustedClustersV2", suite.bind(testTrustedClustersV2))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
@@ -3013,9 +3013,9 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
-// TestValidatedTrustedClusters tests remote clusters scenarios
-// using validated trusted clusters
-func testValidatedTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+// TestTrustedClustersV2 tests remote clusters scenarios
+// using UpsertTrustedClusterV2 rpc.
+func testTrustedClustersV2(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3229,12 +3229,12 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		// Note that the trusted cluster resource name must match the cluster name.
 		// Modify the trusted cluster resource name and expect the upsert to fail.
 		trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-		_, err = aux.Process.GetAuthServer().UpsertValidatedTrustedCluster(ctx, trustedCluster)
-		require.Error(t, err, "expected failure due to tc name mismatch")
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
+		require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
 
 		// Modify the trusted cluster resource name back to what it was orignally.
 		trustedCluster.SetName(main.Secrets.SiteName)
-		_, err = aux.Process.GetAuthServer().UpsertValidatedTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	} else {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)

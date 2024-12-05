@@ -2277,17 +2277,23 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
+//
+// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
 func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	if trustedCluster.Origin() != types.OriginKubernetes {
-		resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
-		return resp, trace.Wrap(err)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
+	return resp, trace.Wrap(err)
+}
+
+// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	// The Kubernetes Operator must use UpsertTrustedClusterV2 to ensure that
-	// the trusted_cluster resource name is valid before it is created.
 	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
 	if trace.IsNotImplemented(err) {
 		// Try to print a nicer error message when newer clients connect to
