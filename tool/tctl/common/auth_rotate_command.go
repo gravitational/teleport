@@ -1300,7 +1300,7 @@ func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, prom
 var errNoStdin = fmt.Errorf("interactive CA rotation does not support reading passwords from stdin")
 
 // brokenStdinReader implements [prompt.StdinReader] and returns errNoStdin for
-// all methods. Currently this should be unecessary because MFA for admin
+// all methods. Currently this should be unnecessary because MFA for admin
 // actions only applies when the only MFA method is webauthn, which should never
 // prompt for a password. If we ever enable MFA for admin actions with OTP,
 // we'll hit this error instead of bubbletea competing for stdin with the
