@@ -26,12 +26,12 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service WorkloadIdentityResourceService {
   // CreateWorkloadIdentity creates a new workload identity, it will refuse to
   // create a workload identity if one already exists with the same name.
-  rpc CreateWorkloadIdentity(CreateWorkloadIdentityRequest) returns (teleport.workloadidentity.v1.WorkloadIdentity);
+  rpc CreateWorkloadIdentity(CreateWorkloadIdentityRequest) returns (WorkloadIdentity);
   // UpdateWorkloadIdentity updates an existing workload identity, it will refuse
   // to update a workload identity if one does not already exist with the same name.
-  rpc UpdateWorkloadIdentity(UpdateWorkloadIdentityRequest) returns (teleport.workloadidentity.v1.WorkloadIdentity);
+  rpc UpdateWorkloadIdentity(UpdateWorkloadIdentityRequest) returns (WorkloadIdentity);
   // GetWorkloadIdentity retrieves a workload identity by name.
-  rpc GetWorkloadIdentity(GetWorkloadIdentityRequest) returns (teleport.workloadidentity.v1.WorkloadIdentity);
+  rpc GetWorkloadIdentity(GetWorkloadIdentityRequest) returns (WorkloadIdentity);
   // DeleteWorkloadIdentity deletes a workload identity by name.
   rpc DeleteWorkloadIdentity(DeleteWorkloadIdentityRequest) returns (google.protobuf.Empty);
   // ListWorkloadIdentities of all workload identities, pagination semantics are
