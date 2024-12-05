@@ -74,7 +74,7 @@ FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
 
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
-LICENSE=""
+LICENSE="Teleport Community Edition License"
 VENDOR="Gravitational"
 DESCRIPTION="Teleport provides on-demand, least-privileged access to your infrastructure, on a foundation of cryptographic identity and zero trust, with built-in identity and policy governance"
 DOCS_URL="https://goteleport.com/docs"
@@ -195,7 +195,6 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
-    LICENSE="Teleport Community Edition License"
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
@@ -233,6 +232,7 @@ else
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
     RPM_SIGN_STANZA=""
+    LICENSE_FILE_STANZA=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         PACKAGE_ARCH="${RPM_PACKAGE_ARCH}"
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${RPM_OUTPUT_ARCH}.rpm"
@@ -256,8 +256,7 @@ else
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${DEB_OUTPUT_ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
-    LICENSE_FILE_STANZA=""
-    if [[ -n "$LICENSE" ]]; then LICENSE_FILE_STANZA="--license ${LICENSE}"; fi
+    if [[ "${TELEPORT_TYPE}" == "oss" ]]; then LICENSE_FILE_STANZA="--license '${LICENSE}'"; fi
 fi
 
 # create a temporary directory and download specified Teleport version
