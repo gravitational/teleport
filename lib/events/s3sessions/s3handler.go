@@ -96,6 +96,8 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+
+	UsePathStyle *bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -146,6 +148,18 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		}
 	}
 
+	if val := in.Query().Get(teleport.S3UsePathStyle); val != "" {
+		usePathStyle, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.S3UsePathStyle, val)
+		}
+		s.UsePathStyle = &usePathStyle
+	} else {
+		// Default path style to true for backwards compatibility
+		usePathStyle := true
+		s.UsePathStyle = &usePathStyle
+	}
+
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
@@ -160,6 +174,12 @@ func (s *Config) CheckAndSetDefaults() error {
 
 	if s.Endpoint != "" {
 		s.Endpoint = endpoint.CreateURI(s.Endpoint, s.Insecure)
+	}
+
+	// Default path style to true for backwards compatibility
+	if s.UsePathStyle == nil {
+		pathStyle := true
+		s.UsePathStyle = &pathStyle
 	}
 
 	return nil
@@ -218,7 +238,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 
 		s3Opts = append(s3Opts, func(options *s3.Options) {
-			options.UsePathStyle = true
+			options.UsePathStyle = *cfg.UsePathStyle
 		})
 	}
 
