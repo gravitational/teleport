@@ -23,17 +23,18 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // DecisionService performs authorization decisions for Teleport.
 //
-// DecisionService acts the PDP (Policy Decision Point) for Teleport
-// services, whereas the services themselves act as the PEP (Policy Enforcement
-// Point). In other words, it calculates the outcome of an authorization request
-// but does not enforce it - each Teleport service must do so.
+// DecisionService acts the PDP (Policy Decision Point) for Teleport services,
+// whereas the services themselves act as the PEP (Policy Enforcement Point).
+// In other words, it calculates the outcome of an authorization request but
+// does not enforce it - each Teleport service must do so.
 //
-// Decision responses carry all the data necessary for the enforcement of a
-// decision.
+// Evaluation responses carry all the data necessary for the enforcement of a
+// decision. A successful evaluation carries a Permit, whereas a failed
+// evaluation carries a Denial.
 service DecisionService {
-  // EvaluateSSHAccess decides wether or not to permit an SSH access attempt.
+  // EvaluateSSHAccess evaluates an SSH access attempt.
   rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (EvaluateSSHAccessResponse);
 
-  // EvaluateDatabaseAccess decides wether or not to permit a database access attempt.
+  // EvaluateDatabaseAccess evaluate a database access attempt.
   rpc EvaluateDatabaseAccess(EvaluateDatabaseAccessRequest) returns (EvaluateDatabaseAccessResponse);
 }
