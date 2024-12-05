@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"io"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -286,7 +287,17 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, conn.Close()) })
 
-			clientConn := tls.Client(conn, test.clientTLSConf)
+			// this would be done by the grpc TransportCredential in the grpc
+			// client, but we're going to fake it with just a tls.Client, so we
+			// have to add the http2 next proto ourselves (enforced by grpc-go
+			// starting from v1.67, and required by the http2 spec when speaking
+			// http2 in TLS)
+			clientTLSConf := test.clientTLSConf
+			if !slices.Contains(clientTLSConf.NextProtos, "h2") {
+				clientTLSConf = clientTLSConf.Clone()
+				clientTLSConf.NextProtos = append(clientTLSConf.NextProtos, "h2")
+			}
+			clientConn := tls.Client(conn, clientTLSConf)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()

@@ -19,10 +19,11 @@ package services
 import (
 	"context"
 
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -49,10 +50,15 @@ type IdentityCenterAccount struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
+func (a IdentityCenterAccount) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccount{
-		Account: proto.Clone(a.Account).(*identitycenterv1.Account),
+		Account: apiutils.CloneProtoMsg(a.Account),
 	}
+}
+
+// GetDisplayName returns a human-readable name for the account for UI display.
+func (a IdentityCenterAccount) GetDisplayName() string {
+	return a.Account.GetSpec().GetName()
 }
 
 // IdentityCenterAccountID is a strongly-typed Identity Center account ID.
@@ -179,9 +185,9 @@ type IdentityCenterAccountAssignment struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccountAssignment) CloneResource() IdentityCenterAccountAssignment {
+func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccountAssignment{
-		AccountAssignment: proto.Clone(a.AccountAssignment).(*identitycenterv1.AccountAssignment),
+		AccountAssignment: apiutils.CloneProtoMsg(a.AccountAssignment),
 	}
 }
 
