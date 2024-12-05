@@ -231,6 +231,11 @@ export const formatters: Formatters = {
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
   },
+  [eventCodes.PORTFORWARD_STOP]: {
+    type: 'port',
+    desc: 'Port Forwarding Stopped',
+    format: ({ user }) => `User [${user}] stopped port forwarding`,
+  },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
     desc: 'SAML Connector Created',
