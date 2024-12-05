@@ -4407,6 +4407,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				FIPS:                  cfg.FIPS,
 				Emitter:               streamEmitter,
 				Log:                   process.log,
+				Logger:                process.logger,
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,
