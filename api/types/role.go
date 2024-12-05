@@ -2300,7 +2300,7 @@ func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
 }
 
-// GetAccount fetches the Account ID from a Role Condition Account Assignment 
+// GetAccount fetches the Account ID from a Role Condition Account Assignment
 func (a IdentityCenterAccountAssignment) GetAccount() string {
 	return a.Account
 }
