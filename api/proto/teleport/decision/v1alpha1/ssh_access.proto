@@ -29,8 +29,8 @@ message EvaluateSSHAccessRequest {
   // Metadata holds common authorization decision request fields.
   RequestMetadata metadata = 1;
 
-  // User describes the teleport user requesting access.
-  SSHIdentity user = 2;
+  // SshIdentity describes the teleport user requesting access.
+  SSHIdentity ssh_identity = 2;
 
   // Node references the target node the user is attempting to access.
   Resource node = 3;

@@ -118,8 +118,8 @@ message DeviceExtensions {
   string credential_id = 3;
 }
 
-// Identity is an identity of the user or service, e.g. Proxy or Node
-message Identity {
+// TLSIdentity is an identity as represented by a teleport TLS certificate.
+message TLSIdentity {
   // Username is a username or name of the node connection
   string username = 1;
 
