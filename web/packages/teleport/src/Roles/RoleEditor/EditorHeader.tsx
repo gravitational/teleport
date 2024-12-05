@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import { Flex, ButtonText, H2, Indicator, Box } from 'design';
+import { Flex, H2, Indicator, Box, ButtonIcon } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
-import { Trash } from 'design/Icon';
+import * as Icon from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 import { Role } from 'teleport/services/resources';
@@ -35,6 +35,7 @@ export const EditorHeader = ({
   isProcessing,
   standardEditorId,
   yamlEditorId,
+  onClose,
 }: {
   role?: Role;
   onDelete(): void;
@@ -43,6 +44,7 @@ export const EditorHeader = ({
   isProcessing: boolean;
   standardEditorId: string;
   yamlEditorId: string;
+  onClose(): void;
 }) => {
   const ctx = useTeleport();
   const isCreating = !role;
@@ -51,6 +53,9 @@ export const EditorHeader = ({
 
   return (
     <Flex alignItems="center" mb={3} gap={2}>
+      <ButtonIcon aria-label="Close" onClick={onClose}>
+        <Icon.Cross size="small" />
+      </ButtonIcon>
       <Box flex="1">
         <H2>
           {isCreating
@@ -77,14 +82,14 @@ export const EditorHeader = ({
               : 'You do not have access to delete a role'
           }
         >
-          <ButtonText
+          <ButtonIcon
             onClick={onDelete}
             disabled={!hasDeleteAccess}
             data-testid="delete"
             p={1}
           >
-            <Trash size="medium" />
-          </ButtonText>
+            <Icon.Trash size="medium" />
+          </ButtonIcon>
         </HoverTooltip>
       )}
     </Flex>

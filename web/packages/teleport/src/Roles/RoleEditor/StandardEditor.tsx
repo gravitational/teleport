@@ -221,13 +221,15 @@ export const StandardEditor = ({
       {({ validator }) => (
         <>
           {roleModel.requiresReset && (
-            <RequiresResetToStandard reset={resetForStandardEditor} />
+            <Box mx={3}>
+              <RequiresResetToStandard reset={resetForStandardEditor} />
+            </Box>
           )}
           <EditorWrapper
             mute={standardEditorModel.roleModel.requiresReset}
             data-testid="standard-editor"
           >
-            <Box mb={3}>
+            <Box mb={3} mx={3}>
               <SlideTabs
                 appearance="round"
                 hideStatusIconOnActiveTab
@@ -271,100 +273,116 @@ export const StandardEditor = ({
                 onChange={setCurrentTab}
               />
             </Box>
-            <div
-              id={overviewTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.Overview ? '' : 'none',
-              }}
+            <Flex
+              flex="1 1 0"
+              flexDirection="column"
+              px={3}
+              pb={3}
+              css={`
+                overflow-y: auto;
+              `}
             >
-              <MetadataSection
-                value={roleModel.metadata}
-                isProcessing={isProcessing}
-                validation={validation.metadata}
-                onChange={metadata => handleChange({ ...roleModel, metadata })}
-              />
-            </div>
-            <div
-              id={resourcesTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.Resources ? '' : 'none',
-              }}
-            >
-              <Flex flexDirection="column" gap={3} my={2}>
-                {roleModel.accessSpecs.map((spec, i) => {
-                  const validationResult = validation.accessSpecs[i];
-                  return (
-                    <AccessSpecSection
-                      key={spec.kind}
-                      value={spec}
-                      isProcessing={isProcessing}
-                      validation={validationResult}
-                      onChange={value => setAccessSpec(value)}
-                      onRemove={() => removeAccessSpec(spec.kind)}
-                    />
-                  );
-                })}
-                <Box>
-                  <MenuButton
-                    menuProps={{
-                      transformOrigin: {
-                        vertical: 'bottom',
-                        horizontal: 'right',
-                      },
-                      anchorOrigin: {
-                        vertical: 'top',
-                        horizontal: 'right',
-                      },
-                    }}
-                    buttonText={
-                      <>
-                        <Icon.Plus size="small" mr={2} />
-                        Add New Specifications
-                      </>
-                    }
-                    buttonProps={{
-                      size: 'medium',
-                      fill: 'filled',
-                      disabled: isProcessing || allowedSpecKinds.length === 0,
-                    }}
-                  >
-                    {allowedSpecKinds.map(kind => (
-                      <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                        {specSections[kind].title}
-                      </MenuItem>
-                    ))}
-                  </MenuButton>
-                </Box>
-              </Flex>
-            </div>
-            <div
-              id={adminRulesTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.AdminRules ? '' : 'none',
-              }}
-            >
-              <AdminRules
-                isProcessing={isProcessing}
-                value={roleModel.rules}
-                onChange={setRules}
-                validation={validation.rules}
-              />
-            </div>
-            <div
-              id={optionsTabId}
-              style={{
-                display: currentTab === StandardEditorTab.Options ? '' : 'none',
-              }}
-            >
-              <Options
-                isProcessing={isProcessing}
-                value={roleModel.options}
-                onChange={setOptions}
-              />
-            </div>
+              <div
+                id={overviewTabId}
+                style={{
+                  display:
+                    currentTab === StandardEditorTab.Overview ? '' : 'none',
+                }}
+              >
+                <MetadataSection
+                  value={roleModel.metadata}
+                  isProcessing={isProcessing}
+                  validation={validation.metadata}
+                  onChange={metadata =>
+                    handleChange({ ...roleModel, metadata })
+                  }
+                />
+              </div>
+              <div
+                id={resourcesTabId}
+                style={{
+                  display:
+                    currentTab === StandardEditorTab.Resources ? '' : 'none',
+                }}
+              >
+                <Flex flexDirection="column" gap={3} my={2}>
+                  {roleModel.accessSpecs.map((spec, i) => {
+                    const validationResult = validation.accessSpecs[i];
+                    return (
+                      <AccessSpecSection
+                        key={spec.kind}
+                        value={spec}
+                        isProcessing={isProcessing}
+                        validation={validationResult}
+                        onChange={value => setAccessSpec(value)}
+                        onRemove={() => removeAccessSpec(spec.kind)}
+                      />
+                    );
+                  })}
+                  <Box>
+                    <MenuButton
+                      menuProps={{
+                        transformOrigin: {
+                          vertical: 'bottom',
+                          horizontal: 'right',
+                        },
+                        anchorOrigin: {
+                          vertical: 'top',
+                          horizontal: 'right',
+                        },
+                      }}
+                      buttonText={
+                        <>
+                          <Icon.Plus size="small" mr={2} />
+                          Add New Specifications
+                        </>
+                      }
+                      buttonProps={{
+                        size: 'medium',
+                        fill: 'filled',
+                        disabled: isProcessing || allowedSpecKinds.length === 0,
+                      }}
+                    >
+                      {allowedSpecKinds.map(kind => (
+                        <MenuItem
+                          key={kind}
+                          onClick={() => addAccessSpec(kind)}
+                        >
+                          {specSections[kind].title}
+                        </MenuItem>
+                      ))}
+                    </MenuButton>
+                  </Box>
+                </Flex>
+              </div>
+              <div
+                id={adminRulesTabId}
+                style={{
+                  display:
+                    currentTab === StandardEditorTab.AdminRules ? '' : 'none',
+                }}
+              >
+                <AdminRules
+                  isProcessing={isProcessing}
+                  value={roleModel.rules}
+                  onChange={setRules}
+                  validation={validation.rules}
+                />
+              </div>
+              <div
+                id={optionsTabId}
+                style={{
+                  display:
+                    currentTab === StandardEditorTab.Options ? '' : 'none',
+                }}
+              >
+                <Options
+                  isProcessing={isProcessing}
+                  value={roleModel.options}
+                  onChange={setOptions}
+                />
+              </div>
+            </Flex>
           </EditorWrapper>
           <EditorSaveCancelButton
             onSave={() => handleSave(validator)}
@@ -1000,7 +1018,6 @@ function AdminRule({
   onRemove?(): void;
 }) {
   const { resources, verbs } = value;
-  const theme = useTheme();
   return (
     <Section
       title="Admin Rule"
@@ -1215,7 +1232,9 @@ const OptionLabel = styled(LabelInput)`
   ${props => props.theme.typography.body2}
 `;
 
-export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
+export const EditorWrapper = styled(Flex)<{ mute?: boolean }>`
+  flex-direction: column;
+  flex: 1;
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
 `;
