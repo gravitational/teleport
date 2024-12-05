@@ -85,15 +85,19 @@ type TokenReviewValidator struct {
 	mu sync.Mutex
 	// client and clusterAudiences are protected by mu and should only be
 	// accessed via the getClient method.
-	client           kubernetes.Interface
+	client kubernetes.Interface
+	// clusterAudiences contains the default Kubernetes cluster audiences.
+	// This field is populated when getting the Kube client and returned by
+	// getClient.
+	// A nil value indicates that the cluster doesn't support audiences.
 	clusterAudiences []string
 }
 
-// getClient allows the lazy initialisation of the Kubernetes client
-func (v *TokenReviewValidator) getClient(ctx context.Context) (kubernetes.Interface, []string, error) {
+// getClient allows the lazy initialisation of the Kubernetes client and clusterAudiences
+func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interface, []string, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if v.client != nil && v.clusterAudiences != nil {
+	if v.client != nil {
 		return v.client, v.clusterAudiences, nil
 	}
 
@@ -107,7 +111,7 @@ func (v *TokenReviewValidator) getClient(ctx context.Context) (kubernetes.Interf
 	}
 
 	// We do a self-review to recover the default cluster audience
-	audiences, err := getTokenAudiences(ctx, client, config.BearerToken)
+	audiences, err := getTokenAudiences(config.BearerToken)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "doing a self-review")
 	}
@@ -117,20 +121,19 @@ func (v *TokenReviewValidator) getClient(ctx context.Context) (kubernetes.Interf
 	return client, audiences, nil
 }
 
-func getTokenAudiences(ctx context.Context, client kubernetes.Interface, token string) ([]string, error) {
-	review := &v1.TokenReview{
-		Spec: v1.TokenReviewSpec{
-			Token: token,
-		},
-	}
-	options := metav1.CreateOptions{}
-
-	reviewResult, err := client.AuthenticationV1().TokenReviews().Create(ctx, review, options)
+// getTokenAudiences extracts the audience from
+func getTokenAudiences(token string) ([]string, error) {
+	jwt, err := josejwt.ParseSigned(token)
 	if err != nil {
-		return nil, trace.Wrap(err, "reviewing token and retrieving audience")
+		return nil, trace.Wrap(err)
+	}
+	claims := &ServiceAccountClaims{}
+	err = jwt.UnsafeClaimsWithoutVerification(claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return reviewResult.Status.Audiences, nil
+	return claims.Audience, nil
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
@@ -143,13 +146,21 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 	review := &v1.TokenReview{
 		Spec: v1.TokenReviewSpec{
 			Token: token,
-			// In-cluster used to only allow tokens with the kubernetes audience
-			// But people kept confusing it with JWKS and set the cluster name
-			// as the audience/. To avoid his common footgun we now allow tokens
-			// whose audience is the teleport cluster name.
-			Audiences: append(audiences, clusterName),
 		},
 	}
+
+	// In-cluster used to only allow tokens with the kubernetes audience but people
+	// kept confusing it with the JWKS kube join method and set the cluster name
+	// as the audience. To avoid his common footgun we now allow tokens whose
+	// audience is the teleport cluster name.
+	//
+	// We do this only if the Kubernetes cluster supports audiences.
+	// Earlier Kube versions don't have audience
+	// support, in this case, we just do a regular token review.
+	if audiences != nil {
+		review.Spec.Audiences = append([]string{clusterName}, audiences...)
+	}
+
 	options := metav1.CreateOptions{}
 
 	reviewResult, err := client.AuthenticationV1().TokenReviews().Create(ctx, review, options)
