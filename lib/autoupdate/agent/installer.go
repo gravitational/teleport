@@ -347,7 +347,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
 		return nil, trace.Errorf("mismatch in Teleport download size")
 	}
-	li.Log.InfoContext(ctx, "Download complete.", "time", time.Now().Sub(startTime), "size", n)
+	li.Log.InfoContext(ctx, "Download complete.", "time", time.Since(startTime), "size", n)
 	return shaReader.Sum(nil), nil
 }
 
