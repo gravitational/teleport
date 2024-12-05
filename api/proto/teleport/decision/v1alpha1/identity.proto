@@ -18,7 +18,7 @@ package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionv1alpha1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
 // Trait encodes a single key-values pair from a user's traits.
 message Trait {
