@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -337,7 +338,7 @@ type Config struct {
 	DatabasesAddrs map[string]utils.NetAddr
 
 	// DatabaseREPLGetter is used for retrieving database REPL.
-	DatabaseREPLGetter DatabaseREPLGetter
+	DatabaseREPLGetter dbrepl.REPLGetter
 }
 
 // SetDefaults ensures proper default values are set if

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -403,68 +404,6 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	return nil, trace.Wrap(err)
 }
 
-// DatabaseREPLStartConfig represents the database REPL sessions start
-// configuration.
-type DatabaseREPLStartConfig interface {
-	// Client returns the user terminal client.
-	Client() io.ReadWriter
-	// Addr returns the address the REPL should connect to start the database
-	// connection.
-	Addr() *utils.NetAddr
-	// TLSConfig returns the TLS configuration used to connect to the Addr().
-	TLSConfig() *tls.Config
-	// Route returns the session routing information.
-	Route() tlsca.RouteToDatabase
-}
-
-var _ DatabaseREPLStartConfig = (*databaseREPLStartConfig)(nil)
-
-// databaseREPLStartConfig implements [DatabaseREPLStartConfig]
-type databaseREPLStartConfig struct {
-	client    io.ReadWriter
-	addr      utils.NetAddr
-	tlsConfig *tls.Config
-	route     tlsca.RouteToDatabase
-}
-
-// Addr implements [DatabaseREPLStartConfig].
-func (d *databaseREPLStartConfig) Addr() *utils.NetAddr {
-	return &d.addr
-}
-
-// Client implements [DatabaseREPLStartConfig].
-func (d *databaseREPLStartConfig) Client() io.ReadWriter {
-	return d.client
-}
-
-// Route implements [DatabaseREPLStartConfig].
-func (d *databaseREPLStartConfig) Route() tlsca.RouteToDatabase {
-	return d.route
-}
-
-// TLSConfig implements [DatabaseREPLStartConfig].
-func (d *databaseREPLStartConfig) TLSConfig() *tls.Config {
-	return d.tlsConfig
-}
-
-// DatabaseREPLStartFunc defines the start function for database REPL sessions.
-type DatabaseREPLStartFunc func(context.Context, DatabaseREPLStartConfig) (DatabaseREPLSession, error)
-
-// DatabaseREPLSession represents the lifecycle of a database REPL session.
-type DatabaseREPLSession interface {
-	// Wait ensures the caller can block until the REPL completes.
-	Wait() error
-	// Close guarantees proper cleanup of resources associated with the REPL.
-	Close()
-}
-
-// DatabaseServersGetter is an interface for retrieving REPL start functions
-// given the database protocol.
-type DatabaseREPLGetter interface {
-	// GetREPL returns a start function for the specified protocol.
-	GetREPL(ctx context.Context, dbProtocol string) (DatabaseREPLStartFunc, error)
-}
-
 func (h *Handler) dbConnect(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -550,7 +489,7 @@ func (h *Handler) dbConnect(
 		accessPoint:       accessPoint,
 		authClient:        h.cfg.ProxyClient,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
-		replStartFunc:     replStartFunc,
+		replNewFunc:       replStartFunc,
 		localAddr:         localAddr,
 	}
 	defer sess.Close()
@@ -652,7 +591,7 @@ type databaseInteractiveSession struct {
 	authClient        authclient.ClientI
 	keepAliveInterval time.Duration
 	db                types.Database
-	replStartFunc     DatabaseREPLStartFunc
+	replNewFunc       dbrepl.REPLNewFunc
 	localAddr         utils.NetAddr
 }
 
@@ -676,18 +615,24 @@ func (s *databaseInteractiveSession) Run() error {
 	tlsConfig.ServerName = constants.APIDomain
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 
-	repl, err := s.replStartFunc(s.ctx, &databaseREPLStartConfig{
-		addr:      s.localAddr,
-		client:    s.stream,
-		tlsConfig: tlsConfig.Clone(),
+	repl, err := s.replNewFunc(s.ctx, &dbrepl.NewREPLConfig{
+		Addr:      s.localAddr,
+		Client:    s.stream,
+		TLSConfig: tlsConfig.Clone(),
+		Route: tlsca.RouteToDatabase{
+			Protocol:    s.db.GetProtocol(),
+			ServiceName: s.req.ServiceName,
+			Username:    s.req.DatabaseUser,
+			Database:    s.req.DatabaseName,
+			Roles:       s.req.DatabaseRoles,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer repl.Close()
 
-	s.log.DebugContext(s.ctx, "Started database interactive session")
-	if err := repl.Wait(); err != nil {
+	s.log.DebugContext(s.ctx, "Starting database interactive session")
+	if err := repl.Run(s.ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

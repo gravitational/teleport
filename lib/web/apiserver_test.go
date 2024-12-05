@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -212,7 +213,7 @@ type webSuiteConfig struct {
 	clock clockwork.FakeClock
 
 	// databaseREPLGetter allows setting custom database REPLs.
-	databaseREPLGetter DatabaseREPLGetter
+	databaseREPLGetter dbrepl.REPLGetter
 
 	// databasesAddrs allows setting custom database proxy addresses.
 	databasesAddrs map[string]utils.NetAddr

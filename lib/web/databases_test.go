@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -548,7 +549,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	// it is set.
 	repl := &mockDatabaseREPL{message: "hello from repl"}
 	getter := &mockDatabaseREPLGetter{
-		replStartFunc: func(ctx context.Context, c DatabaseREPLStartConfig) (DatabaseREPLSession, error) {
+		replNewFunc: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
 			repl.setConfig(c)
 			return repl, nil
 		},
@@ -717,33 +718,36 @@ func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
 }
 
 type mockDatabaseREPLGetter struct {
-	replStartFunc DatabaseREPLStartFunc
+	replNewFunc dbrepl.REPLNewFunc
 }
 
-func (m *mockDatabaseREPLGetter) GetREPL(_ context.Context, _ string) (DatabaseREPLStartFunc, error) {
-	if m.replStartFunc == nil {
+func (m *mockDatabaseREPLGetter) GetREPL(_ context.Context, _ string) (dbrepl.REPLNewFunc, error) {
+	if m.replNewFunc == nil {
 		return nil, trace.NotImplemented("REPL not implemented")
 	}
 
-	return m.replStartFunc, nil
+	return m.replNewFunc, nil
 }
 
 type mockDatabaseREPL struct {
 	mu      sync.Mutex
 	message string
-	cfg     DatabaseREPLStartConfig
+	cfg     *dbrepl.NewREPLConfig
 	closed  bool
 }
 
-func (m *mockDatabaseREPL) Wait() error {
+func (m *mockDatabaseREPL) Run(_ context.Context) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer func() {
+		m.closeUnlocked()
+		m.mu.Unlock()
+	}()
 
-	if _, err := m.cfg.Client().Write([]byte(m.message)); err != nil {
+	if _, err := m.cfg.Client.Write([]byte(m.message)); err != nil {
 		return err
 	}
 
-	conn, err := tls.Dial("tcp", m.cfg.Addr().String(), m.cfg.TLSConfig())
+	conn, err := tls.Dial("tcp", m.cfg.Addr.String(), m.cfg.TLSConfig)
 	if err != nil {
 		return err
 	}
@@ -756,7 +760,7 @@ func (m *mockDatabaseREPL) Wait() error {
 	return nil
 }
 
-func (m *mockDatabaseREPL) setConfig(c DatabaseREPLStartConfig) {
+func (m *mockDatabaseREPL) setConfig(c *dbrepl.NewREPLConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cfg = c
@@ -768,10 +772,7 @@ func (m *mockDatabaseREPL) getClosed() bool {
 	return m.closed
 }
 
-func (m *mockDatabaseREPL) Close() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+func (m *mockDatabaseREPL) closeUnlocked() {
 	m.closed = true
 }
 
