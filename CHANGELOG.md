@@ -1,5 +1,14 @@
 # Changelog
 
+## 16.4.10 (12/5/2024)
+
+* Fixed a bug introduced in v16.4.9 breaking in-cluster joining on some Kubernetes clusters. [#49842](https://github.com/gravitational/teleport/pull/49842)
+* SSH or Kubernetes information included for audit log list for start session events. [#49833](https://github.com/gravitational/teleport/pull/49833)
+* Avoid tight web session renewals for sessions with short TTL (between 3m and 30s). [#49769](https://github.com/gravitational/teleport/pull/49769)
+* Updated Go to 1.22.10. [#49759](https://github.com/gravitational/teleport/pull/49759)
+* Added support for hardware keys in Teleport Connect. [#49701](https://github.com/gravitational/teleport/pull/49701)
+* Client tools {tctl,tsh} auto-updates controlled by cluster configuration. [#48645](https://github.com/gravitational/teleport/pull/48645)
+
 ## 16.4.9 (12/3/2024)
 
 * Add ability to configure resource labels in `teleport-cluster`'s operator sub-chart. [#49648](https://github.com/gravitational/teleport/pull/49648)
