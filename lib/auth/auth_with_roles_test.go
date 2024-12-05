@@ -49,12 +49,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -5698,7 +5701,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+
+	require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
 	require.Nil(t, resp)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -5771,6 +5775,57 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 		SortBy:              types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.Error(t, err)
+}
+
+func TestUnifiedResources_IdentityCenter(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
+	_, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+		Account: &identitycenterv1.Account{
+			Kind:    types.KindIdentityCenterAccount,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test_acct",
+				Labels: map[string]string{
+					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+				},
+			},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:   "11111111",
+				Arn:  "some:arn",
+				Name: "Test Account",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("access denied", func(t *testing.T) {
+		// Asserts that, with no RBAC or matchers in place, acces to IC Accounts
+		// is denied by default
+
+		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "test", nil, nil)
+		require.NoError(t, err)
+
+		identity := TestUser(userNoAccess.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	// TODO(tcsc): Add other tests one RBAC implemented
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
