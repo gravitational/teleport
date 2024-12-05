@@ -20,14 +20,12 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
-import {
-  parseMfaChallengeJson as parseMfaChallenge,
-  makeWebauthnAssertionResponse,
-} from 'teleport/services/mfa/makeMfa';
+import { parseMfaChallengeJson as parseMfaChallenge } from 'teleport/services/mfa/makeMfa';
 import {
   MfaAuthenticateChallengeJson,
   SSOChallenge,
 } from 'teleport/services/mfa';
+import auth from 'teleport/services/auth/auth';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{
@@ -86,16 +84,17 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       return;
     }
 
-    navigator.credentials
-      .get({ publicKey: state.webauthnPublicKey })
+    auth
+      .getMfaChallengeResponse({
+        webauthnPublicKey: state.webauthnPublicKey,
+      })
       .then(res => {
         setState(prevState => ({
           ...prevState,
           errorText: '',
           webauthnPublicKey: null,
         }));
-        const credential = makeWebauthnAssertionResponse(res);
-        emitterSender.sendWebAuthn(credential);
+        emitterSender.sendWebAuthn(res.webauthn_response);
       })
       .catch((err: Error) => {
         setErrorText(err.message);
