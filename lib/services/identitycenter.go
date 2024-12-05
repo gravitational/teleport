@@ -26,6 +26,7 @@ import (
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 	"github.com/gravitational/trace"
@@ -54,9 +55,9 @@ type IdentityCenterAccount struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccount) CloneResource() types.Resource153 {
+func (a IdentityCenterAccount) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccount{
-		Account: proto.Clone(a.Account).(*identitycenterv1.Account),
+		Account: apiutils.CloneProtoMsg(a.Account),
 	}
 }
 
@@ -189,7 +190,7 @@ type IdentityCenterAccountAssignment struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a IdentityCenterAccountAssignment) CloneResource() types.Resource153 {
+func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccountAssignment{
 		AccountAssignment: proto.Clone(a.AccountAssignment).(*identitycenterv1.AccountAssignment),
 	}
@@ -199,20 +200,24 @@ func (a IdentityCenterAccountAssignment) CloneResource() types.Resource153 {
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
 
-// IdentityCenterAccountAssignments defines the operations to create and maintain
-// Identity Center account assignment records in the service.
-type IdentityCenterAccountAssignments interface {
+type IdentityCenterAccountAssignmentGetter interface {
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+
+	// GetAccountAssignment fetches a specific Account Assignment record.
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+}
+
+// IdentityCenterAccountAssignments defines the operations to create and maintain
+// Identity Center account assignment records in the service.
+type IdentityCenterAccountAssignments interface {
+	IdentityCenterAccountAssignmentGetter
 
 	// CreateAccountAssignment creates a new Account Assignment record in
 	// the service from the supplied in-memory representation. Returns the
 	// created record on success.
 	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
-
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
 
 	// UpdateAccountAssignment performs a conditional update on the supplied
 	// Account Assignment, returning the updated record on success.

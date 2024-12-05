@@ -2209,7 +2209,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		switch rr := resource.(type) {
-		case UnifiedResource153Adapter:
+		case types.Resource153Unwrapper:
 			switch urr := rr.Unwrap().(type) {
 			case IdentityCenterAccount:
 				matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))

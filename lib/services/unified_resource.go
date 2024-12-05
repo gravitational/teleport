@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"maps"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apiconstants "github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -358,6 +356,7 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
+	IdentityCenterAccountAssignmentGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -466,6 +465,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	// empty the trees
@@ -481,7 +485,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
-	putResources[UnifiedResource153Adapter](c, newICAccounts)
+	putResources[resource](c, newICAccounts)
+	putResources[resource](c, newICAccountAssignments)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -593,8 +598,8 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
-func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]UnifiedResource153Adapter, error) {
-	var accounts []UnifiedResource153Adapter
+func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
+	var accounts []resource
 	var pageRequest pagination.PageRequestToken
 	for {
 		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
@@ -602,7 +607,27 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
 		for _, a := range resultsPage {
-			accounts = append(accounts, WrapUnifiedResource153(a))
+			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		}
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		pageRequest.Update(nextPage)
+	}
+	return accounts, nil
+}
+
+func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
+	var accounts []resource
+	var pageRequest pagination.PageRequestToken
+	for {
+		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting AWS Identity Center accounts assignments for resource watcher")
+		}
+		for _, a := range resultsPage {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
 		}
 
 		if nextPage == pagination.EndOfList {
@@ -703,18 +728,18 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 			c.deleteLocked(event.Resource)
 		case types.OpPut:
 			r := event.Resource
-			if u, ok := r.(types.Resource153Unwrapper); ok {
-				switch unwrapped := u.Unwrap().(type) {
-				case IdentityCenterAccount:
-					r = WrapUnifiedResource153(unwrapped)
+			// if u, ok := r.(types.Resource153Unwrapper); ok {
+			// 	switch unwrapped := u.Unwrap().(type) {
+			// 	case IdentityCenterAccount:
+			// 		r = types.(unwrapped)
 
-				default:
-					c.log.
-						WithField("type", reflect.TypeOf(unwrapped)).
-						Warn("Unsupported resource type")
-					continue
-				}
-			}
+			// 	default:
+			// 		c.log.
+			// 			WithField("type", reflect.TypeOf(unwrapped)).
+			// 			Warn("Unsupported resource type")
+			// 		continue
+			// 	}
+			// }
 			c.putLocked(r.(resource))
 		default:
 			c.log.Warnf("unsupported event type %s.", event.Type)
@@ -932,37 +957,10 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 	case types.KindIdentityCenterAccountAssignment:
-		wrapper, ok := resource.(UnifiedResource153Adapter)
-		if !ok {
-			return nil, trace.BadParameter(
-				"Unexpected type for Identity Center Account Assignment: %T",
-				resource)
-		}
-		assignment, ok := wrapper.Unwrap().(IdentityCenterAccountAssignment)
-		if !ok {
-			return nil, trace.BadParameter(
-				"Unexpected type for Identity Center Account Assignment: %T",
-				wrapper)
-		}
-
-		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_IdentityCenterAccountAssignment{
-				IdentityCenterAccountAssignment: &proto.IdentityCenterAccountAssignment{
-					Kind:        types.KindIdentityCenterAccountAssignment,
-					Version:     resource.GetVersion(),
-					Metadata:    resource.GetMetadata(),
-					DisplayName: assignment.GetSpec().GetDisplay(),
-					Account: &proto.IdentityCenterAccount{
-						AccountName: assignment.GetSpec().GetAccountName(),
-						ID:          assignment.GetSpec().GetAccountId(),
-					},
-					PermissionSet: &proto.IdentityCenterPermissionSet{
-						ARN:  assignment.GetSpec().GetPermissionSet().GetArn(),
-						Name: assignment.GetSpec().GetPermissionSet().GetName(),
-					},
-				},
-			},
-			RequiresRequest: requiresRequest,
+		var err error
+		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 	default:
@@ -975,7 +973,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 // makePaginatedIdentityCenterAccount returns a representation of the supplied
 // Identity Center account as an App.
 func makePaginatedIdentityCenterAccount(resourceKind string, resource types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
-	unwrapper, ok := resource.(UnifiedResource153Adapter)
+	unwrapper, ok := resource.(types.Resource153Unwrapper)
 	if !ok {
 		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 	}
@@ -1002,7 +1000,7 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 				Spec: types.AppServerSpecV3{
 					App: &types.AppV3{
 						Kind:    types.KindApp,
-						SubKind: types.AppSubKindIdentityCenterAccount,
+						SubKind: types.KindIdentityCenterAccount,
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name:        acct.Spec.Name,
@@ -1010,8 +1008,8 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 							Labels:      maps.Clone(acct.Metadata.Labels),
 						},
 						Spec: types.AppSpecV3{
-							URI:        apiconstants.AWSConsoleURL,
-							PublicAddr: apiconstants.AWSConsoleURL,
+							URI:        acct.Spec.StartUrl,
+							PublicAddr: acct.Spec.StartUrl,
 							AWS: &types.AppAWS{
 								ExternalID: acct.Spec.Id,
 							},

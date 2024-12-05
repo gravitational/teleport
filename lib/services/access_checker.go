@@ -446,7 +446,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	switch rr := r.(type) {
-	case UnifiedResource153Adapter:
+	case types.Resource153Unwrapper:
 		switch urr := rr.Unwrap().(type) {
 		case IdentityCenterAccount:
 			matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))

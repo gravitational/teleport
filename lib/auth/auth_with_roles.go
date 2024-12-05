@@ -1866,13 +1866,9 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
 
-	case services.UnifiedResource153Adapter:
-		switch rr.Unwrap().(type) {
-		case services.IdentityCenterAccount:
-			return r.CheckAccess(rr, state)
-
-		case services.IdentityCenterAccountAssignment:
-			return r.CheckAccess(rr, state)
+	case types.Resource153Unwrapper:
+		if checkable, ok := rr.(services.AccessCheckable); ok {
+			return r.CheckAccess(checkable, state)
 		}
 	}
 
