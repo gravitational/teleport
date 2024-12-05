@@ -2967,7 +2967,7 @@ func (process *TeleportProcess) initSSH() error {
 			LockEnforcer:   lockWatcher,
 			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client},
 			Component:      teleport.ComponentNode,
-			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id, "sessionctrl")),
 			TracerProvider: process.TracingProvider,
 			ServerID:       serverID,
 		})
@@ -4468,7 +4468,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockEnforcer:   lockWatcher,
 		Emitter:        asyncEmitter,
 		Component:      teleport.ComponentProxy,
-		Logger:         process.log.WithField(teleport.ComponentKey, "sessionctrl"),
+		Logger:         process.logger.With(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
 		ServerID:       serverID,
 	})
