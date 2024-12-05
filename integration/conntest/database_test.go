@@ -134,12 +134,12 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE,
 					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
-					Details: "A Database Agent is available to proxy the connection to the Database.",
+					Details: "A Teleport Database Service is available to proxy the connection to the Database.",
 				},
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
-					Details: "Database is accessible from the Database Agent.",
+					Details: "Database is accessible from the Teleport Database Service.",
 				},
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
@@ -175,8 +175,8 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 					Status: types.ConnectionDiagnosticTrace_FAILED,
 					Details: "Database not found. " +
 						"Ensure your role grants access by adding it to the 'db_labels' property. " +
-						"This can also happen when you don't have a Database Agent proxying the database - " +
-						"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the database agent.",
+						"This can also happen when you don't have a Teleport Database Service proxying the database - " +
+						"you can fix that by adding the database labels to the 'db_service.resources.labels' in 'teleport.yaml' file of the Database Service.",
 				},
 			},
 		},

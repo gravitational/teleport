@@ -77,6 +77,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -4874,6 +4875,11 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
 }
 
+// GitServerClient returns a client for managing git servers
+func (c *Client) GitServerClient() gitserverv1.GitServerServiceClient {
+	return gitserverv1.NewGitServerServiceClient(c.conn)
+}
+
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
@@ -5189,4 +5195,9 @@ func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceCl
 // an underlying gRPC connection.
 func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
 	return provisioningv1.NewProvisioningServiceClient(c.conn)
+}
+
+// IntegrationsClient returns integrations client.
+func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
+	return c.integrationsClient()
 }

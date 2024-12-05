@@ -838,6 +838,11 @@ const (
 	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -1,9 +1,9 @@
 ---
 authors: Pawel Kopiczko (pawel.kopiczko@goteleport.com)
-state: draft
+state: implemented
 ---
 
-# RFD 186 - Optionally require reason for access request
+# RFD 186 - Optionally require reason for Access Request
 
 
 ## Required Approvers
@@ -117,10 +117,10 @@ Waiting for request approval...
 ### Possible implementations
 
 
-#### 1. Add a new role.spec.allow.request.reason.required setting (chosen)
+#### 1. Add a new role.spec.allow.request.reason.mode setting (chosen)
 
-This is pretty self-explanatory. role.spec.allow.reason.required could be set
-to true/false and being false by default.
+Introduce a new role.spec.allow.reason.mode setting which could be set
+to "required" or "optional" (default).
 
 Example:
 
@@ -135,15 +135,14 @@ spec:
       roles:
         - kube-access
       reason:
-        required: true
+        mode: "required"
 ```
 
 The problems with the approach:
 
-- It isn't clear what should happen when when there is a role with
-  `options.request_access: always` and a role with
-  `allow.request.reason_required: true`. Should the reason be requested
-  regardless during login?
+- It isn't clear what should happen when there is a role with
+  `options.request_access: "always"` and a role with `allow.request.mode:
+  "required"`. Should the reason be requested regardless during login? (yes)
 - The setting still spans across roles to some extend. If there is more than
   one role allowing requesting access to the same resource/role but only _some_
   of them require reason, the reason is required.
@@ -151,10 +150,6 @@ The problems with the approach:
   advanced requirements when it comes to providing a reason, e.g. using regular
   expressions. In case of `options.request_access: reason` - how to satisfy all
   of them?
-- Minor: it will be possible to set `role.spec.deny.request.require.reason` (the same
-  type is being reused in the code) but it will do nothing.
-
-
 
 
 #### 2. Add a new value to role.options.request_access
@@ -320,7 +315,7 @@ The problems with the approach:
 The chosen implementation is:
 
 ```
-3. Add a new role.spec.allow.request.reason.required setting
+1. Add a new role.spec.allow.request.reason.mode setting
 ```
 
 It seems to be least confusing, declarative and straight-forward.
@@ -339,16 +334,14 @@ reason` in any of the roles.
 The IGS section of the test plan needs to be extended with these items:
 
 - [ ] Access Requests
-    - [ ] Verify when `role.spec.allow.request.reason.required: true`:
-        - [ ] Web UI doesn't display reason as optional
-        - [ ] Web UI highlights reason input when not provided but required
-        - [ ] CLI fails to create an access request.
-        - [ ] Other roles allowing requesting the same resources/roles without
-          `reason.required` set or with `reason.required: false` don't affect
-          the behaviour.
-        - [ ] Non-affected resources/roles don't require reason.
-        - [ ] When there is a role with `spec.options.request_access: always`
-          it effectively becomes `role.spec.options.request_access: reason`
+  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+    - [ ] CLI fails to create Access Request displaying a message that reason is required.
+    - [ ] Web UI fails to create Access Request displaying a message that reason is required.
+    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Non-affected resources/roles don't require reason.
+    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
+      - [ ] For CLI.
+      - [ ] For Web UI.
 
 
 ### References

@@ -59,7 +59,6 @@
     "Elastcsearch",
     "Elasticvue",
     "Entra",
-    "entraid",
     "Exadata",
     "Exfiltrate",
     "Exrch",
@@ -322,6 +321,7 @@
     "azuread",
     "azuredatabases",
     "azurerm",
+    "backdoors",
     "backoff",
     "backported",
     "backporting",
@@ -456,6 +456,7 @@
     "enablerepo",
     "enterappname",
     "entityandreplyurl",
+    "entraid",
     "envfile",
     "enzos",
     "errcode",
@@ -601,6 +602,7 @@
     "lmnop",
     "loadbalancer",
     "localca",
+    "localinstall",
     "loginerrortroubleshooting",
     "loginrule",
     "loginrules",
@@ -794,6 +796,7 @@
     "relogged",
     "remotefx",
     "removelock",
+    "removerepo",
     "replaceall",
     "replicaset",
     "replicationgroup",
@@ -1013,9 +1016,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
+  "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"

@@ -27,7 +27,7 @@ export function base64urlToBuffer(base64url: string): ArrayBuffer {
   return base64ToArrayBuffer(base64String);
 }
 
-export function bufferToBase64url(buffer: ArrayBuffer): string {
+export function bufferToBase64url(buffer: ArrayBufferLike): string {
   const base64str = arrayBufferToBase64(buffer);
 
   // Assuming the base64str is a well-formed url.

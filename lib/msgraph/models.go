@@ -59,6 +59,8 @@ type User struct {
 	Mail                     *string `json:"mail,omitempty"`
 	OnPremisesSAMAccountName *string `json:"onPremisesSamAccountName,omitempty"`
 	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
+	Surname                  *string `json:"surname,omitempty"`
+	GivenName                *string `json:"givenName,omitempty"`
 }
 
 func (g *User) isGroupMember() {}
