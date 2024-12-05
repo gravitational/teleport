@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -346,9 +347,11 @@ func (c *authnCeremony) validateDeviceWebToken(
 			"source_ip", sourceIP,
 			"token_ip", storedToken.BrowserIp,
 		)
+
+		message := fmt.Sprintf("device web authentication IP mismatch (want %s, got %s)", storedToken.BrowserIp, sourceIP)
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
-			UserMessage: "device web authentication IP mismatch",
+			UserMessage: message,
 		}
 	}
 
