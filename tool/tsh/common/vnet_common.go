@@ -22,6 +22,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"net"
+	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,6 +120,13 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 // anything extra here.
 func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	return nil
+}
+
+// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+// because the provided port does not match any of the TCP ports in the app spec.
+func (p *vnetAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+	fmt.Printf("%s: Connection refused, port not included in target ports of app %q.\n",
+		net.JoinHostPort(routeToApp.PublicAddr, strconv.Itoa(int(routeToApp.TargetPort))), routeToApp.Name)
 }
 
 // getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.
