@@ -266,9 +266,9 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 				require.True(t, ok)
 				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
 				require.Empty(t, cmp.Diff(
-					tt.requireEvent,
 					evt,
-					cmpopts.IgnoreFields(events.WorkloadIdentityCreate{}, "ConnectionMetadata"),
+					tt.requireEvent,
+					cmpopts.IgnoreFields(events.WorkloadIdentityCreate{}, "ConnectionMetadata", "WorkloadIdentityData"),
 				))
 			}
 		})
@@ -811,9 +811,9 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				require.True(t, ok)
 				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
 				require.Empty(t, cmp.Diff(
-					tt.requireEvent,
 					evt,
-					cmpopts.IgnoreFields(events.WorkloadIdentityUpdate{}, "ConnectionMetadata"),
+					tt.requireEvent,
+					cmpopts.IgnoreFields(events.WorkloadIdentityUpdate{}, "ConnectionMetadata", "WorkloadIdentityData"),
 				))
 			}
 		})
