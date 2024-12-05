@@ -929,7 +929,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"assignment_name": {
-									Description: "AssignmentName is the name of the account assignment that represents this permission set on the account enclosing this permission set",
+									Description: "AssignmentID is the ID of the Teelport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -10938,17 +10938,17 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 																{
 																	a, ok := tf.Attrs["assignment_name"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentName"})
+																		diags.Append(attrReadMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentID"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
 																				t = string(v.Value)
 																			}
-																			obj.AssignmentName = t
+																			obj.AssignmentID = t
 																		}
 																	}
 																}
@@ -12384,21 +12384,21 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 															{
 																t, ok := tf.AttrTypes["assignment_name"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentName"})
+																	diags.Append(attrWriteMissingDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentID"})
 																} else {
 																	v, ok := tf.Attrs["assignment_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentName", err})
+																			diags.Append(attrWriteGeneralError{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentID", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.IdentityCenter.PermissionSets.AssignmentID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.AssignmentName) == ""
+																		v.Null = string(obj.AssignmentID) == ""
 																	}
-																	v.Value = string(obj.AssignmentName)
+																	v.Value = string(obj.AssignmentID)
 																	v.Unknown = false
 																	tf.Attrs["assignment_name"] = v
 																}
