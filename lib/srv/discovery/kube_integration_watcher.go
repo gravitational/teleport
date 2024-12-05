@@ -77,10 +77,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: func() {
-			discoveryConfigs := libslices.CollectValues(
+			discoveryConfigs := libslices.FilterMapUnique(
 				s.getKubeIntegrationFetchers(),
 				func(f common.Fetcher) (s string, skip bool) {
-					return f.DiscoveryConfigName(), f.DiscoveryConfigName() == ""
+					return f.DiscoveryConfigName(), f.DiscoveryConfigName() != ""
 				},
 			)
 			s.updateDiscoveryConfigStatus(discoveryConfigs...)

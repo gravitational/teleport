@@ -23,17 +23,15 @@ import (
 	"slices"
 )
 
-// CollectValues applies a function to all elements of a slice and collects them.
-// The function returns the value to collect and whether the current element should be skipped.
+// FilterMapUnique applies a function to all elements of a slice and collects them.
+// The function returns the value to collect and whether the current element should be included.
 // Returned values are sorted and deduplicated.
-func CollectValues[T any, S cmp.Ordered](ts []T, fn func(T) (s S, skip bool)) []S {
+func FilterMapUnique[T any, S cmp.Ordered](ts []T, fn func(T) (s S, include bool)) []S {
 	ss := make([]S, 0, len(ts))
 	for _, t := range ts {
-		s, skip := fn(t)
-		if skip {
-			continue
+		if s, include := fn(t); include {
+			ss = append(ss, s)
 		}
-		ss = append(ss, s)
 	}
 	slices.Sort(ss)
 	return slices.Compact(ss)

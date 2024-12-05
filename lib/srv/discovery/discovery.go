@@ -531,10 +531,10 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
-			discoveryConfigs := libslices.CollectValues(
+			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllAWSServerFetchers(),
 				func(f server.Fetcher) (s string, skip bool) {
-					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() == ""
+					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() != ""
 				},
 			)
 			s.updateDiscoveryConfigStatus(discoveryConfigs...)
@@ -726,10 +726,10 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
-			discoveryConfigs := libslices.CollectValues(
+			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllAzureServerFetchers(),
 				func(f server.Fetcher) (s string, skip bool) {
-					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() == ""
+					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() != ""
 				},
 			)
 			s.updateDiscoveryConfigStatus(discoveryConfigs...)
@@ -792,10 +792,10 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
-			discoveryConfigs := libslices.CollectValues(
+			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllGCPServerFetchers(),
 				func(f server.Fetcher) (s string, skip bool) {
-					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() == ""
+					return f.GetDiscoveryConfig(), f.GetDiscoveryConfig() != ""
 				},
 			)
 			s.updateDiscoveryConfigStatus(discoveryConfigs...)

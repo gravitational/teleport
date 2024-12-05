@@ -75,10 +75,10 @@ func (s *Server) startDatabaseWatchers() error {
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
 			PreFetchHookFn: func() {
-				discoveryConfigs := slices.CollectValues(
+				discoveryConfigs := slices.FilterMapUnique(
 					s.getAllDatabaseFetchers(),
 					func(f common.Fetcher) (s string, skip bool) {
-						return f.DiscoveryConfigName(), f.DiscoveryConfigName() == ""
+						return f.DiscoveryConfigName(), f.DiscoveryConfigName() != ""
 					},
 				)
 				s.updateDiscoveryConfigStatus(discoveryConfigs...)
