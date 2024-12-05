@@ -170,7 +170,7 @@ func (a *awsApp) GetAppName() string {
 // through forward proxy.
 func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	awsMiddleware := &alpnproxy.AWSAccessMiddleware{
-		AWSCredentialsV2Provider: a.GetAWSCredentialsProvider(),
+		AWSCredentialsProvider: a.GetAWSCredentialsProvider(),
 	}
 
 	// AWS endpoint URL mode

@@ -19,18 +19,17 @@
 package alpnproxy
 
 import (
+	"context"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	credentialsv2 "github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/private/protocol"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/stretchr/testify/require"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -40,89 +39,70 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	t.Parallel()
 
 	assumedRoleARN := "arn:aws:sts::123456789012:assumed-role/role-name/role-session-name"
-	localProxyCred := credentials.NewStaticCredentials("local-proxy", "local-proxy-secret", "")
-	assumedRoleCred := credentials.NewStaticCredentials("assumed-role", "assumed-role-secret", "assumed-role-token")
+	localProxyCred := credentials.NewStaticCredentialsProvider("local-proxy", "local-proxy-secret", "")
+	assumedRoleCred := credentials.NewStaticCredentialsProvider("assumed-role", "assumed-role-secret", "assumed-role-token")
 
-	tests := []struct {
-		name       string
-		middleware *AWSAccessMiddleware
-	}{
-		{
-			name: "v1",
-			middleware: &AWSAccessMiddleware{
-				AWSCredentials: localProxyCred,
-			},
-		},
-		{
-			name: "v2",
-			middleware: &AWSAccessMiddleware{
-				AWSCredentialsV2Provider: credentialsv2.NewStaticCredentialsProvider("local-proxy", "local-proxy-secret", ""),
-			},
-		},
+	m := &AWSAccessMiddleware{
+		AWSCredentialsProvider: credentials.NewStaticCredentialsProvider("local-proxy", "local-proxy-secret", ""),
 	}
+	require.NoError(t, m.CheckAndSetDefaults())
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			m := test.middleware
-			require.NoError(t, m.CheckAndSetDefaults())
+	stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", nil)
 
-			stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", nil)
-			v4.NewSigner(localProxyCred).Sign(stsRequestByLocalProxyCred, nil, "sts", "us-west-1", time.Now())
+	awsutils.NewSignerV2(localProxyCred, "sts").Sign(stsRequestByLocalProxyCred, nil, "sts", "us-west-1", time.Now())
 
-			requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://s3.amazonaws.com", nil)
-			v4.NewSigner(assumedRoleCred).Sign(requestByAssumedRole, nil, "s3", "us-west-1", time.Now())
+	requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://s3.amazonaws.com", nil)
+	awsutils.NewSignerV2(assumedRoleCred, "s3").Sign(requestByAssumedRole, nil, "s3", "us-west-1", time.Now())
 
-			t.Run("request no authorization", func(t *testing.T) {
-				recorder := httptest.NewRecorder()
-				require.True(t, m.HandleRequest(recorder, httptest.NewRequest("", "http://localhost", nil)))
-				require.Equal(t, http.StatusForbidden, recorder.Code)
-			})
+	t.Run("request no authorization", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		require.True(t, m.HandleRequest(recorder, httptest.NewRequest("", "http://localhost", nil)))
+		require.Equal(t, http.StatusForbidden, recorder.Code)
+	})
 
-			t.Run("request signed by unknown credentials", func(t *testing.T) {
-				recorder := httptest.NewRecorder()
-				require.True(t, m.HandleRequest(recorder, requestByAssumedRole))
-				require.Equal(t, http.StatusForbidden, recorder.Code)
-			})
+	t.Run("request signed by unknown credentials", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		require.True(t, m.HandleRequest(recorder, requestByAssumedRole))
+		require.Equal(t, http.StatusForbidden, recorder.Code)
+	})
 
-			t.Run("request signed by local proxy credentials", func(t *testing.T) {
-				recorder := httptest.NewRecorder()
-				require.False(t, m.HandleRequest(recorder, stsRequestByLocalProxyCred))
-				require.Equal(t, http.StatusOK, recorder.Code)
-			})
+	t.Run("request signed by local proxy credentials", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		require.False(t, m.HandleRequest(recorder, stsRequestByLocalProxyCred))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	})
 
-			// Verifies sts:AssumeRole output can be handled successfully. The
-			// credentials should be saved afterwards.
-			t.Run("handle sts:AssumeRole response", func(t *testing.T) {
-				response := assumeRoleResponse(t, assumedRoleARN, assumedRoleCred)
-				response.Request = stsRequestByLocalProxyCred
-				defer response.Body.Close()
-				require.NoError(t, m.HandleResponse(response))
-			})
+	// Verifies sts:AssumeRole output can be handled successfully. The
+	// credentials should be saved afterwards.
+	t.Run("handle sts:AssumeRole response", func(t *testing.T) {
+		response := assumeRoleResponse(t, assumedRoleARN, assumedRoleCred)
+		response.Request = stsRequestByLocalProxyCred
+		defer response.Body.Close()
+		require.NoError(t, m.HandleResponse(response))
+	})
 
-			// This is the same request as the "unknown credentials" test above. But at
-			// this point, the assumed role credentials should have been saved by the
-			// middleware so the request can be handled successfully now.
-			t.Run("request signed by assumed role", func(t *testing.T) {
-				recorder := httptest.NewRecorder()
-				require.False(t, m.HandleRequest(recorder, requestByAssumedRole))
-				require.Equal(t, http.StatusOK, recorder.Code)
-			})
+	// This is the same request as the "unknown credentials" test above. But at
+	// this point, the assumed role credentials should have been saved by the
+	// middleware so the request can be handled successfully now.
+	t.Run("request signed by assumed role", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		require.False(t, m.HandleRequest(recorder, requestByAssumedRole))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	})
 
-			// Verifies non sts:AssumeRole responses do not give errors.
-			t.Run("handle sts:GetCallerIdentity response", func(t *testing.T) {
-				response := getCallerIdentityResponse(t, assumedRoleARN)
-				response.Request = stsRequestByLocalProxyCred
-				defer response.Body.Close()
-				require.NoError(t, m.HandleResponse(response))
-			})
-		})
-	}
+	// Verifies non sts:AssumeRole responses do not give errors.
+	t.Run("handle sts:GetCallerIdentity response", func(t *testing.T) {
+		response := getCallerIdentityResponse(t, assumedRoleARN)
+		response.Request = stsRequestByLocalProxyCred
+		defer response.Body.Close()
+		require.NoError(t, m.HandleResponse(response))
+	})
 }
 
-func assumeRoleResponse(t *testing.T, roleARN string, cred *credentials.Credentials) *http.Response {
+func assumeRoleResponse(t *testing.T, roleARN string, provider aws.CredentialsProvider) *http.Response {
 	t.Helper()
 
-	credValue, err := cred.Get()
+	credValue, err := provider.Retrieve(context.Background())
 	require.NoError(t, err)
 
 	body, err := awsutils.MarshalXML(
@@ -132,18 +112,18 @@ func assumeRoleResponse(t *testing.T, roleARN string, cred *credentials.Credenti
 		},
 		map[string]any{
 			"AssumeRoleResult": sts.AssumeRoleOutput{
-				AssumedRoleUser: &sts.AssumedRoleUser{
+				AssumedRoleUser: &ststypes.AssumedRoleUser{
 					Arn: aws.String(roleARN),
 				},
-				Credentials: &sts.Credentials{
+				Credentials: &ststypes.Credentials{
 					AccessKeyId:     aws.String(credValue.AccessKeyID),
 					SecretAccessKey: aws.String(credValue.SecretAccessKey),
 					SessionToken:    aws.String(credValue.SessionToken),
 				},
 			},
-			"ResponseMetadata": protocol.ResponseMetadata{
-				StatusCode: http.StatusOK,
-				RequestID:  "22222222-3333-3333-3333-333333333333",
+			"ResponseMetadata": map[string]any{
+				"StatusCode": http.StatusOK,
+				"RequestID":  "22222222-3333-3333-3333-333333333333",
 			},
 		},
 	)
@@ -163,9 +143,9 @@ func getCallerIdentityResponse(t *testing.T, roleARN string) *http.Response {
 			"GetCallerIdentityResult": sts.GetCallerIdentityOutput{
 				Arn: aws.String(roleARN),
 			},
-			"ResponseMetadata": protocol.ResponseMetadata{
-				StatusCode: http.StatusOK,
-				RequestID:  "22222222-3333-3333-3333-333333333333",
+			"ResponseMetadata": map[string]any{
+				"StatusCode": http.StatusOK,
+				"RequestID":  "22222222-3333-3333-3333-333333333333",
 			},
 		},
 	)

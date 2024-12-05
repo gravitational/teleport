@@ -263,7 +263,7 @@ func mustCallHTTPSServerAndReceiveCode(t *testing.T, addr string, client http.Cl
 	require.Equal(t, expectStatusCode, resp.StatusCode)
 }
 
-func mustStartHTTPServer(t *testing.T, l net.Listener) {
+func mustStartHTTPServer(_ *testing.T, l net.Listener) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {})
 	go http.Serve(l, mux)
