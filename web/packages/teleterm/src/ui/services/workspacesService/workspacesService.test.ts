@@ -176,11 +176,16 @@ describe('restoring workspace', () => {
       documents: [
         {
           kind: 'doc.terminal_shell',
-          uri: '/docs/terminal_shell_uri',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_2',
           title: '/Users/alice/Documents',
         },
       ],
-      location: '/docs/terminal_shell_uri',
+      location: '/docs/terminal_shell_uri_1',
     });
   });
 });
