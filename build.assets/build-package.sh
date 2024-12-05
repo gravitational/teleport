@@ -74,7 +74,7 @@ FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
 
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
-LICENSE="AGPL-3.0-or-later"
+LICENSE=""
 VENDOR="Gravitational"
 DESCRIPTION="Teleport provides on-demand, least-privileged access to your infrastructure, on a foundation of cryptographic identity and zero trust, with built-in identity and policy governance"
 DOCS_URL="https://goteleport.com/docs"
@@ -195,6 +195,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
+    LICENSE="Teleport Community Edition License"
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
@@ -204,6 +205,7 @@ else
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition]"
     fi
+    TYPE_DESCRIPTION="${TYPE_DESCRIPTION}\n\nDistributed under the ${LICENSE}"
 fi
 
 # set file list
