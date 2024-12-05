@@ -286,6 +286,8 @@ const (
 	ExecFailureCode = "T3002E"
 	// PortForwardCode is the port forward event code.
 	PortForwardCode = "T3003I"
+	// PortForwardStopCode is the port forward stop event code.
+	PortForwardStopCode = "T3003S"
 	// PortForwardFailureCode is the port forward failure event code.
 	PortForwardFailureCode = "T3003E"
 	// SCPDownloadCode is the file download event code.
