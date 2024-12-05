@@ -256,6 +256,8 @@ else
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${DEB_OUTPUT_ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
+    LICENSE_FILE_STANZA=""
+    if [[ -n "$LICENSE" ]]; then LICENSE_FILE_STANZA="--license ${LICENSE}"; fi
 fi
 
 # create a temporary directory and download specified Teleport version
@@ -361,7 +363,6 @@ else
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
         --url "${DOCS_URL}" \
-        --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
         --architecture ${PACKAGE_ARCH} \
@@ -374,6 +375,7 @@ else
         --after-upgrade /src/post-upgrade \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
+        ${LICENSE_FILE_STANZA} \
         ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory
