@@ -465,13 +465,11 @@ func (m *Metadata) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Name")
 	}
 
-	switch m.Namespace {
-	case "":
+	if m.Namespace == "" {
 		m.Namespace = defaults.Namespace
-	case defaults.Namespace:
-		// OK, nothing to do.
-	default:
-		return trace.BadParameter("namespace %q invalid, custom namespaces are deprecated", m.Namespace)
+	}
+	if err := ValidateNamespaceDefault(m.Namespace); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// adjust expires time to UTC if it's set

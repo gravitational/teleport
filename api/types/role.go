@@ -1333,8 +1333,12 @@ func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {
 	}
 
 	for i, ns := range *namespaces {
-		if ns != defaults.Namespace && ns != Wildcard {
-			return trace.BadParameter("namespaces[%d]: %q invalid: custom namespaces are deprecated", i, ns)
+		if ns == Wildcard {
+			continue // OK, wildcard is accepted.
+		}
+		if err := ValidateNamespaceDefault(ns); err != nil {
+			// Using trace.BadParameter instead of trace.Wrap for a better error message.
+			return trace.BadParameter("namespaces[%d]: %s", i, err)
 		}
 	}
 

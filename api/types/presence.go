@@ -67,11 +67,12 @@ func (s *KeepAlive) CheckAndSetDefaults() error {
 	if s.IsEmpty() {
 		return trace.BadParameter("missing resource name")
 	}
+
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace
 	}
-	if s.Namespace != defaults.Namespace {
-		return trace.BadParameter("namespace %q invalid, custom namespaces are deprecated", s.Namespace)
+	if err := ValidateNamespaceDefault(s.Namespace); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
