@@ -573,6 +573,11 @@ export type RawEvents = {
     typeof eventCodes.SESSION_START,
     {
       sid: string;
+      kubernetes_cluster: string;
+      proto: string;
+      server_hostname: string;
+      server_addr: string;
+      server_id: string;
     }
   >;
   [eventCodes.SESSION_REJECT]: RawEvent<
