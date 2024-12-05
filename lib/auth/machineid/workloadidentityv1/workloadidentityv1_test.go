@@ -819,3 +819,166 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+	srv, eventRecorder := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	unauthorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"unauthorized",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unauthorizedClient, err := srv.NewClient(auth.TestUser(unauthorizedUser.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		client              *authclient.Client
+		req                 *workloadidentityv1pb.UpsertWorkloadIdentityRequest
+		requireError        require.ErrorAssertionFunc
+		checkResultReturned bool
+		requireEvent        *events.WorkloadIdentityCreate
+	}{
+		{
+			name:   "success",
+			client: authorizedClient,
+			req: &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+				WorkloadIdentity: &workloadidentityv1pb.WorkloadIdentity{
+					Kind:    types.KindWorkloadIdentity,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "new",
+					},
+					Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+						Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+							Id: "/example",
+						},
+					},
+				},
+			},
+			requireError:        require.NoError,
+			checkResultReturned: true,
+			requireEvent: &events.WorkloadIdentityCreate{
+				Metadata: events.Metadata{
+					Code: libevents.WorkloadIdentityCreateCode,
+					Type: libevents.WorkloadIdentityCreateEvent,
+				},
+				ResourceMetadata: events.ResourceMetadata{
+					Name: "new",
+				},
+				UserMetadata: events.UserMetadata{
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
+				},
+			},
+		},
+		{
+			name:   "validation fail",
+			client: authorizedClient,
+			req: &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+				WorkloadIdentity: &workloadidentityv1pb.WorkloadIdentity{
+					Kind:    types.KindWorkloadIdentity,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "new",
+					},
+					Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+						Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+							Id: "",
+						},
+					},
+				},
+			},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "spec.spiffe.id: is required")
+			},
+		},
+		{
+			name:   "unauthorized",
+			client: unauthorizedClient,
+			req: &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+				WorkloadIdentity: &workloadidentityv1pb.WorkloadIdentity{
+					Kind:    types.KindWorkloadIdentity,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "unauthorized",
+					},
+					Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+						Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+							Id: "/example",
+						},
+					},
+				},
+			},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventRecorder.Reset()
+			client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(
+				tt.client.GetConnection(),
+			)
+			res, err := client.UpsertWorkloadIdentity(ctx, tt.req)
+			tt.requireError(t, err)
+
+			if tt.checkResultReturned {
+				require.NotEmpty(t, res.Metadata.Revision)
+				// Expect returned result to match request, but also have a
+				// revision
+				require.Empty(
+					t,
+					cmp.Diff(
+						res,
+						tt.req.WorkloadIdentity,
+						protocmp.Transform(),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+					),
+				)
+				// Expect the value fetched from the store to match returned
+				// item.
+				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.Metadata.Name)
+				require.NoError(t, err)
+				require.Empty(
+					t,
+					cmp.Diff(
+						res,
+						fetched,
+						protocmp.Transform(),
+					),
+				)
+			}
+			if tt.requireEvent != nil {
+				evt, ok := eventRecorder.LastEvent().(*events.WorkloadIdentityCreate)
+				require.True(t, ok)
+				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
+				require.Empty(t, cmp.Diff(
+					evt,
+					tt.requireEvent,
+					cmpopts.IgnoreFields(events.WorkloadIdentityCreate{}, "ConnectionMetadata", "WorkloadIdentityData"),
+				))
+			}
+		})
+	}
+}
