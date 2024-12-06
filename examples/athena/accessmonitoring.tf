@@ -78,6 +78,7 @@ data "aws_iam_policy_document" "access_monitoring_policy" {
       "s3:PutObject"
     ]
     resources = [
+      "${aws_s3_bucket.long_term_storage.arn}/events/*",
       "${aws_s3_bucket.long_term_storage.arn}/report_results/*",
       "${aws_s3_bucket.transient_storage.arn}/results/*"
     ]
