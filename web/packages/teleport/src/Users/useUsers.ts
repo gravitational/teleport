@@ -132,10 +132,13 @@ export default function useUsers({
     cfg.isUsageBasedBilling &&
     !storageService.getUsersMauAcknowledged();
 
+  const usersAcl = ctx.storeUser.getUserAccess();
+
   return {
     attempt,
     users,
     fetchRoles,
+    usersAcl,
     operation,
     onStartCreate,
     onStartDelete,

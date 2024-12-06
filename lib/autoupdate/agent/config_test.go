@@ -19,47 +19,177 @@
 package agent
 
 import (
-	"bytes"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"gopkg.in/yaml.v3"
 )
 
-func TestWriteConfigFiles(t *testing.T) {
+func TestNewRevisionFromDir(t *testing.T) {
 	t.Parallel()
-	linkDir := t.TempDir()
-	dataDir := t.TempDir()
-	err := writeConfigFiles(linkDir, dataDir)
-	require.NoError(t, err)
 
-	for _, p := range []string{
-		filepath.Join(linkDir, serviceDir, updateServiceName),
-		filepath.Join(linkDir, serviceDir, updateTimerName),
+	for _, tt := range []struct {
+		name     string
+		dir      string
+		rev      Revision
+		errMatch string
+	}{
+		{
+			name: "version",
+			dir:  "1.2.3",
+			rev: Revision{
+				Version: "1.2.3",
+			},
+		},
+		{
+			name: "full",
+			dir:  "1.2.3_ent_fips",
+			rev: Revision{
+				Version: "1.2.3",
+				Flags:   FlagEnterprise | FlagFIPS,
+			},
+		},
+		{
+			name: "ent",
+			dir:  "1.2.3_ent",
+			rev: Revision{
+				Version: "1.2.3",
+				Flags:   FlagEnterprise,
+			},
+		},
+		{
+			name:     "empty",
+			errMatch: "missing",
+		},
+		{
+			name:     "trailing",
+			dir:      "1.2.3_",
+			errMatch: "invalid",
+		},
+		{
+			name:     "more trailing",
+			dir:      "1.2.3___",
+			errMatch: "invalid",
+		},
+		{
+			name:     "no version",
+			dir:      "_fips",
+			errMatch: "missing",
+		},
+		{
+			name:     "fips no ent",
+			dir:      "1.2.3_fips",
+			errMatch: "invalid",
+		},
+		{
+			name:     "unknown start fips",
+			dir:      "1.2.3_test_fips",
+			errMatch: "invalid",
+		},
+		{
+			name:     "unknown start ent",
+			dir:      "1.2.3_test_ent",
+			errMatch: "invalid",
+		},
+		{
+			name:     "unknown end fips",
+			dir:      "1.2.3_fips_test",
+			errMatch: "invalid",
+		},
+		{
+			name:     "unknown end ent",
+			dir:      "1.2.3_ent_test",
+			errMatch: "invalid",
+		},
+		{
+			name:     "bad order",
+			dir:      "1.2.3_fips_ent",
+			errMatch: "invalid",
+		},
+		{
+			name:     "underscore",
+			dir:      "_",
+			errMatch: "missing",
+		},
 	} {
-		t.Run(filepath.Base(p), func(t *testing.T) {
-			data, err := os.ReadFile(p)
-			require.NoError(t, err)
-			data = replaceValues(data, map[string]string{
-				DefaultLinkDir:      linkDir,
-				libdefaults.DataDir: dataDir,
-			})
-			if golden.ShouldSet() {
-				golden.Set(t, data)
+		t.Run(tt.name, func(t *testing.T) {
+			rev, err := NewRevisionFromDir(tt.dir)
+			if tt.errMatch != "" {
+				require.ErrorContains(t, err, tt.errMatch)
+				return
 			}
-			require.Equal(t, string(golden.Get(t)), string(data))
+			require.NoError(t, err)
+			require.Equal(t, tt.rev, rev)
+			require.Equal(t, tt.dir, rev.Dir())
 		})
 	}
 }
 
-func replaceValues(data []byte, m map[string]string) []byte {
-	for k, v := range m {
-		data = bytes.ReplaceAll(data, []byte(v),
-			[]byte(k))
+func TestInstallFlagsYAML(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		yaml     string
+		flags    InstallFlags
+		skipYAML bool
+	}{
+		{
+			name:  "both",
+			yaml:  `["Enterprise", "FIPS"]`,
+			flags: FlagEnterprise | FlagFIPS,
+		},
+		{
+			name:     "order",
+			yaml:     `["FIPS", "Enterprise"]`,
+			flags:    FlagEnterprise | FlagFIPS,
+			skipYAML: true,
+		},
+		{
+			name:     "extra",
+			yaml:     `["FIPS", "Enterprise", "bad"]`,
+			flags:    FlagEnterprise | FlagFIPS,
+			skipYAML: true,
+		},
+		{
+			name:  "enterprise",
+			yaml:  `["Enterprise"]`,
+			flags: FlagEnterprise,
+		},
+		{
+			name:  "fips",
+			yaml:  `["FIPS"]`,
+			flags: FlagFIPS,
+		},
+		{
+			name: "empty",
+			yaml: `[]`,
+		},
+		{
+			name:     "nil",
+			skipYAML: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var flags InstallFlags
+			err := yaml.Unmarshal([]byte(tt.yaml), &flags)
+			require.NoError(t, err)
+			require.Equal(t, tt.flags, flags)
+
+			// verify test YAML
+			var v any
+			err = yaml.Unmarshal([]byte(tt.yaml), &v)
+			require.NoError(t, err)
+			res, err := yaml.Marshal(v)
+			require.NoError(t, err)
+
+			// compare verified YAML to flag output
+			out, err := yaml.Marshal(flags)
+			require.NoError(t, err)
+
+			if !tt.skipYAML {
+				require.Equal(t, string(res), string(out))
+			}
+		})
 	}
-	return data
 }

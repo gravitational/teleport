@@ -49,12 +49,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -1078,6 +1081,7 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 		})
 	}
 }
+
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -5113,6 +5117,19 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
+	// create user and client
+	logins := []string{"llama", "fish"}
+	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil /*mutated with role mutator*/, nil,
+		WithRoleMutator(
+			func(role types.Role) {
+				role.SetLogins(types.Allow, logins)
+				role.SetWindowsLogins(types.Allow, logins)
+				role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetAWSRoleARNs(types.Allow, logins)
+			}),
+	)
+	require.NoError(t, err)
+
 	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
@@ -5170,32 +5187,18 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// create user and client
-	logins := []string{"llama", "fish"}
-	user, role, err := CreateUserAndRole(srv.Auth(), "user", logins, nil)
-	require.NoError(t, err)
-	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-	role.SetWindowsLogins(types.Allow, logins)
-	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-	role.SetAWSRoleARNs(types.Allow, logins)
-	_, err = srv.Auth().UpdateRole(ctx, role)
-	require.NoError(t, err)
-
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	var results []*proto.PaginatedResource
+	resultsC := make(chan []*proto.PaginatedResource, 1)
 
 	// Immediately listing resources can be problematic, given that not all were
 	// necessarily replicated in the unified resources cache. To cover this
 	// scenario, perform multiple attempts (if necessary) to read the complete
 	// list of resources.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Reset the resources list to avoid having items from previous
-		// iterations.
-		results = nil
-
 		var start string
+		var results []*proto.PaginatedResource
 		for {
 			resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 				Limit:         5,
@@ -5216,13 +5219,21 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		assert.Len(t, results, 20)
-	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
+		if !assert.Len(t, results, 20) {
+			return
+		}
+		resultsC <- results
+	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
+	results := <-resultsC
 	// Check that only server, desktop, and app server resources contain the expected logins
-	for _, resource := range results {
+	expectPrincipals := func(resource *proto.PaginatedResource) bool {
 		isAWSConsoleApp := resource.GetAppServer() != nil && resource.GetAppServer().GetApp().IsAWSConsole()
-		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || isAWSConsoleApp {
+		return resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || isAWSConsoleApp
+	}
+
+	for _, resource := range results {
+		if expectPrincipals(resource) {
 			require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0
 			})), "mismatch on expected logins list for resource %T", resource.Resource)
@@ -5690,7 +5701,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+
+	require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
 	require.Nil(t, resp)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -5763,6 +5775,57 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 		SortBy:              types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.Error(t, err)
+}
+
+func TestUnifiedResources_IdentityCenter(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
+	_, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+		Account: &identitycenterv1.Account{
+			Kind:    types.KindIdentityCenterAccount,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test_acct",
+				Labels: map[string]string{
+					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+				},
+			},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:   "11111111",
+				Arn:  "some:arn",
+				Name: "Test Account",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("access denied", func(t *testing.T) {
+		// Asserts that, with no RBAC or matchers in place, acces to IC Accounts
+		// is denied by default
+
+		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "test", nil, nil)
+		require.NoError(t, err)
+
+		identity := TestUser(userNoAccess.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	// TODO(tcsc): Add other tests one RBAC implemented
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
@@ -9188,6 +9251,117 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// assert that the auth preference matches the expected
 			require.Equal(t, tc.expectedDefaultConnector, authPreferences.GetConnectorName())
+		})
+	}
+}
+
+func TestRoleRequestReasonModeValidation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	testCases := []struct {
+		desc          string
+		allow         types.AccessRequestConditions
+		deny          types.AccessRequestConditions
+		expectedError error
+	}{
+		{
+			desc: "Reason mode can be omitted",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be required in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeRequired,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be optional in allow condition",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode can be empty",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			desc: "Reason mode cannot be set to any other value",
+			allow: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: "other-value",
+				},
+			},
+			expectedError: trace.BadParameter(`unrecognized request reason mode "other-value", must be one of: [required optional]`),
+		},
+		{
+			desc: "Reason mode cannot be set deny condition",
+			deny: types.AccessRequestConditions{
+				Roles: []string{"requestable-test-role"},
+				Reason: &types.AccessRequestConditionsReason{
+					Mode: types.RequestReasonModeOptional,
+				},
+			},
+			expectedError: trace.BadParameter("request reason mode can be provided only for allow rules"),
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			var err error
+
+			createRole := newRole(t, fmt.Sprintf("test-create-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			updateRole := newRole(t, fmt.Sprintf("test-update-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+			upsertRole := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), nil, types.RoleConditions{}, types.RoleConditions{})
+
+			createRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			createRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.CreateRole(ctx, createRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			updateRole, err = s.CreateRole(ctx, updateRole)
+			require.NoError(t, err)
+			updateRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			updateRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpdateRole(ctx, updateRole)
+			require.ErrorIs(t, err, tt.expectedError)
+
+			upsertRole, err = s.CreateRole(ctx, upsertRole)
+			require.NoError(t, err)
+			upsertRole.SetAccessRequestConditions(types.Allow, tt.allow)
+			upsertRole.SetAccessRequestConditions(types.Deny, tt.deny)
+			_, err = s.UpsertRole(ctx, upsertRole)
+			require.ErrorIs(t, err, tt.expectedError)
 		})
 	}
 }

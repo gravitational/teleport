@@ -691,7 +691,11 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "localhost1"
+  uri: "tcp://localhost1"
+  tcp_ports:
+  - port: 1234
+  - port: 30000
+    end_port: 30768
 ---
 kind: app
 version: v3
@@ -1198,7 +1202,11 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "localhost1",
+		URI: "tcp://localhost1",
+		TCPPorts: []*types.PortRange{
+			&types.PortRange{Port: 1234},
+			&types.PortRange{Port: 30000, EndPort: 30768},
+		},
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -2325,6 +2333,12 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
 }
 
 func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
@@ -2361,6 +2375,12 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
 }
 
 func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {

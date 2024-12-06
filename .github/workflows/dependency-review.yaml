@@ -25,4 +25,5 @@ jobs:
         pkg:cargo/asn1-rs,
         pkg:cargo/asn1-rs-derive,
         pkg:cargo/asn1-rs-impl,
-        pkg:cargo/der-parser
+        pkg:cargo/der-parser,
+        pkg:npm/prettier

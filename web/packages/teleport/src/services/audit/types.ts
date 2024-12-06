@@ -303,6 +303,8 @@ export const eventCodes = {
   PLUGIN_CREATE: 'PG001I',
   PLUGIN_UPDATE: 'PG002I',
   PLUGIN_DELETE: 'PG003I',
+  CONTACT_CREATE: 'TCTC001I',
+  CONTACT_DELETE: 'TCTC002I',
 } as const;
 
 /**
@@ -530,6 +532,11 @@ export type RawEvents = {
     typeof eventCodes.SESSION_START,
     {
       sid: string;
+      kubernetes_cluster: string;
+      proto: string;
+      server_hostname: string;
+      server_addr: string;
+      server_id: string;
     }
   >;
   [eventCodes.SESSION_REJECT]: RawEvent<
@@ -1713,6 +1720,20 @@ export type RawEvents = {
     {
       user: string;
       server_hostname: string;
+    }
+  >;
+  [eventCodes.CONTACT_CREATE]: RawEvent<
+    typeof eventCodes.CONTACT_CREATE,
+    {
+      email: string;
+      contact_type: number;
+    }
+  >;
+  [eventCodes.CONTACT_DELETE]: RawEvent<
+    typeof eventCodes.CONTACT_DELETE,
+    {
+      email: string;
+      contact_type: number;
     }
   >;
 };

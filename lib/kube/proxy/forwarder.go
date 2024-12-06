@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -1667,6 +1668,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		httpResponseWriter: w,
 		context:            ctx,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
@@ -1811,6 +1813,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		onPortForward:      onPortForward,
 		targetDialer:       dialer,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 	}
 	f.log.Debugf("Starting %v.", request)
 	err = runPortForwarding(request)
@@ -2186,7 +2189,6 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 }
 
 func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-
 	wsDialer, err := f.getWebsocketDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2347,9 +2349,11 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Context:               s.connCtx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
-		Entry:                 s.parent.log,
-		Emitter:               s.parent.cfg.AuthClient,
-		EmitterContext:        s.parent.ctx,
+		// TODO(tross) update this to use the child logger
+		// once Forwarder is converted to use a slog.Logger
+		Logger:         slog.Default(),
+		Emitter:        s.parent.cfg.AuthClient,
+		EmitterContext: s.parent.ctx,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

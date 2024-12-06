@@ -47,6 +47,15 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+const (
+	// AgentUpdateGroupParameter is the parameter used to specify the updater
+	// group when doing a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified group. e.g. some groups might need to update
+	// before others.
+	AgentUpdateGroupParameter = "group"
+)
+
 // Config specifies information when building requests with the
 // webclient.
 type Config struct {
@@ -169,6 +178,10 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return findWithClient(cfg, clt)
+}
+
+func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
 
@@ -179,7 +192,7 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 	if cfg.UpdateGroup != "" {
 		endpoint.RawQuery = url.Values{
-			"group": []string{cfg.UpdateGroup},
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
 		}.Encode()
 	}
 
@@ -214,6 +227,10 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return pingWithClient(cfg, clt)
+}
+
+func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
 	defer span.End()
 
@@ -224,7 +241,7 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	if cfg.UpdateGroup != "" {
 		endpoint.RawQuery = url.Values{
-			"group": []string{cfg.UpdateGroup},
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
 		}.Encode()
 	}
 	if cfg.ConnectorName != "" {
@@ -267,6 +284,7 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	return pr, nil
 }
 
+// GetMOTD retrieves the Message Of The Day from the web proxy.
 func GetMOTD(cfg *Config) (*MotD, error) {
 	clt, err := newWebClient(cfg)
 	if err != nil {
@@ -274,6 +292,10 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return getMOTDWithClient(cfg, clt)
+}
+
+func getMOTDWithClient(cfg *Config, clt *http.Client) (*MotD, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/GetMOTD")
 	defer span.End()
 
@@ -300,6 +322,60 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	}
 
 	return motd, nil
+}
+
+// NewReusableClient creates a reusable webproxy client. If you need to do a single call,
+// use the webclient.Ping or webclient.Find functions instead.
+func NewReusableClient(cfg *Config) (*ReusableClient, error) {
+	// no need to check and set config defaults, this happens in newWebClient
+	client, err := newWebClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "building new web client")
+	}
+
+	return &ReusableClient{
+		client: client,
+		config: cfg,
+	}, nil
+}
+
+// ReusableClient is a webproxy client that allows the caller to make multiple calls
+// without having to buildi a new HTTP client each time.
+// Before retiring the client, you must make sure no calls are still in-flight, then call
+// ReusableClient.CloseIdleConnections().
+type ReusableClient struct {
+	client *http.Client
+	config *Config
+}
+
+// Find fetches discovery data by connecting to the given web proxy address.
+// It is designed to fetch proxy public addresses without any inefficiencies.
+func (c *ReusableClient) Find() (*PingResponse, error) {
+	return findWithClient(c.config, c.client)
+}
+
+// Ping serves two purposes. The first is to validate the HTTP endpoint of a
+// Teleport proxy. This leads to better user experience: users get connection
+// errors before being asked for passwords. The second is to return the form
+// of authentication that the server supports. This also leads to better user
+// experience: users only get prompted for the type of authentication the server supports.
+func (c *ReusableClient) Ping() (*PingResponse, error) {
+	return pingWithClient(c.config, c.client)
+}
+
+// GetMOTD retrieves the Message Of The Day from the web proxy.
+func (c *ReusableClient) GetMOTD() (*MotD, error) {
+	return getMOTDWithClient(c.config, c.client)
+}
+
+// CloseIdleConnections closes any connections on its [Transport] which
+// were previously connected from previous requests but are now
+// sitting idle in a "keep-alive" state. It does not interrupt any
+// connections currently in use.
+//
+// This must be run before retiring the ReusableClient.
+func (c *ReusableClient) CloseIdleConnections() {
+	c.client.CloseIdleConnections()
 }
 
 // MotD holds data about the current message of the day.

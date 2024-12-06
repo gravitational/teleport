@@ -31,14 +31,17 @@ export const IntegrationTile = styled(Flex)<{
   align-items: center;
   justify-content: center;
   position: relative;
-  border-radius: 4px;
-  padding: 15px 10px 6px 10px;
+  border-radius: ${({ theme }) => theme.radii[2]}px;
+  padding: ${({ theme }) => theme.space[3]}px;
+  gap: ${({ theme }) => theme.space[3]}px;
   height: 170px;
   width: 170px;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
   cursor: ${({ disabled, $exists }) =>
-    disabled || $exists ? 'default' : 'pointer'};
+    disabled || $exists ? 'not-allowed' : 'pointer'};
+  transition: background-color 200ms ease;
+
   ${props => {
     if (props.$exists) {
       return;
@@ -46,7 +49,8 @@ export const IntegrationTile = styled(Flex)<{
 
     return `
     opacity: ${props.disabled ? '0.45' : '1'};
-    &:hover {
+    &:hover,
+    &:focus-visible {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
     `;
@@ -69,10 +73,8 @@ export const NoCodeIntegrationDescription = () => (
  */
 export const IntegrationIcon = styled(ResourceIcon)<{ size?: number }>`
   display: inline-block;
+  margin: 0 auto;
   height: 100%;
-  ${({ size }) =>
-    size &&
-    `
-    max-height: ${size}px;
-  `}
+  min-width: 0;
+  ${({ size }) => size && `max-width: ${size}px;`}
 `;

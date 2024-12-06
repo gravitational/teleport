@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -490,9 +491,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		TeleportUser:          child.Identity.TeleportUser,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
-		Entry:                 child.Entry,
-		Emitter:               child.srv,
-		EmitterContext:        ctx,
+		// TODO(tross) update this to use the child logger
+		// once ServerContext is converted to use a slog.Logger
+		Logger:         slog.Default(),
+		Emitter:        child.srv,
+		EmitterContext: ctx,
 	}
 	for _, opt := range monitorOpts {
 		opt(&monitorConfig)

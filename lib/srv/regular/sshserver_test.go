@@ -474,6 +474,7 @@ func TestSessionAuditLog(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	roleOptions.ForwardAgent = types.NewBool(true)
+	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 	roleOptions.PortForwarding = types.NewBoolOption(true)
 	role.SetOptions(roleOptions)
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)

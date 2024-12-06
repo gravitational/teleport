@@ -39,15 +39,14 @@ import (
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -98,24 +97,17 @@ func TestMain(m *testing.M) {
 }
 
 type mockSSMClient struct {
-	ssmiface.SSMAPI
+	server.SSMClient
 	commandOutput *ssm.SendCommandOutput
 	invokeOutput  *ssm.GetCommandInvocationOutput
 }
 
-func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.SendCommandInput, _ ...request.Option) (*ssm.SendCommandOutput, error) {
+func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 	return sm.commandOutput, nil
 }
 
-func (sm *mockSSMClient) GetCommandInvocationWithContext(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...request.Option) (*ssm.GetCommandInvocationOutput, error) {
+func (sm *mockSSMClient) GetCommandInvocation(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 	return sm.invokeOutput, nil
-}
-
-func (sm *mockSSMClient) WaitUntilCommandExecutedWithContext(aws.Context, *ssm.GetCommandInvocationInput, ...request.WaiterOption) error {
-	if aws.StringValue(sm.commandOutput.Command.Status) == ssm.CommandStatusFailed {
-		return awserr.New(request.WaiterResourceNotReadyErrorCode, "err", nil)
-	}
-	return nil
 }
 
 type mockEmitter struct {
@@ -325,13 +317,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			emitter: &mockEmitter{
@@ -347,7 +339,7 @@ func TestDiscoveryServer(t *testing.T) {
 						InstanceID: "instance-id-1",
 						Region:     "eu-central-1",
 						ExitCode:   0,
-						Status:     ssm.CommandStatusSuccess,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
 					}, ae)
 				},
 			},
@@ -383,13 +375,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
@@ -424,13 +416,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			emitter:                &mockEmitter{},
@@ -443,13 +435,13 @@ func TestDiscoveryServer(t *testing.T) {
 			foundEC2Instances: genEC2Instances(58),
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			emitter:                &mockEmitter{},
@@ -473,13 +465,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			emitter: &mockEmitter{
@@ -495,7 +487,7 @@ func TestDiscoveryServer(t *testing.T) {
 						InstanceID: "instance-id-1",
 						Region:     "eu-central-1",
 						ExitCode:   0,
-						Status:     ssm.CommandStatusSuccess,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
 					}, ae)
 				},
 			},
@@ -520,13 +512,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			emitter: &mockEmitter{
@@ -542,7 +534,7 @@ func TestDiscoveryServer(t *testing.T) {
 						InstanceID: "instance-id-1",
 						Region:     "eu-central-1",
 						ExitCode:   0,
-						Status:     ssm.CommandStatusSuccess,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
 					}, ae)
 				},
 			},
@@ -582,13 +574,13 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			ssm: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
+					Command: &ssmtypes.Command{
+						CommandId: awsv2.String("command-id-1"),
 					},
 				},
 				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
 				},
 			},
 			ssmRunError: trace.BadParameter("ssm run failed"),
@@ -605,7 +597,7 @@ func TestDiscoveryServer(t *testing.T) {
 						InstanceID: "instance-id-1",
 						Region:     "eu-central-1",
 						ExitCode:   0,
-						Status:     ssm.CommandStatusSuccess,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
 					}, ae)
 				},
 			},
@@ -640,9 +632,6 @@ func TestDiscoveryServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
-				SSM: tc.ssm,
-			}
 			ec2Client := &mockEC2Client{output: &ec2.DescribeInstancesOutput{
 				Reservations: []ec2types.Reservation{
 					{
@@ -691,9 +680,11 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients: testCloudClients,
 				GetEC2Client: func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 					return ec2Client, nil
+				},
+				GetSSMClient: func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error) {
+					return tc.ssm, nil
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
@@ -1872,6 +1863,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfig: discoveryConfigName})
+
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: discoveryConfigName},
@@ -1906,6 +1899,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			&azure.ARMRedisEnterpriseClusterMock{},
 			&azure.ARMRedisEnterpriseDatabaseMock{},
 		),
+		EKS: &mocks.EKSMock{
+			Clusters: []*eks.Cluster{eksAWSResource},
+		},
 	}
 
 	tcs := []struct {
@@ -1916,6 +1912,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		azureMatchers               []types.AzureMatcher
 		expectDatabases             []types.Database
 		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
 		wantEvents                  int
 	}{
 		{
@@ -2114,6 +2111,12 @@ func TestDiscoveryDatabase(t *testing.T) {
 				return []*discoveryconfig.DiscoveryConfig{dc1}
 			},
 			wantEvents: 1,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(1), s.DiscoveredResources)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
+			},
 		},
 		{
 			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
@@ -2126,6 +2129,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}},
 			expectDatabases: []types.Database{awsRedshiftDBWithIntegration},
 			wantEvents:      1,
+		},
+		{
+			name: "running in integrations-only-mode with a dynamic matcher with an integration, must find 1 eks cluster",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherEKS},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{},
+			wantEvents:      0,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(1), s.DiscoveredResources)
+				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
+				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
+			},
 		},
 	}
 
@@ -2226,6 +2250,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.Never(t, func() bool {
 					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
+			}
+
+			if tc.discoveryConfigStatusCheck != nil {
+				dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
+				require.NoError(t, err)
+
+				tc.discoveryConfigStatusCheck(t, dc.Status)
 			}
 		})
 	}
@@ -2387,6 +2418,23 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			require.Equal(t, reporter.DiscoveryFetchEventCount(), currentEmittedEvents)
 		})
 	})
+}
+
+func makeEKSCluster(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*eks.Cluster, types.KubeCluster) {
+	t.Helper()
+	eksAWSCluster := &eks.Cluster{
+		Name:   aws.String(name),
+		Arn:    aws.String(fmt.Sprintf("arn:aws:eks:%s:123456789012:cluster/%s", region, name)),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env": aws.String("prod"),
+		},
+	}
+	actual, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksAWSCluster.Name), aws.StringValue(eksAWSCluster.Arn), eksAWSCluster.Tags)
+	require.NoError(t, err)
+	discoveryParams.matcherType = types.AWSMatcherEKS
+	rewriteCloudResource(t, actual, discoveryParams)
+	return eksAWSCluster, actual
 }
 
 func makeRDSInstance(t *testing.T, name, region string, discoveryParams rewriteDiscoveryLabelsParams) (*rds.DBInstance, types.Database) {
