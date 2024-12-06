@@ -17,20 +17,32 @@
  */
 
 import React from 'react';
-import { Flex, ButtonText, H2 } from 'design';
+import { Flex, ButtonText, H2, Indicator, Box } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { Trash } from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 import { Role } from 'teleport/services/resources';
 
+import { EditorTab, EditorTabs } from './EditorTabs';
+
 /** Renders a header button with role name and delete button. */
 export const EditorHeader = ({
   role = null,
   onDelete,
+  selectedEditorTab,
+  onEditorTabChange,
+  isProcessing,
+  standardEditorId,
+  yamlEditorId,
 }: {
-  onDelete?(): void;
   role?: Role;
+  onDelete(): void;
+  selectedEditorTab: EditorTab;
+  onEditorTabChange(t: EditorTab): void;
+  isProcessing: boolean;
+  standardEditorId: string;
+  yamlEditorId: string;
 }) => {
   const ctx = useTeleport();
   const isCreating = !role;
@@ -38,8 +50,24 @@ export const EditorHeader = ({
   const hasDeleteAccess = ctx.storeUser.getRoleAccess().remove;
 
   return (
-    <Flex alignItems="center" mb={3} justifyContent="space-between">
-      <H2>{isCreating ? 'Create a New Role' : role?.metadata.name}</H2>
+    <Flex alignItems="center" mb={3} gap={2}>
+      <Box flex="1">
+        <H2>
+          {isCreating
+            ? 'Create a New Role'
+            : `Edit Role ${role?.metadata.name}`}
+        </H2>
+      </Box>
+      <Box flex="0 0 24px" lineHeight={0}>
+        {isProcessing && <Indicator size={24} color="text.muted" />}
+      </Box>
+      <EditorTabs
+        onTabChange={onEditorTabChange}
+        selectedEditorTab={selectedEditorTab}
+        disabled={isProcessing}
+        standardEditorId={standardEditorId}
+        yamlEditorId={yamlEditorId}
+      />
       {!isCreating && (
         <HoverTooltip
           position="bottom"

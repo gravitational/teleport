@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Box, Flex } from 'design';
-import React, { useState } from 'react';
+import { Alert, Flex } from 'design';
+import React, { useId, useState } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
@@ -32,7 +32,7 @@ import {
   roleToRoleEditorModel as roleToRoleEditorModel,
 } from './standardmodel';
 import { YamlEditorModel } from './yamlmodel';
-import { EditorTab, EditorTabs } from './EditorTabs';
+import { EditorTab } from './EditorTabs';
 import { EditorHeader } from './EditorHeader';
 import { StandardEditor } from './StandardEditor';
 import { YamlEditor } from './YamlEditor';
@@ -59,6 +59,12 @@ export const RoleEditor = ({
   onSave,
   onDelete,
 }: RoleEditorProps) => {
+  const idPrefix = useId();
+  // These IDs are needed to connect accessibility attributes between the
+  // standard/YAML tab switcher and the switched panels.
+  const standardEditorId = `${idPrefix}-standard`;
+  const yamlEditorId = `${idPrefix}-yaml`;
+
   const [standardModel, setStandardModel] = useState<StandardEditorModel>(
     () => {
       const role = originalRole?.object ?? newRole();
@@ -114,6 +120,10 @@ export const RoleEditor = ({
     saveAttempt.status === 'processing';
 
   async function onTabChange(activeIndex: EditorTab) {
+    // The code below is not idempotent, so we need to protect ourselves from
+    // an accidental model replacement.
+    if (activeIndex === selectedEditorTab) return;
+
     switch (activeIndex) {
       case EditorTab.Standard: {
         if (!yamlModel.content) {
@@ -160,7 +170,15 @@ export const RoleEditor = ({
 
   return (
     <Flex flexDirection="column" flex="1">
-      <EditorHeader role={originalRole?.object} onDelete={onDelete} />
+      <EditorHeader
+        role={originalRole?.object}
+        onDelete={onDelete}
+        selectedEditorTab={selectedEditorTab}
+        onEditorTabChange={onTabChange}
+        isProcessing={isProcessing}
+        standardEditorId={standardEditorId}
+        yamlEditorId={yamlEditorId}
+      />
       {saveAttempt.status === 'error' && (
         <Alert mt={3} dismissible>
           {saveAttempt.statusText}
@@ -176,32 +194,29 @@ export const RoleEditor = ({
           {yamlifyAttempt.statusText}
         </Alert>
       )}
-      <Box mb={3}>
-        <EditorTabs
-          onTabChange={onTabChange}
-          selectedEditorTab={selectedEditorTab}
-          isProcessing={isProcessing}
-        />
-      </Box>
       {selectedEditorTab === EditorTab.Standard && (
-        <StandardEditor
-          originalRole={originalRole}
-          onSave={object => handleSave({ object })}
-          onCancel={handleCancel}
-          standardEditorModel={standardModel}
-          isProcessing={isProcessing}
-          onChange={setStandardModel}
-        />
+        <div id={standardEditorId}>
+          <StandardEditor
+            originalRole={originalRole}
+            onSave={object => handleSave({ object })}
+            onCancel={handleCancel}
+            standardEditorModel={standardModel}
+            isProcessing={isProcessing}
+            onChange={setStandardModel}
+          />
+        </div>
       )}
       {selectedEditorTab === EditorTab.Yaml && (
-        <YamlEditor
-          yamlEditorModel={yamlModel}
-          onChange={setYamlModel}
-          onSave={async yaml => void (await handleSave({ yaml }))}
-          isProcessing={isProcessing}
-          onCancel={handleCancel}
-          originalRole={originalRole}
-        />
+        <Flex flexDirection="column" flex="1" id={yamlEditorId}>
+          <YamlEditor
+            yamlEditorModel={yamlModel}
+            onChange={setYamlModel}
+            onSave={async yaml => void (await handleSave({ yaml }))}
+            isProcessing={isProcessing}
+            onCancel={handleCancel}
+            originalRole={originalRole}
+          />
+        </Flex>
       )}
     </Flex>
   );
