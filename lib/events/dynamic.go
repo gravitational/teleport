@@ -458,6 +458,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AutoUpdateVersionUpdate{}
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
+
+	case WorkloadIdentityCreateEvent:
+		e = &events.WorkloadIdentityCreate{}
+	case WorkloadIdentityUpdateEvent:
+		e = &events.WorkloadIdentityUpdate{}
+	case WorkloadIdentityDeleteEvent:
+		e = &events.WorkloadIdentityDelete{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
