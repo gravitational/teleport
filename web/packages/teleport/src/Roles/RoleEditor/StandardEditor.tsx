@@ -939,6 +939,9 @@ export function AdminRules({
   function setRule(rule: RuleModel) {
     onChange?.(value.map(r => (r.id === rule.id ? rule : r)));
   }
+  function removeRule(id: string) {
+    onChange?.(value.filter(r => r.id !== id));
+  }
   return (
     <Flex flexDirection="column" gap={3}>
       {value.map((rule, i) => (
@@ -948,6 +951,7 @@ export function AdminRules({
           value={rule}
           onChange={setRule}
           validation={validation[i]}
+          onRemove={() => removeRule(rule.id)}
         />
       ))}
       <ButtonSecondary alignSelf="start" onClick={addRule}>
@@ -963,15 +967,20 @@ function AdminRule({
   isProcessing,
   validation,
   onChange,
-}: SectionProps<RuleModel, AdminRuleValidationResult>) {
+  onRemove,
+}: SectionProps<RuleModel, AdminRuleValidationResult> & {
+  onRemove?(): void;
+}) {
   const { resources, verbs } = value;
   const theme = useTheme();
   return (
-    <Box
-      border={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
-      borderRadius={3}
-      p={3}
+    <Section
+      title="Admin Rule"
+      tooltip="A rule that gives users administrative access to certain kinds of resources"
+      removable
+      isProcessing={isProcessing}
+      validation={validation}
+      onRemove={onRemove}
     >
       <FieldSelect
         isMulti
@@ -992,7 +1001,7 @@ function AdminRule({
         rule={precomputed(validation.fields.verbs)}
         mb={0}
       />
-    </Box>
+    </Section>
   );
 }
 
