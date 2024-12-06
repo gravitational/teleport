@@ -1854,7 +1854,7 @@ func TestAgentRolloutController(t *testing.T) {
 	dataDir := makeTempDir(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
-	// We use a real clock because too many sevrices are using the clock and it's not possible ot accurately wait for
+	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
 	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
 	// check, this will break the next time we add a new waiter.
 	cfg.Clock = clockwork.NewRealClock()
