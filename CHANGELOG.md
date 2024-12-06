@@ -1,5 +1,36 @@
 # Changelog
 
+## 15.4.23 (12/5/2024)
+
+* Fixed a bug breaking in-cluster joining on some Kubernetes clusters. [#49843](https://github.com/gravitational/teleport/pull/49843)
+* SSH or Kubernetes information is now included for audit log list for start session events. [#49834](https://github.com/gravitational/teleport/pull/49834)
+* Avoid tight web session renewals for sessions with short TTL (between 3m and 30s). [#49770](https://github.com/gravitational/teleport/pull/49770)
+* Updated Go to 1.22.10. [#49760](https://github.com/gravitational/teleport/pull/49760)
+* Added ability to configure resource labels in `teleport-cluster`'s operator sub-chart. [#49649](https://github.com/gravitational/teleport/pull/49649)
+* Fixed proxy peering listener not using the exact address specified in `peer_listen_addr`. [#49591](https://github.com/gravitational/teleport/pull/49591)
+* Kubernetes in-cluster joining now also accepts tokens whose audience is the Teleport cluster name (before it only allowed the default Kubernetes audience). Kubernetes JWKS joining is unchanged and still requires tokens with the cluster name in the audience. [#49558](https://github.com/gravitational/teleport/pull/49558)
+* Restore interactive PAM authentication functionality when `use_pam_auth` is applied. [#49520](https://github.com/gravitational/teleport/pull/49520)
+* Increase CockroachDB setup timeout from 5 to 30 seconds. This mitigates the Auth Service not being able to configure TTL on slow CockroachDB event backends. [#49471](https://github.com/gravitational/teleport/pull/49471)
+* Fixed a potential panic in login rule and SAML IdP expression parser. [#49432](https://github.com/gravitational/teleport/pull/49432)
+* Support for long-running kube exec/port-forward, respect `client_idle_timeout` config. [#49430](https://github.com/gravitational/teleport/pull/49430)
+* Fixed a permissions error with Postgres database user auto-provisioning that occurs when the database admin is not a superuser and the database is upgraded to Postgres v16 or higher. [#49391](https://github.com/gravitational/teleport/pull/49391)
+* Fixed missing user participants in session recordings listing for non-interactive Kubernetes recordings. [#49345](https://github.com/gravitational/teleport/pull/49345)
+* Fixed an issue where `teleport park` processes could be leaked causing runaway resource usage. [#49262](https://github.com/gravitational/teleport/pull/49262)
+* The `tsh puttyconfig` command now disables GSSAPI auth settings to avoid a "Not Responding" condition in PuTTY. [#49191](https://github.com/gravitational/teleport/pull/49191)
+* Allow Azure VMs to join from a different subscription than their managed identity. [#49158](https://github.com/gravitational/teleport/pull/49158)
+* Fixed an issue loading the license file when Teleport is started without a configuration file. [#49148](https://github.com/gravitational/teleport/pull/49148)
+* Fixed a bug in the `teleport-cluster` Helm chart that can cause token mount to fail when using ArgoCD. [#49070](https://github.com/gravitational/teleport/pull/49070)
+* Fixed an issue resulting in excess cpu usage and connection resets when teleport-event-handler is under moderate to high load. [#49035](https://github.com/gravitational/teleport/pull/49035)
+* Fixed OpenSSH remote port forwarding not working for localhost. [#49021](https://github.com/gravitational/teleport/pull/49021)
+* Allow to override Teleport license secret name when using `teleport-cluster` Helm chart. [#48980](https://github.com/gravitational/teleport/pull/48980)
+* Fixed users not being able to connect to SQL server instances with PKINIT integration when the cluster is configured with different CAs for database access. [#48925](https://github.com/gravitational/teleport/pull/48925)
+* Ensure that agentless server information is provided in all audit events. [#48835](https://github.com/gravitational/teleport/pull/48835)
+* Fixed an issue preventing migration of unmanaged users to Teleport host users when including `teleport-keep` in a role's `host_groups`. [#48456](https://github.com/gravitational/teleport/pull/48456)
+* Resolved an issue that caused false positive errors incorrectly indicating that the YubiKey was in use by another application, while only tsh was accessing it. [#47953](https://github.com/gravitational/teleport/pull/47953)
+
+Enterprise:
+* Jamf Service sync audit events are attributed to "Jamf Service".
+
 ## 15.4.22 (11/12/24)
 
 * Added a search input to the cluster dropdown in the Web UI when there's more than five clusters to show. [#48800](https://github.com/gravitational/teleport/pull/48800)
