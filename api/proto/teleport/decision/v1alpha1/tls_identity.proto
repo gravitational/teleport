@@ -133,7 +133,7 @@ message TLSIdentity {
 
   // AllowedResourceIDs lists the resources the identity should be allowed to
   // access.
-  repeated ResourceID allowed_resource_ids = 31;
+  repeated ResourceId allowed_resource_ids = 31;
 
   // PrivateKeyPolicy is the private key policy supported by this identity.
   string private_key_policy = 32;
@@ -207,9 +207,9 @@ message RouteToDatabase {
   repeated string roles = 5;
 }
 
-// ResourceID is a unique identifier for a teleport resource.
+// ResourceId is a unique identifier for a teleport resource.
 // Must be kept in sync with types.ResourceID.
-message ResourceID {
+message ResourceId {
   // ClusterName is the name of the cluster the resource is in.
   string cluster_name = 1;
 
