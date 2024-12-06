@@ -39,6 +39,7 @@ jobs:
 
     permissions:
       contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout
@@ -109,34 +110,21 @@ jobs:
         working-directory: 'docs'
         run: yarn markdown-lint
 
-      - name: Test the docs build
-        working-directory: docs
-        run: yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
+      - name: Lint docs prose
         uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
-          version: 2.30.0
+          version: 3.9.0
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
-          separator: ","
+          separator: ','
+          workdir: '${{ github.workspace }}/docs/content/teleport'
           files: ${{ needs.changes.outputs.changed_files }}
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added
           fail_on_error: true
-          vale_flags: "--config=docs/.vale.ini"
+          vale_flags: '--config=${{ github.workspace }}/docs/content/teleport/docs/.vale.ini'
 
+      - name: Test the docs build
+        working-directory: 'docs'
+        run: yarn build
