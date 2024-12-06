@@ -1,0 +1,38 @@
+name: Amplify Preview
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  id-token: write
+
+concurrency: 
+  # This value is arbitrary as long as it includes the pull request number
+  group: 'amplify-preview-${{ github.ref }}'
+
+jobs:
+  amplify-preview:
+    name: Amplify preview
+    runs-on: ubuntu-latest
+    environment: docs-amplify
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.IAM_ROLE }}
+
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          ref: taras/amplify-preview-job 
+          sparse-checkout: |
+            .github/actions
+
+      - uses: ./.github/actions/amplify-preview
+        with:
+          app_ids: ${{ vars.AMPLIFY_APP_IDS }}
+          create_branches: "true"
