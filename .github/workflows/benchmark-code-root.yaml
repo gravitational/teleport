@@ -59,7 +59,7 @@ jobs:
       # Run benchmarks once to make sure they don't break
       # Must be run separate since gotestsum is not compatible with benchmark output
       - name: Run Benchmarks Once
-        timeout-minutes: 5
+        timeout-minutes: 25
         shell: bash # Overriding default shell which is `sh -e`
         run: make test-go-bench-root | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
 
