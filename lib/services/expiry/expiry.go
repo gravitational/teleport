@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	// scanInterval is the interval at which the expiry checker scans for access requests
+	// scanInterval is the interval at which the expiry checker scans for access requests.
 	scanInterval = time.Minute * 5
 
 	// pendingRequestGracePeriod is the grace period used when checking a pending request's expiry
@@ -49,10 +49,12 @@ const (
 	semaphoreExpiration = time.Minute * 5
 	semaphoreJitter     = time.Minute
 
-	// minPageDelay is the minimum delay between processing each page of access requests
+	// minPageDelay is the minimum delay between processing each page of access requests.
 	minPageDelay           = time.Millisecond * 200
 	accessRequestPageLimit = 100
-	maxExpiresPerCycle     = 120
+	// maxExpiresPerCycle is an arbitrary limit on the number of requests to expire per cycle
+	// to prevent any one auth server holding the lease for more than a couple of minutes.
+	maxExpiresPerCycle = 120
 )
 
 // Config provides configuration for the expiry server.
@@ -158,6 +160,7 @@ func (s *Service) processRequests(ctx context.Context) error {
 	for {
 		var page []*types.AccessRequestV3
 		var err error
+		// Use time at read when calculating expiry of requests.
 		readTime := s.Clock.Now()
 		page, nextPageStart, err = s.getNextPageOfAccessRequests(ctx, nextPageStart)
 		if err != nil {
