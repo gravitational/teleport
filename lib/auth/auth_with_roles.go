@@ -40,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1474,6 +1476,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
+				if err := a.filterICPermissionSets(d.GetApp(), checker); err != nil {
+					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
+					continue
+				}
+
 				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
@@ -1488,6 +1495,62 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
+}
+
+func (a *ServerWithRoles) filterICPermissionSets(r services.AccessCheckable, checker resourceAccessChecker) error {
+	app, isApp := r.(*types.AppV3)
+	if !isApp {
+		return trace.BadParameter("resource must be an app")
+	}
+
+	pss := app.Spec.IdentityCenter.GetPermissionSets()
+	if pss == nil {
+		return nil
+	}
+
+	assignment := services.IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:    types.KindIdentityCenterAccountAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "rbac-tester",
+			},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId:     app.GetName(),
+				PermissionSet: &identitycenterv1.PermissionSetInfo{},
+			},
+		},
+	}
+	permissionSetQuery := assignment.Spec.PermissionSet
+	checkable := types.Resource153ToLegacy(assignment)
+
+	var requestableAccessChecker resourceAccessChecker
+	directAccessChecker := checker.accessChecker
+	if checker.baseAuthChecker != nil {
+		directAccessChecker = checker.baseAuthChecker
+		requestableAccessChecker = checker.accessChecker
+	}
+
+	var output []*types.IdentityCenterPermissionSet
+	for _, ps := range pss {
+		permissionSetQuery.Arn = ps.ARN
+
+		if err := directAccessChecker.CanAccess(checkable); err == nil {
+			output = append(output, ps)
+			continue
+		}
+
+		if requestableAccessChecker == nil {
+			continue
+		}
+
+		if err := requestableAccessChecker.CanAccess(checkable); err == nil {
+			ps.RequiresRequest = true
+			output = append(output, ps)
+		}
+	}
+	app.Spec.IdentityCenter.PermissionSets = output
+	return nil
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
