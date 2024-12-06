@@ -110,12 +110,12 @@ func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.
 func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.envCmd.FullCommand():
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		err = c.RunEnvCommand(ctx, client, os.Stdout, os.Stderr)
-		clientClose(ctx)
+		closeFn(ctx)
 		return true, trace.Wrap(err)
 	default:
 		return false, nil

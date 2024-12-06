@@ -54,11 +54,11 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Con
 // determine if selectedCommand belongs to it and return match=true
 func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand == cmd.exportCmd.FullCommand() {
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		defer clientClose(ctx)
+		defer closeFn(ctx)
 		return true, trace.Wrap(cmd.export(ctx, client))
 	}
 	return false, nil

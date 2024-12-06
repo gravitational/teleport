@@ -121,11 +121,11 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		return false, nil
 	}
 
-	client, clientClose, err := clientFunc(ctx)
+	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer clientClose(ctx)
+	defer closeFn(ctx)
 
 	switch err := trail.FromGRPC(handler(ctx, client)); {
 	case trace.IsNotImplemented(err):

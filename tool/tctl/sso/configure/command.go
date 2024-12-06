@@ -71,12 +71,12 @@ func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand stri
 				cmd.Logger.Logger.SetFormatter(formatter)
 				cmd.Logger.Logger.SetOutput(os.Stderr)
 			}
-			client, clientClose, err := clientFunc(ctx)
+			client, closeFn, err := clientFunc(ctx)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
 			err = subCommand.Run(ctx, client)
-			clientClose(ctx)
+			closeFn(ctx)
 
 			return true, trace.Wrap(err)
 		}

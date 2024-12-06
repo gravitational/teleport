@@ -126,11 +126,11 @@ Examples:
 func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		defer clientClose(ctx)
+		defer closeFn(ctx)
 		return true, trace.Wrap(s.testAttributeMapping.run(ctx, client))
 	default:
 		return false, nil

@@ -121,11 +121,11 @@ func (t *testCommand) tryRun(ctx context.Context, selectedCommand string, client
 	if len(t.inputResourceFiles) == 0 && !t.loadFromCluster {
 		return true, trace.BadParameter("no login rules to test, --resource-file or --load-from-cluster must be set")
 	}
-	client, clientClose, err := clientFunc(ctx)
+	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer clientClose(ctx)
+	defer closeFn(ctx)
 
 	return true, trace.Wrap(t.run(ctx, client))
 }

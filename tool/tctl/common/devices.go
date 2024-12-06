@@ -124,11 +124,11 @@ func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	if !ok {
 		return false, nil
 	}
-	client, clientClose, err := clientFunc(ctx)
+	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer clientClose(ctx)
+	defer closeFn(ctx)
 
 	switch err := trail.FromGRPC(innerCmd.Run(ctx, client)); {
 	case trace.IsNotImplemented(err):

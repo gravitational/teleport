@@ -74,12 +74,12 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	default:
 		return false, nil
 	}
-	client, clientClose, err := clientFunc(ctx)
+	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	err = commandFunc(ctx, client)
-	clientClose(ctx)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 

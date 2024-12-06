@@ -318,22 +318,22 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	case p.cleanupCmd.FullCommand():
 		commandFunc = p.Cleanup
 	case p.install.okta.cmd.FullCommand():
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		defer clientClose(ctx)
+		defer closeFn(ctx)
 		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
 		err = p.InstallOkta(ctx, args)
 		return true, trace.Wrap(err)
 	case p.install.scim.cmd.FullCommand():
 		commandFunc = p.InstallSCIM
 	case p.install.entraID.cmd.FullCommand():
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		defer clientClose(ctx)
+		defer closeFn(ctx)
 		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
 		err = p.InstallEntra(ctx, args)
 		return true, trace.Wrap(err)
@@ -342,12 +342,12 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	default:
 		return false, nil
 	}
-	client, clientClose, err := clientFunc(ctx)
+	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	err = commandFunc(ctx, client)
-	clientClose(ctx)
+	closeFn(ctx)
 
 	return true, trace.Wrap(err)
 }

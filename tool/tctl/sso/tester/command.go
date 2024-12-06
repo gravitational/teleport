@@ -160,12 +160,12 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Cli
 // determine if selectedCommand belongs to it and return match=true
 func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
-		client, clientClose, err := clientFunc(ctx)
+		client, closeFn, err := clientFunc(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		err = cmd.ssoTestCommand(ctx, client)
-		clientClose(ctx)
+		closeFn(ctx)
 		return true, trace.Wrap(err)
 	}
 	return false, nil
