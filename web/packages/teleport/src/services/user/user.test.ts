@@ -288,6 +288,7 @@ test('undefined values in context response gives proper default values', async (
     clipboardSharingEnabled: true,
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
+    fileTransferAccess: true,
   };
 
   expect(response).toEqual({
