@@ -16,57 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex } from 'design';
+import { Box } from 'design';
 import styled from 'styled-components';
 
 export const ConnectorBox = styled(Box)`
+  position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
   font-family: ${props => props.theme.font};
-  width: 320px;
-  padding: ${p => p.theme.space[4]}px;
-  margin: ${p => p.theme.space[3]}px ${p => p.theme.space[2]}px;
+  height: 157px;
+  padding: ${p => p.theme.space[3]}px;
   background: transparent;
   transition: all 0.3s;
   border-radius: ${props => props.theme.radii[2]}px;
-  min-height: 190px;
-  border: ${props => props.theme.borders[2]}
-    ${p => p.theme.colors.spotBackground[0]};
+  border: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
 
   &:hover,
   &:focus {
-    border: ${props => props.theme.borders[2]}
-      ${p => p.theme.colors.spotBackground[2]};
-    background: ${p => p.theme.colors.spotBackground[0]};
-    box-shadow: ${p => p.theme.boxShadow[3]};
-    cursor: pointer;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    color: inherit;
-    font-family: inherit;
-    outline: none;
-    position: relative;
-    text-align: center;
-    text-decoration: none;
-    opacity: 0.24;
-    box-shadow: none;
+    border: ${props => props.theme.borders[1]}
+      ${props => props.theme.colors.interactive.tonal.neutral[1]};
   }
 `;
 
-export const ResponsiveConnector = styled(Flex)`
-  position: relative;
-  box-shadow: ${p => p.theme.boxShadow[5]};
-  width: 240px;
-  height: 240px;
-  border-radius: ${props => props.theme.radii[2]}px;
-  flex-direction: column;
-  align-items: center;
+export const AuthConnectorsGrid = styled(Box)`
+  width: 100%;
+  display: grid;
+  gap: ${p => p.theme.space[5]}px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   justify-content: center;
-  background-color: ${props => props.theme.colors.levels.surface};
-  padding: ${props => props.theme.space[5]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
-    width: 100%;
-  }
 `;
