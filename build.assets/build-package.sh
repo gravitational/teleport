@@ -74,7 +74,7 @@ FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
 
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
-LICENSE=""
+LICENSE="Teleport Community Edition License"
 VENDOR="Gravitational"
 DESCRIPTION="Teleport provides on-demand, least-privileged access to your infrastructure, on a foundation of cryptographic identity and zero trust, with built-in identity and policy governance"
 DOCS_URL="https://goteleport.com/docs"
@@ -256,6 +256,7 @@ else
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${DEB_OUTPUT_ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
+    LICENSE_STANZA=(--license "${LICENSE}")
 fi
 
 # create a temporary directory and download specified Teleport version
@@ -361,7 +362,6 @@ else
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
         --url "${DOCS_URL}" \
-        --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
         --architecture ${PACKAGE_ARCH} \
@@ -374,6 +374,7 @@ else
         --after-upgrade /src/post-upgrade \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
+        "${LICENSE_STANZA[@]}" \
         ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory
