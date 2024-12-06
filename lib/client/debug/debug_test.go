@@ -18,9 +18,7 @@ package debug
 
 import (
 	"context"
-	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 func TestSetLogLevel(t *testing.T) {
@@ -111,19 +110,9 @@ func TestCollectProfile(t *testing.T) {
 func newSocketMockService(t *testing.T, status int, contents []byte) (string, func() []string) {
 	t.Helper()
 
-	// We cannot simply use the `t.TempDir()` due to the size limit of UDS.
-	// Here, we place it inside the temporary directory, which will most likely
-	// give a smaller path.
-	// https://github.com/golang/go/issues/62614
-	socketDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(socketDir) })
+	socketPath := filepath.Join(t.TempDir(), teleport.DebugServiceSocketName)
 
-	socketPath := filepath.Join(socketDir, teleport.DebugServiceSocketName)
-	require.Greater(t, 100, len(socketPath), "expected socket name to be smaller (less than 100 characters)"+
-		" due to Unix domain socket size limitation but got %q (%d).", socketPath, len(socketPath))
-
-	l, err := net.Listen("unix", socketPath)
+	l, err := uds.ListenUnix(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 
 	var requests []string
