@@ -143,6 +143,7 @@ export const eventCodes = {
   OIDC_CONNECTOR_DELETED: 'T8101I',
   OIDC_CONNECTOR_UPDATED: 'T8102I',
   PORTFORWARD_FAILURE: 'T3003E',
+  PORTFORWARD_STOP: 'T3003S',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
   PRIVILEGE_TOKEN_CREATED: 'T6002I',
@@ -394,6 +395,7 @@ export type RawEvents = {
     typeof eventCodes.OIDC_CONNECTOR_UPDATED
   >;
   [eventCodes.PORTFORWARD]: RawEvent<typeof eventCodes.PORTFORWARD>;
+  [eventCodes.PORTFORWARD_STOP]: RawEvent<typeof eventCodes.PORTFORWARD_STOP>;
   [eventCodes.PORTFORWARD_FAILURE]: RawEvent<
     typeof eventCodes.PORTFORWARD_FAILURE,
     {
