@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
@@ -59,7 +60,7 @@ message TLSIdentity {
   string kubernetes_cluster = 11;
 
   // Traits hold claim data used to populate a role at runtime.
-  repeated Trait traits = 12;
+  repeated teleport.trait.v1.Trait traits = 12;
 
   // RouteToApp holds routing information for applications. Routing metadata
   // allows Teleport web proxy to route HTTP requests to the appropriate cluster
@@ -146,14 +147,6 @@ message TLSIdentity {
 
   // UserType indicates if the User was created by an SSO Provider or locally.
   string user_type = 35;
-}
-
-// Trait encodes a single key-values pair from a user's traits.
-message Trait {
-  // name is the "key" of the trait.
-  string name = 1;
-  // values is the list of values the trait name maps to.
-  repeated string values = 2;
 }
 
 // RouteToApp holds routing information for applications.
