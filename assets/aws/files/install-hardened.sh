@@ -55,3 +55,14 @@ rm -rf /var/cache/dnf /var/cache/yum
 # Enable Teleport services to start on boot
 systemctl enable teleport-generate-config.service
 systemctl enable teleport.service
+
+# Add MOTD message
+cat <<EOF> /usr/lib/motd.d/40-teleport
+
+This is a Teleport-generated AMI, intended for use with reference Terraform code.
+When used with Terraform, the Teleport configuration is generated on startup and is not persisted upon update.
+Do not edit it manually.
+
+Please consult our documentation for information on debugging: https://goteleport.com/r/ha-terraform-docs
+
+EOF
