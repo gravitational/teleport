@@ -509,7 +509,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider:
+	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)
@@ -686,8 +686,11 @@ func FriendlyName(resource ResourceWithLabels) string {
 		return resource.GetMetadata().Description
 	}
 
-	if hn, ok := resource.(interface{ GetHostname() string }); ok {
-		return hn.GetHostname()
+	switch rr := resource.(type) {
+	case interface{ GetHostname() string }:
+		return rr.GetHostname()
+	case interface{ GetDisplayName() string }:
+		return rr.GetDisplayName()
 	}
 
 	return ""
