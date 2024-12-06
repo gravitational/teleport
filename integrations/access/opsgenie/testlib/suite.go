@@ -40,9 +40,11 @@ const (
 	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	NotifyTeamName             = "My Team"
 	NotifyTeamAnnotation       = types.TeleportNamespace + types.ReqAnnotationTeamsLabel
+	Priority                   = "P2"
+	PriorityAnnotation         = types.TeleportNamespace + types.ReqAnnotationPriority
 )
 
-// OpsgenieBaseSuite is the OpsGenie access plugin test suite.
+// OpsgenieBaseSuite is the Opsgenie access plugin test suite.
 // It implements the testify.TestingSuite interface.
 type OpsgenieBaseSuite struct {
 	*integration.AccessRequestSuite
@@ -142,7 +144,7 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForSchedules() {
 	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
 
 	// Validate the alert has been created in OpsGenie and its ID is stored in
-	// the plugin_data.
+	// the plugin data.
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
 		return data.AlertID != ""
 	})
@@ -165,6 +167,33 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 		ctx,
 		NotifyTeamAnnotation,
 		[]string{NotifyTeamName},
+	)
+
+	s.startApp()
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the alert has been created in OpsGenie and its ID is stored in
+	// the plugin_data.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
+		return data.AlertID != ""
+	})
+
+	alert, err := s.fakeOpsgenie.CheckNewAlert(ctx)
+	require.NoError(t, err, "no new alerts stored")
+
+	assert.Equal(t, alert.ID, pluginData.AlertID)
+}
+
+func (s *OpsgenieSuiteOSS) TestPriorityOverride() {
+	t := s.T()
+	ctx := context.Background()
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		PriorityAnnotation,
+		[]string{Priority},
 	)
 
 	s.startApp()
