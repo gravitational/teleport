@@ -208,6 +208,7 @@ message RouteToDatabase {
 }
 
 // ResourceID is a unique identifier for a teleport resource.
+// Must be kept in sync with types.ResourceID.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
   string cluster_name = 1;
