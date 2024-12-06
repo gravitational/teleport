@@ -1016,7 +1016,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 		return err
 	}
 
-	// RBAC checks should only necessary when connecting to an agentless node
+	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
 		_, scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
 		if err != nil {
@@ -1095,7 +1095,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 
 	ch = scx.TrackActivity(ch)
 
-	// RBAC checks should only necessary when connecting to an agentless node
+	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
 		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
 		if err != nil {
