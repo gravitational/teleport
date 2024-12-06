@@ -27,8 +27,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // WorkloadIdentityCommand is a group of commands pertaining to Teleport
@@ -86,8 +88,7 @@ func (c *WorkloadIdentityCommand) TryRun(
 ) (match bool, err error) {
 	switch cmd {
 	case c.listCmd.FullCommand():
-		panic("unimplemented")
-		//err = c.ListWorkloadIdentities(ctx, client)
+		err = c.ListWorkloadIdentities(ctx, client)
 	case c.rmCmd.FullCommand():
 		err = c.DeleteWorkloadIdentity(ctx, client)
 	default:
@@ -116,5 +117,48 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 		c.workloadIdentityName,
 	)
 
+	return nil
+}
+
+// ListWorkloadIdentities writes a listing of the WorkloadIdentity resources
+func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
+	ctx context.Context, client *authclient.Client,
+) error {
+	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
+	var workloadIdentities []*workloadidentityv1pb.WorkloadIdentity
+	req := &workloadidentityv1pb.ListWorkloadIdentitiesRequest{}
+	for {
+		resp, err := workloadIdentityClient.ListWorkloadIdentities(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		workloadIdentities = append(
+			workloadIdentities, resp.WorkloadIdentities...,
+		)
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	if c.format == teleport.Text {
+		if len(workloadIdentities) == 0 {
+			fmt.Fprintln(c.stdout, "No workload identities configured")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"Name", "SPIFFE ID"})
+		for _, u := range workloadIdentities {
+			t.AddRow([]string{
+				u.GetMetadata().GetName(), u.GetSpec().GetSpiffe().GetId(),
+			})
+		}
+		fmt.Fprintln(c.stdout, t.AsBuffer().String())
+	} else {
+		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal workload identities")
+		}
+	}
 	return nil
 }
