@@ -10631,9 +10631,13 @@ func (m *CreateRegisterChallengeRequest) GetDeviceUsage() DeviceUsage {
 // IdentityCenterAccount holds information about an Identity Center account
 // within an IdentityCenterAccountAssignment
 type IdentityCenterAccount struct {
-	ID                   string   `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	ARN                  string   `protobuf:"bytes,2,opt,name=ARN,proto3" json:"ARN,omitempty"`
-	AccountName          string   `protobuf:"bytes,3,opt,name=AccountName,proto3" json:"AccountName,omitempty"`
+	// ID is the AWS-assigned account ID
+	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	// ARN is the full Amazon Resource Name for the AWS account
+	ARN string `protobuf:"bytes,2,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// AccountName is the human-readable name of the account
+	AccountName string `protobuf:"bytes,3,opt,name=AccountName,proto3" json:"AccountName,omitempty"`
+	// Description is a free text description of the account
 	Description          string   `protobuf:"bytes,4,opt,name=Description,proto3" json:"Description,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -10704,7 +10708,9 @@ func (m *IdentityCenterAccount) GetDescription() string {
 // IdentityCenterPermissionSet holds information about an Identity Center
 // permission set within an IdentityCenterAccountAssignment
 type IdentityCenterPermissionSet struct {
-	ARN                  string   `protobuf:"bytes,1,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// ARN is the full Amazon Resource Name for the Permission Set
+	ARN string `protobuf:"bytes,1,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// Name is the human readable name for the Permission Set
 	Name                 string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

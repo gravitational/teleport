@@ -1943,16 +1943,26 @@ message CreateRegisterChallengeRequest {
 // IdentityCenterAccount holds information about an Identity Center account
 // within an IdentityCenterAccountAssignment
 message IdentityCenterAccount {
+  // ID is the AWS-assigned account ID
   string ID = 1;
+
+  // ARN is the full Amazon Resource Name for the AWS account
   string ARN = 2;
+
+  // AccountName is the human-readable name of the account
   string AccountName = 3;
+
+  // Description is a free text description of the account
   string Description = 4;
 }
 
 // IdentityCenterPermissionSet holds information about an Identity Center
 // permission set within an IdentityCenterAccountAssignment
 message IdentityCenterPermissionSet {
+  // ARN is the full Amazon Resource Name for the Permission Set
   string ARN = 1;
+
+  // Name is the human readable name for the Permission Set
   string Name = 2;
 }
 
