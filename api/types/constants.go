@@ -593,6 +593,9 @@ const (
 	// pair that can be requested by a Teleport User.
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
