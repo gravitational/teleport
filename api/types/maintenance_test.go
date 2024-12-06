@@ -205,7 +205,7 @@ func TestWeekdayParser(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		day, ok := parseWeekday(tt.input)
+		day, ok := ParseWeekday(tt.input)
 		if tt.fail {
 			require.False(t, ok)
 			continue

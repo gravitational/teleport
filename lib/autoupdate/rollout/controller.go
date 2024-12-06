@@ -56,12 +56,16 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Con
 	if clock == nil {
 		return nil, trace.BadParameter("missing clock")
 	}
+
 	return &Controller{
 		clock: clock,
 		log:   log,
 		reconciler: reconciler{
-			clt: client,
-			log: log,
+			clt:               client,
+			log:               log,
+			rolloutStrategies: []rolloutStrategy{
+				// TODO(hugoShaka): add the strategies here as we implement them
+			},
 		},
 	}, nil
 }
