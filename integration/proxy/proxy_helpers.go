@@ -219,7 +219,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = helpers.WaitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
+	err = p.root.WaitForNodeCount(context.Background(), p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
