@@ -32,7 +32,7 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   }
 
   if (mfaChallenge?.ssoChallenge) {
-    mfaOptions.push(getSsoOption(mfaChallenge.ssoChallenge));
+    mfaOptions.push(getSsoMfaOption(mfaChallenge.ssoChallenge));
   }
 
   return mfaOptions;
@@ -57,22 +57,28 @@ export type MfaOption = {
   label: string;
 };
 
-const MFA_OPTION_WEBAUTHN: MfaOption = {
+export const MFA_OPTION_WEBAUTHN: MfaOption = {
   value: 'webauthn',
   label: 'Passkey or Security Key',
 };
 
-const MFA_OPTION_TOTP: MfaOption = {
+export const MFA_OPTION_TOTP: MfaOption = {
   value: 'totp',
   label: 'Authenticator App',
 };
 
-const getSsoOption = (ssoChallenge: SSOChallenge): MfaOption => {
+// SSO MFA option used in tests.
+export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
+  value: 'sso',
+  label: 'SSO',
+};
+
+const getSsoMfaOption = (ssoChallenge: SSOChallenge): MfaOption => {
   return {
     value: 'sso',
     label:
-      ssoChallenge.device?.displayName ||
-      ssoChallenge.device?.connectorId ||
+      ssoChallenge?.device?.displayName ||
+      ssoChallenge?.device?.connectorId ||
       'SSO',
   };
 };

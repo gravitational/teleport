@@ -78,9 +78,10 @@ export function PasswordBox({
       </SingleRowBox>
       {dialogOpen && (
         <ChangePasswordWizard
-          auth2faType={cfg.getAuth2faType()}
-          passwordlessEnabled={cfg.isPasswordlessEnabled()}
-          devices={devices}
+          hasPasswordless={
+            cfg.isPasswordlessEnabled() &&
+            devices.some(dev => dev.usage === 'passwordless')
+          }
           onClose={() => setDialogOpen(false)}
           onSuccess={onSuccess}
         />
