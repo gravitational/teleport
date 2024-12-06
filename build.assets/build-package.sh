@@ -195,7 +195,6 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
 else
-    LICENSE="Teleport Community Edition License"
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
