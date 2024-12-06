@@ -1018,7 +1018,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 
 	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
-		_, scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
 		if err != nil {
 			return err
 		}

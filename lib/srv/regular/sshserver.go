@@ -1466,7 +1466,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
 	if err = s.canPortForward(scx, services.SSHPortForwardModeLocal); err != nil {
-		writeStderr(channel, err.Error())
+		s.writeStderr(ctx, channel, err.Error())
 		return
 	}
 

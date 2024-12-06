@@ -274,14 +274,5 @@ func TestCheckTCPIPForward(t *testing.T) {
 	}
 }
 
-type fakePortForwardChecker struct {
-	services.AccessChecker
-	mode services.SSHPortForwardMode
-}
-
-func (f *fakePortForwardChecker) SSHPortForwardMode() services.SSHPortForwardMode {
-	return f.mode
-}
-
 // TODO(atburke): Add test for handleForwardedTCPIPRequest once we have
 // infrastructure for higher-level tests here.

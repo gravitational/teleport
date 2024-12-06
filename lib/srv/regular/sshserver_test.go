@@ -848,6 +848,7 @@ func TestDirectTCPIP(t *testing.T) {
 
 		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
@@ -863,6 +864,7 @@ func TestDirectTCPIP(t *testing.T) {
 
 		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
+		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
@@ -957,6 +959,7 @@ func TestTCPIPForward(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
 			require.NoError(t, err)
 			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
 
 			t.Cleanup(func() {
 				require.NoError(t, resp.Body.Close())
