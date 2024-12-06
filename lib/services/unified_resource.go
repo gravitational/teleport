@@ -50,6 +50,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
 	types.KindIdentityCenterAccount,
+	types.KindIdentityCenterAccountAssignment,
 	types.KindGitServer,
 }
 
@@ -769,6 +770,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 				// to restore them to a useful state.
 				switch unwrapped := r.Unwrap().(type) {
 				case IdentityCenterAccount:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				case IdentityCenterAccountAssignment:
 					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
 
 				default:
