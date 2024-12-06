@@ -53,7 +53,8 @@ export interface App {
   integration?: string;
   /** subKind is subKind of an App. */
   subKind?: AppSubKind;
-  /** permissionSets is a list of AWS IAM Identity Center permission sets
+  /**
+   * permissionSets is a list of AWS IAM Identity Center permission sets
    * available for this App. The value is only populated if the app SubKind is
    * aws_ic_account.
    */
@@ -70,8 +71,10 @@ export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
 }
 
-// PermissionSet defines an AWS IAM Identity Center permission set that is available
-// to an App.
+/**
+ * PermissionSet defines an AWS IAM Identity Center permission set that
+ * is available to an App.
+ */
 export type PermissionSet = {
   /** name is a permission set name */
   name: string;
