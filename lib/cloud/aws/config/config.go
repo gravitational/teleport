@@ -24,7 +24,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -221,7 +223,9 @@ func getAWSConfigForRole(ctx context.Context, region string, options awsOptions)
 		return aws.Config{}, trace.Wrap(err)
 	}
 
-	stsClient := sts.NewFromConfig(*options.baseConfig)
+	stsClient := sts.NewFromConfig(*options.baseConfig, func(o *sts.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	})
 	cred := stscreds.NewAssumeRoleProvider(stsClient, options.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
 		if options.assumeRoleExternalID != "" {
 			aro.ExternalID = aws.String(options.assumeRoleExternalID)

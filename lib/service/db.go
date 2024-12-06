@@ -137,7 +137,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ServerID:       process.Config.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.log,
+		Logger:         process.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)

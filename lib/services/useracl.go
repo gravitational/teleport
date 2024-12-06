@@ -118,6 +118,8 @@ type UserACL struct {
 	ReviewRequests bool `json:"reviewRequests"`
 	// Contact defines the ability to manage contacts
 	Contact ResourceAccess `json:"contact"`
+	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
+	FileTransferAccess bool `json:"fileTransferAccess"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -210,6 +212,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
+	fileTransferAccess := userRoles.CanCopyFiles()
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -262,5 +265,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		CrownJewel:              crownJewelAccess,
 		AccessGraphSettings:     accessGraphSettings,
 		Contact:                 contact,
+		FileTransferAccess:      fileTransferAccess,
 	}
 }

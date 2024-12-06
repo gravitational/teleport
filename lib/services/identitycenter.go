@@ -18,12 +18,15 @@ package services
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -231,4 +234,106 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+}
+
+// NewIdentityCenterAccountMatcher creates a new [IdentityCenterMatcher]
+// configured to match the supplied [IdentityCenterAccount].
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) RoleMatcher {
+	return &IdentityCenterAccountMatcher{
+		accountID: account.GetSpec().GetId(),
+	}
+}
+
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// resources against the AccountAssignments specified in a Role condition.
+//
+// The same type is used for matching both [IdentityCenterAccount]s and
+// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
+// an Account.
+type IdentityCenterAccountMatcher struct {
+	accountID string
+}
+
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if accountMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterAccountMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v)", m.accountID)
+}
+
+// NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
+// configured to match the supplied [IdentityCenterAccountAssignment].
+func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
+	return &IdentityCenterAccountMatcher{
+		accountID: account.GetSpec().GetAccountId(),
+	}
+}
+
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// resources against the AccountAssignments specified in a Role condition.
+//
+// The same type is used for matching both [IdentityCenterAccount]s and
+// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
+// an Account.
+type IdentityCenterAccountAssignmentMatcher struct {
+	accountID        string
+	permissionSetARN string
+}
+
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountAssignmentMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !accountMatches {
+			continue
+		}
+
+		permissionSetMatches, err := matchExpression(m.permissionSetARN, asmt.PermissionSet)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if permissionSetMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterAccountAssignmentMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v, permissionSet=%v)",
+		m.accountID, m.permissionSetARN)
+}
+
+func matchExpression(target, expression string) (bool, error) {
+	if expression == types.Wildcard {
+		return true, nil
+	}
+	matches, err := utils.MatchString(target, expression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return matches, nil
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -31,8 +32,8 @@ import (
 
 // automaticUpdateSettings184 crafts the automatic updates part of the ping/find response
 // as described in RFD-184 (agents) and RFD-144 (tools).
-// TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
-func (h *Handler) automaticUpdateSettings184(ctx context.Context) webclient.AutoUpdateSettings {
+func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updaterUUID string) webclient.AutoUpdateSettings {
+	// Tools auto updates section.
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
@@ -45,12 +46,29 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context) webclient.Auto
 		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
 	}
 
+	// Agent auto updates section.
+	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "failed to resolve AgentVersion", "error", err)
+		// Defaulting to current version
+		agentVersion = teleport.Version
+	}
+	// If the source of truth is RFD 109 configuration (channels + CMC) we must emulate the
+	// RFD109 agent maintenance window behavior by looking up the CMC and checking if
+	// we are in a maintenance window.
+	shouldUpdate, err := h.autoUpdateAgentShouldUpdate(ctx, group, updaterUUID, true /* window lookup */)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "failed to resolve AgentAutoUpdate", "error", err)
+		// Failing open
+		shouldUpdate = false
+	}
+
 	return webclient.AutoUpdateSettings{
 		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
 		ToolsVersion:             getToolsVersion(autoUpdateVersion),
 		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-		AgentVersion:             getAgentVersion184(autoUpdateVersion),
-		AgentAutoUpdate:          agentShouldUpdate184(autoUpdateConfig, autoUpdateVersion),
+		AgentVersion:             agentVersion,
+		AgentAutoUpdate:          shouldUpdate,
 	}
 }
 
@@ -72,40 +90,4 @@ func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
 		return api.Version
 	}
 	return version.GetSpec().GetTools().GetTargetVersion()
-}
-
-func getAgentVersion184(version *autoupdatepb.AutoUpdateVersion) string {
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	// TODO: read the version from the autoupdate_agent_rollout when the resource is implemented
-	if version.GetSpec().GetAgents() == nil {
-		return api.Version
-	}
-
-	return version.GetSpec().GetAgents().GetTargetVersion()
-}
-
-func agentShouldUpdate184(config *autoupdatepb.AutoUpdateConfig, version *autoupdatepb.AutoUpdateVersion) bool {
-	// TODO: read the data from the autoupdate_agent_rollout when the resource is implemented
-
-	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if config.GetSpec().GetAgents() == nil {
-		return false
-	}
-	if version.GetSpec().GetAgents() == nil {
-		return false
-	}
-	configMode := config.GetSpec().GetAgents().GetMode()
-	versionMode := version.GetSpec().GetAgents().GetMode()
-
-	// We update only if both version and config agent modes are "enabled"
-	if configMode != autoupdate.AgentsUpdateModeEnabled || versionMode != autoupdate.AgentsUpdateModeEnabled {
-		return false
-	}
-
-	scheduleName := version.GetSpec().GetAgents().GetSchedule()
-	return scheduleName == autoupdate.AgentsScheduleImmediate
 }
