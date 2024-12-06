@@ -1007,22 +1007,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_IdentityCenterAccountAssignment{
-				IdentityCenterAccountAssignment: &proto.IdentityCenterAccountAssignment{
-					Kind:        types.KindIdentityCenterAccountAssignment,
-					Version:     resource.GetVersion(),
-					Metadata:    resource.GetMetadata(),
-					DisplayName: assignment.GetSpec().GetDisplay(),
-					Account: &proto.IdentityCenterAccount{
-						AccountName: assignment.GetSpec().GetAccountName(),
-						ID:          assignment.GetSpec().GetAccountId(),
-					},
-					PermissionSet: &proto.IdentityCenterPermissionSet{
-						ARN:  assignment.GetSpec().GetPermissionSet().GetArn(),
-						Name: assignment.GetSpec().GetPermissionSet().GetName(),
-					},
-				},
-			},
+			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
 			RequiresRequest: requiresRequest,
 		}
 

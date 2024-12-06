@@ -170,9 +170,9 @@ func (r *resource153ToLegacyAdapter) GetKind() string {
 	return r.inner.GetKind()
 }
 
-func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
-	md := r.inner.GetMetadata()
-
+// Metadata153ToLegacy converts RFD153-style resource metadata to legacy
+// metadata.
+func Metadata153ToLegacy(md *headerv1.Metadata) Metadata {
 	// use zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
 	expires := md.Expires.AsTime()
 	if md.Expires == nil {
@@ -187,6 +187,10 @@ func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 		Expires:     &expires,
 		Revision:    md.Revision,
 	}
+}
+
+func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
+	return Metadata153ToLegacy(r.inner.GetMetadata())
 }
 
 func (r *resource153ToLegacyAdapter) GetName() string {

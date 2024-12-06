@@ -3812,7 +3812,7 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServer()
 		case types.KindIdentityCenterAccountAssignment:
 			src := respResource.GetIdentityCenterAccountAssignment()
-			dst := repackIdentityCenterAccountAssignment(src)
+			dst := proto.UnpackICAccountAssignment(src)
 			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3824,26 +3824,6 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		NextKey:    resp.NextKey,
 		TotalCount: int(resp.TotalCount),
 	}, nil
-}
-
-// repackIdentityCenterAccountAssignment converts a wire-format IdentityCenterAccountAssignment
-// resource back into an identitycenterv1.AccountAssignment instance.
-func repackIdentityCenterAccountAssignment(src *proto.IdentityCenterAccountAssignment) types.ResourceWithLabels {
-	dst := &identitycenterv1.AccountAssignment{
-		Kind:     types.KindIdentityCenterAccountAssignment,
-		Version:  src.Version,
-		Metadata: types.LegacyTo153Metadata(src.Metadata),
-		Spec: &identitycenterv1.AccountAssignmentSpec{
-			AccountId:   src.Account.ID,
-			AccountName: src.Account.AccountName,
-			Display:     src.DisplayName,
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
-				Arn:  src.PermissionSet.ARN,
-				Name: src.PermissionSet.Name,
-			},
-		},
-	}
-	return types.Resource153ToResourceWithLabels(dst)
 }
 
 // GetResources returns a paginated list of resources that the user has access to.
