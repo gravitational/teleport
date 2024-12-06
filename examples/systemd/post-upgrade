@@ -8,4 +8,5 @@ set -eu
 # testing in a container.
 if [ -d /run/systemd/system ]; then
     systemctl --system daemon-reload >/dev/null || true
+    systemctl reload teleport.service || true
 fi
