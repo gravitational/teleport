@@ -22,9 +22,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -35,7 +35,7 @@ import (
 
 // remoteSubsystem is a subsystem that executes on a remote node.
 type remoteSubsystem struct {
-	log *log.Entry
+	logger *slog.Logger
 
 	serverContext *srv.ServerContext
 	subsystemName string
@@ -47,12 +47,10 @@ type remoteSubsystem struct {
 // parseRemoteSubsystem returns *remoteSubsystem which can be used to run a subsystem on a remote node.
 func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverContext *srv.ServerContext) *remoteSubsystem {
 	return &remoteSubsystem{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentRemoteSubsystem,
-			teleport.ComponentFields: map[string]string{
-				"name": subsystemName,
-			},
-		}),
+		logger: slog.With(
+			teleport.ComponentKey, teleport.ComponentRemoteSubsystem,
+			"name", subsystemName,
+		),
 		serverContext: serverContext,
 		subsystemName: subsystemName,
 		ctx:           ctx,
@@ -118,7 +116,7 @@ func (r *remoteSubsystem) Wait() error {
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
-				r.log.Warnf("Connection problem: %v %T", trace.DebugReport(err), err)
+				r.logger.WarnContext(r.ctx, "Connection problem", "error", err)
 				lastErr = err
 			}
 		case <-r.ctx.Done():
@@ -154,6 +152,6 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	}
 
 	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {
-		r.log.WithError(err).Warn("Failed to emit subsystem audit event.")
+		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event", "error", err)
 	}
 }
