@@ -982,7 +982,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 		Name: "my-integration",
 	}, &types.AWSOIDCIntegrationSpecV1{
-		RoleARN: "some-arn-role",
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
 	})
 	require.NoError(t, err)
 
@@ -1009,7 +1009,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V3,
 		Metadata: types.Metadata{
-			Name: "my-integration",
+			Name:   "my-integration",
+			Labels: map[string]string{"aws_account_id": "123456789012"},
 		},
 		Spec: types.AppServerSpecV3{
 			Version: api.Version,
@@ -1018,7 +1019,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 				Kind:    types.KindApp,
 				Version: types.V3,
 				Metadata: types.Metadata{
-					Name: "my-integration",
+					Name:   "my-integration",
+					Labels: map[string]string{"aws_account_id": "123456789012"},
 				},
 				Spec: types.AppSpecV3{
 					URI:         "https://console.aws.amazon.com",
@@ -1048,7 +1050,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
 			Name: "123456789012",
 		}, &types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "some-arn-role",
+			RoleARN: "arn:aws:iam::123456789012:role/teleport",
 		})
 		require.NoError(t, err)
 
