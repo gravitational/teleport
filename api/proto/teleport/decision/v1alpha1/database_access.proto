@@ -23,17 +23,15 @@ import "teleport/decision/v1alpha1/tls_identity.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
-// EvaluateDatabaseAccessRequest describes a request to evaluate wether or not a given
-// database access attempt should be permitted.
+// EvaluateDatabaseAccessRequest describes a request to evaluate whether or not
+// a given database access attempt should be permitted.
 message EvaluateDatabaseAccessRequest {
   RequestMetadata metadata = 1;
-
-  TLSIdentity identity = 2;
-
-  // TODO
+  TLSIdentity tls_identity = 2;
 }
 
-// EvaluateDatabaseAccessResponse describes the result of a database access evaluation.
+// EvaluateDatabaseAccessResponse describes the result of a database access
+// evaluation.
 message EvaluateDatabaseAccessResponse {
   oneof result {
     DatabaseAccessPermit permit = 1;
@@ -41,16 +39,13 @@ message EvaluateDatabaseAccessResponse {
   }
 }
 
-// DatabaseAccessPermit describes the parameters/constraints of a permissible database access attempt.
+// DatabaseAccessPermit describes the parameters/constraints of a permissible
+// database access attempt.
 message DatabaseAccessPermit {
   PermitMetadata metadata = 1;
-
-  // TODO
 }
 
-// DatabaseAccessDenial describes the details of a database access denial.
+// DatabaseAccessDenial describes a database access denial.
 message DatabaseAccessDenial {
   DenialMetadata metadata = 1;
-
-  // TODO
 }
