@@ -5804,11 +5804,18 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("access denied", func(t *testing.T) {
-		// Asserts that, with no RBAC or matchers in place, acces to IC Accounts
-		// is denied by default
+	setAccountAssignment := func(role types.Role) {
+		r := role.(*types.RoleV6)
+		r.Spec.Allow.AccountAssignments = []types.IdentityCenterAccountAssignment{
+			{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			},
+		}
+	}
 
-		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "test", nil, nil)
+	t.Run("no access", func(t *testing.T) {
+		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
 		require.NoError(t, err)
 
 		identity := TestUser(userNoAccess.GetName())
@@ -5816,16 +5823,83 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindIdentityCenterAccount,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
 		})
-		require.True(t, trace.IsAccessDenied(err))
+		require.NoError(t, err)
+		require.Empty(t, resp.Resources)
 	})
 
-	// TODO(tcsc): Add other tests one RBAC implemented
+	t.Run("access via generic kind", func(t *testing.T) {
+		user, _, err := CreateUserAndRole(srv.Auth(), "read-generic", nil,
+			[]types.Rule{
+				types.NewRule(types.KindIdentityCenter, services.RO()),
+			},
+			WithRoleMutator(setAccountAssignment))
+		require.NoError(t, err)
+
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 1)
+	})
+
+	t.Run("access via specific kind", func(t *testing.T) {
+		user, _, err := CreateUserAndRole(srv.Auth(), "read-specific", nil,
+			[]types.Rule{
+				types.NewRule(types.KindIdentityCenterAccount, services.RO()),
+			},
+			WithRoleMutator(setAccountAssignment))
+		require.NoError(t, err)
+
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 1)
+	})
+
+	t.Run("denied via specific kind beats allow via generic kind", func(t *testing.T) {
+		user, _, err := CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
+			[]types.Rule{
+				types.NewRule(types.KindIdentityCenter, services.RO()),
+			},
+			WithRoleMutator(func(r types.Role) {
+				setAccountAssignment(r)
+				r.SetRules(types.Deny, []types.Rule{
+					types.NewRule(types.KindIdentityCenterAccount, services.RO()),
+				})
+			}))
+		require.NoError(t, err)
+
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		defer clt.Close()
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+		})
+		require.True(t, trace.IsAccessDenied(err),
+			"Expected Access Denied, got %v", err)
+	})
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
