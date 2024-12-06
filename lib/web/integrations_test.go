@@ -24,12 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/services"
+	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -209,6 +212,142 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
+	})
+}
+
+func TestCollectAutoDiscoveryRules(t *testing.T) {
+	ctx := context.Background()
+	integrationName := "my-integration"
+
+	t.Run("without discovery configs, returns no rules", func(t *testing.T) {
+		clt := &mockDiscoveryConfigsGetter{
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+
+		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
+		require.NoError(t, err)
+		expectedRules := ui.IntegrationDiscoveryRules{}
+		require.Equal(t, expectedRules, gotRules)
+	})
+
+	t.Run("collects multiple discovery configs", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForEC2 := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"ec2"},
+				Regions:     []string{"us-east-1"},
+				Tags:        types.Labels{"*": []string{"*"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		dcForRDS := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"rds"},
+				Regions:     []string{"us-east-1", "us-east-2"},
+				Tags: types.Labels{
+					"env": []string{"dev", "prod"},
+				},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		dcForEKS := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"eks"},
+				Regions:     []string{"us-east-1"},
+				Tags:        types.Labels{"*": []string{"*"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		dcForEKSWithoutStatus := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"eks"},
+				Regions:     []string{"eu-west-1"},
+				Tags:        types.Labels{"*": []string{"*"}},
+			}}},
+		}
+		clt := &mockDiscoveryConfigsGetter{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
+				dcForEC2,
+				dcForRDS,
+				dcForEKS,
+				dcForEKSWithoutStatus,
+			},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
+		require.NoError(t, err)
+		expectedRules := []ui.IntegrationDiscoveryRule{
+			{
+				ResourceType: "ec2",
+				Region:       "us-east-1",
+				LabelMatcher: []libui.Label{
+					{Name: "*", Value: "*"},
+				},
+				DiscoveryConfig: dcForEC2.GetName(),
+				LastSync:        &syncTime,
+			},
+			{
+				ResourceType: "eks",
+				Region:       "us-east-1",
+				LabelMatcher: []libui.Label{
+					{Name: "*", Value: "*"},
+				},
+				DiscoveryConfig: dcForEKS.GetName(),
+				LastSync:        &syncTime,
+			},
+			{
+				ResourceType: "eks",
+				Region:       "eu-west-1",
+				LabelMatcher: []libui.Label{
+					{Name: "*", Value: "*"},
+				},
+				DiscoveryConfig: dcForEKSWithoutStatus.GetName(),
+			},
+			{
+				ResourceType: "rds",
+				Region:       "us-east-1",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+					{Name: "env", Value: "prod"},
+				},
+				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+			{
+				ResourceType: "rds",
+				Region:       "us-east-2",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+					{Name: "env", Value: "prod"},
+				},
+				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+		}
+		require.Empty(t, got.NextKey)
+		require.ElementsMatch(t, expectedRules, got.Rules)
 	})
 }
 
