@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 const (
@@ -106,15 +107,19 @@ func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.
 }
 
 // TryRun attempts to run subcommands.
-func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *TerraformCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.envCmd.FullCommand():
+		client, closeFn, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
 		err = c.RunEnvCommand(ctx, client, os.Stdout, os.Stderr)
+		closeFn(ctx)
+		return true, trace.Wrap(err)
 	default:
 		return false, nil
 	}
-
-	return true, trace.Wrap(err)
 }
 
 // RunEnvCommand contains all the Terraform helper logic. It:

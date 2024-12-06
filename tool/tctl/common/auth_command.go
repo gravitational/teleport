@@ -52,7 +52,15 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
+
+// aggClient is aggregated client interface for auth command.
+type aggClient interface {
+	certificateSigner
+	crlGenerator
+	authclient.ClientI
+}
 
 // AuthCommand implements `tctl auth` group of commands
 type AuthCommand struct {
@@ -164,24 +172,33 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
-	if match, err := a.authRotate.TryRun(ctx, cmd, client); match || err != nil {
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	if match, err := a.authRotate.TryRun(ctx, cmd, clientFunc); match || err != nil {
 		return match, trace.Wrap(err)
 	}
+
+	var commandFunc func(ctx context.Context, client aggClient) error
 	switch cmd {
 	case a.authGenerate.FullCommand():
-		err = a.GenerateKeys(ctx, client)
+		commandFunc = a.GenerateKeys
 	case a.authExport.FullCommand():
-		err = a.ExportAuthorities(ctx, client)
+		commandFunc = a.ExportAuthorities
 	case a.authSign.FullCommand():
-		err = a.GenerateAndSignKeys(ctx, client)
+		commandFunc = a.GenerateAndSignKeys
 	case a.authLS.FullCommand():
-		err = a.ListAuthServers(ctx, client)
+		commandFunc = a.ListAuthServers
 	case a.authCRL.FullCommand():
-		err = a.GenerateCRLForCA(ctx, client)
+		commandFunc = a.GenerateCRLForCA
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
@@ -214,7 +231,7 @@ var allowedCRLCertificateTypes = []string{
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Client) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt aggClient) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
 		exportFunc = client.ExportAuthoritiesSecrets
@@ -240,7 +257,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Cli
 }
 
 // GenerateKeys generates a new keypair
-func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI certificateSigner) error {
+func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI aggClient) error {
 	signer, err := cryptosuites.GenerateKey(ctx,
 		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
 		cryptosuites.UserSSH)
@@ -292,7 +309,7 @@ type certificateSigner interface {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI certificateSigner) error {
+func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI aggClient) error {
 	if a.streamTarfile {
 		tarWriter := newTarWriter(clockwork.NewRealClock())
 		defer tarWriter.Archive(os.Stdout)
@@ -423,7 +440,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 }
 
 // ListAuthServers prints a list of connected auth servers
-func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI *authclient.Client) error {
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI aggClient) error {
 	servers, err := clusterAPI.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -451,7 +468,7 @@ type crlGenerator interface {
 
 // GenerateCRLForCA generates a certificate revocation list for a certificate
 // authority.
-func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI crlGenerator) error {
+func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI aggClient) error {
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
