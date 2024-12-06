@@ -214,6 +214,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalColumns(serverColumns),
 			},
 		},
+		{
+			name: "DatabaseV3",
+			opts: []resourceSchemaOption{
+				withNameOverride("Database"),
+				withVersionOverride(types.V3),
+			},
+		},
 	}
 
 	for _, resource := range resources {
