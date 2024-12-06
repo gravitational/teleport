@@ -73,6 +73,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.2
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.22.1
+	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.2
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241128053516-b9e7404a33c3
 	github.com/beevik/etree v1.4.1
 	github.com/buildkite/bintest/v3 v3.3.0
@@ -187,7 +188,6 @@ require (
 	go.etcd.io/etcd/api/v3 v3.5.17
 	go.etcd.io/etcd/client/v3 v3.5.17
 	go.mongodb.org/mongo-driver v1.14.0
-	go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws v0.57.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.57.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.57.0
 	go.opentelemetry.io/otel v1.32.0
