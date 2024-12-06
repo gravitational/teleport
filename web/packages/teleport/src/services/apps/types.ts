@@ -52,7 +52,7 @@ export interface App {
   // Only applicable to AWS App Access.
   integration?: string;
   /** subKind is subKind of an App. */
-  subKind?: appSubKind;
+  subKind?: AppSubKind;
   /** permissionSets is a list of AWS IAM Identity Center permission sets
    * available for this App. The value is only populated if the app SubKind is
    * aws_ic_account.
@@ -65,8 +65,8 @@ export type UserGroupAndDescription = {
   description: string;
 };
 
-/** appSubKind defines name of SubKinds for App resource. */
-export enum appSubKind {
+/** AppSubKind defines names of SubKind for App resource. */
+export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
 }
 
