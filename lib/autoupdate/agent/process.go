@@ -210,7 +210,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 
 // readInt reads an integer from a file.
 func readInt(path string) (int, error) {
-	p, err := readFileN(path, 32)
+	p, err := readFileAtMost(path, 32)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -368,12 +368,5 @@ func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, 
 	stderr.Flush()
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
-
-	// Treat out-of-range exit code (255) as an error executing the command.
-	// This allows callers to treat codes that are more likely OS-related as execution errors
-	// instead of intentionally returned error codes.
-	if code == 255 {
-		code = -1
-	}
 	return code, trace.Wrap(err)
 }
