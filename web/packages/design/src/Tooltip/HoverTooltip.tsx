@@ -18,6 +18,7 @@
 
 import React, { PropsWithChildren, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import { Popover, Flex, Text } from 'design';
 import { JustifyContentProps, FlexBasisProps } from 'design/system';
 
@@ -64,6 +65,7 @@ export const HoverTooltip: React.FC<
       // whether we want to show the tooltip.
       if (
         target instanceof Element &&
+        target.parentElement &&
         target.scrollWidth > target.parentElement.offsetWidth
       ) {
         setAnchorEl(event.currentTarget);
@@ -75,7 +77,7 @@ export const HoverTooltip: React.FC<
   }
 
   function handlePopoverClose() {
-    setAnchorEl(null);
+    setAnchorEl(undefined);
   }
 
   // Don't render the tooltip if the content is undefined.
