@@ -499,7 +499,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 		{
 			name: "kube cluster",
 			resource: func() types.ResourceWithLabels {
-				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster("_", &types.KubernetesCluster{
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster("", &types.KubernetesCluster{
 					Name: "foo",
 				})
 				require.NoError(t, err)

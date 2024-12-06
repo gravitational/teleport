@@ -19,7 +19,6 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -31,49 +30,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestLineLogger(t *testing.T) {
-	t.Parallel()
-
-	out := &bytes.Buffer{}
-	ll := lineLogger{
-		ctx: context.Background(),
-		log: slog.New(slog.NewTextHandler(out,
-			&slog.HandlerOptions{ReplaceAttr: msgOnly},
-		)),
-	}
-
-	for _, e := range []struct {
-		v string
-		n int
-	}{
-		{v: "", n: 0},
-		{v: "a", n: 1},
-		{v: "b\n", n: 2},
-		{v: "c\nd", n: 3},
-		{v: "e\nf\ng", n: 5},
-		{v: "h", n: 1},
-		{v: "", n: 0},
-		{v: "\n", n: 1},
-		{v: "i\n", n: 2},
-		{v: "j", n: 1},
-	} {
-		n, err := ll.Write([]byte(e.v))
-		require.NoError(t, err)
-		require.Equal(t, e.n, n)
-	}
-	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=gh\nmsg=i\n", out.String())
-	ll.Flush()
-	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=gh\nmsg=i\nmsg=j\n", out.String())
-}
-
-func msgOnly(_ []string, a slog.Attr) slog.Attr {
-	switch a.Key {
-	case "time", "level":
-		return slog.Attr{}
-	}
-	return slog.Attr{Key: a.Key, Value: a.Value}
-}
 
 func TestWaitForStablePID(t *testing.T) {
 	t.Parallel()
