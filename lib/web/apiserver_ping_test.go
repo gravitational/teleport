@@ -459,6 +459,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			// expire the fn cache to force the next answer to be fresh
 			for _, proxy := range env.proxies {
 				proxy.clock.Advance(2 * findEndpointCacheTTL)
+				proxy.handler.handler.findEndpointCache.RemoveExpired()
 			}
 
 			resp, err := client.NewInsecureWebClient().Do(req)
