@@ -141,6 +141,8 @@ message ACL {
   ResourceAccess recorded_sessions = 13;
   // active_sessions defines access to active sessions.
   ResourceAccess active_sessions = 14;
+  // review_requests defines the ability to review requests
+  bool review_requests = 15;
 }
 
 // ResourceAccess describes access verbs

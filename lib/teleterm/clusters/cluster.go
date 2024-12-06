@@ -213,6 +213,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
 		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
 		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
+		ReviewRequests:   userACL.ReviewRequests,
 	}
 
 	withDetails := &ClusterWithDetails{
