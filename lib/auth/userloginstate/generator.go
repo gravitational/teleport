@@ -20,6 +20,7 @@ package userloginstate
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -155,7 +156,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	}
 
 	// Clean up the user login state after generating it.
-	if err := g.postProcess(ctx, uls); err != nil {
+	if err := g.postProcess(ctx, uls, inheritedRoles); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,11 +189,9 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		}
 		if err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.Grants, state)
-			if membershipKind == accesslists.MembershipOrOwnershipTypeInherited {
-				allInheritedRoles = append(allInheritedRoles, accessList.Spec.Grants.Roles...)
-				for k, values := range accessList.Spec.Grants.Traits {
-					allInheritedTraits[k] = append(allInheritedTraits[k], values...)
-				}
+			allInheritedRoles = append(allInheritedRoles, accessList.Spec.Grants.Roles...)
+			for k, values := range accessList.Spec.Grants.Traits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
 		}
 		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
@@ -202,11 +201,9 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		}
 		if err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
-			if ownershipType == accesslists.MembershipOrOwnershipTypeInherited {
-				allInheritedRoles = append(allInheritedRoles, accessList.Spec.OwnerGrants.Roles...)
-				for k, values := range accessList.Spec.OwnerGrants.Traits {
-					allInheritedTraits[k] = append(allInheritedTraits[k], values...)
-				}
+			allInheritedRoles = append(allInheritedRoles, accessList.Spec.OwnerGrants.Roles...)
+			for k, values := range accessList.Spec.OwnerGrants.Traits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
 		}
 	}
@@ -229,7 +226,7 @@ func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userlog
 }
 
 // postProcess will perform cleanup to the user login state after its generation.
-func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserLoginState) error {
+func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserLoginState, rolesFromAccessLists []string) error {
 	// Deduplicate roles and traits
 	state.Spec.Roles = utils.Deduplicate(state.Spec.Roles)
 	for k, v := range state.Spec.Traits {
@@ -246,11 +243,16 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	var existingRoles []string
 	for _, role := range state.Spec.Roles {
 		_, err := g.access.GetRole(ctx, role)
-		if err == nil {
-			existingRoles = append(existingRoles, role)
-		} else {
+		if err != nil {
+			// If the role is inherited from an access list and doesn't exist, we can skip this role.
+			// This can happen when a role which was assigned to an access list no longer exists.
+			if trace.IsNotFound(err) && slices.Contains(rolesFromAccessLists, role) {
+				continue
+			}
 			return trace.Wrap(err)
 		}
+
+		existingRoles = append(existingRoles, role)
 	}
 	state.Spec.Roles = existingRoles
 
