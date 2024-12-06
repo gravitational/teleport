@@ -42,6 +42,7 @@ func Commands() []CLICommand {
 		&DesktopCommand{},
 		&LockCommand{},
 		&BotsCommand{},
+		&WorkloadIdentityCommand{},
 		&InventoryCommand{},
 		&RecordingsCommand{},
 		&AlertCommand{},
