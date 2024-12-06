@@ -56,8 +56,8 @@ type command struct {
 	// does.
 	Description string
 	// ExecFunc is the function to execute the command. The commands can either
-	// return a reply (that will be sent back to the client) as a string. Or
-	// it can terminates the REPL by returning bool on the second argument.
+	// return a reply (that will be sent back to the client) as a string. It can
+	// terminate the REPL by returning bool on the second argument.
 	ExecFunc func(r *REPL, args string) (reply string, exit bool)
 }
 
@@ -114,7 +114,7 @@ func initCommands() map[string]*command {
 		},
 		"session": {
 			Type:        commandTypeConnection,
-			Description: "Display information about the current session, like user, roles, and database instance.",
+			Description: "Display information about the current session, like user, and database instance.",
 			ExecFunc: func(r *REPL, _ string) (string, bool) {
 				return fmt.Sprintf("Connected to %q instance at %q database as %q user.", r.route.ServiceName, r.route.Database, r.route.Username), false
 			},

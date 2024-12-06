@@ -43,7 +43,7 @@ type REPL struct {
 	commands   map[string]*command
 }
 
-func New(ctx context.Context, client io.ReadWriteCloser, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
+func New(client io.ReadWriteCloser, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
 	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", hostnamePlaceholder))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -284,5 +284,5 @@ See https://www.postgresql.org/docs/17/protocol-flow.html#PROTOCOL-FLOW-TERMINAT
 	// solution and propose the behavior for it.
 	//
 	// This shortcut filtered out by the WebUI key handler.
-	"Pressing CTRL-C will have no effect on this shell.",
+	"Pressing CTRL-C will have no effect in this shell.",
 }

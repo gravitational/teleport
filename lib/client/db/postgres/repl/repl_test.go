@@ -126,6 +126,8 @@ func writeLine(t *testing.T, c *testCtx, line string) {
 	// we're net.Pipe).
 	go func(conn net.Conn) {
 		buf := make([]byte, len(data))
+		// We need to consume any additional replies made by the terminal
+		// emulator until we consume the line contents.
 		for {
 			n, err := conn.Read(buf[0:])
 			if err != nil {
@@ -142,9 +144,9 @@ func writeLine(t *testing.T, c *testCtx, line string) {
 	// Given that the test connections are piped a problem with the reader side
 	// would lead into blocking writing. To avoid this scenario we're using
 	// the Eventually just to ensure a timeout on writing into the connections.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := c.conn.Write(data)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}, 5*time.Second, time.Millisecond, "expected to write into the connection successfully")
 }
 
@@ -173,11 +175,11 @@ func readLine(t *testing.T, c *testCtx) string {
 	// Given that the test connections are piped a problem with the writer side
 	// would lead into blocking reading. To avoid this scenario we're using
 	// the Eventually just to ensure a timeout on reading from the connections.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		n, err = c.conn.Read(buf[0:])
-		require.NoError(t, err)
-		require.Greater(t, n, 0)
+		assert.NoError(t, err)
+		assert.Greater(t, n, 0)
 	}, 5*time.Second, time.Millisecond)
 	return string(buf[:n])
 }
@@ -274,7 +276,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		}
 	}(tc)
 
-	r, err := New(ctx, tc.clientConn, tc.serverConn, tc.route)
+	r, err := New(tc.clientConn, tc.serverConn, tc.route)
 	require.NoError(t, err)
 
 	if !cfg.skipREPLRun {

@@ -92,10 +92,10 @@ func TestCommandExecution(t *testing.T) {
 			// When the command exits, the REPL and the connections will be
 			// closed.
 			if tt.commandExit {
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					var buf []byte
 					_, err := tc.conn.Read(buf[0:])
-					require.ErrorIs(t, err, io.EOF)
+					assert.ErrorIs(t, err, io.EOF)
 				}, time.Second, time.Millisecond)
 
 				select {
