@@ -44,6 +44,8 @@ import {
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
   DocumentPtySession,
+  WebSessionRequest,
+  DocumentAuthorizeWebSession,
 } from './types';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
@@ -225,6 +227,21 @@ export class DocumentsService {
       title: `${params.kubeId}`,
       origin,
       status: '',
+    };
+  }
+
+  createAuthorizeWebSessionDocument(params: {
+    rootClusterUri: string;
+    webSessionRequest: WebSessionRequest;
+  }): DocumentAuthorizeWebSession {
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.authorize_web_session',
+      title: 'Authorize Web Session',
+      rootClusterUri: params.rootClusterUri,
+      webSessionRequest: params.webSessionRequest,
     };
   }
 
