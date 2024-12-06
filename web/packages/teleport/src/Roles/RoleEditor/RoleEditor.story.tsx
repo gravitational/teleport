@@ -62,7 +62,7 @@ const parseHandler = http.post(
     HttpResponse.json({
       resource: withDefaults({
         metadata: { name: 'dummy-role' },
-        version: 'v7',
+        version: 'v8',
       }),
     })
 );

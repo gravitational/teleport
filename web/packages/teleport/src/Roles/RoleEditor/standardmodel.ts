@@ -206,7 +206,7 @@ export type WindowsDesktopAccessSpec = AccessSpecBase<'windows_desktop'> & {
   logins: readonly Option[];
 };
 
-const roleVersion = 'v7';
+const roleVersion = 'v8';
 
 /**
  * Returns the role object with required fields defined with empty values.
