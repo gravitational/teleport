@@ -179,7 +179,7 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 		cmcCache.Shutdown(ctx)
 	})
 
-	// We use a separate clock than the cache because we are advancing the cache clock to invalidate the cmc cache and
+	// We don't use the cache clock because we are advancing it to invalidate the cmc cache and
 	// this would interfere with the test logic
 	clock := clockwork.NewFakeClock()
 	activeUpgradeWindow := types.AgentUpgradeWindow{UTCStartHour: uint32(clock.Now().Hour())}
