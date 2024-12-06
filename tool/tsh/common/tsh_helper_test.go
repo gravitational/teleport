@@ -230,7 +230,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		tunnelAddr = s.root.Config.Proxy.ReverseTunnelListenAddr.String()
 	}
 
-	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster(s.root.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                staticToken,
 		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
