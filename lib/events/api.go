@@ -838,6 +838,18 @@ const (
 	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
+
+	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
+	WorkloadIdentityCreateEvent = "workload_identity.create"
+	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
+	WorkloadIdentityUpdateEvent = "workload_identity.update"
+	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
+	WorkloadIdentityDeleteEvent = "workload_identity.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

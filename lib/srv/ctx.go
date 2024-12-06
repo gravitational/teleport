@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -490,9 +491,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		TeleportUser:          child.Identity.TeleportUser,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
-		Entry:                 child.Entry,
-		Emitter:               child.srv,
-		EmitterContext:        ctx,
+		// TODO(tross) update this to use the child logger
+		// once ServerContext is converted to use a slog.Logger
+		Logger:         slog.Default(),
+		Emitter:        child.srv,
+		EmitterContext: ctx,
 	}
 	for _, opt := range monitorOpts {
 		opt(&monitorConfig)
@@ -838,6 +841,12 @@ func (c *ServerContext) takeClosers() []io.Closer {
 // When the ServerContext (connection) is closed, emit "session.data" event
 // containing how much data was transmitted and received over the net.Conn.
 func (c *ServerContext) reportStats(conn utils.Stater) {
+	// We may not want to record session data for this connection context, e.g. if this is
+	// for a networking subprocess tied to a shell process.
+	if c.SessionRecordingConfig.GetMode() == types.RecordOff {
+		return
+	}
+
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).

@@ -20,6 +20,7 @@
 package sftp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -51,6 +52,10 @@ type Options struct {
 	// PreserveAttrs preserves access and modification times
 	// from the original file
 	PreserveAttrs bool
+	// Quiet indicates whether progress should be displayed.
+	Quiet bool
+	// ProgressWriter is used to write the progress output.
+	ProgressWriter io.Writer
 }
 
 // Config describes the settings of a file transfer
@@ -228,6 +233,12 @@ func (c *Config) setDefaults() {
 			"PreserveAttrs": c.opts.PreserveAttrs,
 		},
 	})
+
+	if !c.opts.Quiet {
+		c.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
+			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), cmp.Or(c.opts.ProgressWriter, io.Writer(os.Stdout)))
+		}
+	}
 }
 
 // TransferFiles transfers files from the configured source paths to the

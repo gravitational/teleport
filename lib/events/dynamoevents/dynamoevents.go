@@ -43,10 +43,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -151,6 +152,9 @@ type Config struct {
 
 	// CredentialsProvider if supplied is used to override the credentials source.
 	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -203,6 +207,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
+	}
+
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
 	}
 
 	return nil
@@ -300,7 +308,12 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(resolver)}
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(resolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
@@ -325,8 +338,6 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -335,6 +336,12 @@ type InitConfig struct {
 	// IdentityCenter is the Identity Center state storage service to use in
 	// this node.
 	IdentityCenter services.IdentityCenter
+
+	// PluginStaticCredentials handles credentials for integrations and plugins.
+	PluginStaticCredentials services.PluginStaticCredentials
+
+	// GitServers manages git servers.
+	GitServers services.GitServers
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -382,7 +389,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -780,14 +787,15 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if err := modules.ValidateResource(storedAuthPref); err != nil {
+			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+				err := modules.ValidateResource(storedAuthPref)
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-
-				return trace.Wrap(err)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
-
 			return nil
 		}
 

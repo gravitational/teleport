@@ -36,8 +36,10 @@ import (
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -183,18 +185,21 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
 	} else {
 		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
 	}
 
 	return NewPublisher(PublisherConfig{
 		MessagePublisher: messagePublisher,
-		// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
-		Uploader:      s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
+		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})),
 		PayloadBucket: cfg.largeEventsBucket,
 		PayloadPrefix: cfg.largeEventsPrefix,
 	})

@@ -482,7 +482,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
-		DomainName:                      s.server.ClusterName(),
 		ProxyClient:                     s.proxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
 		AccessPoint:                     s.proxyClient,
@@ -515,7 +514,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		handlerConfig.HealthCheckAppServer = func(context.Context, string, string) error { return nil }
 	}
 
-	handler, err := NewHandler(handlerConfig, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+	handler, err := NewHandler(handlerConfig, SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -1150,7 +1149,7 @@ func TestClusterNodesGet(t *testing.T) {
 	server1 := servers[0]
 
 	// Add another node.
-	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{}, map[string]string{"test-field": "test-value"})
+	server2, err := types.NewServerWithLabels("server2", types.KindNode, types.ServerSpecV2{Hostname: "server2"}, map[string]string{"test-field": "test-value"})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertNode(context.Background(), server2)
 	require.NoError(t, err)
@@ -1186,7 +1185,8 @@ func TestClusterNodesGet(t *testing.T) {
 			Kind:        types.KindNode,
 			SubKind:     types.SubKindTeleportNode,
 			ClusterName: clusterName,
-			Name:        "server2",
+			Name:        server2.GetName(),
+			Hostname:    server2.GetHostname(),
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
 			Tunnel:      false,
 			SSHLogins:   []string{pack.login},
@@ -8302,7 +8302,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ServerID:       proxyID,
 		Emitter:        client,
 		EmitterContext: ctx,
-		Logger:         log,
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -8363,7 +8363,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
-		DomainName:       authServer.ClusterName(),
 		ProxyClient:      client,
 		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
 		CipherSuites:     utils.DefaultCipherSuites(),
@@ -8389,7 +8388,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
+	}, SetClock(clock))
 	require.NoError(t, err)
 
 	webServer := httptest.NewTLSServer(handler)
@@ -9642,7 +9641,6 @@ func TestWebSocketAuthenticateRequest(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	proxy.handler.handler.wsIODeadline = time.Second
 	pack := proxy.authPack(t, "test-user@example.com", nil)
 	for _, tc := range []struct {
 		name              string

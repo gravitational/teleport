@@ -1237,8 +1237,14 @@ type Cache interface {
 	// GetProvisioningState gets a specific provisioning state
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
+	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
+	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+
+	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
+	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 }
 
 type NodeWrapper struct {

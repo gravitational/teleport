@@ -278,6 +278,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    contacts: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     clipboardSharingEnabled: true,
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
@@ -300,7 +307,11 @@ test('undefined values in context response gives proper default values', async (
     // Test undefined access strategy is set to default optional.
     accessStrategy: { type: 'optional', prompt: '' },
     // Test undefined roles and reviewers are set to empty arrays.
-    accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
+    accessCapabilities: {
+      requestableRoles: [],
+      suggestedReviewers: [],
+      requireReason: false,
+    },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
   });

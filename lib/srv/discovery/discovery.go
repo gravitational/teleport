@@ -30,10 +30,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -111,6 +113,10 @@ type gcpInstaller interface {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
+	// GetEC2Client gets an AWS EC2 client for the given region.
+	GetEC2Client server.EC2ClientGetter
+	// GetSSMClient gets an AWS SSM client for the given region.
+	GetSSMClient func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
 	// When true, ambient credentials (used by the Cloud SDKs) are not used.
 	IntegrationOnlyCredentials bool
@@ -214,6 +220,24 @@ kubernetes matchers are present.`)
 		}
 		c.CloudClients = cloudClients
 	}
+	if c.GetEC2Client == nil {
+		c.GetEC2Client = func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return ec2.NewFromConfig(cfg), nil
+		}
+	}
+	if c.GetSSMClient == nil {
+		c.GetSSMClient = func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error) {
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return ssm.NewFromConfig(cfg), nil
+		}
+	}
 	if c.KubernetesClient == nil && len(c.Matchers.Kubernetes) > 0 {
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
@@ -267,6 +291,30 @@ kubernetes matchers are present.`)
 	c.jitter = retryutils.SeventhJitter
 
 	return nil
+}
+
+func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...config.AWSOptionsFn) (aws.Config, error) {
+	opts = append(opts, config.WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integrationName string) (aws.CredentialsProvider, error) {
+		integration, err := c.AccessPoint.GetIntegration(ctx, integrationName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if integration.GetAWSOIDCIntegrationSpec() == nil {
+			return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", integrationName)
+		}
+		token, err := c.AccessPoint.GenerateAWSOIDCToken(ctx, integrationName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cred, err := awsoidc.NewAWSCredentialsProvider(ctx, &awsoidc.AWSClientRequest{
+			Token:   token,
+			RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+			Region:  region,
+		})
+		return cred, trace.Wrap(err)
+	}))
+	cfg, err := config.GetAWSConfig(ctx, region, opts...)
+	return cfg, trace.Wrap(err)
 }
 
 // Server is a discovery server, used to discover cloud resources for
@@ -344,6 +392,8 @@ type Server struct {
 
 	awsSyncStatus         awsSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
+	awsRDSResourcesStatus awsResourcesStatus
+	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
@@ -378,6 +428,9 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
 		awsSyncStatus:              awsSyncStatus{},
+		awsEC2ResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEC2),
+		awsRDSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherRDS),
+		awsEKSResourcesStatus:      newAWSResourceStatusCollector(types.AWSMatcherEKS),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -385,7 +438,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers)
+	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers, "" /* discovery config */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,7 +518,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	})
 
 	const noDiscoveryConfig = ""
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients, noDiscoveryConfig)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -509,7 +562,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, otherMatchers)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, otherMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -555,7 +608,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients, discoveryConfig)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, discoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -598,13 +651,13 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 }
 
 // databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
-func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
+func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig string) ([]common.Fetcher, error) {
 	var fetchers []common.Fetcher
 
 	// AWS
 	awsDatabaseMatchers, _ := splitMatchers(matchers.AWS, db.IsAWSMatcherType)
 	if len(awsDatabaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, awsDatabaseMatchers)
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, awsDatabaseMatchers, discoveryConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -614,7 +667,7 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetch
 	// Azure
 	azureDatabaseMatchers, _ := splitMatchers(matchers.Azure, db.IsAzureMatcherType)
 	if len(azureDatabaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, azureDatabaseMatchers)
+		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, azureDatabaseMatchers, discoveryConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -627,7 +680,7 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetch
 	return fetchers, nil
 }
 
-func (s *Server) kubeFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, error) {
+func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfig string) ([]common.Fetcher, error) {
 	var result []common.Fetcher
 
 	// AWS
@@ -635,7 +688,7 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, 
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, awsKubeMatchers)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, awsKubeMatchers, discoveryConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -825,7 +878,7 @@ func genEC2InstancesLogStr(instances []server.EC2Instance) string {
 
 func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
-		return aws.StringValue(i.Name)
+		return aws.ToString(i.Name)
 	})
 }
 
@@ -910,7 +963,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
-		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
+		eiceNode, err := common.NewAWSNodeFromEC2Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
 			s.Log.WarnContext(s.ctx, "Error converting to Teleport EICE Node", "error", err, "instance_id", ec2Instance.InstanceID)
 
@@ -981,9 +1034,9 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx,
+	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
-		cloud.WithCredentialsMaybeIntegration(instances.Integration),
+		config.WithCredentialsMaybeIntegration(instances.Integration),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -993,7 +1046,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 
 	req := server.SSMRunRequest{
 		DocumentName:    instances.DocumentName,
-		SSM:             ec2Client,
+		SSM:             ssmClient,
 		Instances:       instances.Instances,
 		Params:          instances.Parameters,
 		Region:          instances.Region,
@@ -1032,8 +1085,8 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 }
 
 func (s *Server) logHandleInstancesErr(err error) {
-	var aErr awserr.Error
-	if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+	var instanceIDErr *ssmtypes.InvalidInstanceId
+	if errors.As(err, &instanceIDErr) {
 		const errorMessage = "SSM SendCommand failed with ErrCodeInvalidInstanceId. " +
 			"Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. " +
 			"Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. " +
@@ -1172,7 +1225,7 @@ outer:
 		for _, node := range nodes {
 			var vmID string
 			if inst.Properties != nil {
-				vmID = aws.StringValue(inst.Properties.VMID)
+				vmID = aws.ToString(inst.Properties.VMID)
 			}
 			match := types.MatchLabels(node, map[string]string{
 				types.SubscriptionIDLabel: instances.SubscriptionID,
@@ -1656,7 +1709,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicServerGCPFetchers[dc.GetName()] = gcpServerFetchers
 	s.muDynamicServerGCPFetchers.Unlock()
 
-	databaseFetchers, err := s.databaseFetchersFromMatchers(matchers)
+	databaseFetchers, err := s.databaseFetchersFromMatchers(matchers, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1675,7 +1728,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
 	s.muDynamicTAGSyncFetchers.Unlock()
 
-	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers)
+	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1684,7 +1737,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicKubeFetchers[dc.GetName()] = kubeFetchers
 	s.muDynamicKubeFetchers.Unlock()
 
-	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
+	// TODO(marco): add other fetchers: Kube Resources (Apps)
 	return nil
 }
 

@@ -29,7 +29,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 )
@@ -112,6 +114,8 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 			// httpRequestRecorder intentionally records the request and returns
 			// an error, don't retry.
 			stsOpts.RetryMaxAttempts = 1
+
+			stsOpts.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})
 
 	if _, err = stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); !errors.Is(err, errRequestRecorded) {

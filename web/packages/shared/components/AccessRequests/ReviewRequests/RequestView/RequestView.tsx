@@ -42,7 +42,8 @@ import { displayDateWithPrefixedTime } from 'design/datetime';
 
 import { LabelKind } from 'design/LabelState/LabelState';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
+
 import { hasFinished, Attempt } from 'shared/hooks/useAsync';
 
 import {

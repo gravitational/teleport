@@ -593,6 +593,18 @@ const (
 	// pair that can be requested by a Teleport User.
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
+	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
+	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
+	// KindGitServer represents a Git server that can proxy git commands.
+	KindGitServer = "git_server"
+	// SubKindGitHub specifies the GitHub subkind of a Git server.
+	SubKindGitHub = "github"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -1031,6 +1043,16 @@ const (
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 
+	// TeleportInternalDiscoveryIntegrationName is the label used to store the name of the integration
+	// whose credentials were used to discover the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryIntegrationName = TeleportInternalLabelPrefix + "discovery-integration-name"
+
+	// TeleportInternalDiscoveryConfigName is the label used to store the name of the discovery config
+	// whose matchers originated the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
+
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.
@@ -1104,6 +1126,9 @@ const (
 
 	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
 	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+
+	// GitHubOrgLabel is the label for GitHub organization.
+	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
 )
 
 const (
@@ -1459,4 +1484,10 @@ const (
 	// DatadogCredentialApplicationKey indicates that the credential is used as
 	// a Datadog Application key.
 	DatadogCredentialApplicationKey = "datadog-application-key"
+)
+
+const (
+	// GitHubOrgServerDomain is the sub domain used in the hostname of a
+	// types.Server to indicate the GitHub organization of a Git server.
+	GitHubOrgServerDomain = "github-org"
 )

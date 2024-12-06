@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import {
   Box,
   ButtonIcon,
@@ -28,21 +28,25 @@ import {
   Text,
 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import Validation, {
+  useValidation,
+  Validator,
+} from 'shared/components/Validation';
+import {
+  precomputed,
+  ValidationResult,
+} from 'shared/components/Validation/rules';
 import * as Icon from 'design/Icon';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import styled, { useTheme } from 'styled-components';
-
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
+import { SlideTabs } from 'design/SlideTabs';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
-
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
 import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
@@ -63,7 +67,20 @@ import {
   kubernetesVerbOptions,
   KubernetesResourceModel,
   AppAccessSpec,
+  DatabaseAccessSpec,
+  WindowsDesktopAccessSpec,
 } from './standardmodel';
+import {
+  validateRoleEditorModel,
+  MetadataValidationResult,
+  AccessSpecValidationResult,
+  ServerSpecValidationResult,
+  KubernetesSpecValidationResult,
+  KubernetesResourceValidationResult,
+  AppSpecValidationResult,
+  DatabaseSpecValidationResult,
+  WindowsDesktopSpecValidationResult,
+} from './validation';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 
@@ -90,11 +107,26 @@ export const StandardEditor = ({
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
   const { roleModel } = standardEditorModel;
+  const validation = validateRoleEditorModel(roleModel);
 
   /** All spec kinds except those that are already in the role. */
   const allowedSpecKinds = allAccessSpecKinds.filter(k =>
     roleModel.accessSpecs.every(as => as.kind !== k)
   );
+
+  enum StandardEditorTab {
+    Overview,
+    Resources,
+    AdminRules,
+    Options,
+  }
+
+  const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
+  const idPrefix = useId();
+  const overviewTabId = `${idPrefix}-overview`;
+  const resourcesTabId = `${idPrefix}-resources`;
+  const adminRulesTabId = `${idPrefix}-admin-rules`;
+  const optionsTabId = `${idPrefix}-options`;
 
   function handleSave(validator: Validator) {
     if (!validator.validate()) {
@@ -167,53 +199,113 @@ export const StandardEditor = ({
             mute={standardEditorModel.roleModel.requiresReset}
             data-testid="standard-editor"
           >
-            <Flex flexDirection="column" gap={3} my={2}>
+            <Box mb={3}>
+              <SlideTabs
+                appearance="round"
+                hideStatusIconOnActiveTab
+                tabs={[
+                  {
+                    key: StandardEditorTab.Overview,
+                    title: 'Overview',
+                    controls: overviewTabId,
+                    status:
+                      validator.state.validating && !validation.metadata.valid
+                        ? validationErrorTabStatus
+                        : undefined,
+                  },
+                  {
+                    key: StandardEditorTab.Resources,
+                    title: 'Resources',
+                    controls: resourcesTabId,
+                    status:
+                      validator.state.validating &&
+                      validation.accessSpecs.some(s => !s.valid)
+                        ? validationErrorTabStatus
+                        : undefined,
+                  },
+                  {
+                    key: StandardEditorTab.AdminRules,
+                    title: 'Admin Rules',
+                    controls: adminRulesTabId,
+                  },
+                  {
+                    key: StandardEditorTab.Options,
+                    title: 'Options',
+                    controls: optionsTabId,
+                  },
+                ]}
+                activeIndex={currentTab}
+                onChange={setCurrentTab}
+              />
+            </Box>
+            <div
+              id={overviewTabId}
+              style={{
+                display:
+                  currentTab === StandardEditorTab.Overview ? '' : 'none',
+              }}
+            >
               <MetadataSection
                 value={roleModel.metadata}
                 isProcessing={isProcessing}
+                validation={validation.metadata}
                 onChange={metadata => handleChange({ ...roleModel, metadata })}
               />
-              {roleModel.accessSpecs.map(spec => (
-                <AccessSpecSection
-                  key={spec.kind}
-                  value={spec}
-                  isProcessing={isProcessing}
-                  onChange={value => setAccessSpec(value)}
-                  onRemove={() => removeAccessSpec(spec.kind)}
-                />
-              ))}
-              <Box>
-                <MenuButton
-                  menuProps={{
-                    transformOrigin: {
-                      vertical: 'bottom',
-                      horizontal: 'right',
-                    },
-                    anchorOrigin: {
-                      vertical: 'top',
-                      horizontal: 'right',
-                    },
-                  }}
-                  buttonText={
-                    <>
-                      <Icon.Plus size="small" mr={2} />
-                      Add New Specifications
-                    </>
-                  }
-                  buttonProps={{
-                    size: 'medium',
-                    fill: 'filled',
-                    disabled: isProcessing || allowedSpecKinds.length === 0,
-                  }}
-                >
-                  {allowedSpecKinds.map(kind => (
-                    <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                      {specSections[kind].title}
-                    </MenuItem>
-                  ))}
-                </MenuButton>
-              </Box>
-            </Flex>
+            </div>
+            <div
+              id={resourcesTabId}
+              style={{
+                display:
+                  currentTab === StandardEditorTab.Resources ? '' : 'none',
+              }}
+            >
+              <Flex flexDirection="column" gap={3} my={2}>
+                {roleModel.accessSpecs.map((spec, i) => {
+                  const validationResult = validation.accessSpecs[i];
+                  return (
+                    <AccessSpecSection
+                      key={spec.kind}
+                      value={spec}
+                      isProcessing={isProcessing}
+                      validation={validationResult}
+                      onChange={value => setAccessSpec(value)}
+                      onRemove={() => removeAccessSpec(spec.kind)}
+                    />
+                  );
+                })}
+                <Box>
+                  <MenuButton
+                    menuProps={{
+                      transformOrigin: {
+                        vertical: 'bottom',
+                        horizontal: 'right',
+                      },
+                      anchorOrigin: {
+                        vertical: 'top',
+                        horizontal: 'right',
+                      },
+                    }}
+                    buttonText={
+                      <>
+                        <Icon.Plus size="small" mr={2} />
+                        Add New Specifications
+                      </>
+                    }
+                    buttonProps={{
+                      size: 'medium',
+                      fill: 'filled',
+                      disabled: isProcessing || allowedSpecKinds.length === 0,
+                    }}
+                  >
+                    {allowedSpecKinds.map(kind => (
+                      <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
+                        {specSections[kind].title}
+                      </MenuItem>
+                    ))}
+                  </MenuButton>
+                </Box>
+              </Flex>
+            </div>
           </EditorWrapper>
           <EditorSaveCancelButton
             onSave={() => handleSave(validator)}
@@ -231,28 +323,36 @@ export const StandardEditor = ({
   );
 };
 
-export type SectionProps<T> = {
+export type SectionProps<T, V> = {
   value: T;
   isProcessing: boolean;
+  validation?: V;
   onChange?(value: T): void;
 };
+
+const validationErrorTabStatus = {
+  kind: 'danger',
+  ariaLabel: 'Invalid data',
+} as const;
 
 const MetadataSection = ({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<MetadataModel>) => (
+}: SectionProps<MetadataModel, MetadataValidationResult>) => (
   <Section
     title="Role Metadata"
     tooltip="Basic information about the role resource"
     isProcessing={isProcessing}
+    validation={validation}
   >
     <FieldInput
       label="Role Name"
       placeholder="Enter Role Name"
       value={value.name}
       disabled={isProcessing}
-      rule={requiredField('Role name is required')}
+      rule={precomputed(validation.fields.name)}
       onChange={e => onChange({ ...value, name: e.target.value })}
     />
     <FieldInput
@@ -278,18 +378,21 @@ const Section = ({
   children,
   removable,
   isProcessing,
+  validation,
   onRemove,
 }: React.PropsWithChildren<{
   title: string;
   tooltip: string;
   removable?: boolean;
   isProcessing: boolean;
+  validation?: ValidationResult;
   onRemove?(): void;
 }>) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(true);
   const ExpandIcon = expanded ? Icon.Minus : Icon.Plus;
   const expandTooltip = expanded ? 'Collapse' : 'Expand';
+  const validator = useValidation();
 
   const handleExpand = (e: React.MouseEvent) => {
     // Don't let <summary> handle the event, we'll do it ourselves to keep
@@ -309,7 +412,11 @@ const Section = ({
       as="details"
       open={expanded}
       border={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderColor={
+        validator.state.validating && !validation.valid
+          ? theme.colors.interactive.solid.danger.default
+          : theme.colors.interactive.tonal.neutral[0]
+      }
       borderRadius={3}
     >
       <Flex
@@ -324,7 +431,7 @@ const Section = ({
         {/* TODO(bl-nero): Show validation result in the summary. */}
         <Flex flex="1" gap={2}>
           <H3>{title}</H3>
-          {tooltip && <ToolTipInfo>{tooltip}</ToolTipInfo>}
+          {tooltip && <IconTooltip>{tooltip}</IconTooltip>}
         </Flex>
         {removable && (
           <Box
@@ -359,7 +466,13 @@ const Section = ({
 /**
  * All access spec kinds, in order of appearance in the resource kind dropdown.
  */
-const allAccessSpecKinds: AccessSpecKind[] = ['kube_cluster', 'node', 'app'];
+const allAccessSpecKinds: AccessSpecKind[] = [
+  'kube_cluster',
+  'node',
+  'app',
+  'db',
+  'windows_desktop',
+];
 
 /** Maps access specification kind to UI component configuration. */
 const specSections: Record<
@@ -367,7 +480,7 @@ const specSections: Record<
   {
     title: string;
     tooltip: string;
-    component: React.ComponentType<SectionProps<unknown>>;
+    component: React.ComponentType<SectionProps<unknown, unknown>>;
   }
 > = {
   kube_cluster: {
@@ -385,18 +498,32 @@ const specSections: Record<
     tooltip: 'Configures access to applications',
     component: AppAccessSpecSection,
   },
+  db: {
+    title: 'Databases',
+    tooltip: 'Configures access to databases',
+    component: DatabaseAccessSpecSection,
+  },
+  windows_desktop: {
+    title: 'Windows Desktops',
+    tooltip: 'Configures access to Windows desktops',
+    component: WindowsDesktopAccessSpecSection,
+  },
 };
 
 /**
  * A generic access spec section. Details are rendered by components from the
  * `specSections` map.
  */
-const AccessSpecSection = <T extends AccessSpec>({
+const AccessSpecSection = <
+  T extends AccessSpec,
+  V extends AccessSpecValidationResult,
+>({
   value,
   isProcessing,
+  validation,
   onChange,
   onRemove,
-}: SectionProps<T> & {
+}: SectionProps<T, V> & {
   onRemove?(): void;
 }) => {
   const { component: Body, title, tooltip } = specSections[value.kind];
@@ -407,8 +534,14 @@ const AccessSpecSection = <T extends AccessSpec>({
       onRemove={onRemove}
       tooltip={tooltip}
       isProcessing={isProcessing}
+      validation={validation}
     >
-      <Body value={value} isProcessing={isProcessing} onChange={onChange} />
+      <Body
+        value={value}
+        isProcessing={isProcessing}
+        validation={validation}
+        onChange={onChange}
+      />
     </Section>
   );
 };
@@ -416,8 +549,9 @@ const AccessSpecSection = <T extends AccessSpec>({
 export function ServerAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<ServerAccessSpec>) {
+}: SectionProps<ServerAccessSpec, ServerSpecValidationResult>) {
   return (
     <>
       <Text typography="body3" mb={1}>
@@ -427,6 +561,7 @@ export function ServerAccessSpecSection({
         disableBtns={isProcessing}
         labels={value.labels}
         setLabels={labels => onChange?.({ ...value, labels })}
+        rule={precomputed(validation.fields.labels)}
       />
       <FieldSelectCreatable
         isMulti
@@ -436,8 +571,10 @@ export function ServerAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
+        rule={precomputed(validation.fields.logins)}
         mt={3}
         mb={0}
       />
@@ -448,8 +585,9 @@ export function ServerAccessSpecSection({
 export function KubernetesAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<KubernetesAccessSpec>) {
+}: SectionProps<KubernetesAccessSpec, KubernetesSpecValidationResult>) {
   return (
     <>
       <FieldSelectCreatable
@@ -460,6 +598,7 @@ export function KubernetesAccessSpecSection({
         components={{
           DropdownIndicator: null,
         }}
+        openMenuOnClick={false}
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
       />
@@ -470,6 +609,7 @@ export function KubernetesAccessSpecSection({
       <LabelsInput
         disableBtns={isProcessing}
         labels={value.labels}
+        rule={precomputed(validation.fields.labels)}
         setLabels={labels => onChange?.({ ...value, labels })}
       />
 
@@ -478,6 +618,7 @@ export function KubernetesAccessSpecSection({
           <KubernetesResourceView
             key={resource.id}
             value={resource}
+            validation={validation.fields.resources.results[index]}
             isProcessing={isProcessing}
             onChange={newRes =>
               onChange?.({
@@ -520,11 +661,13 @@ export function KubernetesAccessSpecSection({
 
 function KubernetesResourceView({
   value,
+  validation,
   isProcessing,
   onChange,
   onRemove,
 }: {
   value: KubernetesResourceModel;
+  validation: KubernetesResourceValidationResult;
   isProcessing: boolean;
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
@@ -570,6 +713,7 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={name}
+        rule={precomputed(validation.name)}
         onChange={e => onChange?.({ ...value, name: e.target.value })}
       />
       <FieldInput
@@ -582,6 +726,7 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={namespace}
+        rule={precomputed(validation.namespace)}
         onChange={e => onChange?.({ ...value, namespace: e.target.value })}
       />
       <FieldSelect
@@ -599,9 +744,10 @@ function KubernetesResourceView({
 
 export function AppAccessSpecSection({
   value,
+  validation,
   isProcessing,
   onChange,
-}: SectionProps<AppAccessSpec>) {
+}: SectionProps<AppAccessSpec, AppSpecValidationResult>) {
   return (
     <Flex flexDirection="column" gap={3}>
       <Box>
@@ -612,6 +758,7 @@ export function AppAccessSpecSection({
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
         />
       </Box>
       <FieldMultiInput
@@ -619,20 +766,133 @@ export function AppAccessSpecSection({
         disabled={isProcessing}
         value={value.awsRoleARNs}
         onChange={arns => onChange?.({ ...value, awsRoleARNs: arns })}
+        rule={precomputed(validation.fields.awsRoleARNs)}
       />
       <FieldMultiInput
         label="Azure Identities"
         disabled={isProcessing}
         value={value.azureIdentities}
         onChange={ids => onChange?.({ ...value, azureIdentities: ids })}
+        rule={precomputed(validation.fields.azureIdentities)}
       />
       <FieldMultiInput
         label="GCP Service Accounts"
         disabled={isProcessing}
         value={value.gcpServiceAccounts}
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
+        rule={precomputed(validation.fields.gcpServiceAccounts)}
       />
     </Flex>
+  );
+}
+
+export function DatabaseAccessSpecSection({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+}: SectionProps<DatabaseAccessSpec, DatabaseSpecValidationResult>) {
+  return (
+    <>
+      <Box mb={3}>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
+        />
+      </Box>
+      <FieldSelectCreatable
+        isMulti
+        label="Database Names"
+        toolTipContent={
+          <>
+            List of database names that this role is allowed to connect to.
+            Special value <MarkInverse>*</MarkInverse> means any name.
+          </>
+        }
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database Name: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.names}
+        onChange={names => onChange?.({ ...value, names })}
+      />
+      <FieldSelectCreatable
+        isMulti
+        label="Database Users"
+        toolTipContent={
+          <>
+            List of database users that this role is allowed to connect as.
+            Special value <MarkInverse>*</MarkInverse> means any user.
+          </>
+        }
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database User: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.users}
+        onChange={users => onChange?.({ ...value, users })}
+      />
+      <FieldSelectCreatable
+        isMulti
+        label="Database Roles"
+        toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Database Role: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.roles}
+        onChange={roles => onChange?.({ ...value, roles })}
+        rule={precomputed(validation.fields.roles)}
+        mb={0}
+      />
+    </>
+  );
+}
+
+export function WindowsDesktopAccessSpecSection({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+}: SectionProps<WindowsDesktopAccessSpec, WindowsDesktopSpecValidationResult>) {
+  return (
+    <>
+      <Box mb={3}>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
+        />
+      </Box>
+      <FieldSelectCreatable
+        isMulti
+        label="Logins"
+        toolTipContent="List of desktop logins that this role is allowed to use"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Login: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.logins}
+        onChange={logins => onChange?.({ ...value, logins })}
+      />
+    </>
   );
 }
 

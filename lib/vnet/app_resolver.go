@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -56,7 +57,7 @@ type AppProvider interface {
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
 	// clients for that cluster so that new working clients will be returned from [GetCachedClient].
-	ReissueAppCert(ctx context.Context, profileName, leafClusterName string, app types.Application) (tls.Certificate, error)
+	ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error)
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
@@ -67,7 +68,7 @@ type AppProvider interface {
 	//
 	// The connection won't be established until OnNewConnection returns. Returning an error prevents
 	// the connection from being made.
-	OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error
+	OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
@@ -94,7 +95,7 @@ type DialOptions struct {
 type TCPAppResolver struct {
 	appProvider        AppProvider
 	clusterConfigCache *ClusterConfigCache
-	slog               *slog.Logger
+	log                *slog.Logger
 	clock              clockwork.Clock
 }
 
@@ -109,7 +110,7 @@ type TCPAppResolver struct {
 func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
 	r := &TCPAppResolver{
 		appProvider: appProvider,
-		slog:        slog.With(teleport.ComponentKey, "VNet.AppResolver"),
+		log:         log.With(teleport.ComponentKey, "VNet.AppResolver"),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -159,7 +160,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// the error but don't return it so that DNS resolution will be forwarded upstream instead of
 			// failing, to avoid breaking e.g. web app access (we don't know if this is a web or TCP app yet
 			// because we can't log in).
-			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
+			r.log.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
 
@@ -168,8 +169,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			leafClusterName = clusterClient.ClusterName()
 		}
 
-		slog := r.slog.With("profile", profileName, "fqdn", fqdn, "leaf_cluster", leafClusterName)
-		return r.resolveTCPHandlerForCluster(ctx, slog, clusterClient, profileName, leafClusterName, fqdn)
+		return r.resolveTCPHandlerForCluster(ctx, clusterClient, profileName, leafClusterName, fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
@@ -180,7 +180,7 @@ var errNoMatch = errors.New("cluster does not match queried FQDN")
 func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
 	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
 	if err != nil {
-		r.slog.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		r.log.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
 		return nil, errNoMatch
 	}
 
@@ -192,7 +192,7 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 	leafClusters, err := getLeafClusters(ctx, rootClient)
 	if err != nil {
 		// Good chance we're here because the user is not logged in to the profile.
-		r.slog.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		r.log.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
 		return nil, errNoMatch
 	}
 
@@ -201,13 +201,13 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 	for _, leafClusterName := range allClusters {
 		clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
 		if err != nil {
-			r.slog.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			r.log.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 
 		clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
-			r.slog.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			r.log.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 		for _, zone := range clusterConfig.DNSZones {
@@ -242,10 +242,10 @@ func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, e
 // query.
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
-	slog *slog.Logger,
 	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
 ) (*TCPHandlerSpec, error) {
+	log := r.log.With("profile", profileName, "leaf_cluster", leafClusterName, "fqdn", fqdn)
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
@@ -257,7 +257,7 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	if err != nil {
 		// Don't return an unexpected error so we can try to find the app in different clusters or forward the
 		// request upstream.
-		slog.InfoContext(ctx, "Failed to list application servers.", "error", err)
+		log.InfoContext(ctx, "Failed to list application servers.", "error", err)
 		return nil, ErrNoTCPHandler
 	}
 	if len(resp.Resources) == 0 {
@@ -282,10 +282,15 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 }
 
 type tcpAppHandler struct {
-	profileName     string
-	leafClusterName string
-	app             types.Application
-	lp              *alpnproxy.LocalProxy
+	log              *slog.Logger
+	appProvider      AppProvider
+	clock            clockwork.Clock
+	profileName      string
+	leafClusterName  string
+	app              types.Application
+	portToLocalProxy map[uint16]*alpnproxy.LocalProxy
+	// mu guards access to portToLocalProxy.
+	mu sync.Mutex
 }
 
 func (r *TCPAppResolver) newTCPAppHandler(
@@ -294,24 +299,73 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	leafClusterName string,
 	app types.Application,
 ) (*tcpAppHandler, error) {
-	dialOpts, err := r.appProvider.GetDialOptions(ctx, profileName)
+	return &tcpAppHandler{
+		appProvider:      r.appProvider,
+		clock:            r.clock,
+		profileName:      profileName,
+		leafClusterName:  leafClusterName,
+		app:              app,
+		portToLocalProxy: make(map[uint16]*alpnproxy.LocalProxy),
+		log: r.log.With(teleport.ComponentKey, "VNet.AppHandler",
+			"profile", profileName, "leaf_cluster", leafClusterName, "fqdn", app.GetPublicAddr()),
+	}, nil
+}
+
+// getOrInitializeLocalProxy returns a separate local proxy for each port for multi-port apps. For
+// single-port apps, it returns the same local proxy no matter the port.
+func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort uint16) (*alpnproxy.LocalProxy, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Connections to single-port apps need to go through a local proxy that has a cert with TargetPort
+	// set to 0. This ensures that the old behavior is kept for such apps, where the client can dial
+	// the public address of an app on any port and be routed to the port from the URI.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#vnet-with-single-port-apps
+	if len(h.app.GetTCPPorts()) == 0 {
+		localPort = 0
+	}
+	// TODO(ravicious): For multi-port apps, check if localPort is valid and surface the error in UI.
+	// https://github.com/gravitational/teleport/blob/master/rfd/0182-multi-port-tcp-app-access.md#incorrect-port
+
+	lp, ok := h.portToLocalProxy[localPort]
+	if ok {
+		return lp, nil
+	}
+
+	dialOpts, err := h.appProvider.GetDialOptions(ctx, h.profileName)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting dial options for profile %q", profileName)
+		return nil, trace.Wrap(err, "getting dial options for profile %q", h.profileName)
+	}
+	clusterClient, err := h.appProvider.GetCachedClient(ctx, h.profileName, h.leafClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:       h.app.GetName(),
+		PublicAddr: h.app.GetPublicAddr(),
+		// ClusterName must not be set to "" when targeting an app from a root cluster. Otherwise the
+		// connection routed through a local proxy will just get lost somewhere in the cluster (with no
+		// clear error being reported) and hang forever.
+		ClusterName: clusterClient.ClusterName(),
+		URI:         h.app.GetURI(),
+		TargetPort:  uint32(localPort),
 	}
 
 	appCertIssuer := &appCertIssuer{
-		appProvider:     r.appProvider,
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
-		app:             app,
+		appProvider:     h.appProvider,
+		profileName:     h.profileName,
+		leafClusterName: h.leafClusterName,
+		routeToApp:      routeToApp,
 	}
-	certChecker := client.NewCertChecker(appCertIssuer, r.clock)
+	certChecker := client.NewCertChecker(appCertIssuer, h.clock)
 	middleware := &localProxyMiddleware{
 		certChecker:     certChecker,
-		appProvider:     r.appProvider,
-		app:             app,
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
+		appProvider:     h.appProvider,
+		routeToApp:      routeToApp,
+		profileName:     h.profileName,
+		leafClusterName: h.leafClusterName,
 	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
@@ -323,26 +377,28 @@ func (r *TCPAppResolver) newTCPAppHandler(
 		ALPNConnUpgradeRequired: dialOpts.ALPNConnUpgradeRequired,
 		Middleware:              middleware,
 		InsecureSkipVerify:      dialOpts.InsecureSkipVerify,
-		Clock:                   r.clock,
+		Clock:                   h.clock,
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(localProxyConfig)
+	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort)
+	newLP, err := alpnproxy.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating local proxy")
 	}
 
-	return &tcpAppHandler{
-		profileName:     profileName,
-		leafClusterName: leafClusterName,
-		app:             app,
-		lp:              lp,
-	}, nil
+	h.portToLocalProxy[localPort] = newLP
+
+	return newLP, nil
 }
 
 // HandleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handler certificate renewal and re-logins.
-func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
-	return trace.Wrap(h.lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+	lp, err := h.getOrInitializeLocalProxy(ctx, localPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
 }
 
 // appCertIssuer implements [client.CertIssuer].
@@ -350,7 +406,7 @@ type appCertIssuer struct {
 	appProvider     AppProvider
 	profileName     string
 	leafClusterName string
-	app             types.Application
+	routeToApp      proto.RouteToApp
 	group           singleflight.Group
 }
 
@@ -361,7 +417,7 @@ func (i *appCertIssuer) CheckCert(cert *x509.Certificate) error {
 
 func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	cert, err, _ := i.group.Do("", func() (any, error) {
-		return i.appProvider.ReissueAppCert(ctx, i.profileName, i.leafClusterName, i.app)
+		return i.appProvider.ReissueAppCert(ctx, i.profileName, i.leafClusterName, i.routeToApp)
 	})
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
@@ -385,7 +441,7 @@ func fullyQualify(domain string) string {
 // localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
 // OnNewConnection method calls the same method of [AppProvider].
 type localProxyMiddleware struct {
-	app             types.Application
+	routeToApp      proto.RouteToApp
 	profileName     string
 	leafClusterName string
 	certChecker     *client.CertChecker
@@ -398,7 +454,7 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnprox
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.app))
+	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.routeToApp))
 }
 
 func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {

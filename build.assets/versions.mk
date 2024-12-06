@@ -3,8 +3,8 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.23.3
-GOLANGCI_LINT_VERSION ?= v1.62.0
+GOLANG_VERSION ?= go1.23.4
+GOLANGCI_LINT_VERSION ?= v1.62.2
 
 NODE_VERSION ?= 20.18.0
 

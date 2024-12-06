@@ -75,16 +75,73 @@ export type RoleConditions = {
   aws_role_arns?: string[];
   azure_identities?: string[];
   gcp_service_accounts?: string[];
+
+  db_labels?: Labels;
+  db_names?: string[];
+  db_users?: string[];
+  db_roles?: string[];
+
+  windows_desktop_labels?: Labels;
+  windows_desktop_logins?: string[];
 };
 
 export type Labels = Record<string, string | string[]>;
 
 export type KubernetesResource = {
-  kind?: string;
+  kind?: KubernetesResourceKind;
   name?: string;
   namespace?: string;
-  verbs?: string[];
+  verbs?: KubernetesVerb[];
 };
+
+/**
+ * Supported Kubernetes resource kinds. This type needs to be kept in sync with
+ * `KubernetesResourcesKinds` in `api/types/constants.go, as well as
+ * `kubernetesResourceKindOptions` in
+ * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
+ */
+export type KubernetesResourceKind =
+  | '*'
+  | 'pod'
+  | 'secret'
+  | 'configmap'
+  | 'namespace'
+  | 'service'
+  | 'serviceaccount'
+  | 'kube_node'
+  | 'persistentvolume'
+  | 'persistentvolumeclaim'
+  | 'deployment'
+  | 'replicaset'
+  | 'statefulset'
+  | 'daemonset'
+  | 'clusterrole'
+  | 'kube_role'
+  | 'clusterrolebinding'
+  | 'rolebinding'
+  | 'cronjob'
+  | 'job'
+  | 'certificatesigningrequest'
+  | 'ingress';
+
+/**
+ * Supported Kubernetes resource verbs. This type needs to be kept in sync with
+ * `KubernetesVerbs` in `api/types/constants.go, as well as
+ * `kubernetesVerbOptions` in
+ * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
+ */
+export type KubernetesVerb =
+  | '*'
+  | 'get'
+  | 'create'
+  | 'update'
+  | 'patch'
+  | 'delete'
+  | 'list'
+  | 'watch'
+  | 'deletecollection'
+  | 'exec'
+  | 'portforward';
 
 /**
  * Teleport role options in full format, as returned from Teleport API. Note

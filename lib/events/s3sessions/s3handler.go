@@ -37,7 +37,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -157,6 +159,10 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 
+	if s.Endpoint != "" {
+		s.Endpoint = endpoint.CreateURI(s.Endpoint, s.Insecure)
+	}
+
 	return nil
 }
 
@@ -203,7 +209,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
+	s3Opts := []func(*s3.Options){
+		s3.WithEndpointResolverV2(resolver),
+		func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {

@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -1220,12 +1221,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Hostname:                cfg.Hostname,
 		ExternalUpgrader:        externalUpgrader,
 		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
-	})
+	}, inventory.WithDownstreamClock(process.Clock))
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
-		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.", "id", ping.ID)
+		systemClock := process.Clock.Now().UTC()
+		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
+			"id", ping.ID,
+			"clock", systemClock)
 		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID: ping.ID,
+			ID:          ping.ID,
+			SystemClock: systemClock,
 		})
 		if err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
@@ -2430,9 +2435,21 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
 	})
 
+	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock)
+	if err != nil {
+		return trace.Wrap(err, "creating the rollout controller")
+	}
+	process.RegisterFunc("auth.autoupdate_agent_rollout_controller", func() error {
+		return trace.Wrap(agentRolloutController.Run(process.GracefulExitContext()), "running autoupdate_agent_rollout controller")
+	})
+
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
 	})
+	process.RegisterFunc("auth.server.system-clock-monitor", func() error {
+		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2535,6 +2552,8 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
+	cfg.PluginStaticCredentials = services.PluginStaticCredentials
+	cfg.GitServers = services.GitServers
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2581,6 +2600,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
+	cfg.GitServers = client.GitServerClient()
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2947,7 +2967,7 @@ func (process *TeleportProcess) initSSH() error {
 			LockEnforcer:   lockWatcher,
 			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client},
 			Component:      teleport.ComponentNode,
-			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id, "sessionctrl")),
 			TracerProvider: process.TracingProvider,
 			ServerID:       serverID,
 		})
@@ -4020,10 +4040,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
-		addr, err := process.Config.Proxy.PeerAddr()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		addr := process.Config.Proxy.PeerListenAddr()
 
 		listener, err := process.importOrCreateListener(ListenerProxyPeer, addr.String())
 		if err != nil {
@@ -4451,7 +4468,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockEnforcer:   lockWatcher,
 		Emitter:        asyncEmitter,
 		Component:      teleport.ComponentProxy,
-		Logger:         process.log.WithField(teleport.ComponentKey, "sessionctrl"),
+		Logger:         process.logger.With(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
 		ServerID:       serverID,
 	})
@@ -4544,7 +4561,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       cfg.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.GracefulExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4592,7 +4609,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webConfig := web.Config{
 			Proxy:                     tsrv,
 			AuthServers:               cfg.AuthServerAddresses()[0],
-			DomainName:                cfg.Hostname,
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              cfg.Proxy.WebAddr,
@@ -4776,7 +4792,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 				logger.InfoContext(process.ExitContext(), "starting QUIC peer proxy service", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
 				err := peerQUICServer.Serve(peerQUICTransport)
-				if err != nil {
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) {
 					return trace.Wrap(err)
 				}
 
@@ -4908,7 +4924,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ServerID:       serverID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.log,
+		Logger:         process.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5126,7 +5142,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       process.Config.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.ExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5950,6 +5966,7 @@ func (process *TeleportProcess) initApps() {
 				Cloud:              app.Cloud,
 				RequiredAppNames:   app.RequiredAppNames,
 				CORS:               makeApplicationCORS(app.CORS),
+				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6007,7 +6024,7 @@ func (process *TeleportProcess) initApps() {
 			ServerID:            process.Config.HostUUID,
 			Emitter:             asyncEmitter,
 			EmitterContext:      process.ExitContext(),
-			Logger:              process.log,
+			Logger:              process.logger,
 			MonitorCloseChannel: process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {
@@ -6768,6 +6785,18 @@ func makeApplicationCORS(c *servicecfg.CORS) *types.CORSPolicy {
 		AllowCredentials: c.AllowCredentials,
 		MaxAge:           uint32(c.MaxAge),
 	}
+}
+
+// makeApplicationTCPPorts converts a slice of [servicecfg.PortRange] to a slice of [types.PortRange].
+func makeApplicationTCPPorts(servicePorts []servicecfg.PortRange) []*types.PortRange {
+	ports := make([]*types.PortRange, 0, len(servicePorts))
+	for _, portRange := range servicePorts {
+		ports = append(ports, &types.PortRange{
+			Port:    uint32(portRange.Port),
+			EndPort: uint32(portRange.EndPort),
+		})
+	}
+	return ports
 }
 
 func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*externalauditstorage.Configurator, error) {

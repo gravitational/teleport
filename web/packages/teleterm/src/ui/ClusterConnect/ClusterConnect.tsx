@@ -28,7 +28,10 @@ import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
 import { dialogCss } from './spacing';
 
-export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
+export function ClusterConnect(props: {
+  dialog: DialogClusterConnect;
+  hidden?: boolean;
+}) {
   const [createdClusterUri, setCreatedClusterUri] = useState<
     RootClusterUri | undefined
   >();
@@ -49,7 +52,8 @@ export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
       dialogCss={dialogCss}
       disableEscapeKeyDown={false}
       onClose={props.dialog.onCancel}
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
     >
       {!clusterUri ? (
         <ClusterAdd

@@ -1720,6 +1720,47 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "TCP app with target port",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name:       "app-a",
+						TargetPort: 1337,
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					require.Equal(t, 1337, identity.RouteToApp.TargetPort)
+					// session ID should be set to a random ID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
 			desc: "db with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -2955,9 +2996,9 @@ func TestNodesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// node1 and node2 will be added to default namespace
-	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{Hostname: "node1"}, nil)
 	require.NoError(t, err)
-	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{Hostname: "node2"}, nil)
 	require.NoError(t, err)
 
 	t.Run("CreateNode", func(t *testing.T) {
