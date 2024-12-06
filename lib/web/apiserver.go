@@ -1244,7 +1244,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !pingResp.LicenseExpiry.IsZero() {
+	if pingResp.LicenseExpiry != nil && !pingResp.LicenseExpiry.IsZero() {
 		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
 	}
 
