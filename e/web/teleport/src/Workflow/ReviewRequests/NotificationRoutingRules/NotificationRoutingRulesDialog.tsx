@@ -7,6 +7,7 @@ import Dialog from 'design/Dialog';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { Cross } from 'design/Icon';
 import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import { Plugin } from 'teleport/services/integrations';
 import { Theme } from 'design/theme/themes/types';
 import useTeleport from 'teleport/useTeleport';
@@ -34,7 +35,13 @@ export const NotificationRoutingRulesDialog = forwardRef<
   const pluginAccess = ctx.storeUser.getPluginsAccess();
   const hasPluginAccess = pluginAccess.read;
   const amRuleAccess = ctx.storeUser.getAccessMonitoringRuleAccess();
-  const hasAmRuleCreateAccess = amRuleAccess.create && hasPluginAccess;
+  const missingPermissions = [
+    { hasAccess: amRuleAccess.create, label: 'access_monitoring_rule.create' },
+    { hasAccess: hasPluginAccess, label: 'plugin.read' },
+  ]
+    .filter(perm => !perm.hasAccess)
+    .map(perm => perm.label);
+  const hasAmRuleCreateAccess = missingPermissions.length === 0;
 
   const theme = useTheme();
   const { clusterId } = useStickyClusterId();
@@ -176,9 +183,11 @@ export const NotificationRoutingRulesDialog = forwardRef<
               <HoverTooltip
                 position="bottom"
                 tipContent={
-                  hasAmRuleCreateAccess
-                    ? null
-                    : 'You do not have access to create access monitoring rules'
+                  hasAmRuleCreateAccess ? null : (
+                    <MissingPermissionsTooltip
+                      missingPermissions={missingPermissions}
+                    />
+                  )
                 }
               >
                 <Button
