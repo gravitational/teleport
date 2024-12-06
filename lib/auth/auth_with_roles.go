@@ -160,6 +160,20 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 	return nil
 }
 
+// identityCenterAction is a special checker that grants access to Identity Center
+// resources. In order to simplify the writing of role condition statements, the
+// various Identity Center resources are bundled up under an umbrella
+// `KindIdentityCenter` resource kind. This means that if access to the target
+// resource is not explicitly denied, then the user has a second chance to get
+// access via the generic resource kind.
+func (a *ServerWithRoles) identityCenterAction(namespace string, resource string, verbs ...string) error {
+	err := a.action(namespace, resource, verbs...)
+	if err == nil || services.IsAccessExplicitlyDenied(err) {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.action(namespace, types.KindIdentityCenter, verbs...))
+}
+
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
 func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
@@ -1321,6 +1335,17 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	return true, nil
 }
 
+type actionChecker func(namespace, resourceKind string, verbs ...string) error
+
+func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
+	if resourceKind == types.KindIdentityCenterAccount {
+		// Identity Center resources can be specified multiple ways in a Role
+		// Condition statement, so we need a special checker to handle it.
+		return a.identityCenterAction
+	}
+	return a.action
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	filter := services.MatchResourceFilter{
@@ -1358,7 +1383,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
+		checkAction := a.selectActionChecker(kind)
+		resourceAccess.kindAccessMap[kind] = checkAction(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1702,7 +1728,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
+	checkAction := a.selectActionChecker(req.ResourceType)
+	if err := checkAction(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1829,9 +1856,14 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
+
+	case types.Resource153Unwrapper:
+		if checkable, ok := rr.(services.AccessCheckable); ok {
+			return r.CheckAccess(checkable, state)
+		}
 	}
 
-	return trace.BadParameter("could not check access to resource type %T", r)
+	return trace.BadParameter("could not check access to resource type %T", resource)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
@@ -1846,7 +1878,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindKubeServer,
 		types.KindUserGroup,
 		types.KindUnifiedResource,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
