@@ -262,14 +262,6 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-
-	if c.GetEnabled() == t.GetEnabled() && c.GetRoleMap().IsEqual(t.GetRoleMap()) {
-		if t.GetEnabled() {
-			return trace.AlreadyExists("leaf cluster is already enabled, this update would have no effect")
-		}
-		return trace.AlreadyExists("leaf cluster is already disabled, this update would have no effect")
-	}
-
 	return nil
 }
 

@@ -453,17 +453,23 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	err = a.SetStaticTokens(tks)
 	require.NoError(t, err)
 
-	trustedCluster, err := types.NewTrustedCluster("trustedcluster",
-		types.TrustedClusterSpecV2{
-			Enabled: true,
-			RoleMap: []types.RoleMapping{
-				{
-					Local:  []string{"someRole"},
-					Remote: "someRole",
-				},
+	role, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	trustedClusterSpec := types.TrustedClusterSpecV2{
+		Enabled: true,
+		RoleMap: []types.RoleMapping{
+			{
+				Local:  []string{"test-role"},
+				Remote: "someRole",
 			},
-			ProxyAddress: "localhost",
-		})
+		},
+		ProxyAddress: "localhost",
+	}
+
+	trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
 	require.NoError(t, err)
 
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
@@ -571,5 +577,11 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		server := ServerWithRoles{authServer: a}
 		_, err = server.UpsertTrustedClusterV2(ctx, tc)
 		require.True(t, trace.IsNotImplemented(err), "UpsertTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
+	})
+	t.Run("Upsert unmodified trusted cluster", func(t *testing.T) {
+		trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
+		require.NoError(t, err)
+		_, err = a.UpsertTrustedClusterV2(ctx, trustedCluster)
+		require.NoError(t, err)
 	})
 }
