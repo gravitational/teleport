@@ -30,10 +30,19 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
+// LicenseStore implements client-side license storage for Microsoft
+// Remote Desktop Services (RDS) licenses.
+type LicenseStore interface {
+	WriteRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string, license []byte) error
+	ReadRDPLicense(ctx context.Context, majorVersion, minorVersion uint16, issuer, company, productID string) ([]byte, error)
+}
+
 // Config for creating a new Client.
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
+
+	LicenseStore LicenseStore
 
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
