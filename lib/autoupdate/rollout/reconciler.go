@@ -25,9 +25,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -35,6 +39,13 @@ const (
 	defaultConfigMode     = update.AgentsUpdateModeEnabled
 	defaultStrategy       = update.AgentsStrategyHaltOnError
 	maxConflictRetry      = 3
+
+	defaultGroupName = "default"
+	defaultStartHour = 12
+)
+
+var (
+	defaultUpdateDays = []string{"Mon", "Tue", "Wed", "Thu"}
 )
 
 // reconciler reconciles the AutoUpdateAgentRollout singleton based on the content of the AutoUpdateVersion and
@@ -42,8 +53,11 @@ const (
 // - we reconcile 2 resources with one
 // - both input and output are singletons, we don't need the multi resource logic nor stream/paginated APIs
 type reconciler struct {
-	clt Client
-	log *slog.Logger
+	clt   Client
+	log   *slog.Logger
+	clock clockwork.Clock
+
+	rolloutStrategies []rolloutStrategy
 
 	// mutex ensures we only run one reconciliation at a time
 	mutex sync.Mutex
@@ -131,10 +145,26 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "mutating rollout")
 	}
+	newStatus, err := r.computeStatus(ctx, existingRollout, newSpec, config.GetSpec().GetAgents().GetSchedules())
+	if err != nil {
+		return trace.Wrap(err, "computing rollout status")
+	}
 
-	// if there are no existing rollout, we create a new one
+	// there was an existing rollout, we must figure if something changed
+	specChanged := !proto.Equal(existingRollout.GetSpec(), newSpec)
+	statusChanged := !proto.Equal(existingRollout.GetStatus(), newStatus)
+	rolloutChanged := specChanged || statusChanged
+
+	// if nothing changed, no need to update the resource
+	if !rolloutChanged {
+		r.log.DebugContext(ctx, "rollout unchanged")
+		return nil
+	}
+
+	// if there are no existing rollout, we create a new one and set the status
 	if !rolloutExists {
 		rollout, err := update.NewAutoUpdateAgentRollout(newSpec)
+		rollout.Status = newStatus
 		if err != nil {
 			return trace.Wrap(err, "validating new rollout")
 		}
@@ -142,27 +172,10 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 		return trace.Wrap(err, "creating rollout")
 	}
 
-	// there was an existing rollout, we must figure if something changed
-	specChanged := existingRollout.GetSpec().GetStartVersion() != newSpec.GetStartVersion() ||
-		existingRollout.GetSpec().GetTargetVersion() != newSpec.GetTargetVersion() ||
-		existingRollout.GetSpec().GetAutoupdateMode() != newSpec.GetAutoupdateMode() ||
-		existingRollout.GetSpec().GetStrategy() != newSpec.GetStrategy() ||
-		existingRollout.GetSpec().GetSchedule() != newSpec.GetSchedule()
-
-	// TODO: reconcile the status here when we'll add group support.
-	// Even if the spec does not change, we might still have to update the status:
-	// - sync groups with the ones from the user config
-	// - progress the rollout across groups
-
-	// if nothing changed, no need to update the resource
-	if !specChanged {
-		r.log.DebugContext(ctx, "rollout unchanged")
-		return nil
-	}
-
-	// something changed, we replace the old spec with the new one, validate and update the resource
-	// we don't create a new resource to keep the revision ID and
+	// If there was a previous rollout, we update its spec and status and do an update.
+	// We don't create a new resource to keep the metadata containing the revision ID.
 	existingRollout.Spec = newSpec
+	existingRollout.Status = newStatus
 	err = update.ValidateAutoUpdateAgentRollout(existingRollout)
 	if err != nil {
 		return trace.Wrap(err, "validating mutated rollout")
@@ -232,4 +245,123 @@ func getMode(configMode, versionMode string) (string, error) {
 		return codeToAgentMode[configCode], nil
 	}
 	return codeToAgentMode[versionCode], nil
+}
+
+// computeStatus computes the new rollout status based on the existing rollout,
+// new rollout spec, and autoupdate_config. existingRollout might be nil if this
+// is a new rollout.
+// Even if the returned new status might be derived from the existing rollout
+// status, it is a new deep-cloned structure.
+func (r *reconciler) computeStatus(
+	ctx context.Context,
+	existingRollout *autoupdate.AutoUpdateAgentRollout,
+	newSpec *autoupdate.AutoUpdateAgentRolloutSpec,
+	configSchedules *autoupdate.AgentAutoUpdateSchedules,
+) (*autoupdate.AutoUpdateAgentRolloutStatus, error) {
+
+	var status *autoupdate.AutoUpdateAgentRolloutStatus
+
+	// First, we check if a major spec change happened and we should reset the rollout status
+	shouldResetRollout := existingRollout.GetSpec().GetStartVersion() != newSpec.GetStartVersion() ||
+		existingRollout.GetSpec().GetTargetVersion() != newSpec.GetTargetVersion() ||
+		existingRollout.GetSpec().GetSchedule() != newSpec.GetSchedule() ||
+		existingRollout.GetSpec().GetStrategy() != newSpec.GetStrategy()
+
+	// We create a new status if the rollout should be reset or the previous status was nil
+	if shouldResetRollout || existingRollout.GetStatus() == nil {
+		status = new(autoupdate.AutoUpdateAgentRolloutStatus)
+	} else {
+		status = utils.CloneProtoMsg(existingRollout.GetStatus())
+	}
+
+	// Then, we check if the selected schedule uses groups
+	switch newSpec.GetSchedule() {
+	case update.AgentsScheduleImmediate:
+		// There are no groups with the immediate schedule, we must clean them
+		status.Groups = nil
+		return status, nil
+	case update.AgentsScheduleRegular:
+		// Regular schedule has groups, we will compute them after
+	default:
+		return nil, trace.BadParameter("unsupported agent schedule type %q", newSpec.GetSchedule())
+	}
+
+	// capture the current time to put it in the status update timestamps and to
+	// compute the group state changes
+	now := r.clock.Now()
+
+	// If this is a new rollout or the rollout has been reset, we create groups from the config
+	groups := status.GetGroups()
+	var err error
+	if len(groups) == 0 {
+		groups, err = makeGroupsStatus(configSchedules, now)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating groups status")
+		}
+	}
+
+	err = r.progressRollout(ctx, newSpec.GetStrategy(), groups)
+	// Failing to progress the update is not a hard failure.
+	// We expected to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
+	if err != nil {
+		r.log.ErrorContext(ctx, "Errors encountered during rollout progress. Some groups might not get updated properly.",
+			"error", err)
+	}
+
+	status.Groups = groups
+	return status, nil
+}
+
+// progressRollout picks the right rollout strategy and updates groups to progress the rollout.
+// groups are updated in place.
+// If an error is returned, the groups should still be upserted, depending on the strategy,
+// failing to update a group might not be fatal (other groups can still progress independently).
+func (r *reconciler) progressRollout(ctx context.Context, strategyName string, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+	for _, strategy := range r.rolloutStrategies {
+		if strategy.name() == strategyName {
+			return strategy.progressRollout(ctx, groups)
+		}
+	}
+	return trace.NotImplemented("rollout strategy %q not implemented", strategyName)
+}
+
+// makeGroupStatus creates the autoupdate_agent_rollout.status.groups based on the autoupdate_config.
+// This should be called if the status groups have not been initialized or must be reset.
+func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.Time) ([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, error) {
+	configGroups := schedules.GetRegular()
+	if len(configGroups) == 0 {
+		defaultGroup, err := defaultConfigGroup()
+		if err != nil {
+			return nil, trace.Wrap(err, "retrieving default group")
+		}
+		configGroups = []*autoupdate.AgentAutoUpdateGroup{defaultGroup}
+	}
+
+	groups := make([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, len(configGroups))
+	for i, group := range configGroups {
+		groups[i] = &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			Name:             group.Name,
+			StartTime:        nil,
+			State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+			LastUpdateTime:   timestamppb.New(now),
+			LastUpdateReason: updateReasonCreated,
+			ConfigDays:       group.Days,
+			ConfigStartHour:  group.StartHour,
+			ConfigWaitDays:   group.WaitDays,
+		}
+	}
+	return groups, nil
+}
+
+// defaultConfigGroup returns the default group in case of missing autoupdate_config resource.
+// This is a function and not a variable because we will need to add more logic there in the future
+// lookup maintenance information from RFD 109's cluster_maintenance_config.
+func defaultConfigGroup() (*autoupdate.AgentAutoUpdateGroup, error) {
+	// TODO: get group from CMC if possible
+	return &autoupdate.AgentAutoUpdateGroup{
+		Name:      defaultGroupName,
+		Days:      defaultUpdateDays,
+		StartHour: defaultStartHour,
+		WaitDays:  0,
+	}, nil
 }
