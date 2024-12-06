@@ -36,7 +36,7 @@ type App struct {
 	Kind string `json:"kind"`
 	// SubKind is the subkind of the app resource. Used to differentiate different
 	// flavors of app.
-	SubKind string `json:"subkind,omitempty"`
+	SubKind string `json:"subKind,omitempty"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
@@ -89,9 +89,9 @@ type IdentityCenterPermissionSet struct {
 	Name string `json:"name"`
 	// ARN is the AWS-assigned ARN of the permission set
 	ARN string `json:"arn"`
-	// AssignmentID is the assignment resource that will provision an Account
-	// Assignment for this Permission Set on the enclosing account
-	AssignmentID    string `json:"accountAssignment,omitempty"`
+	// AssignmentID is the assignment resource ID that will provision an Account
+	// assignment for this permission set on the enclosing account.
+	AssignmentID    string `json:"assignmentId,omitempty"`
 	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
