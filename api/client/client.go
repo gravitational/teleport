@@ -3811,7 +3811,9 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		case types.KindIdentityCenterAccount:
 			resources[i] = respResource.GetAppServer()
 		case types.KindIdentityCenterAccountAssignment:
-			resources[i] = respResource.GetIdentityCenterAccountAssignment()
+			src := respResource.GetIdentityCenterAccountAssignment()
+			dst := proto.UnpackICAccountAssignment(src)
+			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -4028,7 +4030,8 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 			case types.KindIdentityCenterAccount:
 				resource = respResource.GetAppServer()
 			case types.KindIdentityCenterAccountAssignment:
-				resource = respResource.GetIdentityCenterAccountAssignment()
+				src := respResource.GetIdentityCenterAccountAssignment()
+				resource = proto.UnpackICAccountAssignment(src)
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -4100,7 +4103,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 			case types.KindIdentityCenterAccount:
 				resource = respResource.GetAppServer()
 			case types.KindIdentityCenterAccountAssignment:
-				resource = respResource.GetIdentityCenterAccountAssignment()
+				src := respResource.GetIdentityCenterAccountAssignment()
+				resource = proto.UnpackICAccountAssignment(src)
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)

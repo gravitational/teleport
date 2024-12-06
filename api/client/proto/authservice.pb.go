@@ -10628,11 +10628,16 @@ func (m *CreateRegisterChallengeRequest) GetDeviceUsage() DeviceUsage {
 	return DeviceUsage_DEVICE_USAGE_UNSPECIFIED
 }
 
-// IdentityCenterAccount
+// IdentityCenterAccount holds information about an Identity Center account
+// within an IdentityCenterAccountAssignment
 type IdentityCenterAccount struct {
-	ID                   string   `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	ARN                  string   `protobuf:"bytes,2,opt,name=ARN,proto3" json:"ARN,omitempty"`
-	AccountName          string   `protobuf:"bytes,3,opt,name=AccountName,proto3" json:"AccountName,omitempty"`
+	// ID is the AWS-assigned account ID
+	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	// ARN is the full Amazon Resource Name for the AWS account
+	ARN string `protobuf:"bytes,2,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// AccountName is the human-readable name of the account
+	AccountName string `protobuf:"bytes,3,opt,name=AccountName,proto3" json:"AccountName,omitempty"`
+	// Description is a free text description of the account
 	Description          string   `protobuf:"bytes,4,opt,name=Description,proto3" json:"Description,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -10700,9 +10705,12 @@ func (m *IdentityCenterAccount) GetDescription() string {
 	return ""
 }
 
-// IdentityCenterPermissionSet
+// IdentityCenterPermissionSet holds information about an Identity Center
+// permission set within an IdentityCenterAccountAssignment
 type IdentityCenterPermissionSet struct {
-	ARN                  string   `protobuf:"bytes,1,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// ARN is the full Amazon Resource Name for the Permission Set
+	ARN string `protobuf:"bytes,1,opt,name=ARN,proto3" json:"ARN,omitempty"`
+	// Name is the human readable name for the Permission Set
 	Name                 string   `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -10757,7 +10765,9 @@ func (m *IdentityCenterPermissionSet) GetName() string {
 }
 
 // IdentityCenterAccountAssignment represents a requestable Identity Center
-// Account Assignment
+// Account Assignment. This is strictly a wire-format object for use with the
+// Unfied resource cache, and the types defined in the `identitycenter` package
+// should be used for actual processing.
 type IdentityCenterAccountAssignment struct {
 	// Kind is the database server resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -10766,9 +10776,13 @@ type IdentityCenterAccountAssignment struct {
 	// Version is the resource version.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is the account metadata.
-	Metadata             types.Metadata               `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
-	DisplayName          string                       `protobuf:"bytes,5,opt,name=DisplayName,proto3" json:"DisplayName,omitempty"`
-	Account              *IdentityCenterAccount       `protobuf:"bytes,6,opt,name=Account,proto3" json:"Account,omitempty"`
+	Metadata types.Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
+	// DisplayName is a human-readable name for the Account assignment
+	DisplayName string `protobuf:"bytes,5,opt,name=DisplayName,proto3" json:"DisplayName,omitempty"`
+	// Account is the Identity Center Account this assigment references
+	Account *IdentityCenterAccount `protobuf:"bytes,6,opt,name=Account,proto3" json:"Account,omitempty"`
+	// PermissionSet is the Identity Center Permission Set this assignment
+	// references
 	PermissionSet        *IdentityCenterPermissionSet `protobuf:"bytes,7,opt,name=PermissionSet,proto3" json:"PermissionSet,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
 	XXX_unrecognized     []byte                       `json:"-"`

@@ -19,7 +19,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -199,13 +198,15 @@ func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource1
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
 
+// IdentityCenterAccountAssignmentGetter provides read-only access to Identity
+// Center Account Assignment records
 type IdentityCenterAccountAssignmentGetter interface {
+	// GetAccountAssignment fetches a specific Account Assignment record.
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
-
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
 }
 
 // IdentityCenterAccountAssignments defines the operations to create and maintain
@@ -241,29 +242,65 @@ type IdentityCenter interface {
 	IdentityCenterAccountAssignments
 }
 
-func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterMatcher {
-	return &IdentityCenterMatcher{
-		accountID:        account.GetSpec().GetId(),
-		permissionSetARN: nil,
+// NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
+// match the supplied [IdentityCenterAccount].
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) RoleMatcher {
+	return &IdentityCenterAccountMatcher{
+		accountID: account.GetSpec().GetId(),
 	}
 }
 
-func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) *IdentityCenterMatcher {
-	psARN := account.GetSpec().GetPermissionSet().GetArn()
-	return &IdentityCenterMatcher{
-		accountID:        account.GetSpec().GetAccountId(),
-		permissionSetARN: &psARN,
-	}
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// Account resources against the AccountAssignments specified in a Role condition.
+type IdentityCenterAccountMatcher struct {
+	accountID string
 }
 
-type IdentityCenterMatcher struct {
-	accountID        string
-	permissionSetARN *string
-}
-
-func (m *IdentityCenterMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
 	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
-		accountMatches, err := m.matchExpression(m.accountID, asmt.Account)
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if accountMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *IdentityCenterAccountMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v)", m.accountID)
+}
+
+// NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
+// configured to match the supplied [IdentityCenterAccountAssignment].
+func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
+	return &IdentityCenterAccountMatcher{
+		accountID: account.GetSpec().GetAccountId(),
+	}
+}
+
+// IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
+// Account Assignment resources against the AccountAssignments specified in a
+// Role condition.
+type IdentityCenterAccountAssignmentMatcher struct {
+	accountID        string
+	permissionSetARN string
+}
+
+// Match implements Role Matching for Identity Center Account resources. It
+// attempts to match the Account Assignments in a Role Condition against a
+// known Account ID.
+func (m *IdentityCenterAccountAssignmentMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
+		accountMatches, err := matchExpression(m.accountID, asmt.Account)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -272,39 +309,30 @@ func (m *IdentityCenterMatcher) Match(role types.Role, condition types.RoleCondi
 			continue
 		}
 
-		if m.permissionSetARN == nil {
-			return true, nil
-		}
-
-		psMatches, err := m.matchExpression(*(m.permissionSetARN), asmt.PermissionSet)
+		permissionSetMatches, err := matchExpression(m.permissionSetARN, asmt.PermissionSet)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
-		if psMatches {
+		if permissionSetMatches {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func (m *IdentityCenterMatcher) matchExpression(target, accountExpression string) (bool, error) {
-	if accountExpression == types.Wildcard {
+func (m *IdentityCenterAccountAssignmentMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v, permissionSet=%v)",
+		m.accountID, m.permissionSetARN)
+}
+
+func matchExpression(target, expression string) (bool, error) {
+	if expression == types.Wildcard {
 		return true, nil
 	}
-	matches, err := utils.MatchString(target, accountExpression)
+	matches, err := utils.MatchString(target, expression)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	return matches, nil
-}
-
-func (m *IdentityCenterMatcher) String() string {
-	var text strings.Builder
-	fmt.Fprintf(&text, "IdentityCenterMatcher(account==%v", m.accountID)
-	if m.permissionSetARN != nil {
-		fmt.Fprintf(&text, ", ps==%v", *(m.permissionSetARN))
-	}
-	text.WriteRune(')')
-	return text.String()
 }

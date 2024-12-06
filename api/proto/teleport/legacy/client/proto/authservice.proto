@@ -1940,22 +1940,36 @@ message CreateRegisterChallengeRequest {
   DeviceUsage DeviceUsage = 3 [(gogoproto.jsontag) = "device_usage,omitempty"];
 }
 
-// IdentityCenterAccount
+// IdentityCenterAccount holds information about an Identity Center account
+// within an IdentityCenterAccountAssignment
 message IdentityCenterAccount {
+  // ID is the AWS-assigned account ID
   string ID = 1;
+
+  // ARN is the full Amazon Resource Name for the AWS account
   string ARN = 2;
+
+  // AccountName is the human-readable name of the account
   string AccountName = 3;
+
+  // Description is a free text description of the account
   string Description = 4;
 }
 
-// IdentityCenterPermissionSet
+// IdentityCenterPermissionSet holds information about an Identity Center
+// permission set within an IdentityCenterAccountAssignment
 message IdentityCenterPermissionSet {
+  // ARN is the full Amazon Resource Name for the Permission Set
   string ARN = 1;
+
+  // Name is the human readable name for the Permission Set
   string Name = 2;
 }
 
 // IdentityCenterAccountAssignment represents a requestable Identity Center
-// Account Assignment
+// Account Assignment. This is strictly a wire-format object for use with the
+// Unfied resource cache, and the types defined in the `identitycenter` package
+// should be used for actual processing.
 message IdentityCenterAccountAssignment {
   // Kind is the database server resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
@@ -1969,8 +1983,14 @@ message IdentityCenterAccountAssignment {
     (gogoproto.jsontag) = "metadata"
   ];
 
+  // DisplayName is a human-readable name for the Account assignment
   string DisplayName = 5;
+
+  // Account is the Identity Center Account this assigment references
   IdentityCenterAccount Account = 6;
+
+  // PermissionSet is the Identity Center Permission Set this assignment
+  // references
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 

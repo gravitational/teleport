@@ -1797,10 +1797,9 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource := types.Resource153ToUnifiedResource(
+	return types.Resource153ToUnifiedResource(
 		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
-	)
-	return resource.(types.ResourceWithLabels), nil
+	), nil
 }
 
 const (

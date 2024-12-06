@@ -1309,7 +1309,8 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 type actionChecker func(namespace, resourceKind string, verbs ...string) error
 
 func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
-	if resourceKind == types.KindIdentityCenterAccount {
+	switch resourceKind {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		// Identity Center resources can be specified multiple ways in a Role
 		// Condition statement, so we need a special checker to handle it.
 		return a.identityCenterAction
