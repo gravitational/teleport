@@ -464,7 +464,11 @@ func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
 	return a.Spec.IdentityCenter
 }
 
+// GetDisplayName fetches a human-readable display name for the App.
 func (a *AppV3) GetDisplayName() string {
+	// Only Identity Center apps have a display name at this point. Returning
+	// the empty string signals to the caller they should fall back to whatever
+	// they have been using in the past.
 	if a.Spec.IdentityCenter == nil {
 		return ""
 	}

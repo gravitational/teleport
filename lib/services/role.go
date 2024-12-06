@@ -2562,6 +2562,19 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	return
 }
 
+// resourceRequiresLabelMatching decides if a resource requires lapel matching
+// when making RBAC access decisions.
+func resourceRequiresLabelMatching(r AccessCheckable) bool {
+	// Some resources do not need label matching when assessing whether the user
+	// should be granted access. Enable it by default, but turn it off in the
+	// special cases.
+	switch r.GetKind() {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		return false
+	}
+	return true
+}
+
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
@@ -2577,12 +2590,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		return ErrSessionMFARequired
 	}
 
-	requiresLabelMatching := true
-	switch r.GetKind() {
-	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
-		requiresLabelMatching = false
-	}
-
+	requiresLabelMatching := resourceRequiresLabelMatching(r)
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
 
 	// Additional message depending on kind of resource
@@ -2623,9 +2631,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 					r.GetKind(), additionalDeniedMessage)
 			}
 		} else {
-			logger.Info("Skipping DENY label matching")
+			debugf("Role label matching skipped for %v %q", r.GetKind(), r.GetName())
 		}
-
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
 		logger.Info("Checking matchers", "matchers", matchers)
@@ -2680,7 +2687,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 				continue
 			}
 		} else {
-			logger.Info("Skipping ALLOW label match")
+			debugf("Role label matching skipped for %v %q", r.GetKind(), r.GetName())
 		}
 
 		// Allow rules are not greedy. They will match only if all of the

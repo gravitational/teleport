@@ -46,40 +46,49 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func TestUnifiedResourceWatcher(t *testing.T) {
-	t.Parallel()
+type client struct {
+	services.Presence
+	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
+	services.GitServers
+	services.IdentityCenterAccounts
+	types.Events
+}
 
-	ctx := context.Background()
+func newClient(t *testing.T) *client {
+	t.Helper()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccounts
-		types.Events
-	}
-
 	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
 	require.NoError(t, err)
-
+	gitService, err := local.NewGitServerService(bk)
+	require.NoError(t, err)
 	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)
 
-	clt := &client{
+	return &client{
 		Presence:                local.NewPresenceService(bk),
 		WindowsDesktops:         local.NewWindowsDesktopService(bk),
 		SAMLIdPServiceProviders: samlService,
 		Events:                  local.NewEventsService(bk),
+		GitServers:              gitService,
 		IdentityCenterAccounts:  icService,
 	}
+}
+
+func TestUnifiedResourceWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clt := newClient(t)
+
 	// Add node to the backend.
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
-	_, err = clt.UpsertNode(ctx, node)
+	_, err := clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
 	db, err := types.NewDatabaseV3(types.Metadata{
@@ -99,6 +108,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
+	gitServer := newGitServer(t, "my-org")
+	require.NoError(t, err)
+	_, err = clt.CreateGitServer(ctx, gitServer)
+	require.NoError(t, err)
 
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -108,10 +121,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		ResourceGetter: clt,
 	})
 	require.NoError(t, err)
-	// node and db expected initially
+	// node, db, and git_server expected initially
 	res, err := w.GetUnifiedResources(ctx)
 	require.NoError(t, err)
-	require.Len(t, res, 2)
+	require.Len(t, res, 3)
 
 	assert.Eventually(t, func() bool {
 		return w.IsInitialized()
@@ -152,10 +165,17 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	err = clt.UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
+	// add another git server
+	gitServer2 := newGitServer(t, "my-org-2")
+	_, err = clt.UpsertGitServer(ctx, gitServer2)
+	require.NoError(t, err)
+
 	icAcct := newIdentityCenterAccount(t, ctx, clt)
 
 	// we expect each of the resources above to exist
-	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win, services.WrapUnifiedResource153(icAcct)}
+	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
+		gitServer, gitServer2,
+		types.Resource153ToUnifiedResource(icAcct)}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		return len(res) == len(expectedRes)
@@ -168,6 +188,12 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
+
+		// Allow comparison of the wrapped resource inside a resource153ToLegacyAdapter
+		cmp.Transformer("Unwrap",
+			func(t types.Resource153Unwrapper) types.Resource153 {
+				return t.Unwrap()
+			}),
 
 		// Ignore unexported values in RFD153-style resources
 		cmpopts.IgnoreUnexported(
@@ -185,7 +211,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
-	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win, services.WrapUnifiedResource153(icAcct)}
+	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
+		gitServer, gitServer2,
+		types.Resource153ToUnifiedResource(icAcct)}
+
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
@@ -201,6 +230,12 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+
+		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
+		cmp.Transformer("Unwrap",
+			func(t types.Resource153Unwrapper) types.Resource153 {
+				return t.Unwrap()
+			}),
 
 		// Ignore unexported values in RFD153-style resources
 		cmpopts.IgnoreUnexported(
@@ -218,33 +253,7 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccountGetter
-		types.Events
-	}
-
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
-	require.NoError(t, err)
-
-	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: bk,
-	})
-	require.NoError(t, err)
-
-	clt := &client{
-		Presence:                    local.NewPresenceService(bk),
-		WindowsDesktops:             local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders:     samlService,
-		Events:                      local.NewEventsService(bk),
-		IdentityCenterAccountGetter: icService,
-	}
+	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
@@ -281,33 +290,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		services.WindowsDesktops
-		services.SAMLIdPServiceProviders
-		services.IdentityCenterAccounts
-		types.Events
-	}
-
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
-	require.NoError(t, err)
-
-	icService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: bk,
-	})
-	require.NoError(t, err)
-
-	clt := &client{
-		Presence:                local.NewPresenceService(bk),
-		WindowsDesktops:         local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders: samlService,
-		Events:                  local.NewEventsService(bk),
-		IdentityCenterAccounts:  icService,
-	}
+	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
@@ -404,9 +387,14 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 
 	icAcct := newIdentityCenterAccount(t, ctx, clt)
 
+	// add git server
+	gitServer := newGitServer(t, "my-org")
+	_, err = clt.CreateGitServer(ctx, gitServer)
+	require.NoError(t, err)
+
 	assert.Eventually(t, func() bool {
 		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 7
+		return len(res) == 8
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// delete everything
@@ -423,6 +411,8 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
 	require.NoError(t, err)
 	err = clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().GetName()))
+	require.NoError(t, err)
+	err = clt.DeleteGitServer(ctx, gitServer.GetName())
 	require.NoError(t, err)
 
 	assert.Eventually(t, func() bool {
@@ -476,6 +466,16 @@ func newTestEntityDescriptor(entityID string) string {
 	return fmt.Sprintf(testEntityDescriptor, entityID)
 }
 
+func newGitServer(t *testing.T, githubOrg string) types.Server {
+	t.Helper()
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Organization: githubOrg,
+		Integration:  githubOrg,
+	})
+	require.NoError(t, err)
+	return gitServer
+}
+
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
 const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
@@ -499,8 +499,7 @@ func newIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.Id
 			Metadata: &headerv1.Metadata{
 				Name: t.Name(),
 				Labels: map[string]string{
-					types.OriginLabel:                common.OriginIntegrationAWSOIDC,
-					types.IdentityCenterAccountLabel: accountID,
+					types.OriginLabel: common.OriginIntegrationAWSOIDC,
 				},
 			},
 			Spec: &identitycenterv1.AccountSpec{

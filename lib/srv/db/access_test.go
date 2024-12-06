@@ -2389,7 +2389,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2542,7 +2542,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

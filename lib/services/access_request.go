@@ -2190,10 +2190,6 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
-		logger := slog.With(slog.Group("resource",
-			slog.String("kind", resource.GetKind()),
-			slog.String("name", resource.GetName())))
-
 		var (
 			rolesForResource    []types.Role
 			matchers            []RoleMatcher
@@ -2219,26 +2215,18 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			}
 		}
 
-		logger.Info("Checking Roles", "count", len(allRoles))
-
 		for _, role := range allRoles {
-			logger := logger.With("role", role.GetName())
-			logger.Info("checking role")
-
 			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
-				logger.Info("role does NOT allow access")
 				// Role does not allow access to this resource. We will prune it
 				// unless it allows access to another resource.
 				continue
 			}
-			logger.Info("role allows access")
 			rolesForResource = append(rolesForResource, role)
 		}
-
 		// If any of the requested resources didn't match with the provided roles,
 		// we deny the request because the user is trying to request more access
 		// than what is allowed by its search_as_roles.
@@ -2358,15 +2346,6 @@ func (m *RequestValidator) roleAllowsResource(
 	}
 	// Role allows access to this resource.
 	return true, nil
-}
-
-// resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
-// if the resourceMatcher is not nil, otherwise returns a nil slice.
-func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {
-	if resourceMatcher == nil {
-		return nil
-	}
-	return []RoleMatcher{resourceMatcher}
 }
 
 // getUnderlyingResourcesByResourceIDs gets the underlying resources the user

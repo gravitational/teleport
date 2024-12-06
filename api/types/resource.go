@@ -689,7 +689,6 @@ func FriendlyName(resource ResourceWithLabels) string {
 	switch rr := resource.(type) {
 	case interface{ GetHostname() string }:
 		return rr.GetHostname()
-
 	case interface{ GetDisplayName() string }:
 		return rr.GetDisplayName()
 	}

@@ -117,7 +117,8 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 }
 
 // Resource153ToLegacy transforms an RFD 153 style resource into a legacy
-// [Resource] type.
+// [Resource] type. Implements [ResourceWithLabels] and CloneResource (where the)
+// wrapped resource supports cloning).
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.

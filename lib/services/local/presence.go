@@ -75,7 +75,6 @@ func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	startKey := backend.ExactKey(namespacesPrefix)
 	endKey := backend.RangeEnd(startKey)
 	result, err := s.GetRange(context.TODO(), startKey, endKey, backend.NoLimit)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,10 +345,10 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if server.GetNamespace() == "" {
 		server.SetNamespace(apidefaults.Namespace)
 	}
-
-	if n := server.GetNamespace(); n != apidefaults.Namespace {
-		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
@@ -378,10 +377,10 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 	if server.GetNamespace() == "" {
 		server.SetNamespace(apidefaults.Namespace)
 	}
-
-	if n := server.GetNamespace(); n != apidefaults.Namespace {
-		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
@@ -1004,6 +1003,10 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalDatabaseServer(server)
 	if err != nil {
@@ -1097,6 +1100,10 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalAppServer(server)
 	if err != nil {
@@ -1378,9 +1385,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccount:
 		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccount
-	case types.KindIdentityCenterAccountAssignment:
-		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
-		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1392,13 +1396,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 	}
-
-	slog.Info("Filter",
-		slog.Group("request",
-			slog.Any("kind", req.ResourceType),
-			slog.Any("labels", req.Labels),
-			slog.Any("keywords", req.SearchKeywords),
-			slog.Any("predicate", req.PredicateExpression)))
 
 	if req.PredicateExpression != "" {
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
@@ -1413,38 +1410,21 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	maxLimit := reqLimit + 1
 	var resources []types.ResourceWithLabels
 	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		slog.Info("Iterating over resource range", "items", len(items))
-
 		for _, item := range items {
 			if len(resources) == maxLimit {
 				break
 			}
 
-			logger := slog.With("key", item.Key)
-
-			logger.Info("----------------------")
-			logger.Info("Unmarshaling resource")
-
 			resource, err := unmarshalItemFunc(item)
 			if err != nil {
-				logger.Error("Unmarshaling failed", "error", err)
 				return false, trace.Wrap(err)
 			}
-
-			logger.Info("Unmarshaled resource",
-				"kind", resource.GetKind(),
-				"name", resource.GetName())
 
 			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
-
 			case match:
-				logger.Info("Matched")
 				resources = append(resources, resource)
-
-			default:
-				logger.Info("Did not match")
 			}
 		}
 

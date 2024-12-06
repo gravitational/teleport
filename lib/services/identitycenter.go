@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -192,7 +191,7 @@ type IdentityCenterAccountAssignment struct {
 // CloneResource creates a deep copy of the underlying account resource
 func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource153 {
 	return IdentityCenterAccountAssignment{
-		AccountAssignment: proto.Clone(a.AccountAssignment).(*identitycenterv1.AccountAssignment),
+		AccountAssignment: apiutils.CloneProtoMsg(a.AccountAssignment),
 	}
 }
 

@@ -175,7 +175,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
-	case types.KindDatabaseServer:
+	case types.KindDatabaseServer, "db_servers":
 		return types.KindDatabaseServer, nil
 	case types.KindNetworkRestrictions:
 		return types.KindNetworkRestrictions, nil
@@ -185,7 +185,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindApp, nil
 	case types.KindAppServer, "app_servers":
 		return types.KindAppServer, nil
-	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
+	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service", "windows_desktop_services":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
 		return types.KindWindowsDesktop, nil

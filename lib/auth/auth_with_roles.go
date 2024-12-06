@@ -1306,6 +1306,17 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	return true, nil
 }
 
+type actionChecker func(namespace, resourceKind string, verbs ...string) error
+
+func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
+	if resourceKind == types.KindIdentityCenterAccount {
+		// Identity Center resources can be specified multiple ways in a Role
+		// Condition statement, so we need a special checker to handle it.
+		return a.identityCenterAction
+	}
+	return a.actionNamespace
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	filter := services.MatchResourceFilter{
@@ -1343,13 +1354,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		actionChecker := a.actionNamespace
-		if kind == types.KindIdentityCenterAccount ||
-			kind == types.KindIdentityCenterAccountAssignment {
-			actionChecker = a.identityCenterAction
-		}
-
-		resourceAccess.kindAccessMap[kind] = actionChecker(apidefaults.Namespace, kind, actionVerbs...)
+		checkAction := a.selectActionChecker(kind)
+		resourceAccess.kindAccessMap[kind] = checkAction(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1694,13 +1700,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	actionChecker := a.actionNamespace
-	if req.ResourceType == types.KindIdentityCenterAccount ||
-		req.ResourceType == types.KindIdentityCenterAccountAssignment {
-		actionChecker = a.identityCenterAction
-	}
-
-	if err := actionChecker(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
+	checkAction := a.selectActionChecker(req.ResourceType)
+	if err := checkAction(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -142,6 +142,7 @@ type testPack struct {
 	provisioningStates      services.ProvisioningStates
 	identityCenter          services.IdentityCenter
 	pluginStaticCredentials *local.PluginStaticCredentialsService
+	gitServers              services.GitServers
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -409,6 +410,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.gitServers, err = local.NewGitServerService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -463,6 +469,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
+		GitServers:              p.gitServers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -878,6 +885,7 @@ func TestCompletenessInit(t *testing.T) {
 			IdentityCenter:          p.identityCenter,
 			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
+			GitServers:              p.gitServers,
 		}))
 		require.NoError(t, err)
 
@@ -963,6 +971,7 @@ func TestCompletenessReset(t *testing.T) {
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1175,6 +1184,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1270,6 +1280,7 @@ func initStrategy(t *testing.T) {
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -3544,6 +3555,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
+		types.KindGitServer:                         &types.ServerV2{},
 	}
 
 	for name, cfg := range cases {

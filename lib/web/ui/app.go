@@ -34,9 +34,9 @@ import (
 type App struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
-	// Subkind is the subkind of the app resource. Used to differentiate different
+	// SubKind is the subkind of the app resource. Used to differentiate different
 	// flavors of app.
-	Subkind string `json:"subkind,omitempty"`
+	SubKind string `json:"subkind,omitempty"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
@@ -71,7 +71,7 @@ type App struct {
 	Integration string `json:"integration,omitempty"`
 	// PermissionSets holds the permission sets that this app grants access to.
 	// Only valid for Identity Center Account apps
-	PermissionSets []IdentityCenterPermissionSet `json:"permission_sets,omitempty"`
+	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -85,11 +85,13 @@ type UserGroupAndDescription struct {
 // IdentityCenterPermissionSet holds information about Identity Center
 // Permission Sets for transmission to the UI
 type IdentityCenterPermissionSet struct {
+	// Name is the human-readable name of the permission set
 	Name string `json:"name"`
-	ARN  string `json:"arn"`
-	// AssignmentName is the assignment resource that will provision an Account
+	// ARN is the AWS-assigned ARN of the permission set
+	ARN string `json:"arn"`
+	// AssignmentID is the assignment resource that will provision an Account
 	// Assignment for this Permission Set on the enclosing account
-	AssignmentName  string `json:"accountAssignment,omitempty"`
+	AssignmentID    string `json:"accountAssignment,omitempty"`
 	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
@@ -150,7 +152,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 	resultApp := App{
 		Kind:            types.KindApp,
-		Subkind:         app.GetSubKind(),
+		SubKind:         app.GetSubKind(),
 		Name:            app.GetName(),
 		Description:     description,
 		URI:             app.GetURI(),
@@ -183,9 +185,9 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 	dst := make([]IdentityCenterPermissionSet, len(src))
 	for i, srcPS := range src {
 		dst[i] = IdentityCenterPermissionSet{
-			Name:           srcPS.Name,
-			ARN:            srcPS.ARN,
-			AssignmentName: srcPS.AssignmentName,
+			Name:         srcPS.Name,
+			ARN:          srcPS.ARN,
+			AssignmentID: srcPS.AssignmentID,
 		}
 	}
 	return dst
