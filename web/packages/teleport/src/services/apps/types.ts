@@ -53,11 +53,11 @@ export interface App {
   integration?: string;
   /** subKind is subKind of an App. */
   subKind?: appSubKind;
-  /** permission_sets is a list of AWS IAM Identity Center permission sets
+  /** permissionSets is a list of AWS IAM Identity Center permission sets
    * available for this App. The value is only populated if the app SubKind is
    * aws_ic_account.
    */
-  permission_sets?: PermissionSet[];
+  permissionSets?: PermissionSet[];
 }
 
 export type UserGroupAndDescription = {
@@ -77,6 +77,6 @@ export type PermissionSet = {
   name: string;
   /** arn is a permission set ARN */
   arn: string;
-  /** accountAssignment is an account assignment name. */
-  accountAssignment: string;
+  /** assignmentId is an account assignment ID. */
+  assignmentId: string;
 };
