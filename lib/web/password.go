@@ -108,5 +108,5 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
 }

@@ -38,12 +38,16 @@ import {
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
 export default function useReAuthenticate(props: ReauthProps): ReauthState {
+  if (!props.getMfaChallenge) {
+    props.getMfaChallenge = () =>
+      auth.getMfaChallenge({ scope: props.challengeScope });
+  }
+
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
   // to the caller who is responsible for rendering the `ReAuthenticate`
   // component.
   const { attempt, setAttempt } = useAttempt('');
-
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>(null);
 
   // Provide a custom error handler to catch a webauthn frontend error that occurs
@@ -79,7 +83,7 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
       return challenge;
     }
 
-    return auth.getMfaChallenge({ scope: props.challengeScope }).then(chal => {
+    return props.getMfaChallenge().then(chal => {
       setMfaChallenge(chal);
       return chal;
     });
@@ -133,6 +137,7 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
 
 export type ReauthProps = {
   challengeScope?: MfaChallengeScope;
+  getMfaChallenge?(): Promise<MfaAuthenticateChallenge>;
   onMfaResponse?(res: MfaChallengeResponse): void;
   // TODO(Joerger): Remove in favor of onMfaResponse, make onMfaResponse required.
   onAuthenticated?(privilegeTokenId: string): void;

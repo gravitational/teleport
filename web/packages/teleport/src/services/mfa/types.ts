@@ -52,7 +52,7 @@ export type SaveNewHardwareDeviceRequest = {
 };
 
 export type MfaAuthenticateChallengeJson = {
-  sso_challenge?: SSOChallenge;
+  sso_challenge?: SsoChallenge;
   totp_challenge?: boolean;
   webauthn_challenge?: {
     publicKey: PublicKeyCredentialRequestOptionsJSON;
@@ -60,12 +60,12 @@ export type MfaAuthenticateChallengeJson = {
 };
 
 export type MfaAuthenticateChallenge = {
-  ssoChallenge?: SSOChallenge;
+  ssoChallenge?: SsoChallenge;
   totpChallenge?: boolean;
   webauthnPublicKey?: PublicKeyCredentialRequestOptions;
 };
 
-export type SSOChallenge = {
+export type SsoChallenge = {
   channelId: string;
   redirectUrl: string;
   requestId: string;

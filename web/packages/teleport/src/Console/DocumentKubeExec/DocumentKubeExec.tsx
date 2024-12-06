@@ -43,7 +43,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.requested]);
+  }, [visible, mfa.challenge]);
   const theme = useTheme();
 
   const terminal = (
@@ -63,7 +63,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      {mfa.challenge && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />
