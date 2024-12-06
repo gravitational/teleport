@@ -7,7 +7,7 @@
 * Avoid tight web session renewals for sessions with short TTL (between 3m and 30s). [#49769](https://github.com/gravitational/teleport/pull/49769)
 * Updated Go to 1.22.10. [#49759](https://github.com/gravitational/teleport/pull/49759)
 * Added support for hardware keys in Teleport Connect. [#49701](https://github.com/gravitational/teleport/pull/49701)
-* Client tools {tctl,tsh} auto-updates controlled by cluster configuration. [#48645](https://github.com/gravitational/teleport/pull/48645)
+* Auto-updates for client tools (`tctl` and `tsh`) are controlled by cluster configuration. [#48645](https://github.com/gravitational/teleport/pull/48645)
 
 ## 16.4.9 (12/3/2024)
 
