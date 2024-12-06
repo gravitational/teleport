@@ -37,12 +37,14 @@ const (
 )
 
 // TLSIdentity is the identity used for TLS connections.
+// Must be kept in sync with tlsca.Identity.
 type TLSIdentity struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Username is a username or name of the node connection.
+	// Username is the name of the user (for end-users/bots) or the Host ID (for
+	// Teleport processes).
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// Impersonator is a username of a user impersonating this user.
 	Impersonator string `protobuf:"bytes,2,opt,name=impersonator,proto3" json:"impersonator,omitempty"`
