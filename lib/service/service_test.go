@@ -1866,6 +1866,8 @@ func TestAgentRolloutController(t *testing.T) {
 	cfg.DebugService.Enabled = false
 	cfg.Auth.StorageConfig.Params["path"] = dataDir
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	// Speed up the reconciliation period from 1 minute to 200ms for testing purposes
+	cfg.Auth.AgentRolloutControllerSyncPeriod = 200 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
