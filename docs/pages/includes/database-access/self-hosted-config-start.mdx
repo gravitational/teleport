@@ -10,14 +10,14 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Run the following command to generate a configuration file at
 `/etc/teleport.yaml` for the Database Service. Update 
-<Var name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+<Var name="example.teleport.sh:443" /> to use the host and port of the Teleport Proxy
 Service:
 
 ```code
 $ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="example.teleport.sh" /> \
+   --proxy=<Var name="example.teleport.sh:443" /> \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
