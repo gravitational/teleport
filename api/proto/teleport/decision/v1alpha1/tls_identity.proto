@@ -22,8 +22,10 @@ import "teleport/trait/v1/trait.proto";
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
 // TLSIdentity is the identity used for TLS connections.
+// Must be kept in sync with tlsca.Identity.
 message TLSIdentity {
-  // Username is a username or name of the node connection.
+  // Username is the name of the user (for end-users/bots) or the Host ID (for
+  // Teleport processes).
   string username = 1;
 
   // Impersonator is a username of a user impersonating this user.
