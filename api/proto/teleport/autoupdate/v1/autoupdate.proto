@@ -183,7 +183,7 @@ message AutoUpdateAgentRolloutStatusGroup {
   // config_start_hour to initiate update
   int32 config_start_hour = 7;
   // config_wait_days after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
-  int64 config_wait_days = 9;
+  int64 config_wait_days = 8;
 }
 
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
