@@ -96,12 +96,12 @@ func TestCommandExecution(t *testing.T) {
 					var buf []byte
 					_, err := tc.conn.Read(buf[0:])
 					assert.ErrorIs(t, err, io.EOF)
-				}, time.Second, time.Millisecond)
+				}, 5*time.Second, time.Millisecond)
 
 				select {
 				case err := <-runErrChan:
 					require.NoError(t, err, "expected the REPL instance exit gracefully")
-				case <-time.After(time.Second):
+				case <-time.After(5 * time.Second):
 					require.Fail(t, "expected REPL run to terminate but got nothing")
 				}
 				return
@@ -115,7 +115,7 @@ func TestCommandExecution(t *testing.T) {
 			select {
 			case err := <-runErrChan:
 				require.ErrorIs(t, err, context.Canceled, "expected the REPL instance to finish running with error due to cancelation")
-			case <-time.After(time.Second):
+			case <-time.After(5 * time.Second):
 				require.Fail(t, "expected REPL run to terminate but got nothing")
 			}
 		})

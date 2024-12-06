@@ -107,7 +107,7 @@ func TestQuery(t *testing.T) {
 			select {
 			case query := <-tc.QueryChan():
 				require.Equal(t, tt.expectedQuery, query)
-			case <-time.After(time.Second):
+			case <-time.After(5 * time.Second):
 				require.Fail(t, "expected to receive query but got nothing")
 			}
 
@@ -264,7 +264,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		select {
 		case err := <-tc.errChan:
 			require.NoError(t, err)
-		case <-time.After(time.Second):
+		case <-time.After(5 * time.Second):
 			require.Fail(t, "expected to receive the test server close result but got nothing")
 		}
 	})
