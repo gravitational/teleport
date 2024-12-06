@@ -445,7 +445,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
-	// Access requests are expired explicitly.
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,

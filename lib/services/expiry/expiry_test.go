@@ -39,7 +39,7 @@ func TestExpiry(t *testing.T) {
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
-		AuthPreferenceSpec:&types.AuthPreferenceSpecV2{
+		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: "localhost",
@@ -61,14 +61,14 @@ func TestExpiry(t *testing.T) {
 
 	ctx := context.Background()
 
-	expiry, err := New(ctx, cfg)
+	expiry, err := New(cfg)
 	require.NoError(t, err)
 
 	scanInterval = time.Second
 	pendingRequestGracePeriod = time.Second
 
 	go func() {
-		err := expiry.Run()
+		err := expiry.Run(ctx)
 		require.NoError(t, err)
 	}()
 

@@ -2451,7 +2451,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
 	})
 
-	expiry, err := expiry.New(process.ExitContext(), &expiry.Config{
+	expiry, err := expiry.New(&expiry.Config{
 		Log: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
 		),
@@ -2464,7 +2464,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.expiry", func() error {
-		if err := expiry.Run(); err != nil {
+		if err := expiry.Run(process.ExitContext()); err != nil {
 			logger.ErrorContext(process.ExitContext(), "expiry starting", "error", err)
 		}
 		return trace.Wrap(err)
