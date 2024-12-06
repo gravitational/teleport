@@ -1905,10 +1905,16 @@ func TestAgentRolloutController(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: advance clock to trigger a reconciliation
+	// There is no way of precisely knowing how many services are waiting for the fake clock to advance.
+	// If we were to do `fakeClock.BlockUntil(waiterCount)`, this wait would break the next time we add a new service
+	// waiting for the clock.
+	// To avoid deadlocks, we advance the clock during each require.Eventually() try.
+	// This is hacky but avoids the controller's ticker to hang, waiting for a clock Advance that already happened.
 	fakeClock.Advance(2 * time.Minute)
 
 	// Test validation: check that a new autoupdate_agent_rollout config was created
 	require.Eventually(t, func() bool {
+		fakeClock.Advance(2 * time.Minute)
 		rollout, err := authServer.GetAutoUpdateAgentRollout(ctx)
 		if err != nil {
 			return false
