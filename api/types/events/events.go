@@ -503,6 +503,31 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Roles = nil
+	out.Reason = ""
+	out.Annotations = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrsInSlice(m.Roles) +
+		nonEmptyStrs(m.Reason) +
+		m.Annotations.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Annotations = m.Annotations.trimToMaxSize(maxFieldsSize)
+
+	return out
+}
+
 func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
