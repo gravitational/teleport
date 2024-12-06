@@ -66,12 +66,22 @@ func (t testVmCli) ListVirtualMachines(ctx context.Context, scope string) ([]*ar
 
 func newRoleDef(id string, name string) *armauthorization.RoleDefinition {
 	role_name := "test_role_name"
+	action1 := "Microsoft.Compute/virtualMachines/read"
+	action2 := "Microsoft.Compute/virtualMachines/*"
+	action3 := "Microsoft.Compute/*"
 	return &armauthorization.RoleDefinition{
 		ID:   &id,
 		Name: &name,
 		Properties: &armauthorization.RoleDefinitionProperties{
-			Permissions: []*armauthorization.Permission{},
-			RoleName:    &role_name,
+			Permissions: []*armauthorization.Permission{
+				{
+					Actions: []*string{&action1, &action2},
+				},
+				{
+					Actions: []*string{&action3},
+				},
+			},
+			RoleName: &role_name,
 		},
 	}
 }
@@ -112,7 +122,7 @@ func TestPoll(t *testing.T) {
 	roleAssignClient := testRoleAssignCli{}
 	vmClient := testVmCli{}
 	fetcher := Fetcher{
-		Config:           Config{},
+		Config:           Config{SubscriptionID: "1234567890"},
 		lastResult:       &Resources{},
 		roleDefClient:    &roleDefClient,
 		roleAssignClient: &roleAssignClient,
@@ -189,14 +199,29 @@ func TestPoll(t *testing.T) {
 
 		// Verify the results, based on the features set
 		require.NotNil(t, resources)
-		if tt.feats.RoleDefinitions {
-			require.Len(t, resources.RoleDefinitions, len(tt.roleDefs))
+		require.Equal(t, tt.feats.RoleDefinitions == false || len(tt.roleDefs) == 0, len(resources.RoleDefinitions) == 0)
+		for idx, resource := range resources.RoleDefinitions {
+			roleDef := tt.roleDefs[idx]
+			require.Equal(t, *roleDef.ID, resource.Id)
+			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+			require.Equal(t, *roleDef.Properties.RoleName, resource.Name)
+			require.Len(t, roleDef.Properties.Permissions, len(resource.Permissions))
 		}
-		if tt.feats.RoleAssignments {
-			require.Len(t, resources.RoleAssignments, len(tt.roleAssigns))
+		require.Equal(t, tt.feats.RoleAssignments == false || len(tt.roleAssigns) == 0, len(resources.RoleAssignments) == 0)
+		for idx, resource := range resources.RoleAssignments {
+			roleAssign := tt.roleAssigns[idx]
+			require.Equal(t, *roleAssign.ID, resource.Id)
+			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+			require.Equal(t, *roleAssign.Properties.PrincipalID, resource.PrincipalId)
+			require.Equal(t, *roleAssign.Properties.RoleDefinitionID, resource.RoleDefinitionId)
+			require.Equal(t, *roleAssign.Properties.Scope, resource.Scope)
 		}
-		if tt.feats.VirtualMachines {
-			require.Len(t, resources.VirtualMachines, len(tt.vms))
+		require.Equal(t, tt.feats.VirtualMachines == false || len(tt.vms) == 0, len(resources.VirtualMachines) == 0)
+		for idx, resource := range resources.VirtualMachines {
+			vm := tt.vms[idx]
+			require.Equal(t, *vm.ID, resource.Id)
+			require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
+			require.Equal(t, *vm.Name, resource.Name)
 		}
 	}
 }

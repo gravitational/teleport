@@ -38,10 +38,11 @@ func (a *Fetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraphv1alp
 	// Convert to protobuf format
 	pbRoleDefs := make([]*accessgraphv1alpha.AzureRoleDefinition, 0, len(roleDefs))
 	for _, roleDef := range roleDefs {
-		pbPerms := make([]*accessgraphv1alpha.AzureRBACPermission, len(roleDef.Properties.Permissions))
+		pbPerms := make([]*accessgraphv1alpha.AzureRBACPermission, 0, len(roleDef.Properties.Permissions))
 		for _, perm := range roleDef.Properties.Permissions {
 			pbPerm := accessgraphv1alpha.AzureRBACPermission{
-				Actions: ptrsToList(perm.Actions),
+				Actions:    ptrsToList(perm.Actions),
+				NotActions: ptrsToList(perm.NotActions),
 			}
 			pbPerms = append(pbPerms, &pbPerm)
 		}
@@ -58,7 +59,7 @@ func (a *Fetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraphv1alp
 }
 
 func ptrsToList(ptrs []*string) []string {
-	strList := make([]string, len(ptrs))
+	strList := make([]string, 0, len(ptrs))
 	for _, ptr := range ptrs {
 		strList = append(strList, *ptr)
 	}

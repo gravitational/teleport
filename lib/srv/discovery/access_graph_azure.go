@@ -305,6 +305,20 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 		}
 	}()
 
+	// Configure the poll interval
+	tickerInterval := defaultPollInterval
+	if s.Config.Matchers.AccessGraph != nil {
+		if s.Config.Matchers.AccessGraph.PollInterval > defaultPollInterval {
+			tickerInterval = s.Config.Matchers.AccessGraph.PollInterval
+		} else {
+			s.Log.WarnContext(ctx,
+				"Access graph Azure service poll interval cannot be less than the default",
+				"default_poll_interval",
+				defaultPollInterval)
+		}
+	}
+	s.Log.InfoContext(ctx, "Access graph Azure service poll interval", "poll_interval", tickerInterval)
+
 	// Reconciles the resources as they're imported from Azure
 	azureResources := &azure_sync.Resources{}
 	ticker := time.NewTicker(15 * time.Minute)

@@ -1685,6 +1685,10 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	delete(s.dynamicTAGAWSFetchers, name)
 	s.muDynamicTAGAWSFetchers.Unlock()
 
+	s.muDynamicTAGAzureFetchers.Lock()
+	delete(s.dynamicTAGAzureFetchers, name)
+	s.muDynamicTAGAzureFetchers.Unlock()
+
 	s.muDynamicKubeFetchers.Lock()
 	delete(s.dynamicKubeFetchers, name)
 	s.muDynamicKubeFetchers.Unlock()
