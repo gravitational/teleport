@@ -18,25 +18,25 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType } from 'teleport/services/mfa';
+import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import makePasswordToken from './makePasswordToken';
-import { makeChangedUserAuthn } from './make';
 import {
-  makeMfaAuthenticateChallenge,
-  makeMfaRegistrationChallenge,
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-} from './makeMfa';
+} from '../mfa/makeMfa';
+
+import makePasswordToken from './makePasswordToken';
+import { makeChangedUserAuthn } from './make';
 import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
   ChangePasswordReq,
   CreateNewHardwareDeviceRequest,
-  DeviceUsage,
   CreateAuthenticateChallengeRequest,
 } from './types';
 
@@ -65,7 +65,7 @@ const auth = {
         deviceType,
         deviceUsage,
       })
-      .then(makeMfaRegistrationChallenge);
+      .then(parseMfaRegistrationChallengeJson);
   },
 
   /**
@@ -94,7 +94,7 @@ const auth = {
   createMfaAuthnChallengeWithToken(tokenId: string) {
     return api
       .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   // mfaLoginBegin retrieves users mfa challenges for their
@@ -107,7 +107,7 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   login(userId: string, password: string, otpCode: string) {
@@ -270,7 +270,7 @@ const auth = {
         },
         abortSignal
       )
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   async fetchWebAuthnChallenge(
@@ -291,7 +291,7 @@ const auth = {
             },
             abortSignal
           )
-          .then(makeMfaAuthenticateChallenge)
+          .then(parseMfaChallengeJson)
       )
       .then(res =>
         navigator.credentials.get({

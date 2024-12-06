@@ -24,11 +24,12 @@ import Dialog from 'design/Dialog';
 
 import { http, HttpResponse, delay } from 'msw';
 
-import { DeviceUsage } from 'teleport/services/auth';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 
 import cfg from 'teleport/config';
+
+import { DeviceUsage } from 'teleport/services/mfa';
 
 import {
   AddAuthDeviceWizardStepProps,

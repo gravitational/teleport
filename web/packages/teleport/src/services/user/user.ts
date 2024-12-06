@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import session from 'teleport/services/websession';
 
-import { WebauthnAssertionResponse } from '../auth';
+import { WebauthnAssertionResponse } from '../mfa';
 
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
