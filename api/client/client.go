@@ -2299,9 +2299,12 @@ func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster type
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
 	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
-	if err != nil && trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err, "control plane does not support this operation, "+
-			"consider upgrading your control plane")
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err, "control plane does not support this operation, "+
+				"consider upgrading your control plane")
+		}
+		return nil, trace.Wrap(err)
 	}
 	return resp, nil
 }
