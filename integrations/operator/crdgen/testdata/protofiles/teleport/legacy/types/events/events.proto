@@ -2675,6 +2675,9 @@ message AppMetadata {
   ];
   // AppName is the configured application name.
   string AppName = 4 [(gogoproto.jsontag) = "app_name,omitempty"];
+  // AppTargetPort signifies that the app is a multi-port TCP app and says which port was used to
+  // access the app. This field is not set for other types of apps, including single-port TCP apps.
+  uint32 AppTargetPort = 5 [(gogoproto.jsontag) = "app_target_port,omitempty"];
 }
 
 // AppCreate is emitted when a new application resource is created.
@@ -4330,6 +4333,8 @@ message IntegrationMetadata {
   AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   // AzureOIDC contains metadata for Azure OIDC integrations.
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+  // GitHub contains metadata for GitHub integrations.
+  GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4349,6 +4354,12 @@ message AzureOIDCIntegrationMetadata {
 
   // ClientID specifies the ID of Azure enterprise application (client).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationMetadata contains metadata for GitHub integrations.
+message GitHubIntegrationMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -4676,6 +4687,8 @@ message OneOf {
     events.UserTaskUpdate UserTaskUpdate = 189;
     events.UserTaskDelete UserTaskDelete = 190;
     events.SFTPSummary SFTPSummary = 191;
+    events.ContactCreate ContactCreate = 192;
+    events.ContactDelete ContactDelete = 193;
   }
 }
 
@@ -4829,6 +4842,9 @@ message RouteToApp {
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
   // URI is the application URI.
   string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
+  // TargetPort signifies that the user accessed a specific port in a multi-port TCP app. The value
+  // must be between 1 and 65535.
+  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -7565,4 +7581,99 @@ message UserTaskDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// ContactCreate is emitted when a contact is created.
+message ContactCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Email is the Email of the contact being deleted
+  string Email = 6 [(gogoproto.jsontag) = "email"];
+
+  // ContactType is the type of the contact being deleted ('Business' or 'Security')
+  ContactType ContactType = 7 [(gogoproto.jsontag) = "contact_type"];
+}
+
+// ContactDelete is emitted when a contact is deleted.
+message ContactDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Email is the Email of the contact being deleted
+  string Email = 6 [(gogoproto.jsontag) = "email"];
+
+  // ContactType is the type of the contact being deleted ('Business' or 'Security')
+  ContactType ContactType = 7 [(gogoproto.jsontag) = "contact_type"];
+}
+
+// ContactType is the type of contact being added.
+enum ContactType {
+  CONTACT_TYPE_UNSPECIFIED = 0;
+  CONTACT_TYPE_BUSINESS = 1;
+  CONTACT_TYPE_SECURITY = 2;
 }
