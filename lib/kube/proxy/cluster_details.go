@@ -131,11 +131,9 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		go dynLabels.Start()
 	}
 
-	kubeClient := creds.getKubeClient()
-
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, kubeClient)
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -145,7 +143,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		isClusterOffline = true
 	}
 
-	kubeVersion, err := kubeClient.Discovery().ServerVersion()
+	kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
 	}
@@ -185,12 +183,13 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 	// Start the periodic update of the codec factory and the list of supported types for RBAC.
 	go func() {
 		defer k.wg.Done()
-
-		for {
+		i := 0
+		for ; ; i++ {
 			select {
 			case <-ctx.Done():
 				return
 			case <-refreshDelay.After():
+				t := cfg.clock.Now()
 				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 				if err != nil {
 					// If this is first time we get an error, we reset retry mechanism so it will start trying to refresh details quicker, with linear backoff.
@@ -200,11 +199,29 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 					} else {
 						refreshDelay.Inc()
 					}
-					cfg.log.WithError(err).Error("Failed to update cluster schema")
+					cfg.log.WithError(err).WithFields(
+						logrus.Fields{
+							"cluster":      cfg.cluster.GetName(),
+							"start_time":   t.Format(time.RFC3339),
+							"current_time": cfg.clock.Now().Format(time.RFC3339),
+							"duration":     cfg.clock.Now().Sub(t),
+							"attempt":      i,
+						},
+					).Error("Failed to update cluster schema")
 					continue
 				}
 
-				kubeVersion, err := kubeClient.Discovery().ServerVersion()
+				cfg.log.WithFields(
+					logrus.Fields{
+						"cluster":      cfg.cluster.GetName(),
+						"start_time":   t.Format(time.RFC3339),
+						"current_time": cfg.clock.Now().Format(time.RFC3339),
+						"duration":     cfg.clock.Now().Sub(t),
+						"attempt":      i,
+					},
+				).Error("Completed updating cluster schema builder")
+
+				kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 				if err != nil {
 					cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
 				}
