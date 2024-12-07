@@ -20,15 +20,26 @@
 package vnet
 
 import (
-	"context"
+	"os"
 
 	"github.com/gravitational/trace"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
-func configureOS(ctx context.Context, cfg *osConfig) error {
+func createSocket() (*noSocket, string, error) {
+	return nil, "", trace.Wrap(ErrVnetNotImplemented)
+}
+
+func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
-func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+func receiveTUNDevice(_ *noSocket) (tun.Device, error) {
+	return nil, trace.Wrap(ErrVnetNotImplemented)
+}
+
+type noSocket struct{}
+
+func (_ noSocket) Close() error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
