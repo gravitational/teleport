@@ -45,6 +45,25 @@ func TestPreprocessing(t *testing.T) {
 			ARN:         psReadOnlyARN,
 		}.Build(),
 	}
+
+	awsAccounts := accountResourceMap{
+		acctOneID: test.Account{
+			ID:             acctOneID,
+			Name:           "Account1",
+			ARN:            "arn:aws:iam::1111111111:account/Account1",
+			IsOwner:        false,
+			PermissionSets: maps.Values(awsPermissionSets),
+		}.Build(),
+
+		acctTwoID: test.Account{
+			ID:             acctTwoID,
+			Name:           "Account2",
+			ARN:            "arn:aws:iam::2222222222:account/Account2",
+			IsOwner:        false,
+			PermissionSets: maps.Values(awsPermissionSets),
+		}.Build(),
+	}
+
 	awsData := externalData{
 		icInstance: &icsdk.InstanceInfo{
 			Name:            "Mock Identity Center Instance",
@@ -53,23 +72,10 @@ func TestPreprocessing(t *testing.T) {
 			Status:          ssoadmintypes.InstanceStatusActive,
 		},
 		permissionSets: awsPermissionSets,
-		accounts: accountResourceMap{
-			acctOneID: test.Account{
-				ID:             acctOneID,
-				Name:           "Account1",
-				ARN:            "arn:aws:iam::1111111111:account/Account1",
-				IsOwner:        false,
-				PermissionSets: maps.Values(awsPermissionSets),
-			}.Build(),
-
-			acctTwoID: test.Account{
-				ID:             acctTwoID,
-				Name:           "Account2",
-				ARN:            "arn:aws:iam::2222222222:account/Account2",
-				IsOwner:        false,
-				PermissionSets: maps.Values(awsPermissionSets),
-			}.Build(),
-		},
+		// the preprocessor will modify resources in-place, so we need to take a
+		// copy or we will just end up comparing the modified resources against
+		// themselves.
+		accounts: awsAccounts.deepCopy(),
 	}
 
 	processedData, err := icSvc.preProcessExternalData(ctx, &awsData)
@@ -82,19 +88,22 @@ func TestPreprocessing(t *testing.T) {
 	})
 
 	t.Run("Accounts", func(t *testing.T) {
-		// Accounts should have been passed through unchanged, except that
-		// Account 2 should have been identified as the organization owner
-		require.Len(t, processedData.accounts, len(awsData.accounts))
-		require.Equal(t, awsData.accounts[acctOneID], processedData.accounts[acctOneID],
-			"Account 1 should be passed through unchanged")
+		require.Len(t, processedData.accounts, len(awsAccounts))
 
-		expectedAcct2 := test.Account{
-			ID:             acctTwoID,
-			Name:           "Account2",
-			ARN:            "arn:aws:iam::2222222222:account/Account2",
-			IsOwner:        true,
-			PermissionSets: maps.Values(awsPermissionSets),
-		}.Build()
+		// The only change to Account 1 should be the addition of assignment
+		// names to the resources
+		expectedAcct1 := awsAccounts[acctOneID].CloneResource().(services.IdentityCenterAccount)
+		expectedAcct1.Spec.PermissionSetInfo[0].AssignmentId = "account1--admin"
+		expectedAcct1.Spec.PermissionSetInfo[1].AssignmentId = "account1--readonly"
+		require.Equal(t, expectedAcct1, processedData.accounts[acctOneID],
+			"Account 1 should be passed through with only the assignment names added")
+
+		// Account 2 should be identified as the IC instance owner, as well as
+		// having the assignment names added to the permission set info
+		expectedAcct2 := awsAccounts[acctTwoID].CloneResource().(services.IdentityCenterAccount)
+		expectedAcct2.Spec.IsOrganizationOwner = true
+		expectedAcct2.Spec.PermissionSetInfo[0].AssignmentId = "account2--admin"
+		expectedAcct2.Spec.PermissionSetInfo[1].AssignmentId = "account2--readonly"
 		require.Equal(t, expectedAcct2, processedData.accounts[acctTwoID],
 			"Account 2 should be identified as the organization owner")
 	})
@@ -173,4 +182,12 @@ func TestPreprocessing(t *testing.T) {
 		}
 		require.Equal(t, expectedAccountAssignments, processedData.accountAssignments)
 	})
+}
+
+func (m accountResourceMap) deepCopy() accountResourceMap {
+	dst := make(accountResourceMap, len(m))
+	for k, v := range m {
+		dst[k] = v.CloneResource().(services.IdentityCenterAccount)
+	}
+	return dst
 }

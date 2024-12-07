@@ -156,6 +156,7 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 				return nil, trace.Wrap(err, "creating account assignment record")
 			}
 			accountAssignments[getAccountAssignmentID(asmt)] = asmt
+			ps.AssignmentId = asmt.GetMetadata().GetName()
 		}
 	}
 

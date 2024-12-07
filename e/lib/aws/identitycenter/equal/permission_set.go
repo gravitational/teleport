@@ -18,5 +18,6 @@ func PermissionSetSpecEqual(a, b *identitycenterv1.PermissionSetSpec) bool {
 func PermissionSetInfoEqual(a *identitycenterv1.PermissionSetInfo, b *identitycenterv1.PermissionSetInfo) bool {
 	return a.GetName() == b.GetName() &&
 		a.GetArn() == b.GetArn() &&
-		a.GetRole() == b.GetRole()
+		a.GetRole() == b.GetRole() &&
+		a.GetAssignmentId() == b.GetAssignmentId()
 }
