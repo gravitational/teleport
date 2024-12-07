@@ -71,8 +71,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
-  second_factor: "webauthn"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
 ```
