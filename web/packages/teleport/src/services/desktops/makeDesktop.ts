@@ -35,17 +35,3 @@ export function makeDesktop(json): Desktop {
     requiresRequest,
   };
 }
-
-export function makeDesktopService(json): WindowsDesktopService {
-  const { name, hostname, addr } = json;
-
-  const labels = json.labels || [];
-
-  return {
-    kind: 'windows_desktop_service',
-    hostname,
-    addr,
-    labels,
-    name,
-  };
-}
