@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -5785,25 +5786,6 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	_, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test_acct",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
-			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   "11111111",
-				Arn:  "some:arn",
-				Name: "Test Account",
-			},
-		},
-	})
-	require.NoError(t, err)
-
 	setAccountAssignment := func(role types.Role) {
 		r := role.(*types.RoleV6)
 		r.Spec.Allow.AccountAssignments = []types.IdentityCenterAccountAssignment{
@@ -5814,92 +5796,185 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		}
 	}
 
-	t.Run("no access", func(t *testing.T) {
-		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
-		require.NoError(t, err)
-
-		identity := TestUser(userNoAccess.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Resources)
-	})
-
-	t.Run("access via generic kind", func(t *testing.T) {
-		user, _, err := CreateUserAndRole(srv.Auth(), "read-generic", nil,
-			[]types.Rule{
-				types.NewRule(types.KindIdentityCenter, services.RO()),
-			},
-			WithRoleMutator(setAccountAssignment))
-		require.NoError(t, err)
-
-		identity := TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 1)
-	})
-
-	t.Run("access via specific kind", func(t *testing.T) {
-		user, _, err := CreateUserAndRole(srv.Auth(), "read-specific", nil,
-			[]types.Rule{
-				types.NewRule(types.KindIdentityCenterAccount, services.RO()),
-			},
-			WithRoleMutator(setAccountAssignment))
-		require.NoError(t, err)
-
-		identity := TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 1)
-	})
-
-	t.Run("denied via specific kind beats allow via generic kind", func(t *testing.T) {
-		user, _, err := CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
-			[]types.Rule{
-				types.NewRule(types.KindIdentityCenter, services.RO()),
-			},
-			WithRoleMutator(func(r types.Role) {
-				setAccountAssignment(r)
-				r.SetRules(types.Deny, []types.Rule{
-					types.NewRule(types.KindIdentityCenterAccount, services.RO()),
+	testCases := []struct {
+		name string
+		kind string
+		init func(*testing.T)
+	}{
+		{
+			name: "account",
+			kind: types.KindIdentityCenterAccount,
+			init: func(subtestT *testing.T) {
+				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+					Account: &identitycenterv1.Account{
+						Kind:    types.KindIdentityCenterAccount,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: "test-account",
+							Labels: map[string]string{
+								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountSpec{
+							Id:   "11111111",
+							Arn:  "some:arn",
+							Name: "Test Account",
+						},
+					},
 				})
-			}))
-		require.NoError(t, err)
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteIdentityCenterAccount(ctx,
+						services.IdentityCenterAccountID(acct.GetMetadata().GetName()))
+				})
 
-		identity := TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
+				inlineEventually(subtestT,
+					func() bool {
+						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
+							ctx, 100, &pagination.PageRequestToken{})
+						require.NoError(t, err)
+						return len(accounts) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
+			},
+		},
+		{
+			name: "account assignment",
+			kind: types.KindIdentityCenterAccountAssignment,
+			init: func(subtestT *testing.T) {
+				asmt, err := srv.Auth().CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
+					AccountAssignment: &identitycenterv1.AccountAssignment{
+						Kind:    types.KindIdentityCenterAccountAssignment,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: "test-account",
+							Labels: map[string]string{
+								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountAssignmentSpec{
+							AccountId: "11111111",
+							Display:   "Test Account Assignment",
+							PermissionSet: &identitycenterv1.PermissionSetInfo{
+								Arn:          "some:arn",
+								Name:         "Test Account",
+								AssignmentId: "Test Assignment on Test Account",
+							},
+						},
+					},
+				})
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteAccountAssignment(ctx,
+						services.IdentityCenterAccountAssignmentID(asmt.GetMetadata().GetName()))
+				})
 
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
+				inlineEventually(subtestT,
+					func() bool {
+						testAssignments, _, err := srv.Auth().ListAccountAssignments(
+							ctx, 100, &pagination.PageRequestToken{})
+						require.NoError(t, err)
+						return len(testAssignments) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			test.init(t)
+
+			t.Run("no access", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("access via generic kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "read-generic", nil,
+					[]types.Rule{
+						types.NewRule(types.KindIdentityCenter, services.RO()),
+					},
+					WithRoleMutator(setAccountAssignment))
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("access via specific kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "read-specific", nil,
+					[]types.Rule{
+						types.NewRule(test.kind, services.RO()),
+					},
+					WithRoleMutator(setAccountAssignment))
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("denied via specific kind beats allow via generic kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
+					[]types.Rule{
+						types.NewRule(types.KindIdentityCenter, services.RO()),
+					},
+					WithRoleMutator(func(r types.Role) {
+						setAccountAssignment(r)
+						r.SetRules(types.Deny, []types.Rule{
+							types.NewRule(test.kind, services.RO()),
+						})
+					}))
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.True(t, trace.IsAccessDenied(err),
+					"Expected Access Denied, got %v", err)
+			})
 		})
-		require.True(t, trace.IsAccessDenied(err),
-			"Expected Access Denied, got %v", err)
-	})
+	}
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {

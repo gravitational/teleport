@@ -1309,7 +1309,8 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 type actionChecker func(namespace, resourceKind string, verbs ...string) error
 
 func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
-	if resourceKind == types.KindIdentityCenterAccount {
+	switch resourceKind {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		// Identity Center resources can be specified multiple ways in a Role
 		// Condition statement, so we need a special checker to handle it.
 		return a.identityCenterAction
@@ -1693,7 +1694,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount:
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1850,7 +1852,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindUserGroup,
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount:
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
