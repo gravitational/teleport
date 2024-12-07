@@ -57,7 +57,8 @@ spec:
                 type: array
               token:
                 description: Token is the authorization token provided by another
-                  cluster needed by this cluster to join.
+                  cluster needed by this cluster to join. This field supports secret
+                  lookup. See the operator documentation for more details.
                 type: string
               tunnel_addr:
                 description: ReverseTunnelAddress is the address of the SSH proxy

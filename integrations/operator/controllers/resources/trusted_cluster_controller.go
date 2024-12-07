@@ -29,12 +29,14 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 )
 
 // trustedClusterClient implements TeleportResourceClient and offers CRUD
 // methods needed to reconcile trusted_clusters.
 type trustedClusterClient struct {
 	teleportClient *client.Client
+	kubeClient     kclient.Client
 }
 
 // Get gets the Teleport trusted_cluster of a given name.
@@ -45,13 +47,13 @@ func (r trustedClusterClient) Get(ctx context.Context, name string) (types.Trust
 
 // Create creates a Teleport trusted_cluster.
 func (r trustedClusterClient) Create(ctx context.Context, trustedCluster types.TrustedCluster) error {
-	_, err := r.teleportClient.UpsertTrustedCluster(ctx, trustedCluster)
+	_, err := r.teleportClient.UpsertTrustedClusterV2(ctx, trustedCluster)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport trusted_cluster.
 func (r trustedClusterClient) Update(ctx context.Context, trustedCluster types.TrustedCluster) error {
-	_, err := r.teleportClient.UpsertTrustedCluster(ctx, trustedCluster)
+	_, err := r.teleportClient.UpsertTrustedClusterV2(ctx, trustedCluster)
 	return trace.Wrap(err)
 }
 
@@ -60,10 +62,24 @@ func (r trustedClusterClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteTrustedCluster(ctx, name))
 }
 
+// Mutate mutates a Teleport trusted_cluster.
+func (r trustedClusterClient) Mutate(ctx context.Context, new, existing types.TrustedCluster, crKey kclient.ObjectKey) error {
+	secret := new.GetToken()
+	if secretlookup.IsNeeded(secret) {
+		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, secret)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		new.SetToken(resolvedSecret)
+	}
+	return nil
+}
+
 // NewTrustedClusterV2Reconciler instantiates a new Kubernetes controller reconciling trusted_cluster v2 resources
 func NewTrustedClusterV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	trustedClusterClient := &trustedClusterClient{
 		teleportClient: tClient,
+		kubeClient:     client,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](

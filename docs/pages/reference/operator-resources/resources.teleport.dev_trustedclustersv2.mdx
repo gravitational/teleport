@@ -28,7 +28,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |enabled|boolean|Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).|
 |role_map|[][object](#specrole_map-items)|RoleMap specifies role mappings to remote roles.|
-|token|string|Token is the authorization token provided by another cluster needed by this cluster to join.|
+|token|string|Token is the authorization token provided by another cluster needed by this cluster to join. This field supports secret lookup. See the operator documentation for more details.|
 |tunnel_addr|string|ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.|
 |web_proxy_addr|string|ProxyAddress is the address of the web proxy server of the cluster to join. If not set, it is derived from `<metadata.name>:<default web proxy server port>`.|
 

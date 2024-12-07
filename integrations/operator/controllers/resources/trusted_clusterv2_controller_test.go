@@ -24,12 +24,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -138,4 +141,51 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 func TestTrustedClusterV2Update(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	testlib.ResourceUpdateTest(t, test)
+}
+
+func TestTrustedClusterV2SecretLookup(t *testing.T) {
+	test := &trustedClusterV2TestingPrimitives{}
+	setup := testlib.SetupTestEnv(t)
+	test.Init(setup)
+	ctx := context.Background()
+
+	crName := validRandomResourceName("trusted-cluster")
+	secretName := validRandomResourceName("trusted-cluster-secret")
+	secretKey := "token"
+	secretValue := validRandomResourceName("secret-value")
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: setup.Namespace.Name,
+			Annotations: map[string]string{
+				secretlookup.AllowLookupAnnotation: crName,
+			},
+		},
+		StringData: map[string]string{
+			secretKey: secretValue,
+		},
+		Type: v1.SecretTypeOpaque,
+	}
+	kubeClient := setup.K8sClient
+	require.NoError(t, kubeClient.Create(ctx, secret))
+
+	trustedCluster := &resourcesv1.TeleportTrustedClusterV2{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      crName,
+			Namespace: setup.Namespace.Name,
+		},
+		Spec: resourcesv1.TeleportTrustedClusterV2Spec(trustedClusterV2Spec),
+	}
+	trustedCluster.Spec.Token = "secret://" + secretName + "/" + secretKey
+
+	require.NoError(t, kubeClient.Create(ctx, trustedCluster))
+
+	testlib.FastEventually(t, func() bool {
+		trustedCluster, err := test.GetTeleportResource(ctx, crName)
+		if err != nil {
+			return false
+		}
+		return trustedCluster.GetToken() == secretValue
+	})
 }
