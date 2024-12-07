@@ -68,7 +68,7 @@ func (r *trustedClusterV2TestingPrimitives) CreateTeleportResource(ctx context.C
 		return trace.Wrap(err)
 	}
 	trustedCluster.SetOrigin(types.OriginKubernetes)
-	_, err = r.setup.TeleportClient.UpsertTrustedCluster(ctx, trustedCluster)
+	_, err = r.setup.TeleportClient.UpsertTrustedClusterV2(ctx, trustedCluster)
 	return trace.Wrap(err)
 }
 
