@@ -340,6 +340,7 @@ jobs:
     name: Build install scripts
     if: ${{ !inputs.cloud-only }}
     needs: setup
+    secrets: inherit
     permissions:
       contents: read
       id-token: write
