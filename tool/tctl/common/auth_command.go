@@ -88,15 +88,11 @@ type AuthCommand struct {
 	streamTarfile              bool
 	identityWriter             identityfile.ConfigWriter
 
-	rotateGracePeriod time.Duration
-	rotateType        string
-	rotateManualMode  bool
-	rotateTargetPhase string
+	authRotate authRotateCommand
 
 	authGenerate *kingpin.CmdClause
 	authExport   *kingpin.CmdClause
 	authSign     *kingpin.CmdClause
-	authRotate   *kingpin.CmdClause
 	authLS       *kingpin.CmdClause
 	authCRL      *kingpin.CmdClause
 	// testInsecureSkipVerify is used to skip TLS verification during tests
@@ -155,13 +151,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
 	a.authSign.Flag("omit-cdp", `Omit CRL Distribution Points from the cert. Only used when --format is set to "windows"`).BoolVar(&a.omitCDP)
 
-	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
-	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
-		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
-		DurationVar(&a.rotateGracePeriod)
-	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).Required().EnumVar(&a.rotateType, getCertAuthTypes()...)
-	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
+	a.authRotate.Initialize(auth)
 
 	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
@@ -173,6 +163,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+	if match, err := a.authRotate.TryRun(ctx, cmd, client); match || err != nil {
+		return match, trace.Wrap(err)
+	}
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx, client)
@@ -180,8 +173,6 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient
 		err = a.ExportAuthorities(ctx, client)
 	case a.authSign.FullCommand():
 		err = a.GenerateAndSignKeys(ctx, client)
-	case a.authRotate.FullCommand():
-		err = a.RotateCertAuthority(ctx, client)
 	case a.authLS.FullCommand():
 		err = a.ListAuthServers(ctx, client)
 	case a.authCRL.FullCommand():
@@ -425,30 +416,6 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 
 	return trace.Wrap(
 		writeHelperMessageDBmTLS(a.helperMsgDst(), filesWritten, "", a.outputFormat, "", a.streamTarfile))
-}
-
-// RotateCertAuthority starts or restarts certificate authority rotation process
-func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client *authclient.Client) error {
-	req := types.RotateRequest{
-		Type:        types.CertAuthType(a.rotateType),
-		GracePeriod: &a.rotateGracePeriod,
-		TargetPhase: a.rotateTargetPhase,
-	}
-	if a.rotateManualMode {
-		req.Mode = types.RotationModeManual
-	} else {
-		req.Mode = types.RotationModeAuto
-	}
-	if err := client.RotateCertAuthority(ctx, req); err != nil {
-		return err
-	}
-	if a.rotateTargetPhase != "" {
-		fmt.Printf("Updated rotation phase to %q. To check status use 'tctl status'\n", a.rotateTargetPhase)
-	} else {
-		fmt.Printf("Initiated certificate authority rotation. To check status use 'tctl status'\n")
-	}
-
-	return nil
 }
 
 // ListAuthServers prints a list of connected auth servers

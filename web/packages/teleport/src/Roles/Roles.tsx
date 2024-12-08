@@ -23,7 +23,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { Danger } from 'design/Alert';
 import { useTheme } from 'styled-components';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   FeatureBox,

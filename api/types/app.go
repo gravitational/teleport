@@ -86,6 +86,8 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
+	// GetIdentityCenter fetches identity center info for the app, if any.
+	GetIdentityCenter() *AppIdentityCenter
 }
 
 // NewAppV3 creates a new app resource.
@@ -405,6 +407,23 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetIdentityCenter returns the Identity Center information for the app, if any.
+// May be nil.
+func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
+	return a.Spec.IdentityCenter
+}
+
+// GetDisplayName fetches a human-readable display name for the App.
+func (a *AppV3) GetDisplayName() string {
+	// Only Identity Center apps have a display name at this point. Returning
+	// the empty string signals to the caller they should fall back to whatever
+	// they have been using in the past.
+	if a.Spec.IdentityCenter == nil {
+		return ""
+	}
+	return a.GetName()
+}
+
 // IsEqual determines if two application resources are equivalent to one another.
 func (a *AppV3) IsEqual(i Application) bool {
 	if other, ok := i.(*AppV3); ok {
@@ -458,3 +477,12 @@ func (a Apps) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
 
 // Swap swaps two apps.
 func (a Apps) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// GetPermissionSets fetches the list of permission sets from the Identity Center
+// app information. Handles nil identity center values.
+func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
+	if a == nil {
+		return nil
+	}
+	return a.PermissionSets
+}
