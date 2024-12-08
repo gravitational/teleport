@@ -23,17 +23,20 @@ import (
 )
 
 type gitCommands struct {
-	list *gitListCommand
+	list  *gitListCommand
+	login *gitLoginCommand
 }
 
 func newGitCommands(app *kingpin.Application) gitCommands {
 	git := app.Command("git", "Git server commands.")
 	cmds := gitCommands{
-		newGitListCommand(git),
+		login: newGitLoginCommand(git),
+		list:  newGitListCommand(git),
 	}
 
 	// TODO(greedy52) hide the commands until all basic features are implemented.
 	git.Hidden()
+	cmds.login.Hidden()
 	cmds.list.Hidden()
 	return cmds
 }

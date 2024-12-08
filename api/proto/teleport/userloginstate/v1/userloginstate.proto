@@ -48,4 +48,16 @@ message Spec {
   // original_traits are the user traits that are part of the user's static definition. These traits are
   // not affected by access granted by access lists and are obtained prior to granting access list access.
   repeated teleport.trait.v1.Trait original_traits = 5;
+
+  // GitHubIdentity is the external identity attached to this user state.
+  ExternalIdentity git_hub_identity = 6;
+}
+
+// ExternalIdentity defines an external identity attached to this user state.
+message ExternalIdentity {
+  // UserId is the unique identifier of the external identity such as GitHub user
+  // ID.
+  string user_id = 1;
+  // Username is the username of the external identity.
+  string username = 2;
 }

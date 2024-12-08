@@ -35,6 +35,9 @@ service GitServerService {
   rpc UpsertGitServer(UpsertGitServerRequest) returns (types.ServerV2);
   // DeleteGitServer is used to delete a Git server object.
   rpc DeleteGitServer(DeleteGitServerRequest) returns (google.protobuf.Empty);
+
+  // CreateGitHubAuthRequest starts GitHub OAuth flow for authenticated user.
+  rpc CreateGitHubAuthRequest(CreateGitHubAuthRequestRequest) returns (types.GithubAuthRequest);
 }
 
 // CreateGitServerRequest is a request to create a Git server.
@@ -83,4 +86,12 @@ message UpsertGitServerRequest {
 message DeleteGitServerRequest {
   // Name is the uuid of the server.
   string name = 1;
+}
+
+// CreateGitHubAuthRequestRequest is the request for CreateGitHubAuthRequest.
+message CreateGitHubAuthRequestRequest {
+  // Request is the basic GitHub auth request.
+  types.GithubAuthRequest request = 1;
+  // Organization is the GitHub organization that the user is accessing.
+  string organization = 2;
 }
