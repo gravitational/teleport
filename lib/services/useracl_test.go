@@ -109,6 +109,7 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 	require.Empty(t, cmp.Diff(userContext.Contact, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.GitServers, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))

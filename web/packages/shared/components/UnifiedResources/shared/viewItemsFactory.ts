@@ -22,6 +22,7 @@ import {
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
   Desktop as DesktopIcon,
+  GitHub as GitHubIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
 
@@ -37,6 +38,7 @@ import {
   UnifiedResourceDesktop,
   UnifiedResourceKube,
   UnifiedResourceUserGroup,
+  UnifiedResourceGitServer,
   SharedUnifiedResource,
 } from '../types';
 
@@ -172,6 +174,26 @@ export function makeUnifiedResourceViewItemUserGroup(
   };
 }
 
+export function makeUnifiedResourceViewItemGitServer(
+  resource: UnifiedResourceGitServer,
+  ui: UnifiedResourceUi
+): UnifiedResourceViewItem {
+  return {
+    name: resource.github ? resource.github.organization : resource.hostname,
+    SecondaryIcon: GitHubIcon,
+    primaryIconName: 'git',
+    ActionButton: ui.ActionButton,
+    labels: resource.labels,
+    cardViewProps: {
+      primaryDesc: 'GitHub Organization',
+    },
+    listViewProps: {
+      resourceType: 'GitHub Organization',
+    },
+    requiresRequest: resource.requiresRequest,
+  };
+}
+
 function formatNodeSubKind(subKind: NodeSubKind): string {
   switch (subKind) {
     case 'openssh-ec2-ice':
@@ -216,5 +238,7 @@ export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceViewItemDesktop(resource, ui);
     case 'user_group':
       return makeUnifiedResourceViewItemUserGroup(resource, ui);
+    case 'git_server':
+      return makeUnifiedResourceViewItemGitServer(resource, ui);
   }
 }

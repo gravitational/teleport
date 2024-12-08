@@ -289,6 +289,13 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
+    gitServers: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({

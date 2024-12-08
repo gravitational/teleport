@@ -23,8 +23,8 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
-
-import { UserGroup } from '../userGroups';
+import { UserGroup } from 'teleport/services/userGroups';
+import { GitServer } from 'teleport/services/gitservers';
 
 import type { MfaAuthnResponse } from '../mfa';
 import type { Platform } from 'design/platform';
@@ -35,7 +35,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | UserGroup;
+  | UserGroup
+  | GitServer;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
@@ -88,6 +89,7 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop'
+  | 'git_server'
   | 'saml_idp_service_provider';
 
 export type AccessRequestScope =

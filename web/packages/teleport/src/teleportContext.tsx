@@ -242,6 +242,8 @@ class TeleportContext implements types.Context {
       addBots: userContext.getBotsAccess().create,
       editBots: userContext.getBotsAccess().edit,
       removeBots: userContext.getBotsAccess().remove,
+      gitServers: userContext.getGitServersAccess().list &&
+        userContext.getGitServersAccess().read,
     };
   }
 }
@@ -282,6 +284,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   listBots: false,
   editBots: false,
   removeBots: false,
+  gitServers: false
 };
 
 export default TeleportContext;
