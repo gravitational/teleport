@@ -20,11 +20,12 @@ import React from 'react';
 import { Flex, H2, Indicator, Box, ButtonIcon } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
+import { Cross, Trash } from 'design/Icon';
+
 import useTeleport from 'teleport/useTeleport';
 import { Role } from 'teleport/services/resources';
 
 import { EditorTab, EditorTabs } from './EditorTabs';
-import { Cross, Trash } from 'design/Icon';
 
 /** Renders a header button with role name and delete button. */
 export const EditorHeader = ({

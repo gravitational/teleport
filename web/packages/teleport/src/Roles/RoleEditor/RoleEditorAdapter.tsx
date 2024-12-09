@@ -28,6 +28,10 @@ import { H3, P, P3 } from 'design/Text/Text';
 import { ButtonSecondary } from 'design/Button';
 import Image from 'design/Image';
 
+import { StepComponentProps, StepSlider } from 'design/StepSlider';
+
+import { ChevronLeft, ChevronRight } from 'design/Icon';
+
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
@@ -36,8 +40,6 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import { ChevronLeft, ChevronRight } from 'design/Icon';
 
 /**
  * This component is responsible for converting from the `Resource`
