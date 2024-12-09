@@ -16,32 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
+import { useParams } from 'react-router';
+
+import { useAsync } from 'shared/hooks/useAsync';
+import { Indicator } from 'design';
+import { Danger } from 'design/Alert';
+
+import {
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+
 export function Rules() {
+  const { name, resourceKind } = useParams<{
+    type: IntegrationKind;
+    name: string;
+    resourceKind: AwsResource;
+  }>();
+
+  const [attempt, fetchRules] = useAsync(() =>
+    integrationService.fetchIntegrationRules(name, resourceKind)
+  );
+
+  useEffect(() => {
+    fetchRules();
+  }, []);
+
+  if (attempt.status == 'processing') {
+    return <Indicator />;
+  }
+
+  if (attempt.status == 'error') {
+    return <Danger>{attempt.statusText}</Danger>;
+  }
+
+  if (!attempt.data) {
+    return null;
+  }
+
   return (
     <Table
-      data={[]}
+      data={attempt.data.rules}
       columns={[
-        {
-          key: 'name',
-          headerText: 'Integration Name',
-          isSortable: true,
-        },
         {
           key: 'region',
           headerText: 'Region',
           isSortable: true,
         },
         {
-          key: 'tags',
-          headerText: 'Tags',
+          key: 'labelMatcher',
+          headerText: getResourceTerm(resourceKind),
           isSortable: true,
           onSort: (a, b) => {
-            const aStr = a.tags.toString();
-            const bStr = b.tags.toString();
+            const aStr = a.labelMatcher.toString();
+            const bStr = b.labelMatcher.toString();
 
             if (aStr < bStr) {
               return -1;
@@ -52,11 +85,22 @@ export function Rules() {
 
             return 0;
           },
-          render: ({ tags }) => <LabelCell data={tags} />,
+          render: ({ labelMatcher }) => (
+            <LabelCell data={labelMatcher.map(l => `${l.name}:${l.value}`)} />
+          ),
         },
       ]}
-      emptyText="Rules details coming soon"
+      emptyText={`No ${resourceKind} data`}
       isSearchable
     />
   );
+}
+
+function getResourceTerm(resource: AwsResource): string {
+  switch (resource) {
+    case AwsResource.rds:
+      return 'Tags';
+    default:
+      return 'Labels';
+  }
 }

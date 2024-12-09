@@ -327,6 +327,9 @@ const cfg = {
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
+    integrationRulesPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType',
+
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
@@ -991,6 +994,15 @@ const cfg = {
     return generatePath(cfg.api.integrationStatsPath, {
       clusterId,
       name,
+    });
+  },
+
+  getIntegrationRulesUrl(name: string, resourceType: AwsResource) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationRulesPath, {
+      clusterId,
+      name,
+      resourceType,
     });
   },
 
