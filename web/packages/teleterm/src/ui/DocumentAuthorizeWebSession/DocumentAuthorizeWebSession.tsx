@@ -107,7 +107,8 @@ export function DocumentAuthorizeWebSession(props: {
                   >
                     enroll your device
                   </a>
-                  . Then log out of the app, log back in, and try again.
+                  . Then log out of Teleport Connect, log back in, and try
+                  again.
                 </>
               }
             >
