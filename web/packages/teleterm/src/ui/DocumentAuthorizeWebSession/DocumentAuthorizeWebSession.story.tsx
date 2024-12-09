@@ -44,6 +44,7 @@ const doc: types.DocumentAuthorizeWebSession = {
     redirectUri: '',
     token: '',
     id: '',
+    username: 'alice',
   },
 };
 
@@ -57,6 +58,31 @@ export function DeviceNotTrusted() {
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
         <DocumentAuthorizeWebSession doc={doc} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function RequestedUserNotLoggedIn() {
+  const rootCluster = makeRootCluster({
+    loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
+  });
+  const docForDifferentUser: types.DocumentAuthorizeWebSession = {
+    ...doc,
+    webSessionRequest: {
+      ...doc.webSessionRequest,
+      username: 'bob',
+    },
+  };
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
+        <DocumentAuthorizeWebSession doc={docForDifferentUser} visible={true} />
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );

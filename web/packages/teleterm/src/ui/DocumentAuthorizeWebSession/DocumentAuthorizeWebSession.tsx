@@ -50,7 +50,10 @@ export function DocumentAuthorizeWebSession(props: {
     return confirmationToken;
   });
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
-  const canAuthorize = rootCluster.loggedInUser?.isDeviceTrusted;
+  const isDeviceTrusted = rootCluster.loggedInUser?.isDeviceTrusted;
+  const isRequestedUserLoggedIn =
+    props.doc.webSessionRequest.username === rootCluster.loggedInUser?.name;
+  const canAuthorize = isDeviceTrusted && isRequestedUserLoggedIn;
 
   async function authorizeAndCloseDocument() {
     const [confirmationToken, error] = await authorize();
@@ -95,7 +98,7 @@ export function DocumentAuthorizeWebSession(props: {
         <H1 mb="4">Authorize Web Session</H1>
         <Flex flexDirection="column" gap={3}>
           {/*It's technically possible to open a deep link to authorize a session on a device that is not enrolled.*/}
-          {!canAuthorize && (
+          {!isDeviceTrusted && (
             <Alert
               mb={0}
               details={
@@ -113,6 +116,31 @@ export function DocumentAuthorizeWebSession(props: {
               }
             >
               This device is not trusted
+            </Alert>
+          )}
+          {!isRequestedUserLoggedIn && (
+            <Alert
+              mb={0}
+              primaryAction={{
+                content: 'Log Out',
+                onClick: () => {
+                  ctx.commandLauncher.executeCommand('cluster-logout', {
+                    clusterUri: rootCluster.uri,
+                  });
+                },
+              }}
+              details={
+                <>
+                  You are logged in as <b>{rootCluster.loggedInUser?.name}</b>.
+                  To authorize this web session request, please log out in
+                  Teleport Connect and log in again as{' '}
+                  <b>{props.doc.webSessionRequest.username}</b>.
+                  <br />
+                  Then click Launch Teleport Connect again in the browser.
+                </>
+              }
+            >
+              Requested user is not logged in
             </Alert>
           )}
           {authorizeAttempt.status === 'error' && (
