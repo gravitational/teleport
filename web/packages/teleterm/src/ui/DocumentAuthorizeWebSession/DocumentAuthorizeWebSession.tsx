@@ -96,28 +96,24 @@ export function DocumentAuthorizeWebSession(props: {
         <Flex flexDirection="column" gap={3}>
           {/*It's technically possible to open a deep link to authorize a session on a device that is not enrolled.*/}
           {!canAuthorize && (
-            <Alert
-              mb={0}
-              details={
-                <>
-                  To authorize a web session, you must first{' '}
-                  <a
-                    href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
-                    target="_blank"
-                  >
-                    enroll your device
-                  </a>
-                  . Then log out of Teleport Connect, log back in, and try
-                  again.
-                </>
-              }
-            >
-              This device is not trusted
+            <Alert mb={0}>
+              <Text>
+                This device is not trusted.
+                <br />
+                To authorize a web session, you must first{' '}
+                <a
+                  href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+                  target="_blank"
+                >
+                  enroll your device
+                </a>
+                . Then log out of Teleport Connect, log back in, and try again.
+              </Text>
             </Alert>
           )}
           {authorizeAttempt.status === 'error' && (
-            <Alert mb={0} details={authorizeAttempt.statusText}>
-              Could not authorize the session
+            <Alert mb={0}>
+              Could not authorize the session: {authorizeAttempt.statusText}
             </Alert>
           )}
           <Text>
