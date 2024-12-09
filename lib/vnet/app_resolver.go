@@ -99,8 +99,8 @@ type tcpAppResolver struct {
 	clock              clockwork.Clock
 }
 
-// newTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
-// TCPHandlers that will proxy TCP connection to Teleport TCP apps.
+// newTCPAppResolver returns a new [*tcpAppResolver] which will resolve full-qualified domain names to
+// [tcpHandler]s that will proxy TCP connection to Teleport TCP apps.
 //
 // It uses [appProvider] to list and retrieve cluster clients which are expected to be cached to avoid
 // repeated/unnecessary dials to the cluster. These clients are then used to list TCP apps that should be

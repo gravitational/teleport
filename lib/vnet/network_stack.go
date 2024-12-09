@@ -83,15 +83,17 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// tcpHandlerResolver describes a type that can resolve a fully-qualified domain name to a TCPHandlerSpec that
-// defines the CIDR range to assign an IP to that handler from, and a handler for all future connections to
-// that IP address.
+// tcpHandlerResolver describes a type that can resolve a fully-qualified domain
+// name to a [tcpHandlerSpec] that defines the CIDR range to assign an IP to
+// that handler from, and a handler for all future connections to that IP
+// address.
 //
 // Implementations beware - an FQDN always ends with a '.'.
 type tcpHandlerResolver interface {
 	// resolveTCPHandler decides if [fqdn] should match a TCP handler.
 	//
-	// If [fqdn] matches a Teleport-managed TCP app it must return a TCPHandlerSpec defining the range to
+	// If [fqdn] matches a Teleport-managed TCP app it must return a
+	// [tcpHandlerSpec] defining the range to
 	// assign an IP from, and a handler for future connections to any assigned IPs.
 	//
 	// If [fqdn] does not match it must return ErrNoTCPHandler.
