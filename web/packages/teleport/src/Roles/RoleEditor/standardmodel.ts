@@ -661,7 +661,7 @@ function optionsToModel(options: RoleOptions): {
     record_session,
     ssh_file_copy,
 
-    ...others
+    ...unsupported
   } = options;
 
   const requireMFATypeOption =
@@ -703,7 +703,7 @@ function optionsToModel(options: RoleOptions): {
       requireMFATypeOption === undefined ||
       createHostUserModeOption === undefined ||
       createDBUserModeOption === undefined ||
-      !isEmpty(others),
+      !isEmpty(unsupported),
   };
 }
 
