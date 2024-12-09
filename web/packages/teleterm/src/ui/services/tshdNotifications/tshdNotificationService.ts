@@ -27,6 +27,7 @@ import {
   notificationRequestOneOfIsCannotProxyGatewayConnection,
   notificationRequestOneOfIsCannotProxyVnetConnection,
 } from 'teleterm/helpers';
+import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 
 export class TshdNotificationsService {
   constructor(
@@ -82,12 +83,12 @@ export class TshdNotificationsService {
         if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
           return;
         }
-        const { publicAddr, targetUri, error } =
+        const { routeToApp, targetUri, error } =
           subject.cannotProxyVnetConnection;
         const clusterName = routing.parseClusterName(targetUri);
 
         return {
-          title: `Cannot connect to ${publicAddr}`,
+          title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
           description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
         };
       }
