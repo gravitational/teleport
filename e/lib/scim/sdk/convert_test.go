@@ -107,3 +107,8 @@ func TestMarshalResource(t *testing.T) {
 
 	require.Equal(t, "Don", dst["title"])
 }
+
+func TestMarshalResourceEmpty(t *testing.T) {
+	_, err := UnmarshalResource(bytes.NewReader([]byte(`{}`)))
+	require.NoError(t, err)
+}

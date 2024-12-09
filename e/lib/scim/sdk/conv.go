@@ -70,17 +70,24 @@ func UnmarshalResource(data io.Reader) (*scimpb.Resource, error) {
 		Schemas:    jsonFmt.Schemas,
 		Id:         jsonFmt.ID,
 		ExternalId: jsonFmt.ExternalID,
-		Meta: &scimpb.Meta{
-			ResourceType: jsonFmt.Meta.ResourceType,
-			Location:     jsonFmt.Meta.Location,
-			Version:      jsonFmt.Meta.Version,
-			Created:      maybeTimestamp(jsonFmt.Meta.Created),
-			Modified:     maybeTimestamp(jsonFmt.Meta.LastModified),
-		},
+		Meta:       convertMetadata(jsonFmt.Meta),
 		Attributes: dstAttribs,
 	}
 
 	return dst, nil
+}
+
+func convertMetadata(src *Metadata) *scimpb.Meta {
+	if src == nil {
+		return nil
+	}
+	return &scimpb.Meta{
+		ResourceType: src.ResourceType,
+		Location:     src.Location,
+		Version:      src.Version,
+		Created:      maybeTimestamp(src.Created),
+		Modified:     maybeTimestamp(src.LastModified),
+	}
 }
 
 // MarshalResourceList flattens and formats a collection of resources, wrapping
