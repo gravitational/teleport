@@ -29,6 +29,7 @@ const MenuList = styled.div.attrs({ role: 'menu' })<{
   box-sizing: border-box;
   max-height: calc(100% - 96px);
   overflow: hidden;
+  overflow-y: auto;
   position: relative;
   padding: 0;
 
