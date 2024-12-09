@@ -41,7 +41,7 @@ import {
   WindowsDesktopAccessSpec,
 } from './standardmodel';
 import {
-  AdminRules,
+  AccessRules,
   AppAccessSpecSection,
   DatabaseAccessSpecSection,
   KubernetesAccessSpecSection,
@@ -53,9 +53,9 @@ import {
 } from './StandardEditor';
 import {
   AccessSpecValidationResult,
-  AdminRuleValidationResult,
+  AccessRuleValidationResult,
   validateAccessSpec,
-  validateAdminRule,
+  validateAccessRule,
 } from './validation';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
@@ -66,13 +66,15 @@ const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   });
   return (
     <TeleportContextProvider ctx={ctx}>
-      <StandardEditor
-        originalRole={null}
-        standardEditorModel={model}
-        isProcessing={false}
-        onChange={setModel}
-        {...props}
-      />
+      <Validation>
+        <StandardEditor
+          originalRole={null}
+          standardEditorModel={model}
+          isProcessing={false}
+          onChange={setModel}
+          {...props}
+        />
+      </Validation>
     </TeleportContextProvider>
   );
 };
@@ -173,20 +175,20 @@ const getSectionByName = (name: string) =>
   // eslint-disable-next-line testing-library/no-node-access
   screen.getByRole('heading', { level: 3, name }).closest('details');
 
-function StatefulSection<S, V>({
+function StatefulSection<Spec, ValidationResult>({
   defaultValue,
   component: Component,
   onChange,
   validatorRef,
   validate,
 }: {
-  defaultValue: S;
-  component: React.ComponentType<SectionProps<S, any>>;
-  onChange(spec: S): void;
+  defaultValue: Spec;
+  component: React.ComponentType<SectionProps<Spec, any>>;
+  onChange(spec: Spec): void;
   validatorRef?(v: Validator): void;
-  validate(arg: S): V;
+  validate(arg: Spec): ValidationResult;
 }) {
-  const [model, setModel] = useState<S>(defaultValue);
+  const [model, setModel] = useState<Spec>(defaultValue);
   const validation = validate(model);
   return (
     <Validation>
@@ -584,19 +586,19 @@ describe('WindowsDesktopAccessSpecSection', () => {
   });
 });
 
-describe('AdminRules', () => {
+describe('AccessRules', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<RuleModel[], AdminRuleValidationResult[]>
-        component={AdminRules}
+      <StatefulSection<RuleModel[], AccessRuleValidationResult[]>
+        component={AccessRules}
         defaultValue={[]}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={rules => rules.map(validateAdminRule)}
+        validate={rules => rules.map(validateAccessRule)}
       />
     );
     return { user: userEvent.setup(), onChange, validator };

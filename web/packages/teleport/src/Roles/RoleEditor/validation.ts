@@ -55,7 +55,7 @@ export function validateRoleEditorModel({
   return {
     metadata: validateMetadata(metadata),
     accessSpecs: accessSpecs.map(validateAccessSpec),
-    rules: rules.map(validateAdminRule),
+    rules: rules.map(validateAccessRule),
   };
 }
 
@@ -170,13 +170,13 @@ export type WindowsDesktopSpecValidationResult = RuleSetValidationResult<
   typeof windowsDesktopSpecValidationRules
 >;
 
-export const validateAdminRule = (adminRule: RuleModel) =>
-  runRules(adminRule, adminRuleValidationRules);
+export const validateAccessRule = (accessRule: RuleModel) =>
+  runRules(accessRule, accessRuleValidationRules);
 
-const adminRuleValidationRules = {
+const accessRuleValidationRules = {
   resources: requiredField('At least one resource kind is required'),
   verbs: requiredField('At least one permission is required'),
 };
-export type AdminRuleValidationResult = RuleSetValidationResult<
-  typeof adminRuleValidationRules
+export type AccessRuleValidationResult = RuleSetValidationResult<
+  typeof accessRuleValidationRules
 >;

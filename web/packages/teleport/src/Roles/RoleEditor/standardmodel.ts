@@ -333,9 +333,9 @@ export function roleToRoleEditorModel(
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { kind, metadata, spec, version, ...rest } = role;
-  const { name, description, revision, ...mRest } = metadata;
-  const { allow, deny, options, ...sRest } = spec;
+  const { kind, metadata, spec, version, ...unsupported } = role;
+  const { name, description, revision, ...unsupportedMetadata } = metadata;
+  const { allow, deny, options, ...unsupportedSpecs } = spec;
   const {
     accessSpecs,
     rules,
@@ -354,9 +354,9 @@ export function roleToRoleEditorModel(
       revision !== originalRole?.metadata?.revision ||
       version !== roleVersion ||
       !(
-        isEmpty(rest) &&
-        isEmpty(mRest) &&
-        isEmpty(sRest) &&
+        isEmpty(unsupported) &&
+        isEmpty(unsupportedMetadata) &&
+        isEmpty(unsupportedSpecs) &&
         isEmpty(deny) &&
         equalsDeep(options, defaultOptions())
       ) ||
@@ -368,11 +368,9 @@ export function roleToRoleEditorModel(
  * Converts a `RoleConditions` instance (an "allow" or "deny" section, to be
  * specific) to a list of access specification models.
  */
-function roleConditionsToModel(conditions: RoleConditions): {
-  accessSpecs: AccessSpec[];
-  rules: RuleModel[];
-  requiresReset: boolean;
-} {
+function roleConditionsToModel(
+  conditions: RoleConditions
+): Pick<RoleEditorModel, 'accessSpecs' | 'rules' | 'requiresReset'> {
   const {
     node_labels,
     logins,
@@ -396,7 +394,7 @@ function roleConditionsToModel(conditions: RoleConditions): {
 
     rules,
 
-    ...rest
+    ...unsupportedConditions
   } = conditions;
 
   const accessSpecs: AccessSpec[] = [];
@@ -480,7 +478,9 @@ function roleConditionsToModel(conditions: RoleConditions): {
     accessSpecs,
     rules: rulesModel,
     requiresReset:
-      kubernetesResourcesRequireReset || rulesRequireReset || !isEmpty(rest),
+      kubernetesResourcesRequireReset ||
+      rulesRequireReset ||
+      !isEmpty(unsupportedConditions),
   };
 }
 
@@ -528,7 +528,7 @@ function kubernetesResourceToModel(res: KubernetesResource): {
   model?: KubernetesResourceModel;
   requiresReset: boolean;
 } {
-  const { kind, name, namespace = '', verbs = [], ...rest } = res;
+  const { kind, name, namespace = '', verbs = [], ...unsupported } = res;
   const kindOption = kubernetesResourceKindOptionsMap.get(kind);
   const verbOptions = verbs.map(verb => kubernetesVerbOptionsMap.get(verb));
   const knownVerbOptions = verbOptions.filter(v => v !== undefined);
@@ -546,7 +546,7 @@ function kubernetesResourceToModel(res: KubernetesResource): {
     requiresReset:
       kindOption === undefined ||
       verbOptions.length !== knownVerbOptions.length ||
-      !isEmpty(rest),
+      !isEmpty(unsupported),
   };
 }
 
@@ -562,13 +562,13 @@ function rulesToModel(rules: Rule[]): {
 }
 
 function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
-  const { resources = [], verbs = [], ...others } = rule;
+  const { resources = [], verbs = [], ...unsupported } = rule;
   const resourcesModel = resources.map(k => resourceKindOptionsMap.get(k));
   const knownResourcesModel = resourcesModel.filter(m => m !== undefined);
   const verbsModel = verbs.map(v => verbOptionsMap.get(v));
   const knownVerbsModel = verbsModel.filter(m => m !== undefined);
   const requiresReset =
-    !isEmpty(others) ||
+    !isEmpty(unsupported) ||
     knownResourcesModel.length !== resourcesModel.length ||
     knownVerbsModel.length !== verbs.length;
   return {
