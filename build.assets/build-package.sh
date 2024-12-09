@@ -194,6 +194,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
+    LICENSE_STANZA=()
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     TAR_PATH="teleport"
@@ -204,7 +205,8 @@ else
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition]"
     fi
-    TYPE_DESCRIPTION="${TYPE_DESCRIPTION}\n\nDistributed under the ${LICENSE}"
+    TYPE_DESCRIPTION="${TYPE_DESCRIPTION} Distributed under the ${LICENSE}"
+    LICENSE_STANZA=(--license "${LICENSE}")
 fi
 
 # set file list
@@ -255,7 +257,6 @@ else
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${DEB_OUTPUT_ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
     fi
-    LICENSE_STANZA=(--license "${LICENSE}")
 fi
 
 # create a temporary directory and download specified Teleport version
