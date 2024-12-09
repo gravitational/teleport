@@ -5455,7 +5455,8 @@ message GithubClaims {
 
   // UserID is a global unique integer that is assigned to each GitHub user. The
   // user ID is immutable (unlike the GitHub username) and can be found in APIs
-  // like  get user.
+  // like get user.
+  // https://docs.github.com/en/rest/users/users
   string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 

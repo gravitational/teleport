@@ -13745,7 +13745,8 @@ type GithubClaims struct {
 	Teams []string `protobuf:"bytes,3,rep,name=Teams,proto3" json:"teams"`
 	// UserID is a global unique integer that is assigned to each GitHub user. The
 	// user ID is immutable (unlike the GitHub username) and can be found in APIs
-	// like  get user.
+	// like get user.
+	// https://docs.github.com/en/rest/users/users
 	UserID               string   `protobuf:"bytes,4,opt,name=UserID,proto3" json:"user_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

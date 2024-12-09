@@ -3204,6 +3204,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
 	var githubUserID, githubUsername string
 	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
 		githubUserID = githubIdentities[0].UserID
