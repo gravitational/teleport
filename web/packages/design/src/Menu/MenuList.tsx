@@ -16,45 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import PropTypes from 'prop-types';
-import styled from 'styled-components';
+import { ComponentProps } from 'react';
+import styled, { StyleFunction } from 'styled-components';
 
-class MenuList extends React.Component {
-  render() {
-    const { children, innerRef, ...other } = this.props;
-    return (
-      <StyledMenuList ref={innerRef} role="menu" {...other}>
-        {children}
-      </StyledMenuList>
-    );
-  }
-}
-
-const StyledMenuList = styled.div`
+// TODO(ravicious): Put MenuList definition next to Menu once Menu is rewritten in TypeScript.
+const MenuList = styled.div.attrs({ role: 'menu' })<{
+  menuListCss?: StyleFunction<ComponentProps<'div'>>;
+}>`
   background-color: ${props => props.theme.colors.levels.elevated};
   border-radius: 4px;
   box-shadow: ${props => props.theme.boxShadow[0]};
   box-sizing: border-box;
   max-height: calc(100% - 96px);
   overflow: hidden;
+  overflow-y: auto;
   position: relative;
   padding: 0;
 
   ${props => props.menuListCss && props.menuListCss(props)}
 `;
 
-MenuList.propTypes = {
-  /**
-   * MenuList contents, normally `MenuItem`s.
-   */
-  children: PropTypes.node,
-  /**
-   * @ignore
-   */
-  menuListCss: PropTypes.func,
-};
-
-export default React.forwardRef((props, ref) => (
-  <MenuList innerRef={ref} {...props} />
-));
+export default MenuList;
