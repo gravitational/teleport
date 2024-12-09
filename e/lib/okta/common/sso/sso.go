@@ -240,8 +240,8 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	return info, nil
 }
 
-// CreateSAMLConnectorFromMetadatURL creates a new SAML connector in Teleport based on the OKta SAML Application metadataURL.
-func CreateSAMLConnectorFromMetadatURL(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
+// CreateSAMLConnectorFromMetadataURL creates a new SAML connector in Teleport based on the OKta SAML Application metadataURL.
+func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
 	idpMetadata, err := fetchSSOIdPMetadata(ctx, args.MetadataURL, args.HTTPClient)
 	if err != nil {
 		return nil, trace.Wrap(err)

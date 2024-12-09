@@ -471,7 +471,7 @@ func getPluginClientFromSessionContext(sessCtx *web.SessionContext) (pluginspb.P
 	return clt.PluginsClient(), nil
 }
 
-func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *pluginspb.CreatePluginRequest, plugin *Plugin) (*ui.Plugin, error) {
+func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *pluginspb.CreatePluginRequest) (*ui.Plugin, error) {
 	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)

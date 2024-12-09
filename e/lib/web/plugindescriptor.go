@@ -163,7 +163,7 @@ func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,7 +263,7 @@ func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,7 +322,7 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
+	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -384,7 +384,7 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 		return nil, trace.Wrap(err)
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
+	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -467,7 +467,7 @@ func installJiraPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
+	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -523,7 +523,7 @@ func installPagerdutyPlugin(ctx context.Context, sessCtx *web.SessionContext, w 
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -600,7 +600,7 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -679,7 +679,7 @@ func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -746,7 +746,7 @@ func installMSTeamsPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -823,7 +823,7 @@ func installMailgunPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	return ui, trace.Wrap(err)
 }
 
@@ -904,7 +904,7 @@ func installSMTPPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		},
 	}
 
-	ui, err := installPlugin(ctx, sessCtx, req, p)
+	ui, err := installPlugin(ctx, sessCtx, req)
 	return ui, trace.Wrap(err)
 }
 

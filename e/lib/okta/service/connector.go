@@ -39,7 +39,7 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 		// Create a new SAML connector from the metadata URL.
 		// This is the flow where the SAML application is pre-created in the Okta organization.
 		// And Teleport just needs to create a SAML connector from the metadata.
-		connInfo, err := sso.CreateSAMLConnectorFromMetadatURL(ctx, sso.ConnectorArgs{
+		connInfo, err := sso.CreateSAMLConnectorFromMetadataURL(ctx, sso.ConnectorArgs{
 			ConnectorName:        connectorName,
 			SAMLConnectorService: s.authService,
 			ClusterName:          clusterName,
