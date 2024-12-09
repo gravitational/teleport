@@ -44,6 +44,7 @@ use ironrdp_pdu::input::fast_path::{
 };
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
+use ironrdp_pdu::nego::NegoRequestData;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
@@ -1442,8 +1443,11 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         platform: MajorPlatformType::UNSPECIFIED,
         no_server_pointer: false,
         autologon: true,
-        request_data: None,
         pointer_software_rendering: false,
+        // Send the username in the request cookie, which is sent in the initial connection request.
+        // The RDP server ignores this value, but load balancers sitting in front of the server
+        // can use it to implement persistence.
+        request_data: Some(NegoRequestData::cookie(params.username.clone())),
         performance_flags: PerformanceFlags::default()
             | PerformanceFlags::DISABLE_CURSOR_SHADOW // this is required for pointer to work correctly in Windows 2019
             | if !params.show_desktop_wallpaper {
@@ -1457,6 +1461,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
 
 #[derive(Debug)]
 pub struct ConnectParams {
+    pub username: String,
     pub addr: String,
     pub kdc_addr: Option<String>,
     pub computer_name: Option<String>,
