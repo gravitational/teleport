@@ -144,6 +144,7 @@ message CannotProxyVnetConnection {
   RouteToApp route_to_app = 4;
   oneof reason {
     CertReissueError cert_reissue_error = 5;
+    InvalidLocalPort invalid_local_port = 6;
   }
 }
 
@@ -152,6 +153,11 @@ message CannotProxyVnetConnection {
 message CertReissueError {
   string error = 1;
 }
+
+// InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
+// because its local port did not match any TCP ports in the spec of the app. The port is included
+// in route_to_app as target_port.
+message InvalidLocalPort {}
 
 // Response for SendNotification.
 message SendNotificationResponse {}

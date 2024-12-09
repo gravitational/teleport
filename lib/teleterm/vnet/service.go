@@ -422,9 +422,9 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 					RouteToApp: &apiteletermRouteToApp,
 					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
 						CertReissueError: &apiteleterm.CertReissueError{
-					Error:      err.Error(),
-				},
-			},
+							Error: err.Error(),
+						},
+					},
 				},
 			},
 		})
@@ -484,6 +484,35 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 // because the provided port does not match any of the TCP ports in the app spec.
 func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+	// If something is wrong with the Electron app to the point that it stopped accepting RPCs, return
+	// quickly rather than being blocked on sending a notification.
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	appURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(routeToApp.Name)
+	apiteletermRouteToApp := apiteleterm.RouteToApp{
+		Name:        routeToApp.Name,
+		PublicAddr:  routeToApp.PublicAddr,
+		ClusterName: routeToApp.ClusterName,
+		Uri:         routeToApp.URI,
+		TargetPort:  routeToApp.TargetPort,
+	}
+
+	err := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
+		Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
+			CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
+				TargetUri:  appURI.String(),
+				RouteToApp: &apiteletermRouteToApp,
+				Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
+					InvalidLocalPort: &apiteleterm.InvalidLocalPort{},
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.ErrorContext(ctx, "Could not notify the Electron app about invalid local port",
+			"notify_error", err, "profile_name", profileName, "leaf_cluster_name", leafClusterName, "route_to_app", routeToApp)
+	}
 }
 
 type usageReporter interface {

@@ -184,6 +184,12 @@ export interface CannotProxyVnetConnection {
          */
         certReissueError: CertReissueError;
     } | {
+        oneofKind: "invalidLocalPort";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6;
+         */
+        invalidLocalPort: InvalidLocalPort;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -198,6 +204,15 @@ export interface CertReissueError {
      * @generated from protobuf field: string error = 1;
      */
     error: string;
+}
+/**
+ * InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
+ * because its local port did not match any TCP ports in the spec of the app. The port is included
+ * in route_to_app as target_port.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
+ */
+export interface InvalidLocalPort {
 }
 /**
  * Response for SendNotification.
@@ -790,7 +805,8 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "route_to_app", kind: "message", T: () => RouteToApp },
-            { no: 5, name: "cert_reissue_error", kind: "message", oneof: "reason", T: () => CertReissueError }
+            { no: 5, name: "cert_reissue_error", kind: "message", oneof: "reason", T: () => CertReissueError },
+            { no: 6, name: "invalid_local_port", kind: "message", oneof: "reason", T: () => InvalidLocalPort }
         ]);
     }
     create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
@@ -818,6 +834,12 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
                         certReissueError: CertReissueError.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).certReissueError)
                     };
                     break;
+                case /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port */ 6:
+                    message.reason = {
+                        oneofKind: "invalidLocalPort",
+                        invalidLocalPort: InvalidLocalPort.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).invalidLocalPort)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -839,6 +861,9 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         /* teleport.lib.teleterm.v1.CertReissueError cert_reissue_error = 5; */
         if (message.reason.oneofKind === "certReissueError")
             CertReissueError.internalBinaryWrite(message.reason.certReissueError, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6; */
+        if (message.reason.oneofKind === "invalidLocalPort")
+            InvalidLocalPort.internalBinaryWrite(message.reason.invalidLocalPort, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -896,6 +921,31 @@ class CertReissueError$Type extends MessageType<CertReissueError> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CertReissueError
  */
 export const CertReissueError = new CertReissueError$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class InvalidLocalPort$Type extends MessageType<InvalidLocalPort> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.InvalidLocalPort", []);
+    }
+    create(value?: PartialMessage<InvalidLocalPort>): InvalidLocalPort {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<InvalidLocalPort>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InvalidLocalPort): InvalidLocalPort {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: InvalidLocalPort, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
+ */
+export const InvalidLocalPort = new InvalidLocalPort$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SendNotificationResponse$Type extends MessageType<SendNotificationResponse> {
     constructor() {
