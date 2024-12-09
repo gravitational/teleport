@@ -2278,13 +2278,32 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+//
+// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.Wrap(err, "control plane does not support this operation, "+
+				"consider upgrading your control plane")
+		}
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil

@@ -196,6 +196,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
+	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
@@ -2746,17 +2747,14 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
@@ -2906,6 +2904,9 @@ type trustedClusterTest struct {
 	// useLabels turns on trusted cluster labels and
 	// verifies RBAC
 	useLabels bool
+	// skipNameValidation uses the deprecated UpsertTrustedCluster and skips
+	// cluster name validation.
+	skipNameValidation bool
 }
 
 // TestTrustedClusters tests remote clusters scenarios
@@ -2940,6 +2941,15 @@ func testTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: false, useLabels: true})
+}
+
+// TestTrustedClustersSkipNameValidation tests remote clusters scenarios
+// skipping name validation.
+func testTrustedClustersSkipNameValidation(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedClusters(t, suite, trustedClusterTest{skipNameValidation: true})
 }
 
 // TestJumpTrustedClusters tests remote clusters scenarios
@@ -3079,17 +3089,25 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
+	// Note that the trusted cluster resource name must match the cluster name.
+	// Modify the trusted cluster resource name and expect the upsert to fail.
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
+	require.ErrorContains(t, err, "trusted cluster resource name must be the same as the remote cluster name", "expected failure due to tc name mismatch")
+
+	if !test.skipNameValidation {
+		// Modify the trusted cluster resource name back to what it was originally.
+		trustedCluster.SetName(main.Secrets.SiteName)
+	}
+
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
@@ -3176,7 +3194,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
 	// recreating the trusted cluster should re-establish connection
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	// check that remote cluster has been re-provisioned
@@ -3322,9 +3340,6 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 	// disable cluster
 	trustedCluster.SetEnabled(false)
 
@@ -3334,11 +3349,11 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster while disabled
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 
 	// try to enable disabled cluster
 	trustedCluster.SetEnabled(true)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
@@ -3462,16 +3477,12 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// change role mapping to ensure updating works
@@ -3479,7 +3490,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
@@ -3492,7 +3503,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// disable the enabled trusted cluster and ensure it no longer works
 	trustedCluster.SetEnabled(false)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, test.skipNameValidation)
 
 	// Wait for both cluster to no longer see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
@@ -3563,17 +3574,14 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
@@ -3747,17 +3755,14 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		{Remote: devsRoleName, Local: []string{devsRoleName}},
 	})
 
-	// modify trusted cluster resource name, so it would not
-	// match the cluster name to check that it does not matter
-	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
-
 	require.NoError(t, main.Start())
 	require.NoError(t, leaf.Start())
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Wait for both cluster to see each other via reverse tunnels.
@@ -5579,7 +5584,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before reload has started to simulate old client
@@ -7478,7 +7484,9 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	t.Cleanup(func() { leaf.StopAll() })
 
 	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
-	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+
+	const skipNameValidation = false
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster, skipNameValidation)
 	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
 	_, _, rootProxySSHPort := root.StartNodeAndProxy(t, "root-zero")
