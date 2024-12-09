@@ -105,8 +105,7 @@ func computeRolloutState(groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup)
 	groupsByState := make(map[autoupdate.AutoUpdateAgentGroupState][]*autoupdate.AutoUpdateAgentRolloutStatusGroup)
 
 	for _, group := range groups {
-		previousGroups, _ := groupsByState[group.State]
-		groupsByState[group.State] = append(previousGroups, group)
+		groupsByState[group.State] = append(groupsByState[group.State], group)
 	}
 
 	// If one or more groups have been rolled back, we consider the rollout rolledback
