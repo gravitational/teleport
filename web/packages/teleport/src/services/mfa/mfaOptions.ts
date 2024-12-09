@@ -20,6 +20,7 @@ import { Auth2faType } from 'shared/services';
 
 import { DeviceType, MfaAuthenticateChallenge, SSOChallenge } from './types';
 
+// returns mfa challenge options in order of preferences: WebAuthn > SSO > TOTP.
 export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   const mfaOptions: MfaOption[] = [];
 
@@ -27,12 +28,12 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
     mfaOptions.push(MFA_OPTION_WEBAUTHN);
   }
 
-  if (mfaChallenge?.totpChallenge) {
-    mfaOptions.push(MFA_OPTION_TOTP);
-  }
-
   if (mfaChallenge?.ssoChallenge) {
     mfaOptions.push(getSsoMfaOption(mfaChallenge.ssoChallenge));
+  }
+
+  if (mfaChallenge?.totpChallenge) {
+    mfaOptions.push(MFA_OPTION_TOTP);
   }
 
   return mfaOptions;

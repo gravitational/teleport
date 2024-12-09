@@ -70,7 +70,7 @@ export function ReAuthenticate({
   const [mfaOption, setMfaOption] = useState<MfaOption>();
 
   const [challengeOptions, getChallengeOptions] = useAsync(async () => {
-    const mfaOptions = getMfaChallengeOptions();
+    const mfaOptions = await getMfaChallengeOptions();
     setMfaOption(mfaOptions[0]);
     return mfaOptions;
   });
