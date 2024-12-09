@@ -30,10 +30,7 @@ import {
   Text,
 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, {
-  useValidation,
-  Validator,
-} from 'shared/components/Validation';
+import { useValidation } from 'shared/components/Validation';
 import {
   precomputed,
   ValidationResult,
@@ -93,7 +90,7 @@ import {
   AppSpecValidationResult,
   DatabaseSpecValidationResult,
   WindowsDesktopSpecValidationResult,
-  AdminRuleValidationResult,
+  AccessRuleValidationResult,
 } from './validation';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -131,7 +128,7 @@ export const StandardEditor = ({
   enum StandardEditorTab {
     Overview,
     Resources,
-    AdminRules,
+    AccessRules,
     Options,
   }
 
@@ -139,10 +136,12 @@ export const StandardEditor = ({
   const idPrefix = useId();
   const overviewTabId = `${idPrefix}-overview`;
   const resourcesTabId = `${idPrefix}-resources`;
-  const adminRulesTabId = `${idPrefix}-admin-rules`;
+  const accessRulesTabId = `${idPrefix}-access-rules`;
   const optionsTabId = `${idPrefix}-options`;
 
-  function handleSave(validator: Validator) {
+  const validator = useValidation();
+
+  function handleSave() {
     if (!validator.validate()) {
       return;
     }
@@ -217,176 +216,169 @@ export const StandardEditor = ({
   }
 
   return (
-    <Validation>
-      {({ validator }) => (
-        <>
-          {roleModel.requiresReset && (
-            <RequiresResetToStandard reset={resetForStandardEditor} />
-          )}
-          <EditorWrapper
-            mute={standardEditorModel.roleModel.requiresReset}
-            data-testid="standard-editor"
-          >
-            <Box mb={3}>
-              <SlideTabs
-                appearance="round"
-                hideStatusIconOnActiveTab
-                tabs={[
-                  {
-                    key: StandardEditorTab.Overview,
-                    title: 'Overview',
-                    controls: overviewTabId,
-                    status:
-                      validator.state.validating && !validation.metadata.valid
-                        ? validationErrorTabStatus
-                        : undefined,
-                  },
-                  {
-                    key: StandardEditorTab.Resources,
-                    title: 'Resources',
-                    controls: resourcesTabId,
-                    status:
-                      validator.state.validating &&
-                      validation.accessSpecs.some(s => !s.valid)
-                        ? validationErrorTabStatus
-                        : undefined,
-                  },
-                  {
-                    key: StandardEditorTab.AdminRules,
-                    title: 'Admin Rules',
-                    controls: adminRulesTabId,
-                    status:
-                      validator.state.validating &&
-                      validation.rules.some(s => !s.valid)
-                        ? validationErrorTabStatus
-                        : undefined,
-                  },
-                  {
-                    key: StandardEditorTab.Options,
-                    title: 'Options',
-                    controls: optionsTabId,
-                  },
-                ]}
-                activeIndex={currentTab}
-                onChange={setCurrentTab}
-              />
-            </Box>
-            <div
-              id={overviewTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.Overview ? '' : 'none',
-              }}
-            >
-              <MetadataSection
-                value={roleModel.metadata}
-                isProcessing={isProcessing}
-                validation={validation.metadata}
-                onChange={metadata => handleChange({ ...roleModel, metadata })}
-              />
-            </div>
-            <div
-              id={resourcesTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.Resources ? '' : 'none',
-              }}
-            >
-              <Flex flexDirection="column" gap={3} my={2}>
-                {roleModel.accessSpecs.map((spec, i) => {
-                  const validationResult = validation.accessSpecs[i];
-                  return (
-                    <AccessSpecSection
-                      key={spec.kind}
-                      value={spec}
-                      isProcessing={isProcessing}
-                      validation={validationResult}
-                      onChange={value => setAccessSpec(value)}
-                      onRemove={() => removeAccessSpec(spec.kind)}
-                    />
-                  );
-                })}
-                <Box>
-                  <MenuButton
-                    menuProps={{
-                      transformOrigin: {
-                        vertical: 'bottom',
-                        horizontal: 'right',
-                      },
-                      anchorOrigin: {
-                        vertical: 'top',
-                        horizontal: 'right',
-                      },
-                    }}
-                    buttonText={
-                      <>
-                        <Icon.Plus size="small" mr={2} />
-                        Add New Specifications
-                      </>
-                    }
-                    buttonProps={{
-                      size: 'medium',
-                      fill: 'filled',
-                      disabled: isProcessing || allowedSpecKinds.length === 0,
-                    }}
-                  >
-                    {allowedSpecKinds.map(kind => (
-                      <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                        {specSections[kind].title}
-                      </MenuItem>
-                    ))}
-                  </MenuButton>
-                </Box>
-              </Flex>
-            </div>
-            <div
-              id={adminRulesTabId}
-              style={{
-                display:
-                  currentTab === StandardEditorTab.AdminRules ? '' : 'none',
-              }}
-            >
-              <AdminRules
-                isProcessing={isProcessing}
-                value={roleModel.rules}
-                onChange={setRules}
-                validation={validation.rules}
-              />
-            </div>
-            <div
-              id={optionsTabId}
-              style={{
-                display: currentTab === StandardEditorTab.Options ? '' : 'none',
-              }}
-            >
-              <Options
-                isProcessing={isProcessing}
-                value={roleModel.options}
-                onChange={setOptions}
-              />
-            </div>
-          </EditorWrapper>
-          <EditorSaveCancelButton
-            onSave={() => handleSave(validator)}
-            onCancel={onCancel}
-            disabled={
-              isProcessing ||
-              standardEditorModel.roleModel.requiresReset ||
-              !standardEditorModel.isDirty
-            }
-            isEditing={isEditing}
-          />
-        </>
+    <>
+      {roleModel.requiresReset && (
+        <RequiresResetToStandard reset={resetForStandardEditor} />
       )}
-    </Validation>
+      <EditorWrapper
+        mute={standardEditorModel.roleModel.requiresReset}
+        data-testid="standard-editor"
+      >
+        <Box mb={3}>
+          <SlideTabs
+            appearance="round"
+            hideStatusIconOnActiveTab
+            tabs={[
+              {
+                key: StandardEditorTab.Overview,
+                title: 'Overview',
+                controls: overviewTabId,
+                status:
+                  validator.state.validating && !validation.metadata.valid
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.Resources,
+                title: 'Resources',
+                controls: resourcesTabId,
+                status:
+                  validator.state.validating &&
+                  validation.accessSpecs.some(s => !s.valid)
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.AccessRules,
+                title: 'Access Rules',
+                controls: accessRulesTabId,
+                status:
+                  validator.state.validating &&
+                  validation.rules.some(s => !s.valid)
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.Options,
+                title: 'Options',
+                controls: optionsTabId,
+              },
+            ]}
+            activeIndex={currentTab}
+            onChange={setCurrentTab}
+          />
+        </Box>
+        <div
+          id={overviewTabId}
+          style={{
+            display: currentTab === StandardEditorTab.Overview ? '' : 'none',
+          }}
+        >
+          <MetadataSection
+            value={roleModel.metadata}
+            isProcessing={isProcessing}
+            validation={validation.metadata}
+            onChange={metadata => handleChange({ ...roleModel, metadata })}
+          />
+        </div>
+        <div
+          id={resourcesTabId}
+          style={{
+            display: currentTab === StandardEditorTab.Resources ? '' : 'none',
+          }}
+        >
+          <Flex flexDirection="column" gap={3} my={2}>
+            {roleModel.accessSpecs.map((spec, i) => {
+              const validationResult = validation.accessSpecs[i];
+              return (
+                <AccessSpecSection
+                  key={spec.kind}
+                  value={spec}
+                  isProcessing={isProcessing}
+                  validation={validationResult}
+                  onChange={value => setAccessSpec(value)}
+                  onRemove={() => removeAccessSpec(spec.kind)}
+                />
+              );
+            })}
+            <Box>
+              <MenuButton
+                menuProps={{
+                  transformOrigin: {
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  },
+                  anchorOrigin: {
+                    vertical: 'top',
+                    horizontal: 'right',
+                  },
+                }}
+                buttonText={
+                  <>
+                    <Icon.Plus size="small" mr={2} />
+                    Add New Specifications
+                  </>
+                }
+                buttonProps={{
+                  size: 'medium',
+                  fill: 'filled',
+                  disabled: isProcessing || allowedSpecKinds.length === 0,
+                }}
+              >
+                {allowedSpecKinds.map(kind => (
+                  <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
+                    {specSections[kind].title}
+                  </MenuItem>
+                ))}
+              </MenuButton>
+            </Box>
+          </Flex>
+        </div>
+        <div
+          id={accessRulesTabId}
+          style={{
+            display: currentTab === StandardEditorTab.AccessRules ? '' : 'none',
+          }}
+        >
+          <AccessRules
+            isProcessing={isProcessing}
+            value={roleModel.rules}
+            onChange={setRules}
+            validation={validation.rules}
+          />
+        </div>
+        <div
+          id={optionsTabId}
+          style={{
+            display: currentTab === StandardEditorTab.Options ? '' : 'none',
+          }}
+        >
+          <Options
+            isProcessing={isProcessing}
+            value={roleModel.options}
+            onChange={setOptions}
+          />
+        </div>
+      </EditorWrapper>
+      <EditorSaveCancelButton
+        onSave={() => handleSave()}
+        onCancel={onCancel}
+        disabled={
+          isProcessing ||
+          standardEditorModel.roleModel.requiresReset ||
+          !standardEditorModel.isDirty
+        }
+        isEditing={isEditing}
+      />
+    </>
   );
 };
 
-export type SectionProps<T, V> = {
-  value: T;
+export type SectionProps<Model, ValidationResult> = {
+  value: Model;
   isProcessing: boolean;
-  validation?: V;
-  onChange?(value: T): void;
+  validation?: ValidationResult;
+  onChange?(value: Model): void;
 };
 
 const validationErrorTabStatus = {
@@ -955,12 +947,12 @@ export function WindowsDesktopAccessSpecSection({
   );
 }
 
-export function AdminRules({
+export function AccessRules({
   value,
   isProcessing,
   validation,
   onChange,
-}: SectionProps<RuleModel[], AdminRuleValidationResult[]>) {
+}: SectionProps<RuleModel[], AccessRuleValidationResult[]>) {
   function addRule() {
     onChange?.([...value, newRuleModel()]);
   }
@@ -973,7 +965,7 @@ export function AdminRules({
   return (
     <Flex flexDirection="column" gap={3}>
       {value.map((rule, i) => (
-        <AdminRule
+        <AccessRule
           key={rule.id}
           isProcessing={isProcessing}
           value={rule}
@@ -990,21 +982,20 @@ export function AdminRules({
   );
 }
 
-function AdminRule({
+function AccessRule({
   value,
   isProcessing,
   validation,
   onChange,
   onRemove,
-}: SectionProps<RuleModel, AdminRuleValidationResult> & {
+}: SectionProps<RuleModel, AccessRuleValidationResult> & {
   onRemove?(): void;
 }) {
   const { resources, verbs } = value;
-  const theme = useTheme();
   return (
     <Section
-      title="Admin Rule"
-      tooltip="A rule that gives users administrative access to certain kinds of resources"
+      title="Access Rule"
+      tooltip="A rule that gives users access to certain kinds of resources"
       removable
       isProcessing={isProcessing}
       validation={validation}
