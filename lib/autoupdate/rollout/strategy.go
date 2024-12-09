@@ -94,3 +94,39 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 		group.LastUpdateTime = timestamppb.New(now)
 	}
 }
+
+func computeRolloutState(groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) autoupdate.AutoUpdateAgentRolloutState {
+	groupCount := len(groups)
+
+	if groupCount == 0 {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED
+	}
+
+	groupsByState := make(map[autoupdate.AutoUpdateAgentGroupState][]*autoupdate.AutoUpdateAgentRolloutStatusGroup)
+
+	for _, group := range groups {
+		if previousGroups, ok := groupsByState[group.State]; ok {
+			groupsByState[group.State] = append(previousGroups, group)
+		} else {
+			groupsByState[group.State] = []*autoupdate.AutoUpdateAgentRolloutStatusGroup{group}
+		}
+	}
+
+	// If one or more groups have been rolled back, we consider the rollout rolledback
+	if rolledbackGroups, ok := groupsByState[autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK]; ok && len(rolledbackGroups) > 0 {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK
+	}
+
+	// If every group is done, the rollout is done.
+	if doneGroups, ok := groupsByState[autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE]; ok && len(doneGroups) == groupCount {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE
+	}
+
+	// If every group is unstarted, the rollout is unstarted.
+	if unstartedGroups, ok := groupsByState[autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED]; ok && len(unstartedGroups) == groupCount {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED
+	}
+
+	// Else at least one group is active or done, but not everything is finished. We consider the rollout active.
+	return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE
+}
