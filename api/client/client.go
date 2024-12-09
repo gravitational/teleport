@@ -3810,6 +3810,10 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
 		case types.KindIdentityCenterAccount:
 			resources[i] = respResource.GetAppServer()
+		case types.KindIdentityCenterAccountAssignment:
+			src := respResource.GetIdentityCenterAccountAssignment()
+			dst := proto.UnpackICAccountAssignment(src)
+			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
