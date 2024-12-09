@@ -290,6 +290,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 			authClient: &fakeAuthClient{
 				clusterSpec: rootCluster,
 				clusterName: profileName,
+				rootClusterName: profileName,
 			},
 		}, nil
 	}
@@ -301,6 +302,7 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 		authClient: &fakeAuthClient{
 			clusterSpec: leafCluster,
 			clusterName: leafClusterName,
+			rootClusterName: profileName,
 		},
 	}, nil
 }
@@ -401,12 +403,17 @@ func (c *fakeClusterClient) ClusterName() string {
 	return c.authClient.clusterName
 }
 
+func (c *fakeClusterClient) RootClusterName() string {
+	return c.authClient.rootClusterName
+}
+
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type fakeAuthClient struct {
 	authclient.ClientI
 	clusterSpec testClusterSpec
 	clusterName string
+	rootClusterName string
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {

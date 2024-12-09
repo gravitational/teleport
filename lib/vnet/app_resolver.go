@@ -79,6 +79,7 @@ type AppProvider interface {
 type ClusterClient interface {
 	CurrentCluster() authclient.ClientI
 	ClusterName() string
+	RootClusterName() string
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
@@ -169,8 +170,9 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 		}
 
 		leafClusterName := ""
-		if clusterClient.ClusterName() != profileName {
-			leafClusterName = clusterClient.ClusterName()
+		clusterName := clusterClient.ClusterName()
+		if clusterName != "" && clusterName != profileName && clusterName != clusterClient.RootClusterName() {
+			leafClusterName = clusterName
 		}
 
 		return r.resolveTCPHandlerForCluster(ctx, clusterClient, profileName, leafClusterName, fqdn)
