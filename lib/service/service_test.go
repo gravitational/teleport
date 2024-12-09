@@ -2085,13 +2085,13 @@ func makeTempDir(t *testing.T) string {
 func TestAgentRolloutController(t *testing.T) {
 	t.Parallel()
 
-	// Test setup: create a Teleport Auth config
-	fakeClock := clockwork.NewFakeClock()
-
-	dataDir := t.TempDir()
+	dataDir := makeTempDir(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Clock = fakeClock
+	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
+	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
+	// check, this will break the next time we add a new waiter.
+	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = dataDir
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
@@ -2100,6 +2100,8 @@ func TestAgentRolloutController(t *testing.T) {
 	cfg.DebugService.Enabled = false
 	cfg.Auth.StorageConfig.Params["path"] = dataDir
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	// Speed up the reconciliation period for testing purposes.
+	cfg.Auth.AgentRolloutControllerSyncPeriod = 200 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
@@ -2138,9 +2140,6 @@ func TestAgentRolloutController(t *testing.T) {
 	version, err = authServer.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	// Test execution: advance clock to trigger a reconciliation
-	fakeClock.Advance(2 * time.Minute)
-
 	// Test validation: check that a new autoupdate_agent_rollout config was created
 	require.Eventually(t, func() bool {
 		rollout, err := authServer.GetAutoUpdateAgentRollout(ctx)
@@ -2148,5 +2147,5 @@ func TestAgentRolloutController(t *testing.T) {
 			return false
 		}
 		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 }
