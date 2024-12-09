@@ -15,13 +15,6 @@ on:
         type: string
         required: true
 
-      ent-teleport-ref:
-        description: |
-          Tag, branch or reference to Enterprise teleport to include in the
-          build. If no value is supplied this workflow will use whatever
-          reference is specified in the OSS teleport submodule record.
-        type: string
-
       teleport-version:
         description: The semver version of Teleport version that we're building for.
         type: string
@@ -44,8 +37,6 @@ on:
         default: gravitational/teleport
         type: string
       oss-teleport-ref:
-        type: string
-      ent-teleport-ref:
         type: string
       teleport-version:
         type: string
@@ -149,7 +140,6 @@ jobs:
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       release: enterprise
       release-target: ${{ format('release-{0}', matrix.arch) }}${{ matrix.fips && '-fips' || '' }}
       release-version: ${{ needs.setup.outputs.version }}
@@ -170,7 +160,6 @@ jobs:
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       build-packages: true
       release-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
@@ -187,7 +176,6 @@ jobs:
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       artifact-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 

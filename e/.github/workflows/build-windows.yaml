@@ -14,14 +14,6 @@ on:
         description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
         required: true
         type: string
-      ent-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no
-          value is supplied this workflow will use whatever reference is specified in
-          the OSS teleport submodule record.
-        required: false
-        default: ""
-        type: string
       artifact-version:
         description: "The version associated with the artifact to deploy (eg. 1.2.3)"
         type: string
@@ -281,7 +273,6 @@ jobs:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
           edition: "enterprise"
-          ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Build the artifacts

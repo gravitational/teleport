@@ -32,6 +32,8 @@ inputs:
       If no value is supplied, the submodule reference in the OSS Teleport
       repository checked-out will be used.
 
+      This should not be used for release or other security-critical workflows.
+
   ent-fetch-depth:
     description: Number of commits to fetch. 0 indicates all history for all branches and tags.
     required: false
