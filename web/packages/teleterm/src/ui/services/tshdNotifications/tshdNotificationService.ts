@@ -22,7 +22,7 @@ import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { routing } from 'teleterm/ui/uri';
+import { ResourceUri, routing } from 'teleterm/ui/uri';
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
   notificationRequestOneOfIsCannotProxyGatewayConnection,
@@ -57,7 +57,7 @@ export class TshdNotificationsService {
         const { gatewayUri, targetUri, error } =
           subject.cannotProxyGatewayConnection;
         const gateway = this.clustersService.findGateway(gatewayUri);
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
         let targetName: string;
         let targetUser: string;
         let targetDesc: string;
@@ -86,7 +86,7 @@ export class TshdNotificationsService {
         }
         const { routeToApp, targetUri, reason } =
           subject.cannotProxyVnetConnection;
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
 
         switch (reason.oneofKind) {
           case 'certReissueError': {
@@ -111,5 +111,12 @@ export class TshdNotificationsService {
         return;
       }
     }
+  }
+
+  private getClusterName(uri: ResourceUri): string {
+    const clusterUri = routing.ensureClusterUri(uri);
+    const cluster = this.clustersService.findCluster(clusterUri);
+
+    return cluster ? cluster.name : routing.parseClusterName(clusterUri);
   }
 }
