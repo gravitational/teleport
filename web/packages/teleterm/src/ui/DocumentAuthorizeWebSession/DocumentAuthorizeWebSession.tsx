@@ -132,10 +132,11 @@ export function DocumentAuthorizeWebSession(props: {
               details={
                 <>
                   You are logged in as <b>{rootCluster.loggedInUser?.name}</b>.
-                  To authorize this web session request, please log out and log
-                  in again as <b>{props.doc.webSessionRequest.username}</b>.
+                  To authorize this web session request, please log out in
+                  Teleport Connect and log in again as{' '}
+                  <b>{props.doc.webSessionRequest.username}</b>.
                   <br />
-                  Then retry the action in the browser.
+                  Then click Launch Teleport Connect again in the browser.
                 </>
               }
             >
