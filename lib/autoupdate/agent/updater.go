@@ -94,6 +94,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	if cfg.SystemDir == "" {
 		cfg.SystemDir = defaultSystemDir
 	}
+	validator := Validator{Log: cfg.Log}
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
@@ -110,6 +111,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
 			TransformService:        ns.replaceTeleportService,
+			ValidateBinary:          validator.IsBinary,
 		},
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),

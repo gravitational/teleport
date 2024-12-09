@@ -407,14 +407,14 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (context.Context, *ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
 	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
@@ -453,7 +453,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 
 	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
@@ -475,7 +475,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 
 	monitorConfig := MonitorConfig{
@@ -503,14 +503,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	err = StartMonitor(monitorConfig)
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.cmdr)
 	child.AddCloser(child.cmdw)
@@ -519,7 +519,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
@@ -528,7 +528,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.readyr, child.readyw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.readyr)
 	child.AddCloser(child.readyw)
@@ -536,12 +536,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, nil, trace.NewAggregate(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
 
-	return ctx, child, nil
+	return child, nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -946,6 +946,15 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
+}
+
+func (c *ServerContext) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("remote_addr", c.ServerConn.RemoteAddr().String()),
+		slog.String("local_addr", c.ServerConn.LocalAddr().String()),
+		slog.String("user", c.ServerConn.User()),
+		slog.Int("id", c.id),
+	)
 }
 
 func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
