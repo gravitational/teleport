@@ -28,6 +28,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -112,6 +113,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *autoupdate.AutoUpdateVersion:
 			out.Resource = &proto.Event_AutoUpdateVersion{
 				AutoUpdateVersion: r,
+			}
+		case *workloadidentityv1pb.WorkloadIdentity:
+			out.Resource = &proto.Event_WorkloadIdentity{
+				WorkloadIdentity: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -563,6 +568,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetWorkloadIdentity(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
