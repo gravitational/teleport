@@ -67,7 +67,7 @@ type awsFetcherConfig struct {
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
-	DiscoveryConfig string
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -176,9 +176,9 @@ func (f *awsFetcher) IntegrationName() string {
 	return f.cfg.Integration
 }
 
-// DiscoveryConfigName returns the discovery config name whose matchers are used to fetch the resources.
-func (f *awsFetcher) DiscoveryConfigName() string {
-	return f.cfg.DiscoveryConfig
+// GetDiscoveryConfigName returns the discovery config name whose matchers are used to fetch the resources.
+func (f *awsFetcher) GetDiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfigName
 }
 
 // ResourceType identifies the resource type the fetcher is returning.

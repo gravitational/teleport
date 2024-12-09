@@ -178,7 +178,7 @@ func (m *mockFetcher) IntegrationName() string {
 	return ""
 }
 
-func (m *mockFetcher) DiscoveryConfigName() string {
+func (m *mockFetcher) GetDiscoveryConfigName() string {
 	return ""
 }
 func (m *mockFetcher) Cloud() string {
