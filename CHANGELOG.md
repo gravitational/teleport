@@ -1,5 +1,13 @@
 # Changelog
 
+## 17.0.4 (12/5/2024)
+
+* Fixed a bug introduced in 17.0.3 breaking in-cluster joining on some Kubernetes clusters. [#49841](https://github.com/gravitational/teleport/pull/49841)
+* SSH or Kubernetes information included for audit log list for start session events. [#49832](https://github.com/gravitational/teleport/pull/49832)
+* Avoid tight web session renewals for sessions with short TTL (between 3m and 30s). [#49768](https://github.com/gravitational/teleport/pull/49768)
+* Updated Go to 1.23.4. [#49758](https://github.com/gravitational/teleport/pull/49758)
+* Fixed re-rendering bug when filtering Unified Resources. [#49744](https://github.com/gravitational/teleport/pull/49744)
+
 ## 17.0.3 (12/3/2024)
 
 * Restore ability to disable multi-factor authentication for local users. [#49692](https://github.com/gravitational/teleport/pull/49692)

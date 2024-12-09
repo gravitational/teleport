@@ -623,5 +623,6 @@ func deriveTeleportEqual_39(this, that *IdentityCenterPermissionSet) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ARN == that.ARN &&
-			this.Name == that.Name
+			this.Name == that.Name &&
+			this.AssignmentID == that.AssignmentID
 }

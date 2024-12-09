@@ -20,8 +20,9 @@ import React, { useState } from 'react';
 import { Flex, Text, ButtonIcon, Box, LabelInput } from 'design';
 import * as Icon from 'design/Icon';
 
+import { IconTooltip } from 'design/Tooltip';
+
 import Select, { Option } from 'shared/components/Select';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
@@ -72,10 +73,10 @@ export function AdditionalOptions({
             <LabelInput color="text.slightlyMuted" mb={3}>
               <Flex alignItems="center">
                 <Text mr={1}>Request expires if not reviewed in</Text>
-                <ToolTipInfo>
+                <IconTooltip>
                   The request TTL which is the amount of time this request will
                   be in the PENDING state before it expires.
-                </ToolTipInfo>
+                </IconTooltip>
               </Flex>
               <Select
                 options={pendingRequestTtlOptions}
@@ -89,10 +90,10 @@ export function AdditionalOptions({
           <LabelInput color="text.slightlyMuted">
             <Flex alignItems="center">
               <Text mr={1}>Access Request Lifetime</Text>
-              <ToolTipInfo>
+              <IconTooltip>
                 The max duration of an access request, starting from its
                 creation, until it expires.
-              </ToolTipInfo>
+              </IconTooltip>
             </Flex>
             <Text>
               {getFormattedDurationTxt({
