@@ -51,9 +51,11 @@ export function makeDatabase(json: any): Database {
     labels,
     names: json.database_names || [],
     users: json.database_users || [],
+    roles: json.database_roles || [],
     hostname: json.hostname,
     aws: madeAws,
     requiresRequest,
+    supportsInteractive: json.supports_interactive || false,
   };
 }
 

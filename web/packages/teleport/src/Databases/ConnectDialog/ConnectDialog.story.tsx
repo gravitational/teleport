@@ -92,3 +92,15 @@ export const ConnectWithRequestId = () => {
     />
   );
 };
+
+export const ConnectDbSupportsInteractive = () => (
+  <ConnectDialog
+    username="gabriel"
+    dbName="pg"
+    dbProtocol="postgres"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+    supportsInteractive={true}
+  />
+);
