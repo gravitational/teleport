@@ -1,0 +1,74 @@
+---
+title: Access Controls
+description: How to provide role-based access control (RBAC) for servers, databases, Kubernetes clusters, and other resources in your infrastructure
+layout: tocless-doc
+---
+
+Teleport's role-based access control (RBAC) enables you to set fine-grained
+policies for who can perform certain actions against specific resources. For
+example:
+
+- Analytics team members can SSH into a MongoDB read replica, but not the main
+  database.
+- Interns can't access production databases.
+- SREs can access a production server only when using a [trusted hardware
+  device](./device-trust/guide.mdx).
+- Members of a team can access the production Kubernetes cluster if approved by
+  someone else from the same team.
+
+## Get started
+
+Configure Access Controls with our five-minute [Getting
+Started](./getting-started.mdx) guide.
+
+## Set up Teleport roles
+
+The heart of Teleport's RBAC system is the **role**, a configuration document
+that specifies access policies for resources in your Teleport cluster.
+Assigning a role to a Teleport user applies the policies listed in the role to
+the user.
+
+See the [Cluster Access and RBAC](guides/guides.mdx) section for instructions on
+setting up Teleport roles.
+
+## Integrate with your Single Sign-On provider
+
+While you can create Teleport users directly on the Auth Service, the more
+scalable approach is to integrate Teleport with a Single Sign-On identity
+provider (IdP), such as Okta or GitHub.
+
+When a user authenticates to your Teleport cluster via your IdP, Teleport
+automatically assigns roles to the user based on data provided by the IdP. This
+means that you can implement a fully fledged infrastructure RBAC system based on
+your existing Single Sign-On solution.
+
+Read our [Single Sign-On guide](sso/sso.mdx) to get started.
+
+## Enable Access Requests
+
+With Access Requests, your Teleport cluster can grant a user temporary access to
+resources in your infrastructure based on the approval of other users. You can
+set up your RBAC so all privileged access is short lived, and there are no
+longstanding admin roles for attackers to hijack.
+
+[Get started with Access Requests](access-requests/access-requests.mdx).
+
+You can integrate Teleport with your existing communication tool, e.g., Slack,
+PagerDuty, or Microsoft Teams, so Teleport users can easily create and approve
+Access Requests.
+
+[Get started with Access Request plugins](access-request-plugins/access-request-plugins.mdx).
+
+## Achieve compliance
+
+Teleport's RBAC features make it easier to manage access to your infrastructure
+in order to satisfy compliance requirements. Learn how to use Teleport to
+achieve compliance with:
+
+- [FedRAMP](./compliance-frameworks/fedramp.mdx)
+- [SOC 2](./compliance-frameworks/soc2.mdx)
+
+## Find out more
+
+Find out more information on Teleport's RBAC features by reading the [Access
+Controls Reference](../../reference/access-controls/roles.mdx).

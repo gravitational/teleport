@@ -4,10 +4,10 @@
       "icon": "home",
       "title": "Get Started",
       "entries": [
-	  {
-	      "title": "Test",
-	      "slug": "/test/"
-	  }
+        {
+          "title": "Test",
+          "slug": "/test/"
+        }
       ]
     }
   ],

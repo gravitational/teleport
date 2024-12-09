@@ -1,0 +1,46 @@
+---
+title: Using the Teleport API
+description: Guides to writing a client application for the Teleport gRPC API, which makes it possible to programmatically manage dynamic resources.
+layout: tocless-doc
+---
+
+The Teleport Auth Service provides a gRPC API for remotely interacting with your
+cluster. In this section, we will show you how to use Teleport's API. 
+
+## Go client
+
+Teleport has a public [Go
+client](https://pkg.go.dev/github.com/gravitational/teleport/api/client) to
+programatically interact with the API. [tsh and tctl](../../reference/cli/cli.mdx) use
+the same API.
+
+Here is what you can do with the Go Client:
+
+ - Integrate with external tools, e.g., to write an [Access Request
+   plugin](../access-controls/access-request-plugins/access-request-plugins.mdx). Teleport
+   maintains Access Request plugins for tools like Slack, Jira, and Mattermost.
+ - Perform CRUD actions on resources, such as roles, authentication connectors,
+   and provisioning tokens.
+ - Dynamically configure Teleport.
+
+## Get started
+
+Create an API client in 3 minutes with the [Getting Started
+Guide](./getting-started.mdx).
+
+## Learn how to use Teleport's API libraries
+
+The following guides provide tours of API libraries that are relevant when
+setting up an API client to automate some aspect of setting up Teleport. Read
+these guides to set up a minimal working example and plan your own use of
+Teleport's API client libraries:
+
+- [Automatically Register Teleport Agents](./automatically-register-agents.mdx):
+  Write a Teleport API client to reconcile the resources in your Teleport
+  cluster with an external service discovery API.
+- [Automatically generate Teleport roles](./rbac.mdx) from an external RBAC
+  system, making it easier to get started with Teleport-based RBAC and keep your
+  Teleport roles up to date.
+- [Write an Access Request Plugin](./access-plugin.mdx): Follow this guide for a
+  minimal working example of a plugin that you can use to manage Access Requests
+  through your organization's unique communication workflows.
