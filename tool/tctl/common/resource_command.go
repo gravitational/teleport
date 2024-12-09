@@ -1101,7 +1101,7 @@ func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *a
 		}
 	}
 
-	fmt.Printf("Workload Identity %q has been created\n", in.GetMetadata().GetName())
+	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -2008,7 +2008,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			}); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Workload Identity %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
