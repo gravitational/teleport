@@ -402,10 +402,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.WorkloadIdentity == nil {
-		cfg.WorkloadIdentity, err = local.NewWorkloadIdentityService(cfg.Backend)
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
 		}
+		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
