@@ -22,8 +22,9 @@ import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { routing } from 'teleterm/ui/uri';
+import { ResourceUri, routing } from 'teleterm/ui/uri';
 import {
+  cannotProxyVnetConnectionReasonIsCertReissueError,
   notificationRequestOneOfIsCannotProxyGatewayConnection,
   notificationRequestOneOfIsCannotProxyVnetConnection,
 } from 'teleterm/helpers';
@@ -56,7 +57,7 @@ export class TshdNotificationsService {
         const { gatewayUri, targetUri, error } =
           subject.cannotProxyGatewayConnection;
         const gateway = this.clustersService.findGateway(gatewayUri);
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
         let targetName: string;
         let targetUser: string;
         let targetDesc: string;
@@ -83,19 +84,49 @@ export class TshdNotificationsService {
         if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
           return;
         }
-        const { routeToApp, targetUri, error } =
+        const { routeToApp, targetUri, reason } =
           subject.cannotProxyVnetConnection;
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
 
-        return {
-          title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
-          description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
-        };
+        switch (reason.oneofKind) {
+          case 'certReissueError': {
+            if (!cannotProxyVnetConnectionReasonIsCertReissueError(reason)) {
+              return;
+            }
+            const { error } = reason.certReissueError;
+
+            return {
+              title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
+              description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
+            };
+          }
+          case 'invalidLocalPort': {
+            return {
+              title: `Invalid local port for ${publicAddrWithTargetPort(routeToApp)}`,
+              description: `The port ${routeToApp.targetPort} is not included in target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`,
+              // 3rd-party clients can potentially make dozens of attempts to connect to an invalid
+              // port within a short time. As all notifications from this service go as errors, we
+              // don't want to force the user to manually close each notification.
+              isAutoRemovable: true,
+            };
+          }
+          default: {
+            reason satisfies never;
+            return;
+          }
+        }
       }
       default: {
         subject satisfies never;
         return;
       }
     }
+  }
+
+  private getClusterName(uri: ResourceUri): string {
+    const clusterUri = routing.ensureClusterUri(uri);
+    const cluster = this.clustersService.findCluster(clusterUri);
+
+    return cluster ? cluster.name : routing.parseClusterName(clusterUri);
   }
 }

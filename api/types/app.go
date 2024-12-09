@@ -17,8 +17,10 @@ limitations under the License.
 package types
 
 import (
+	"cmp"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -537,3 +539,27 @@ func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
 	}
 	return a.PermissionSets
 }
+
+// PortRanges is a list of port ranges.
+type PortRanges []*PortRange
+
+// Contains checks if targetPort is within any of the port ranges.
+func (p PortRanges) Contains(targetPort int) bool {
+	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
+		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
+	})
+}
+
+// Len returns the slice length.
+func (p PortRanges) Len() int { return len(p) }
+
+// Less compares port ranges by port and end port.
+func (p PortRanges) Less(i, j int) bool {
+	return cmp.Or(
+		cmp.Compare(p[i].Port, p[j].Port),
+		cmp.Compare(p[i].EndPort, p[j].EndPort),
+	) == -1
+}
+
+// Swap swaps two port ranges.
+func (p PortRanges) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
