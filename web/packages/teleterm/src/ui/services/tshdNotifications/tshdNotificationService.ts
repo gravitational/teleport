@@ -24,6 +24,7 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
 import {
+  cannotProxyVnetConnectionReasonIsCertReissueError,
   notificationRequestOneOfIsCannotProxyGatewayConnection,
   notificationRequestOneOfIsCannotProxyVnetConnection,
 } from 'teleterm/helpers';
@@ -83,14 +84,27 @@ export class TshdNotificationsService {
         if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
           return;
         }
-        const { routeToApp, targetUri, error } =
+        const { routeToApp, targetUri, reason } =
           subject.cannotProxyVnetConnection;
         const clusterName = routing.parseClusterName(targetUri);
 
-        return {
-          title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
-          description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
-        };
+        switch (reason.oneofKind) {
+          case 'certReissueError': {
+            if (!cannotProxyVnetConnectionReasonIsCertReissueError(reason)) {
+              return;
+            }
+            const { error } = reason.certReissueError;
+
+            return {
+              title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
+              description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
+            };
+          }
+          default: {
+            reason satisfies never;
+            return;
+          }
+        }
       }
       default: {
         subject satisfies never;

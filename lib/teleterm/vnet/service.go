@@ -420,7 +420,11 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 					TargetUri:  appURI.String(),
 					RouteToApp: &apiteletermRouteToApp,
+					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
+						CertReissueError: &apiteleterm.CertReissueError{
 					Error:      err.Error(),
+				},
+			},
 				},
 			},
 		})

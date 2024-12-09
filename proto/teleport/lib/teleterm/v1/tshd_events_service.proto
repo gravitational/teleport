@@ -134,14 +134,23 @@ message CannotProxyGatewayConnection {
 }
 
 // CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
-// At the moment this is used solely when refreshing an expired cert.
 message CannotProxyVnetConnection {
   string target_uri = 1;
-  string error = 2;
+  reserved 2;
+  reserved "error";
   reserved 3;
   reserved "public_addr";
   // route_to_app is the metadata associated with the app that the user was trying to reach.
   RouteToApp route_to_app = 4;
+  oneof reason {
+    CertReissueError cert_reissue_error = 5;
+  }
+}
+
+// CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
+// a cert for a local proxy.
+message CertReissueError {
+  string error = 1;
 }
 
 // Response for SendNotification.
