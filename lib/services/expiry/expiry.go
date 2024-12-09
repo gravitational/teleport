@@ -224,6 +224,8 @@ func (s *Service) expireRequest(ctx context.Context, req types.AccessRequest) er
 		RequestID:      req.GetName(),
 		ResourceExpiry: &expiry,
 	}
+	// Emit expiry event before deletion as event we know event is expired here
+	// but the deletion may fail.
 	if err := s.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
