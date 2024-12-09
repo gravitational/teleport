@@ -18,8 +18,8 @@
 
 import { Danger } from 'design/Alert';
 import Flex from 'design/Flex';
-import Indicator from 'design/Indicator';
-import { useEffect } from 'react';
+import { Indicator } from 'design/Indicator';
+import React, { useEffect } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 import { useTheme } from 'styled-components';
 import { H1 } from 'design/Text';
@@ -36,6 +36,8 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';
+import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { ChevronLeft, ChevronRight } from 'design/Icon';
 
 /**
  * This component is responsible for converting from the `Resource`
@@ -104,20 +106,15 @@ export function RoleEditorAdapter({
           />
         )}
       </Flex>
-      <Flex flex="1" alignItems="center" justifyContent="center">
+      <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
         <Box>
           <H1 mb={2}>Teleport Policy</H1>
           <Flex mb={4}>
-            <Box
-              flex="1"
-              css={`
-                width: min-content;
-              `}
-            >
+            <Box flex="1" width="min-content">
               <P>
-                TAG serves as a powerful tool for both technical and security
-                teams to maintain robust access control structures, ensuring
-                security, compliance, and operational efficiency.
+                Teleport Policy will visualize resource access paths as you
+                create and edit roles so you can always see what you are
+                granting before you push a role into production.
               </P>
             </Box>
             <Flex flex="0 0 auto" ml={6} alignItems="start">
@@ -138,6 +135,11 @@ export function RoleEditorAdapter({
             flexDirection="column"
             bg={theme.colors.levels.surface}
             borderRadius={3}
+            // I found hardcoding the width of the container to be the only way
+            // to play well with the StepSlider below. Trying to use implicit
+            // width in combination with `width: min-content` inside a
+            // StepSlider child caused a miscalculation of child's height.
+            width={promoImageWidth + 2 * 2}
           >
             <Box
               border={2}
@@ -146,22 +148,90 @@ export function RoleEditorAdapter({
             >
               {/* Note: image dimensions hardcoded to prevent UI glitches while
                   loading. */}
-              <Image src={tagpromo} width={782} height={401} />
+              <Image
+                src={tagpromo}
+                width={promoImageWidth}
+                height={promoImageHeight}
+              />
             </Box>
-            <Box m={4}>
-              <H3>Get clear Visualization of Access Relationships</H3>
-              <Flex>
-                <Box flex="1" width="min-content">
-                  <P3>
-                    TAG serves as a powerful tool for both technical and
-                    security teams to maintain robust access control structures,
-                    ensuring security, compliance, and operational efficiency.
-                  </P3>
-                </Box>
-              </Flex>
-            </Box>
+            <StepSlider flows={promoFlows} currFlow="default" />
           </Flex>
         </Box>
+      </Flex>
+    </Flex>
+  );
+}
+
+const promoImageWidth = 782;
+const promoImageHeight = 401;
+
+const promoFlows = {
+  default: [PromoPanel1, PromoPanel2],
+};
+
+function PromoPanel1(props: StepComponentProps) {
+  return (
+    <PromoPanel
+      {...props}
+      heading="Visualize access paths granted by your roles"
+      content={
+        <>
+          See what you’re granting before pushing to prod. Teleport Policy will
+          show resource access paths granted by your role before you save
+          changes.
+        </>
+      }
+    />
+  );
+}
+
+function PromoPanel2(props: StepComponentProps) {
+  return (
+    <PromoPanel
+      {...props}
+      heading="Visualize the diff in permissions as you edit roles"
+      content={
+        <>
+          Prevent mistakes. Teleport Policy shows you what access is removed and
+          what is added as you make edits to a role—all before you save your
+          changes.
+        </>
+      }
+    />
+  );
+}
+
+function PromoPanel({
+  prev,
+  next,
+  refCallback,
+  stepIndex,
+  flowLength,
+  heading,
+  content,
+}: StepComponentProps & {
+  heading: React.ReactNode;
+  content: React.ReactNode;
+}) {
+  return (
+    <Flex m={4} gap={4} ref={refCallback}>
+      <Box flex="1">
+        <H3>{heading}</H3>
+        <Box flex="1">
+          <P3>{content}</P3>
+        </Box>
+      </Box>
+      <Flex gap={2} alignItems="center">
+        <ButtonSecondary size="small" width="24px">
+          <ChevronLeft size="small" disabled={stepIndex <= 0} onClick={prev} />
+        </ButtonSecondary>
+        <ButtonSecondary size="small" width="24px">
+          <ChevronRight
+            size="small"
+            disabled={stepIndex >= flowLength - 1}
+            onClick={next}
+          />
+        </ButtonSecondary>
       </Flex>
     </Flex>
   );
