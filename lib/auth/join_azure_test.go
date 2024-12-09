@@ -73,13 +73,13 @@ func (m *mockAzureVMClient) Get(_ context.Context, resourceID string) (*azure.Vi
 	return vm, nil
 }
 
-func (m *mockAzureVMClient) GetByVMID(_ context.Context, resourceGroup, vmID string) (*azure.VirtualMachine, error) {
+func (m *mockAzureVMClient) GetByVMID(_ context.Context, vmID string) (*azure.VirtualMachine, error) {
 	for _, vm := range m.vms {
-		if vm.VMID == vmID && (resourceGroup == types.Wildcard || vm.ResourceGroup == resourceGroup) {
+		if vm.VMID == vmID {
 			return vm, nil
 		}
 	}
-	return nil, trace.NotFound("no vm in groups %q with id %q", resourceGroup, vmID)
+	return nil, trace.NotFound("no vm with id %q", vmID)
 }
 
 func makeVMClientGetter(clients map[string]*mockAzureVMClient) vmClientGetter {
