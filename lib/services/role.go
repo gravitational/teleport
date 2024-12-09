@@ -2608,7 +2608,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	// Check deny rules.
-	logger.Warn("Checking DENY role rules")
 	for _, role := range set {
 		logger := logger.With("role", role.GetName())
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
@@ -2635,7 +2634,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
-		logger.Info("Checking matchers", "matchers", matchers)
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2657,7 +2655,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	var errs []error
 	allowed := false
 	// Check allow rules.
-	logger.Warn("Checking ALLOW role rules")
 	for _, role := range set {
 		logger := logger.With("role", role.GetName())
 
@@ -2692,14 +2689,11 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
-		logger.Info("Checking matchers", "matchers", matchers)
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			logger.Error("Error while executing matchers", "error", err)
 			return trace.Wrap(err)
 		}
 		if !matchMatchers {
-			logger.Info("No access via matchers")
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
 					role.GetName(), matchers))

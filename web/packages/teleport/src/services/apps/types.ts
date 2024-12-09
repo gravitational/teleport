@@ -28,6 +28,7 @@ export interface PermissionSet {
   name: string;
   arn: string;
   accountAssignment: string;
+  requiresRequest: boolean;
 };
 
 /** AppKind is an indicator of the type of app we are dealing with. */
@@ -66,9 +67,9 @@ export interface App {
   // Only applicable to AWS App Access.
   integration?: string;
 
-  // permission_sets is the collection of IdentityCenter permission sets available
+  // permissionSets is the collection of IdentityCenter permission sets available
   // to the app. Only valid for Apps that represent 
-  permission_sets?: PermissionSet[];
+  permissionSets?: PermissionSet[];
 }
 
 export type UserGroupAndDescription = {

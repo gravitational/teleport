@@ -185,9 +185,10 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 	dst := make([]IdentityCenterPermissionSet, len(src))
 	for i, srcPS := range src {
 		dst[i] = IdentityCenterPermissionSet{
-			Name:         srcPS.Name,
-			ARN:          srcPS.ARN,
-			AssignmentID: srcPS.AssignmentID,
+			Name:            srcPS.Name,
+			ARN:             srcPS.ARN,
+			AssignmentID:    srcPS.AssignmentID,
+			RequiresRequest: srcPS.RequiresRequest,
 		}
 	}
 	return dst

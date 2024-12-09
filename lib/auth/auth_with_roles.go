@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"slices"
@@ -1476,7 +1477,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
-				if err := a.filterICPermissionSets(d.GetApp(), checker); err != nil {
+				if err := a.filterICPermissionSets(d.GetApp(), resourceAccess); err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
 					continue
 				}
@@ -1497,7 +1498,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}, nil
 }
 
-func (a *ServerWithRoles) filterICPermissionSets(r services.AccessCheckable, checker resourceAccessChecker) error {
+func (a *ServerWithRoles) filterICPermissionSets(r services.AccessCheckable, checker *resourceAccess) error {
 	app, isApp := r.(*types.AppV3)
 	if !isApp {
 		return trace.BadParameter("resource must be an app")
@@ -1522,32 +1523,47 @@ func (a *ServerWithRoles) filterICPermissionSets(r services.AccessCheckable, che
 		},
 	}
 	permissionSetQuery := assignment.Spec.PermissionSet
-	checkable := types.Resource153ToLegacy(assignment)
+	checkable := types.Resource153ToResourceWithLabels(assignment)
 
 	var requestableAccessChecker resourceAccessChecker
-	directAccessChecker := checker.accessChecker
+	regularAccessChecker := checker.accessChecker
 	if checker.baseAuthChecker != nil {
-		directAccessChecker = checker.baseAuthChecker
+		regularAccessChecker = checker.baseAuthChecker
 		requestableAccessChecker = checker.accessChecker
 	}
+
+	logger := slog.Default().With("ic_account", app.GetName())
+	logger.Info("Filtering Permission Sets by Access",
+		"include_requestable", requestableAccessChecker != nil)
 
 	var output []*types.IdentityCenterPermissionSet
 	for _, ps := range pss {
 		permissionSetQuery.Arn = ps.ARN
 
-		if err := directAccessChecker.CanAccess(checkable); err == nil {
+		pslogger := logger.With(
+			"ps_name", ps.Name,
+			"ps_arn", permissionSetQuery.Arn)
+		pslogger.Info("Checking access", "checker_type", fmt.Sprintf("%T", regularAccessChecker))
+
+		if err := regularAccessChecker.CanAccess(checkable); err == nil {
+			pslogger.Info("Access granted")
 			output = append(output, ps)
 			continue
 		}
 
 		if requestableAccessChecker == nil {
+			pslogger.Info("Access Denied")
 			continue
 		}
 
+		pslogger.Info("Checking requestability", "checker_type", fmt.Sprintf("%T", requestableAccessChecker))
 		if err := requestableAccessChecker.CanAccess(checkable); err == nil {
+			pslogger.Info("Access is requestable")
 			ps.RequiresRequest = true
 			output = append(output, ps)
+			continue
 		}
+		pslogger.Info("Access Denied")
 	}
 	app.Spec.IdentityCenter.PermissionSets = output
 	return nil
@@ -1894,8 +1910,24 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 
 	case types.Resource153Unwrapper:
-		if checkable, ok := rr.(services.AccessCheckable); ok {
-			return r.CheckAccess(checkable, state)
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			switch unwrapped := rr.Unwrap().(type) {
+			case services.IdentityCenterAccount:
+				slog.Warn("Checking IC Account access")
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
+
+			case services.IdentityCenterAccountAssignment:
+				slog.Warn("Checking IC Account Assignment access")
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+
+			default:
+				slog.Warn(fmt.Sprintf("Using default access checker for %T", unwrapped))
+				return r.CheckAccess(checkable, state)
+			}
+		} else {
+			slog.Warn("Resource is not checkable",
+				"type", fmt.Sprintf("%T", resource))
 		}
 	}
 

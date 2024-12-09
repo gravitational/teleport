@@ -613,10 +613,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetIdentityCenterPrincipalAssignment(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
+		out.Resource = types.Resource153ToResourceWithLabels(r)
 		return &out, nil
 	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
+		out.Resource = types.Resource153ToResourceWithLabels(r)
 		return &out, nil
 	} else if r := in.GetPluginStaticCredentials(); r != nil {
 		out.Resource = r

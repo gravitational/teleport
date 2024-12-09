@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -299,6 +300,11 @@ type IdentityCenterAccountAssignmentMatcher struct {
 // attempts to match the Account Assignments in a Role Condition against a
 // known Account ID.
 func (m *IdentityCenterAccountAssignmentMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	slog.Info("Looking to match account assignment",
+		"role", role.GetName(),
+		"account_id", m.accountID,
+		"permission_set", m.permissionSetARN)
+
 	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
 	for _, asmt := range role.GetIdentityCenterAccountAssignments(condition) {
 		accountMatches, err := matchExpression(m.accountID, asmt.Account)

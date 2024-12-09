@@ -38,7 +38,7 @@ export default function makeApp(json: any): App {
     integration = '',
     subkind,
     samlAppPreset,
-    permission_sets,
+    permissionSets,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -94,6 +94,6 @@ export default function makeApp(json: any): App {
     samlAppSsoUrl,
     requiresRequest,
     integration,
-    permission_sets,
+    permissionSets,
   };
 }
