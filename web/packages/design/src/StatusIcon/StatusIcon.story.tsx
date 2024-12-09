@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { StoryObj } from '@storybook/react';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import Flex from 'design/Flex';
 
-import { AuthenticateWebDevice } from './AuthenticateWebDevice';
+import { StatusIcon } from '.';
 
 export default {
-  title: 'Teleterm/ModalsHost/AuthenticateWebDevice',
+  title: 'Design',
 };
 
-export const Dialog = () => (
-  <MockAppContextProvider>
-    <AuthenticateWebDevice
-      rootClusterUri={makeRootCluster().uri}
-      onClose={() => {}}
-      onCancel={() => {}}
-      onAuthorize={async () => {}}
-    />
-  </MockAppContextProvider>
-);
+export const Story: StoryObj = {
+  name: 'StatusIcon',
+  render() {
+    return (
+      <Flex flexDirection="column" gap={2}>
+        {(['neutral', 'danger', 'info', 'warning', 'success'] as const).map(
+          status => (
+            <Flex key={status} gap={2}>
+              <StatusIcon kind={status} /> {status}
+            </Flex>
+          )
+        )}
+      </Flex>
+    );
+  },
+};
