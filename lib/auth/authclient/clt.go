@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -1890,4 +1891,10 @@ type ClientI interface {
 
 	// ProvisioningServiceClient returns provisioning service client.
 	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
+
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
+
+	// GitServerClient returns git server client.
+	GitServerClient() *gitserver.Client
 }

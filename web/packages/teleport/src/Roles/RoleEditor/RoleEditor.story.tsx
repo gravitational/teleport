@@ -42,7 +42,7 @@ export default {
       }
       return (
         <TeleportContextProvider ctx={ctx}>
-          <Flex flexDirection="column" width="500px" height="800px">
+          <Flex flexDirection="column" width="700px" height="800px">
             <Story />
           </Flex>
         </TeleportContextProvider>

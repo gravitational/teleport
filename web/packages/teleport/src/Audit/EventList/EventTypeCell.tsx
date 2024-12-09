@@ -195,6 +195,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
+  [eventCodes.PORTFORWARD_STOP]: Icons.Info,
   [eventCodes.SUBSYSTEM]: Icons.Info,
   [eventCodes.SUBSYSTEM_FAILURE]: Icons.Info,
   [eventCodes.LOCK_CREATED]: Icons.Lock,
@@ -283,6 +284,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.PLUGIN_CREATE]: Icons.Info,
   [eventCodes.PLUGIN_UPDATE]: Icons.Info,
   [eventCodes.PLUGIN_DELETE]: Icons.Info,
+  [eventCodes.CONTACT_CREATE]: Icons.Info,
+  [eventCodes.CONTACT_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

@@ -600,6 +600,7 @@ build-archive: | $(RELEASE_DIR)
 		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
+		build.assets/LICENSE-community \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz

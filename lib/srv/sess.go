@@ -1366,12 +1366,31 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
-	if err := s.term.WaitForChild(); err != nil {
-		s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-		return trace.Wrap(err)
+	bpfService := scx.srv.GetBPF()
+
+	// Only wait for the child to be "ready" if BPF is enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	if bpfService.Enabled() {
+		if err := s.term.WaitForChild(); err != nil {
+			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
+			return trace.Wrap(err)
+		}
+	} else {
+		// Clean up the read half of the pipe, and set it to nil so that when the
+		// ServerContext is closed it doesn't attempt to a second close.
+		if err := s.scx.readyr.Close(); err != nil {
+			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
+		}
+		s.scx.readyr = nil
 	}
 
-	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 		return trace.Wrap(err)
 	} else if cgroupID > 0 {
@@ -1380,8 +1399,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
-			if err != nil {
+			if err := bpfService.CloseSession(sessionContext); err != nil {
 				s.logger.ErrorContext(ctx, "Failed to close enhanced recording (interactive) session.", "error", err)
 			}
 		}()

@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/legacy/types/trusted_device_requirement.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // Cluster describes cluster fields.
@@ -102,6 +104,10 @@ message LoggedInUser {
     USER_TYPE_SSO = 2;
   }
   UserType user_type = 8;
+  // Indicates if the profile contains all required device extensions.
+  bool is_device_trusted = 9;
+  // Indicates whether access may be hindered by the lack of a trusted device.
+  types.TrustedDeviceRequirement trusted_device_requirement = 10;
 }
 
 // ACL is the access control list of the user
@@ -135,6 +141,8 @@ message ACL {
   ResourceAccess recorded_sessions = 13;
   // active_sessions defines access to active sessions.
   ResourceAccess active_sessions = 14;
+  // review_requests defines the ability to review requests
+  bool review_requests = 15;
 }
 
 // ResourceAccess describes access verbs

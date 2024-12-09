@@ -22,6 +22,8 @@ import { P } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
 import { Danger } from 'design/Alert';
 import { useTheme } from 'styled-components';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import {
   FeatureBox,
@@ -55,7 +57,7 @@ export function RolesContainer() {
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
 export function Roles(props: State) {
-  const { remove, create, update, fetch } = props;
+  const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
@@ -142,36 +144,54 @@ export function Roles(props: State) {
     }
   }
 
+  const canCreate = rolesAcl.create;
+
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <Button
-          intent="primary"
-          fill={
-            serverSidePagination.attempt.status === 'success' &&
-            serverSidePagination.fetchedData.agents.length === 0
-              ? 'filled'
-              : 'border'
+        <HoverTooltip
+          position="bottom"
+          tipContent={
+            !canCreate ? (
+              <MissingPermissionsTooltip
+                missingPermissions={['roles.create']}
+              />
+            ) : (
+              ''
+            )
           }
-          ml="auto"
-          width="240px"
-          onClick={handleCreate}
         >
-          Create New Role
-        </Button>
+          <Button
+            data-testid="create_new_role_button"
+            intent="primary"
+            fill={
+              serverSidePagination.attempt.status === 'success' &&
+              serverSidePagination.fetchedData.agents.length === 0
+                ? 'filled'
+                : 'border'
+            }
+            ml="auto"
+            width="240px"
+            disabled={!canCreate}
+            onClick={handleCreate}
+          >
+            Create New Role
+          </Button>
+        </HoverTooltip>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
       )}
       <Flex flex="1">
-        <Box width="100%" mr="6" mb="4">
+        <Box flex="1" mr="6" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
             search={search}
             onEdit={handleEdit}
             onDelete={resources.remove}
+            rolesAcl={rolesAcl}
           />
         </Box>
 
@@ -279,7 +299,7 @@ function RoleEditorAdapter({
       p={4}
       borderLeft={1}
       borderColor={theme.colors.interactive.tonal.neutral[0]}
-      width="900px"
+      width="700px"
     >
       {convertAttempt.status === 'processing' && (
         <Flex

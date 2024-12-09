@@ -19,12 +19,12 @@
 package srv
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"sync"
 	"sync/atomic"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // maxHistoryBytes is the maximum bytes that are retained as history and broadcasted to new clients.
@@ -107,7 +107,7 @@ func (g *TermManager) writeToClients(p []byte) {
 		_, err := w.Write(p)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				log.Warnf("Failed to write to remote terminal: %v", err)
+				slog.WarnContext(context.Background(), "Failed to write to remote terminal", "error", err)
 			}
 			toDelete = append(
 				toDelete, struct {
@@ -244,7 +244,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			n, err := r.Read(buf)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					log.Warnf("Failed to read from remote terminal: %v", err)
+					slog.WarnContext(context.Background(), "Failed to read from remote terminal", "error", err)
 				}
 				// Let term manager decide how to handle broken party readers.
 				if g.OnReadError != nil {

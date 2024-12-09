@@ -22,12 +22,13 @@ import { ButtonPrimary, Text, Box, Alert, Flex, Label, H3 } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
 
+import { HoverTooltip } from 'design/Tooltip';
+
 import Validation, { Validator } from 'shared/components/Validation';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAsync';
 import { requiredField } from 'shared/components/Validation/rules';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 
 import { AccessRequest, RequestState } from 'shared/services/accessRequests';
