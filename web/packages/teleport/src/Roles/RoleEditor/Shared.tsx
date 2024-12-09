@@ -18,6 +18,7 @@
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import { useTheme } from 'styled-components';
 
 import useTeleport from 'teleport/useTeleport';
 
@@ -34,6 +35,7 @@ export const EditorSaveCancelButton = ({
 }) => {
   const ctx = useTeleport();
   const roleAccess = ctx.storeUser.getRoleAccess();
+  const theme = useTheme();
 
   let hoverTooltipContent = '';
   if (isEditing && !roleAccess.edit) {
@@ -43,7 +45,12 @@ export const EditorSaveCancelButton = ({
   }
 
   return (
-    <Flex gap={2} mt={3}>
+    <Flex
+      gap={2}
+      p={3}
+      borderTop={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+    >
       <Box width="50%">
         <HoverTooltip tipContent={hoverTooltipContent}>
           <ButtonPrimary
