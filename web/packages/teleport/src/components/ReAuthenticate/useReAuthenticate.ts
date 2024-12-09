@@ -30,13 +30,6 @@ import {
   MfaOption,
 } from 'teleport/services/mfa';
 
-// useReAuthenticate will have different "submit" behaviors depending on:
-//  - If prop field `onMfaResponse` is defined, after a user submits, the
-//    function `onMfaResponse` is called with the user's MFA response.
-//  - If prop field `onAuthenticated` is defined, after a user submits, the
-//    user's MFA response are submitted with the request to get a privilege
-//    token, and after successfully obtaining the token, the function
-//    `onAuthenticated` will be called with this token.
 export default function useReAuthenticate(props: ReauthProps): ReauthState {
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
@@ -61,18 +54,6 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
       return;
     }
   };
-
-  // TODO(Joerger): Replace onAuthenticated with onMfaResponse at call sites (/e).
-  if (props.onAuthenticated) {
-    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
-    props.challengeScope = MfaChallengeScope.MANAGE_DEVICES;
-    props.onMfaResponse = mfaResponse => {
-      auth
-        .createPrivilegeToken(mfaResponse)
-        .then(props.onAuthenticated)
-        .catch(handleError);
-    };
-  }
 
   async function getMfaChallenge() {
     if (challenge) {
@@ -132,10 +113,8 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
 }
 
 export type ReauthProps = {
-  challengeScope?: MfaChallengeScope;
-  onMfaResponse?(res: MfaChallengeResponse): void;
-  // TODO(Joerger): Remove in favor of onMfaResponse, make onMfaResponse required.
-  onAuthenticated?(privilegeTokenId: string): void;
+  challengeScope: MfaChallengeScope;
+  onMfaResponse(res: MfaChallengeResponse): void;
 };
 
 export type ReauthState = {

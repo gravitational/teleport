@@ -38,7 +38,7 @@ import { StepHeader } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
 
-import auth from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import useTeleport from 'teleport/useTeleport';
 
 import {
@@ -84,7 +84,10 @@ export function AddAuthDeviceWizard({
 
   const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
     useReAuthenticate({
-      onAuthenticated: setPrivilegeToken,
+      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
+      onMfaResponse: mfaResponse => {
+        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
+      },
     });
 
   // Choose a new device type from the options available for the given 2fa type.
