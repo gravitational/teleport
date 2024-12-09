@@ -94,8 +94,8 @@ jobs:
           git config --global user.email "noreply@github.com"
           git config --global user.name "GitHub"
 
-          # get Go version from go.mod
-          GO_VERSION=$(go mod edit -json | jq -r .Go)
+          # get Go version from go.mod (preferring the toolchain directive if it's present)
+          GO_VERSION=$(go mod edit -json | jq -r 'if has("Toolchain") then .Toolchain | sub("go"; "") else .Go end')
 
           # update versions in docs/config.json
           # for docker images replace version number after <docker image name>:
