@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
+//go:build windows
+// +build windows
 
 package vnet
 
@@ -26,9 +26,11 @@ import (
 )
 
 func configureOS(ctx context.Context, cfg *osConfig) error {
+	// TODO(nklaassen): implement configureOS on Windows.
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
 func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+	// TODO(nklaassen): implement doWithDroppedPrivileges on Windows.
 	return trace.Wrap(ErrVnetNotImplemented)
 }

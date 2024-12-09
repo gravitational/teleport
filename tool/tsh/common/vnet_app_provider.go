@@ -33,8 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-// vnetAppProvider implement [vnet.AppProvider] in order to provide the necessary methods to log in to apps
-// and get clients able to list apps in all clusters in all current profiles.
+// vnetAppProvider implements [vnet.AppProvider] in order to provide the
+// necessary methods to log in to apps and get clients able to list apps in all
+// clusters in all current profiles.
 type vnetAppProvider struct {
 	cf          *CLIConf
 	clientStore *client.Store
