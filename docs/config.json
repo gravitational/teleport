@@ -4,114 +4,11 @@
       "icon": "home",
       "title": "Get Started",
       "entries": [
-        {
-          "title": "Introduction to Teleport",
-          "slug": "/"
-        },
-        {
-           "title": "Get Started",
-           "slug": "/get-started/"
-        },
-        {
-          "title": "Core Concepts",
-          "slug": "/core-concepts/"
-        },
-        {
-          "title": "Installation",
-          "slug": "/installation/"
-        },
-        {
-          "title": "Upgrading",
-          "slug": "/upgrading/upgrading/",
-          "entries": [
-            {
-              "title": "Compatibility Overview",
-              "slug": "/upgrading/overview/"
-            },
-            {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
-            },
-            {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	    }
-          ]
-        },
-        {
-          "title": "FAQ",
-          "slug": "/faq/"
-        },
-        {
-          "title": "Usage Reporting and Billing",
-          "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
-        },
-        {
-          "title": "Upcoming Releases",
-          "slug": "/upcoming-releases/"
-        },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
-        }
+	  {
+	      "title": "Test",
+	      "slug": "/test/"
+	  }
       ]
-    },
-    {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
-    },
-    {
-      "icon": "connect",
-      "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        }
-      ]
-    },
-    {
-      "title": "Enroll Resources",
-      "icon": "layers",
-      "generateFrom": "enroll-resources",
-      "entries": []
-    },
-    {
-      "icon": "book",
-      "title": "References",
-      "entries": [],
-      "generateFrom": "reference"
     }
   ],
   "variables": {
