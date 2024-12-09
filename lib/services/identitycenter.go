@@ -198,20 +198,26 @@ func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource1
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
 
-// IdentityCenterAccountAssignments defines the operations to create and maintain
-// Identity Center account assignment records in the service.
-type IdentityCenterAccountAssignments interface {
+// IdentityCenterAccountAssignmentGetter provides read-only access to Identity
+// Center Account Assignment records
+type IdentityCenterAccountAssignmentGetter interface {
+	// GetAccountAssignment fetches a specific Account Assignment record.
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+}
+
+// IdentityCenterAccountAssignments defines the operations to create and maintain
+// Identity Center account assignment records in the service.
+type IdentityCenterAccountAssignments interface {
+	IdentityCenterAccountAssignmentGetter
 
 	// CreateAccountAssignment creates a new Account Assignment record in
 	// the service from the supplied in-memory representation. Returns the
 	// created record on success.
 	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
-
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
 
 	// UpdateAccountAssignment performs a conditional update on the supplied
 	// Account Assignment, returning the updated record on success.
