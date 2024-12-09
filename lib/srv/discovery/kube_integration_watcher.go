@@ -79,7 +79,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		PreFetchHookFn: func() {
 			discoveryConfigs := libslices.FilterMapUnique(
 				s.getKubeIntegrationFetchers(),
-				func(f common.Fetcher) (s string, skip bool) {
+				func(f common.Fetcher) (s string, include bool) {
 					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 				},
 			)
