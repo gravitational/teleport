@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -296,7 +295,6 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
-		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.PublisherConsumerAWSConfig = &awsCfg
 	}
 
@@ -452,7 +450,6 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
 
 	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
