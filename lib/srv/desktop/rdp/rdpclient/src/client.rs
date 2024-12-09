@@ -64,7 +64,7 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard, Once};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
@@ -80,8 +80,6 @@ use tokio_boring::HandshakeError;
 use url::Url;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-
-static START: Once = Once::new();
 
 /// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
 /// by the server. Until it does so, we withhold the latest screen
@@ -127,12 +125,6 @@ impl Client {
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
-        START.call_once(|| {
-            // we register provider explicitly to avoid panics when both ring and aws_lc
-            // features of rustls are enabled, which happens often in dependencies like tokio-tls
-            // and reqwest
-            let _ = rustls::crypto::ring::default_provider().install_default();
-        });
         let server_addr = params.addr.clone();
         let server_socket_addr = server_addr
             .to_socket_addrs()?
