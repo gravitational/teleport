@@ -77,7 +77,7 @@ func (s *Server) startDatabaseWatchers() error {
 			PreFetchHookFn: func() {
 				discoveryConfigs := slices.FilterMapUnique(
 					s.getAllDatabaseFetchers(),
-					func(f common.Fetcher) (s string, skip bool) {
+					func(f common.Fetcher) (s string, include bool) {
 						return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 					},
 				)

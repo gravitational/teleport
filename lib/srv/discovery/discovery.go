@@ -532,7 +532,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPreFetchHookFn(func() {
 			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllAWSServerFetchers(),
-				func(f server.Fetcher) (s string, skip bool) {
+				func(f server.Fetcher) (s string, include bool) {
 					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 				},
 			)
@@ -727,7 +727,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		server.WithPreFetchHookFn(func() {
 			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllAzureServerFetchers(),
-				func(f server.Fetcher) (s string, skip bool) {
+				func(f server.Fetcher) (s string, include bool) {
 					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 				},
 			)
@@ -794,7 +794,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		server.WithPreFetchHookFn(func() {
 			discoveryConfigs := libslices.FilterMapUnique(
 				s.getAllGCPServerFetchers(),
-				func(f server.Fetcher) (s string, skip bool) {
+				func(f server.Fetcher) (s string, include bool) {
 					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
 				},
 			)

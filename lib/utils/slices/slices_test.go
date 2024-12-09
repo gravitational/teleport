@@ -56,7 +56,7 @@ func TestFilterMapUnique(t *testing.T) {
 			expected: []string{"x", "y", "z"},
 		},
 		{
-			name:  "includeped values are not returned",
+			name:  "not included values are not returned",
 			input: []string{"x", "y", "z", ""},
 			collector: func(in string) (s string, include bool) {
 				return in, in != ""
