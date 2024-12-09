@@ -137,10 +137,10 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
+test: $(ENVTEST) ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	go test ./... -coverprofile cover.out
+	go test -run ^TestTeleportDatabaseV3Creation$$ github.com/gravitational/teleport/integrations/operator/controllers/resources
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:

@@ -182,23 +182,31 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
+	fmt.Printf("PG: Starting test Postgres server. address: %q\n", s.listener.Addr())
 	s.log.DebugContext(context.Background(), "Starting test Postgres server.", "address", s.listener.Addr())
+	defer fmt.Printf("PG: Test Postgres server stopped.\n")
 	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.")
 	for {
 		conn, err := s.listener.Accept()
+		fmt.Printf("PG: GOT CONN REQUEST\n")
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
+				fmt.Printf("PG: 'IsOKNetworkError: %s\n", trace.DebugReport(err))
 				return nil
 			}
+			fmt.Printf("PG: Failed to accept connection. error: %s\n", trace.DebugReport(err))
 			s.log.ErrorContext(context.Background(), "Failed to accept connection.", "error", err)
 			continue
 		}
+		fmt.Printf("PG: Accepted connection.\n")
 		s.log.DebugContext(context.Background(), "Accepted connection.")
 		go func() {
+			defer fmt.Printf("PG: Connection done.\n")
 			defer s.log.DebugContext(context.Background(), "Connection done.")
 			defer conn.Close()
 			err = s.handleConnection(conn)
 			if err != nil {
+				fmt.Printf("PG: Failed to handle connection. debug_report: %s\n", trace.DebugReport(err))
 				s.log.ErrorContext(context.Background(), "Failed to handle connection.", "debug_report", trace.DebugReport(err))
 			}
 		}()

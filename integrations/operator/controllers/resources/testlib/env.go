@@ -20,6 +20,7 @@ package testlib
 
 import (
 	"context"
+	"crypto/tls"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -57,10 +58,12 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -126,6 +129,14 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
+	rcConf.Auth.StaticTokens, _ = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleDatabase},
+			Expires: time.Now().Add(time.Hour),
+			Token:   "token",
+		}},
+	})
+
 	roleName := ValidRandomResourceName("role-")
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
@@ -186,6 +197,7 @@ func clientWithCreds(t *testing.T, authAddr string, creds client.Credentials) *c
 
 type TestSetup struct {
 	TeleportClient           *client.Client
+	TeleportProxyAddr        utils.NetAddr
 	K8sClient                kclient.Client
 	K8sRestConfig            *rest.Config
 	Namespace                *core.Namespace
@@ -241,8 +253,9 @@ func (s *TestSetup) StopKubernetesOperator() {
 // Spec matches https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/
 func setupMockPostgresServer(t *testing.T, setup *TestSetup) {
 	postgresTestServer, err := postgres.NewTestServer(common.TestServerConfig{
-		AuthClient:   setup.TeleportClient,
-		AllowAnyUser: true,
+		Name:       "db-mock-test",
+		AuthClient: setup.TeleportClient,
+		ClientAuth: tls.RequireAndVerifyClientCert,
 	})
 	require.NoError(t, err)
 
@@ -256,8 +269,56 @@ func setupMockPostgresServer(t *testing.T, setup *TestSetup) {
 
 	setup.DatabaseConfig = types.DatabaseSpecV3{
 		Protocol: "postgres",
-		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
+		// URI:      net.JoinHostPort("localhost", "45678"),
+		URI: net.JoinHostPort("localhost", postgresTestServer.Port()),
 	}
+
+	databaseResourceName := "testdb"
+	helpers.MakeTestDatabaseServer(t, setup.TeleportProxyAddr, "token", nil, servicecfg.Database{
+		Name:     databaseResourceName,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
+	})
+
+	waitForDatabases(t, setup, databaseResourceName)
+
+	// server, err := clickhouse.NewTestServer(common.TestServerConfig{
+	// 	AuthClient: setup.TeleportClient,
+	// }, clickhouse.WithClickHouseHTTPProtocol())
+	// require.NoError(t, err)
+
+	// go server.Serve()
+	// t.Cleanup(func() { server.Close() })
+
+	// setup.DatabaseConfig = types.DatabaseSpecV3{
+	// 	Protocol: defaults.ProtocolClickHouseHTTP,
+	// 	URI:      fmt.Sprintf("https://%s", net.JoinHostPort("localhost", server.Port())),
+	// }
+}
+
+func waitForDatabases(t *testing.T, setup *TestSetup, dbNames ...string) {
+	ctx := context.Background()
+
+	require.Eventually(t, func() bool {
+		all, err := setup.TeleportClient.GetDatabaseServers(ctx, "default")
+		assert.NoError(t, err)
+
+		if len(dbNames) > len(all) {
+			return false
+		}
+
+		registered := 0
+		for _, db := range dbNames {
+			for _, a := range all {
+				if a.GetName() == db {
+					require.FailNow(t, "Got db: %#v", a)
+					registered++
+					break
+				}
+			}
+		}
+		return registered == len(dbNames)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func setupTeleportClient(t *testing.T, setup *TestSetup) {
@@ -289,6 +350,8 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 		err := setup.TeleportClient.Close()
 		require.NoError(t, err)
 	})
+
+	setup.TeleportProxyAddr = teleportServer.Config.ProxyServer
 }
 
 type TestOption func(*TestSetup)
