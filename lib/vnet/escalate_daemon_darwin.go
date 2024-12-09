@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-// execAdminProcess is called from the normal user process to execute the
-// register and call the daemon process.
+// execAdminProcess is called from the normal user process to register and call
+// the daemon process which runs as root.
 func execAdminProcess(ctx context.Context, config daemon.Config) error {
 	return trace.Wrap(daemon.RegisterAndCall(ctx, config))
 }

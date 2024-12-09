@@ -21,7 +21,6 @@ package vnet
 
 import (
 	"context"
-	"runtime"
 
 	"github.com/gravitational/trace"
 
@@ -30,7 +29,7 @@ import (
 
 var (
 	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on windows"}
 )
 
 // execAdminProcess is called from the normal user process to execute the admin
