@@ -2548,6 +2548,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WebSession = services.Identity.WebSessions()
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
+	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
