@@ -22,6 +22,9 @@ import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { AuthConnectors } from './AuthConnectors';
+import { AuthConnectorsGrid } from './styles/ConnectorBox.styles';
+import { AuthConnectorTile } from './AuthConnectorTile';
+import getSsoIcon from './ssoIcons/getSsoIcon';
 
 export default {
   title: 'Teleport/AuthConnectors',
@@ -58,6 +61,66 @@ export function Failed() {
         {...sample}
         attempt={{ status: 'failed', statusText: 'some error message' }}
       />
+    </ContextWrapper>
+  );
+}
+
+export function AuthConnectorTiles() {
+  return (
+    <ContextWrapper>
+      <AuthConnectorsGrid>
+        <AuthConnectorTile
+          key="enabled-default"
+          kind="saml"
+          id="enabled-default"
+          name={'Enabled Default'}
+          Icon={getSsoIcon('saml')}
+          isDefault={true}
+          isPlaceholder={false}
+          isEnabled={true}
+          customDesc="Enabled Connector Tile"
+          onEdit={() => null}
+          onDelete={() => null}
+        />
+        <AuthConnectorTile
+          key="enabled"
+          kind="saml"
+          id="enabled"
+          name={'Enabled'}
+          Icon={getSsoIcon('saml')}
+          isDefault={false}
+          isPlaceholder={false}
+          isEnabled={true}
+          customDesc="Enabled Connector Tile"
+          onEdit={() => null}
+          onDelete={() => null}
+        />
+        <AuthConnectorTile
+          key="disabled"
+          kind="saml"
+          id="disabled"
+          name={'Disabled'}
+          Icon={getSsoIcon('saml')}
+          isDefault={false}
+          isPlaceholder={false}
+          isEnabled={false}
+          customDesc="Disabled Connector Tile"
+          onEdit={() => null}
+          onDelete={() => null}
+        />
+        <AuthConnectorTile
+          key="cta"
+          kind="saml"
+          id="cta"
+          name={'Call To Action'}
+          Icon={getSsoIcon('saml')}
+          isDefault={false}
+          isPlaceholder={false}
+          isEnabled={false}
+          isCTA={true}
+          customDesc="CTA Connector Tile"
+        />
+      </AuthConnectorsGrid>
     </ContextWrapper>
   );
 }
