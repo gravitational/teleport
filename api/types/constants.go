@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// The `Kind*` constants in this const block identify resource kinds used for
+	// storage an/or and access control. Please keep these in sync with the
+	// `ResourceKind` enum in
+	// `web/packages/teleport/src/services/resources/types.ts`.
+
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
@@ -596,6 +601,9 @@ const (
 	// KindContact is a resource that holds contact information
 	// for Teleport Enterprise customers.
 	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
 
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"

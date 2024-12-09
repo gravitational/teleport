@@ -72,22 +72,12 @@ func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client *authclie
 
 // Status is called to execute "status" CLI command.
 func (c *StatusCommand) Status(ctx context.Context, client *authclient.Client) error {
-	pingRsp, err := client.Ping(ctx)
+	pingResp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var authorities []types.CertAuthority
-	for _, caType := range types.CertAuthTypes {
-		cas, err := client.GetCertAuthorities(ctx, caType, false)
-		if err != nil {
-			slog.WarnContext(ctx, "Failed to fetch CA.", "type", caType, "error", err)
-			continue
-		}
-		authorities = append(authorities, cas...)
-	}
-
-	status, err := newStatusModel(pingRsp, authorities)
+	status, err := newStatusModel(ctx, client, pingResp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,18 +92,23 @@ type statusModel struct {
 	authorities []*authorityStatusModel
 }
 
-func newStatusModel(pingResp proto.PingResponse, authorities []types.CertAuthority) (*statusModel, error) {
+func newStatusModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse) (*statusModel, error) {
+	var authorities []types.CertAuthority
+	for _, caType := range types.CertAuthTypes {
+		cas, err := client.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to fetch CA", "type", caType, "error", err)
+			continue
+		}
+		authorities = append(authorities, cas...)
+	}
 	cluster, err := newClusterStatusModel(pingResp, authorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authorityModels := make([]*authorityStatusModel, 0, len(authorities))
 	for _, authority := range authorities {
-		authorityStatus, err := newAuthorityStatusModel(authority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authorityModels = append(authorityModels, authorityStatus)
+		authorityModels = append(authorityModels, newAuthorityStatusModel(authority))
 	}
 	return &statusModel{
 		cluster:     cluster,
@@ -132,7 +127,7 @@ func (m *statusModel) renderText(w io.Writer, debug bool) error {
 			summaryTable.AddRow([]string{"", caPin})
 		}
 	}
-	if _, err := io.Copy(w, summaryTable.AsBuffer()); err != nil {
+	if err := summaryTable.WriteTo(w); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintln(w, "")
@@ -163,8 +158,7 @@ func (m *statusModel) renderText(w io.Writer, debug bool) error {
 			keysTable.AddRow(row)
 		}
 	}
-	_, err := io.Copy(w, keysTable.AsBuffer())
-	return trace.Wrap(err)
+	return trace.Wrap(keysTable.WriteTo(w))
 }
 
 // sortRows sorts the rows by each column left to right.
@@ -215,14 +209,14 @@ type authorityStatusModel struct {
 	additionalTrustedKeys []*authorityKeyModel
 }
 
-func newAuthorityStatusModel(authority types.CertAuthority) (*authorityStatusModel, error) {
+func newAuthorityStatusModel(authority types.CertAuthority) *authorityStatusModel {
 	return &authorityStatusModel{
 		clusterName:           authority.GetClusterName(),
 		authorityType:         authority.GetType(),
 		rotationStatus:        authority.GetRotation(),
 		activeKeys:            newAuthorityKeyModels(authority.GetActiveKeys()),
 		additionalTrustedKeys: newAuthorityKeyModels(authority.GetAdditionalTrustedKeys()),
-	}, nil
+	}
 }
 
 type authorityKeyModel struct {

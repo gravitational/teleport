@@ -86,6 +86,9 @@ type LocalInstaller struct {
 	ReservedFreeInstallDisk uint64
 	// TransformService transforms the systemd service during copying.
 	TransformService func([]byte) []byte
+	// ValidateBinary returns true if a file is a linkable binary, or
+	// false if a file should not be linked.
+	ValidateBinary func(ctx context.Context, path string) (bool, error)
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -307,6 +310,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	startTime := time.Now()
 	resp, err := li.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -330,13 +334,23 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	}
 	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
-	n, err := io.CopyN(w, io.TeeReader(resp.Body, shaReader), size)
+	tee := io.TeeReader(resp.Body, shaReader)
+	tee = io.TeeReader(tee, &progressLogger{
+		ctx:   ctx,
+		log:   li.Log,
+		level: slog.LevelInfo,
+		name:  path.Base(resp.Request.URL.Path),
+		max:   int(resp.ContentLength),
+		lines: 5,
+	})
+	n, err := io.CopyN(w, tee, size)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
 		return nil, trace.Errorf("mismatch in Teleport download size")
 	}
+	li.Log.InfoContext(ctx, "Download complete.", "duration", time.Since(startTime), "size", n)
 	return shaReader.Sum(nil), nil
 }
 
@@ -564,9 +578,16 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		}
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		exec, err := li.ValidateBinary(ctx, oldname)
+		if err != nil {
+			return revert, trace.Wrap(err)
+		}
+		if !exec {
+			continue
+		}
 		orig, err := forceLink(oldname, newname)
 		if err != nil && !errors.Is(err, os.ErrExist) {
-			return revert, trace.Wrap(err, "failed to create symlink for %s", filepath.Base(oldname))
+			return revert, trace.Wrap(err, "failed to create symlink for %s", entry.Name())
 		}
 		if orig != "" {
 			revertLinks = append(revertLinks, symlink{
@@ -596,7 +617,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 // The contents of both src and dst must be smaller than n.
 // See forceCopy for more details.
 func (li *LocalInstaller) forceCopyService(dst, src string, n int64) (orig *smallFile, err error) {
-	srcData, err := readFileN(src, n)
+	srcData, err := readFileAtMost(src, n)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -607,13 +628,6 @@ func (li *LocalInstaller) forceCopyService(dst, src string, n int64) (orig *smal
 // If a non-symlink file or directory exists in newname already, forceLink errors.
 // If the link is already present with the desired oldname, forceLink returns os.ErrExist.
 func forceLink(oldname, newname string) (orig string, err error) {
-	exec, err := isExecutable(oldname)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if !exec {
-		return "", trace.Errorf("%s is not a regular executable file", oldname)
-	}
 	orig, err = os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
@@ -631,17 +645,6 @@ func forceLink(oldname, newname string) (orig string, err error) {
 		return "", trace.Wrap(err)
 	}
 	return orig, nil
-}
-
-// isExecutable returns true for regular files that are executable by all users (0111).
-func isExecutable(path string) (bool, error) {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	// TODO(sclevine): verify path is valid binary
-	return fi.Mode().IsRegular() &&
-		fi.Mode()&0111 == 0111, nil
 }
 
 // forceCopy atomically copies a file from srcData to dst, replacing an existing file at dst if needed.
@@ -662,7 +665,7 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 		if !orig.mode.IsRegular() {
 			return nil, trace.Errorf("refusing to replace irregular file at %s", dst)
 		}
-		orig.data, err = readFileN(dst, n)
+		orig.data, err = readFileAtMost(dst, n)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -677,8 +680,8 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 	return orig, nil
 }
 
-// readFileN reads a file up to n, or errors if it is too large.
-func readFileN(name string, n int64) ([]byte, error) {
+// readFileAtMost reads a file up to n, or errors if it is too large.
+func readFileAtMost(name string, n int64) ([]byte, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -727,11 +730,11 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		li.Log.DebugContext(ctx, "Teleport binary not unlinked. Skipping removal of teleport.service.")
 		return nil
 	}
-	srcBytes, err := readFileN(svcPath, maxServiceFileSize)
+	srcBytes, err := readFileAtMost(svcPath, maxServiceFileSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dstBytes, err := readFileN(li.CopyServiceFile, maxServiceFileSize)
+	dstBytes, err := readFileAtMost(li.CopyServiceFile, maxServiceFileSize)
 	if errors.Is(err, os.ErrNotExist) {
 		li.Log.DebugContext(ctx, "Service not present.", "path", li.CopyServiceFile)
 		return nil
@@ -778,6 +781,13 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 		}
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		exec, err := li.ValidateBinary(ctx, oldname)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !exec {
+			continue
+		}
 		ok, err := needsLink(oldname, newname)
 		if err != nil {
 			return trace.Wrap(err, "error evaluating link for %s", filepath.Base(oldname))
@@ -812,13 +822,6 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 // If a non-symlink file or directory exists at newname, needsLink errors.
 // If a symlink to a different location exists, needsLink errors with ErrLinked.
 func needsLink(oldname, newname string) (ok bool, err error) {
-	exec, err := isExecutable(oldname)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if !exec {
-		return false, trace.Errorf("%s is not a regular executable file", oldname)
-	}
 	orig, err := os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
