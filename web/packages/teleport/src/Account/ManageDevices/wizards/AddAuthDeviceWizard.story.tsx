@@ -22,13 +22,14 @@ import Dialog from 'design/Dialog';
 
 import { http, HttpResponse, delay } from 'msw';
 
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 
 import cfg from 'teleport/config';
 
 import {
-  DeviceType,
   DeviceUsage,
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
@@ -41,7 +42,6 @@ import {
   SaveDeviceStep,
 } from './AddAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',
@@ -177,12 +177,12 @@ const stepProps: AddAuthDeviceWizardStepProps = {
     MFA_OPTION_TOTP,
     MFA_OPTION_SSO_DEFAULT,
   ],
-  submitWithMfa: async (mfaType?: DeviceType, otpCode?: string) => {},
+  submitWithMfa: async () => {},
 
   // Create props
   mfaRegisterOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP],
-  onDeviceCreated: (c: Credential) => {},
-  onNewMfaDeviceTypeChange: (d: DeviceType) => {},
+  onDeviceCreated: () => {},
+  onNewMfaDeviceTypeChange: () => {},
 
   // Save props
   credential: { id: 'cred-id', type: 'public-key' },

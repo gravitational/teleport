@@ -18,12 +18,13 @@
 
 import React from 'react';
 
-import { ReAuthenticate, State } from './ReAuthenticate';
 import {
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
 } from 'teleport/services/mfa';
+
+import { ReAuthenticate, State } from './ReAuthenticate';
 
 export default {
   title: 'Teleport/ReAuthenticate',

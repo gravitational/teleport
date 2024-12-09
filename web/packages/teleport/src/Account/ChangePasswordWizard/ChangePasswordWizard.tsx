@@ -35,6 +35,8 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import Box from 'design/Box';
 
+import Indicator from 'design/Indicator';
+
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
@@ -43,7 +45,6 @@ import {
   WebauthnAssertionResponse,
 } from 'teleport/services/mfa';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import Indicator from 'design/Indicator';
 
 export interface ChangePasswordWizardProps {
   hasPasswordless: boolean;
