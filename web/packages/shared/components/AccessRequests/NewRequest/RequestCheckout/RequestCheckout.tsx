@@ -791,6 +791,8 @@ function getPrettyResourceKind(kind: RequestableResourceKind): string {
       return 'SAML Application';
     case 'namespace':
       return 'Namespace';
+    case 'git_server':
+      return 'Git';
     default:
       kind satisfies never;
       return kind;

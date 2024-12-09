@@ -85,6 +85,19 @@ export type UnifiedResourceUserGroup = {
   requiresRequest?: boolean;
 };
 
+export interface UnifiedResourceGitServer {
+  kind: 'git_server';
+  id: string;
+  hostname: string;
+  labels: ResourceLabel[];
+  subKind: 'github';
+  github?: {
+    organization: string;
+    integration: string;
+  };
+  requiresRequest?: boolean;
+}
+
 export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
@@ -96,7 +109,8 @@ export type SharedUnifiedResource = {
     | UnifiedResourceNode
     | UnifiedResourceKube
     | UnifiedResourceDesktop
-    | UnifiedResourceUserGroup;
+    | UnifiedResourceUserGroup
+    | UnifiedResourceGitServer;
   ui: UnifiedResourceUi;
 };
 

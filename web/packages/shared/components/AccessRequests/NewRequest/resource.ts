@@ -45,5 +45,6 @@ export function getEmptyResourceState(): ResourceMap {
     role: {},
     saml_idp_service_provider: {},
     namespace: {},
+    git_server: {},
   };
 }

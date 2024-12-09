@@ -121,6 +121,7 @@ export const resourceIconSpecs = {
   g2: forAllThemes(i.g2),
   gable: forAllThemes(i.gable),
   gem: { dark: i.gemDark, light: i.gemLight },
+  git: { dark: i.gitDark, light: i.gitLight },
   github: { dark: i.githubDark, light: i.githubLight },
   gitlab: forAllThemes(i.gitlab),
   gmail: forAllThemes(i.gmail),

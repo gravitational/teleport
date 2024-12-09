@@ -206,6 +206,7 @@ export interface FeatureFlags {
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
+  gitServers: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

@@ -590,3 +590,62 @@ func TestSortedLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeServer(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputServer types.Server
+		inputLogins []string
+		output      Server
+	}{
+		{
+			name:        "git server",
+			inputServer: makeGitServer(t, "org1"),
+			output: Server{
+				ClusterName: "cluster",
+				Kind:        "git_server",
+				SubKind:     "github",
+				Name:        "org1",
+				Hostname:    "org1.github-org",
+				GitHub: &GitHubServerMetadata{
+					Integration:  "org1",
+					Organization: "org1",
+				},
+				// Internal labels get filtered.
+				Labels: []ui.Label{},
+			},
+		},
+		{
+			name:        "node",
+			inputServer: makeTestServer(t, "server1", map[string]string{"env": "dev"}),
+			inputLogins: []string{"alice"},
+			output: Server{
+				ClusterName: "cluster",
+				Kind:        "node",
+				SubKind:     "teleport",
+				Name:        "server1",
+				SSHLogins:   []string{"alice"},
+				Labels: []ui.Label{{
+					Name:  "env",
+					Value: "dev",
+				}},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.output, MakeServer("cluster", test.inputServer, test.inputLogins, false))
+		})
+	}
+}
+
+func makeGitServer(t *testing.T, org string) types.Server {
+	t.Helper()
+	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  org,
+		Organization: org,
+	})
+	require.NoError(t, err)
+	server.SetName(org)
+	return server
+}

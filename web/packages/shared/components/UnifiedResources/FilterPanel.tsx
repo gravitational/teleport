@@ -47,6 +47,7 @@ const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   kube_cluster: 'Kubernetes',
   node: 'Server',
   user_group: 'User group',
+  git_server: 'Git',
 };
 
 const sortFieldOptions = [
