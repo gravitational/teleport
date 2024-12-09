@@ -8003,6 +8003,8 @@ message AccessGraphSync {
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
+  // Azure is a configuration for Azure Access Graph service poll service.
+  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -8013,4 +8015,11 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
+message AccessGraphAzureSync {
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  string SubscriptionID = 2 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  string Integration = 3 [(gogoproto.jsontag) = "integration,omitempty"];
 }
