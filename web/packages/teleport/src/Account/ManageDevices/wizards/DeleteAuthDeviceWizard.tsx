@@ -42,6 +42,7 @@ import {
   ReauthenticateStep,
   ReauthenticateStepProps,
 } from './ReauthenticateStep';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 interface DeleteAuthDeviceWizardProps {
   /** Device to be removed. */
@@ -60,7 +61,10 @@ export function DeleteAuthDeviceWizard({
 
   const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
     useReAuthenticate({
-      onAuthenticated: setPrivilegeToken,
+      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
+      onMfaResponse: mfaResponse => {
+        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
+      },
     });
 
   const [challengeOptions, getChallengeOptions] = useAsync(async () => {
