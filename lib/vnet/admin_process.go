@@ -21,9 +21,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 	"github.com/gravitational/trace"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 // RunAdminProcess must run as root. It creates and sets up a TUN device and passes
