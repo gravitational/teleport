@@ -38,9 +38,9 @@ import {
 
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/auth';
-
 import { PasswordState } from 'teleport/services/user';
+
+import { DeviceUsage } from 'teleport/services/mfa';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {

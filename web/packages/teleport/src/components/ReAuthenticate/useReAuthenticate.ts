@@ -22,7 +22,7 @@ import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
 
 // useReAuthenticate will have different "submit" behaviors depending on:
 //  - If prop field `onMfaResponse` is defined, after a user submits, the
@@ -121,7 +121,7 @@ type BaseProps = {
 // that accepts a MFA response. No
 // authentication has been done at this point.
 type MfaResponseProps = BaseProps & {
-  onMfaResponse(res: MfaAuthnResponse): void;
+  onMfaResponse(res: MfaChallengeResponse): void;
   /**
    * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
    */
