@@ -252,10 +252,11 @@ type testClusterSpec struct {
 }
 
 type echoAppProvider struct {
-	clusters                 map[string]testClusterSpec
-	dialOpts                 DialOptions
-	reissueAppCert           func() tls.Certificate
-	onNewConnectionCallCount atomic.Uint32
+	clusters                    map[string]testClusterSpec
+	dialOpts                    DialOptions
+	reissueAppCert              func() tls.Certificate
+	onNewConnectionCallCount    atomic.Uint32
+	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
@@ -382,6 +383,10 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
 	p.onNewConnectionCallCount.Add(1)
 	return nil
+}
+
+func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+	p.onInvalidLocalPortCallCount.Add(1)
 }
 
 type fakeClusterClient struct {
@@ -691,6 +696,7 @@ func TestDialFakeApp(t *testing.T) {
 		require.False(t, slices.ContainsFunc(requestedRoutes, func(route proto.RouteToApp) bool {
 			return int(route.TargetPort) == port
 		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
+		require.Equal(t, uint32(1), appProvider.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
 	})
 }
 

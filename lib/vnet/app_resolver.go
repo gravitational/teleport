@@ -69,6 +69,10 @@ type AppProvider interface {
 	// The connection won't be established until OnNewConnection returns. Returning an error prevents
 	// the connection from being made.
 	OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error
+
+	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+	// because the provided port does not match any of the TCP ports in the app spec.
+	OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp)
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
@@ -282,10 +286,15 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 }
 
 type tcpAppHandler struct {
-	log              *slog.Logger
-	appProvider      AppProvider
-	clock            clockwork.Clock
-	profileName      string
+	log         *slog.Logger
+	appProvider AppProvider
+	clock       clockwork.Clock
+	profileName string
+	// clusterName is the name of the cluster that the app belongs to. For root cluster, it is not
+	// necessarily the equivalent of profileName. RouteToApp passed to a local proxy needs to include
+	// the actual root cluster name, not just an empty string (unlike what's often the case with
+	// siteName in lib/client).
+	clusterName      string
 	leafClusterName  string
 	app              types.Application
 	portToLocalProxy map[uint16]*alpnproxy.LocalProxy
@@ -299,10 +308,16 @@ func (r *TCPAppResolver) newTCPAppHandler(
 	leafClusterName string,
 	app types.Application,
 ) (*tcpAppHandler, error) {
+	clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &tcpAppHandler{
 		appProvider:      r.appProvider,
 		clock:            r.clock,
 		profileName:      profileName,
+		clusterName:      clusterClient.ClusterName(),
 		leafClusterName:  leafClusterName,
 		app:              app,
 		portToLocalProxy: make(map[uint16]*alpnproxy.LocalProxy),
@@ -331,24 +346,10 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		return lp, nil
 	}
 
+	routeToApp := h.routeToApp(localPort)
 	dialOpts, err := h.appProvider.GetDialOptions(ctx, h.profileName)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting dial options for profile %q", h.profileName)
-	}
-	clusterClient, err := h.appProvider.GetCachedClient(ctx, h.profileName, h.leafClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	routeToApp := proto.RouteToApp{
-		Name:       h.app.GetName(),
-		PublicAddr: h.app.GetPublicAddr(),
-		// ClusterName must not be set to "" when targeting an app from a root cluster. Otherwise the
-		// connection routed through a local proxy will just get lost somewhere in the cluster (with no
-		// clear error being reported) and hang forever.
-		ClusterName: clusterClient.ClusterName(),
-		URI:         h.app.GetURI(),
-		TargetPort:  uint32(localPort),
 	}
 
 	appCertIssuer := &appCertIssuer{
@@ -395,6 +396,7 @@ func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16
 	if len(h.app.GetTCPPorts()) > 0 {
 		tcpPorts := types.PortRanges(h.app.GetTCPPorts())
 		if !tcpPorts.Contains(int(localPort)) {
+			h.appProvider.OnInvalidLocalPort(ctx, h.profileName, h.leafClusterName, h.routeToApp(localPort))
 			return trace.BadParameter("local port %d is not in TCP ports of app %q", localPort, h.app.GetName())
 		}
 	}
@@ -404,6 +406,19 @@ func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(lp.HandleTCPConnector(ctx, connector), "handling TCP connector")
+}
+
+func (h *tcpAppHandler) routeToApp(localPort uint16) proto.RouteToApp {
+	return proto.RouteToApp{
+		Name:       h.app.GetName(),
+		PublicAddr: h.app.GetPublicAddr(),
+		// ClusterName must _not_ be set to "" when targeting an app from a root cluster. Otherwise the
+		// connection routed through a local proxy will just get lost somewhere in the cluster (with no
+		// clear error being reported) and hang forever.
+		ClusterName: h.clusterName,
+		URI:         h.app.GetURI(),
+		TargetPort:  uint32(localPort),
+	}
 }
 
 // appCertIssuer implements [client.CertIssuer].

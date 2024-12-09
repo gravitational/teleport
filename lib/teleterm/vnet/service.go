@@ -477,6 +477,11 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 	return nil
 }
 
+// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+// because the provided port does not match any of the TCP ports in the app spec.
+func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+}
+
 type usageReporter interface {
 	ReportApp(uri.ResourceURI) error
 	Stop()
