@@ -92,6 +92,18 @@ message IssueWorkloadIdentityResponse {
 // The attributes provided by `tbot` regarding the workload's attestation.
 message WorkloadAttrs {}
 
+// TODO: Comment
 message JoinAttrs {}
 
-message Attrs {}
+// TODO: Comment
+message UserAttrs {
+  // The username of the user.
+  string username = 1;
+}
+
+// TODO: Comment
+message Attrs {
+  JoinAttrs join = 1;
+  WorkloadAttrs workload = 2;
+  UserAttrs user = 3;
+}

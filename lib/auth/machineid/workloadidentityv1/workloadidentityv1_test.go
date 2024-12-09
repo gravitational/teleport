@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -981,4 +982,46 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetFieldStringValue(t *testing.T) {
+	msg := &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
+			Username: "user",
+		},
+	}
+	got, err := workloadidentityv1.GetFieldStringValue(msg, "user.username")
+	require.NoError(t, err)
+	require.Equal(t, "user", got)
+}
+
+func TestEvaluateRules(t *testing.T) {
+	attrs := &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
+			Username: "foo",
+		},
+	}
+	wi := &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "user.username",
+								Equals:    "foo",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	err := workloadidentityv1.EvaluateRules(wi, attrs)
+	require.NoError(t, err)
 }
