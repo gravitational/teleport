@@ -82,7 +82,7 @@ func (b *WorkloadIdentityService) ListWorkloadIdentities(
 	return r, nextToken, trace.Wrap(err)
 }
 
-// DeleteWorkloadIdentity deletes a specific WorkloadIdentitys.
+// DeleteWorkloadIdentity deletes a specific WorkloadIdentity.
 func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
 	ctx context.Context, name string,
 ) error {
