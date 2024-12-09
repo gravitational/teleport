@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.0.0-dev.fred-remove-e-ref-arg-4"
+const Version = "17.0.0-dev.fred-remove-e-ref-arg-5"
 
 var SemVersion = semver.New(Version)
