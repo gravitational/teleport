@@ -468,7 +468,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(
