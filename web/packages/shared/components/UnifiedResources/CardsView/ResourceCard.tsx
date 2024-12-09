@@ -85,6 +85,8 @@ export function ResourceCard({
   useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
 

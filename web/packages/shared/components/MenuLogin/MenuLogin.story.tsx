@@ -21,7 +21,7 @@ import { Flex, H3 } from 'design';
 import styled from 'styled-components';
 
 import { MenuLogin } from './MenuLogin';
-import { MenuLoginHandle } from './types';
+import { LoginItem, MenuLoginHandle } from './types';
 
 export default {
   title: 'Shared/MenuLogin',
@@ -56,7 +56,11 @@ function MenuLoginExamples() {
       </Example>
       <Example>
         <H3>With logins</H3>
-        <SampleMenu />
+        <SampleMenu loginItems={loginItems} open />
+      </Example>
+      <Example>
+        <H3>With a lot of logins</H3>
+        <SampleMenu loginItems={aLotOfLoginItems} />
       </Example>
     </Flex>
   );
@@ -68,12 +72,20 @@ const Example = styled(Flex).attrs({
   alignItems: 'flex-start',
 })``;
 
-const SampleMenu = () => {
+const SampleMenu = ({
+  loginItems,
+  open = false,
+}: {
+  loginItems: LoginItem[];
+  open?: boolean;
+}) => {
   const menuRef = useRef<MenuLoginHandle>();
 
   useEffect(() => {
-    menuRef.current.open();
-  }, []);
+    if (open) {
+      menuRef.current.open();
+    }
+  }, [open]);
 
   return (
     <MenuLogin
@@ -84,7 +96,61 @@ const SampleMenu = () => {
   );
 };
 
-const loginItems = ['root', 'jazrafiba', 'evubale', 'ipizodu'].map(login => ({
-  url: '',
-  login,
-}));
+const makeLoginItem = (login: string) => ({ url: '', login });
+
+const loginItems = ['root', 'jazrafiba', 'evubale', 'ipizodu'].map(
+  makeLoginItem
+);
+const aLotOfLoginItems = [
+  'root',
+  'nyvpr@freire42.arg',
+  'obo@qngnubfg.pb',
+  'puneyvr@zlqbznva.bet',
+  'qnir@erzbgrobk.pbz',
+  'rir@flfgrzyvax.qri',
+  'senax@pybhqlfcnpr.vb',
+  'tenpr@grpuuho.hf',
+  'unax@frpherybtva.ovm',
+  'vil@argpbaarpg.gi',
+  'wvyy@fnsrnpprff.ceb',
+  'xra@erzbgryno.pb',
+  'yran@qribcf.pybhq',
+  'zvxr@ulcreabqr.bet',
+  'avan@ybtzrva.klm',
+  'bfpne@frpherubfg.arg',
+  'cnhy@dhvpxpbaarpg.pb',
+  'dhvaa@yvaxzr.ceb',
+  'ehgu@snfgqngn.vb',
+  'fgrir@npprffcbvag.qri',
+  'gvan@pbzchgryvax.hf',
+  'htb@frphercbeg.ovm',
+  'iren@freirenpprff.gi',
+  'jnyg@ybtvafgngvba.pbz',
+  'kran@fnsrubfg.arg',
+  'lhev@erzbgrfreire.pb',
+  'mnen@pbaarpgyvax.vb',
+  'nqnz@ploreabqr.pybhq',
+  'orgu@flfgrztngr.bet',
+  'pney@snfgybtva.ceb',
+  'qvan@qngnjbeyq.ovm',
+  'rq@ybtoevqtr.gi',
+  'snl@frpherjnl.qri',
+  'tvy@grpunpprff.hf',
+  'uny@erzbgryvax.arg',
+  'vqn@freirecbvag.pbz',
+  'wnxr@pbaarpgceb.vb',
+  'xnen@ybtfgngvba.bet',
+  'yrb@npprffarg.pb',
+  'znln@ploreyvax.gi',
+  'abnu@erzbgrfcnpr.ovm',
+  'bytn@frpherqngn.ceb',
+  'crgr@dhvpxabqr.qri',
+  'dhvaa@flfgrznpprff.hf',
+  'eurn@ybtabqr.pbz',
+  'fnen@erzbgrnpprff.arg',
+  'gbz@pybhqfgngvba.pb',
+  'hefhyn@ulcreyvax.vb',
+  'ivp@frpheryvax.gi',
+  'jvyy@freiretngr.ceb',
+  'last@item.com',
+].map(makeLoginItem);
