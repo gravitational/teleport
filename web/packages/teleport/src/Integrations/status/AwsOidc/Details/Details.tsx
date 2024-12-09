@@ -26,8 +26,7 @@ import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOid
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
-import { Ec2 } from 'teleport/Integrations/status/AwsOidc/Details/Ec2';
-import { Eks } from 'teleport/Integrations/status/AwsOidc/Details/Eks';
+import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 
 export function Details() {
   const { resourceKind } = useParams<{
@@ -43,8 +42,8 @@ export function Details() {
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      {resourceKind == AwsResource.ec2 && <Ec2 />}
-      {resourceKind == AwsResource.eks && <Eks />}
+      {resourceKind == AwsResource.ec2 && <Rules />}
+      {resourceKind == AwsResource.eks && <Rules />}
       {resourceKind == AwsResource.rds && <Rds />}
     </FeatureBox>
   );

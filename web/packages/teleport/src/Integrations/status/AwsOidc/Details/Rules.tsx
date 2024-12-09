@@ -16,32 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
+import { useParams } from 'react-router';
+
+import {
+  IntegrationDiscoveryRule,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { SearchPanel } from 'shared/components/Search';
+import { useServerSidePagination } from 'teleport/components/hooks';
+
 export function Rules() {
+  const { name, resourceKind } = useParams<{
+    type: IntegrationKind;
+    name: string;
+    resourceKind: AwsResource;
+  }>();
+
+  const [search, setSearch] = useState('');
+  const serverSidePagination =
+    useServerSidePagination<IntegrationDiscoveryRule>({
+      pageSize: 20,
+      fetchFunc: async (_, params) => {
+        const { rules, nextKey } =
+          await integrationService.fetchIntegrationRules(
+            name,
+            resourceKind,
+            params
+          );
+        return { agents: rules, nextKey };
+      },
+      clusterId: '',
+      params: { search },
+    });
+
+  useEffect(() => {
+    serverSidePagination.fetch();
+  }, [search]);
+
   return (
-    <Table
-      data={[]}
+    <Table<IntegrationDiscoveryRule>
+      data={serverSidePagination.fetchedData.agents || undefined}
       columns={[
-        {
-          key: 'name',
-          headerText: 'Integration Name',
-          isSortable: true,
-        },
         {
           key: 'region',
           headerText: 'Region',
           isSortable: true,
         },
         {
-          key: 'tags',
-          headerText: 'Tags',
+          key: 'labelMatcher',
+          headerText: getResourceTerm(resourceKind),
           isSortable: true,
           onSort: (a, b) => {
-            const aStr = a.tags.toString();
-            const bStr = b.tags.toString();
+            const aStr = a.labelMatcher.toString();
+            const bStr = b.labelMatcher.toString();
 
             if (aStr < bStr) {
               return -1;
@@ -52,11 +85,40 @@ export function Rules() {
 
             return 0;
           },
-          render: ({ tags }) => <LabelCell data={tags} />,
+          render: ({ labelMatcher }) => (
+            <LabelCell data={labelMatcher.map(l => `${l.name}:${l.value}`)} />
+          ),
         },
       ]}
-      emptyText="Rules details coming soon"
+      emptyText={`No ${resourceKind} data`}
       isSearchable
+      fetching={{
+        fetchStatus: serverSidePagination.fetchStatus,
+        onFetchNext: serverSidePagination.fetchNext,
+        onFetchPrev: serverSidePagination.fetchPrev,
+      }}
+      serversideProps={{
+        sort: undefined,
+        setSort: () => undefined,
+        serversideSearchPanel: (
+          <SearchPanel
+            updateSearch={setSearch}
+            updateQuery={null}
+            hideAdvancedSearch={true}
+            filter={{ search }}
+            disableSearch={serverSidePagination.attempt.status === 'processing'}
+          />
+        ),
+      }}
     />
   );
+}
+
+function getResourceTerm(resource: AwsResource): string {
+  switch (resource) {
+    case AwsResource.rds:
+      return 'Tags';
+    default:
+      return 'Labels';
+  }
 }
