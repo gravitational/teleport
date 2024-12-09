@@ -798,6 +798,7 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ContactDelete{
 			ContactDelete: e,
 		}
+
 	case *WorkloadIdentityCreate:
 		out.Event = &OneOf_WorkloadIdentityCreate{
 			WorkloadIdentityCreate: e,
