@@ -73,7 +73,7 @@ func (b *WorkloadIdentityService) GetWorkloadIdentity(
 	return resource, trace.Wrap(err)
 }
 
-// ListWorkloadIdentities lists all WorkloadIdentitys using a given page size
+// ListWorkloadIdentities lists all WorkloadIdentities using a given page size
 // and last key.
 func (b *WorkloadIdentityService) ListWorkloadIdentities(
 	ctx context.Context, pageSize int, currentToken string,
