@@ -32,8 +32,8 @@ import (
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
-// This function returns `trace.AlreadyExistsError` if one or more resources
-// would be overwritten, and `trace.NotImplementedError` if any resources
+// If any resources already exist they are skipped and not overwritten.
+// This function returns a `trace.NotImplementedError` if any resources
 // are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
@@ -43,6 +43,7 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+<<<<<<< HEAD
 	// ensure all items do not exist before continuing.
 	for _, item := range items {
 		_, err = b.Get(ctx, item.Key)
@@ -54,9 +55,11 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 		}
 	}
 	// create all items.
+=======
+>>>>>>> 02cadb4c14 (auth: fix cluster init deadlock (#49638))
 	for _, item := range items {
 		_, err := b.Create(ctx, item)
-		if err != nil {
+		if !trace.IsAlreadyExists(err) && err != nil {
 			return trace.Wrap(err)
 		}
 	}
