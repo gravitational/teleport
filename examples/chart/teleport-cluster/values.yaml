@@ -654,6 +654,9 @@ extraLabels:
   ingress: {}
   # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
   job: {}
+  # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
+  # Job run by the Helm hook.
+  jobPod: {}
   # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
   persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the

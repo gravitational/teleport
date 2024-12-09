@@ -151,13 +151,12 @@ type Handler struct {
 
 	sync.Mutex
 	httprouter.Router
-	cfg                     Config
-	auth                    *sessionCache
-	sessionStreamPollPeriod time.Duration
-	clock                   clockwork.Clock
-	limiter                 *limiter.RateLimiter
-	highLimiter             *limiter.RateLimiter
-	healthCheckAppServer    healthCheckAppServerFunc
+	cfg                  Config
+	auth                 *sessionCache
+	clock                clockwork.Clock
+	limiter              *limiter.RateLimiter
+	highLimiter          *limiter.RateLimiter
+	healthCheckAppServer healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -175,31 +174,18 @@ type Handler struct {
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
-	// wsIODeadline is used to set a deadline for receiving a message from
-	// an authenticated websocket so unauthenticated sockets dont get left
-	// open.
-	wsIODeadline time.Duration
-
 	// findEndpointCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high
 	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
+
+	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
+	clusterMaintenanceConfigCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
 // to NewHandler function
 type HandlerOption func(h *Handler) error
-
-// SetSessionStreamPollPeriod sets polling period for session streams
-func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
-	return func(h *Handler) error {
-		if period < 0 {
-			return trace.BadParameter("period should be non zero")
-		}
-		h.sessionStreamPollPeriod = period
-		return nil
-	}
-}
 
 // SetClock sets the clock on a handler
 func SetClock(clock clockwork.Clock) HandlerOption {
@@ -213,7 +199,7 @@ type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
-// PresenceChecker is a function that executes an mfa prompt to enforce
+// PresenceChecker is a function that executes an MFA prompt to enforce
 // that a user is present.
 type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
 
@@ -226,8 +212,6 @@ type Config struct {
 	Proxy reversetunnelclient.Tunnel
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
-	// DomainName is a domain name served by web handler
-	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient authclient.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
@@ -472,7 +456,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
-		wsIODeadline:         wsIODeadline,
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -499,6 +482,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err, "creating /find cache")
 	}
 	h.findEndpointCache = findCache
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.clusterMaintenanceConfigCache = cmcCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -977,6 +972,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
+	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
@@ -1246,7 +1242,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !pingResp.LicenseExpiry.IsZero() {
+	if pingResp.LicenseExpiry != nil && !pingResp.LicenseExpiry.IsZero() {
 		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
 	}
 
@@ -1547,6 +1543,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+
 	return webclient.PingResponse{
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
@@ -1554,15 +1552,21 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context()),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	cacheKey := "find"
+	if group != "" {
+		cacheKey += "-" + group
+	}
+
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1581,7 +1585,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
-			AutoUpdate:       h.automaticUpdateSettings184(ctx),
+			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
 	if err != nil {

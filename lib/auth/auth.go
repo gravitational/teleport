@@ -100,8 +100,8 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -618,10 +618,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
-		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+		as.k8sTokenReviewValidator = &kubetoken.TokenReviewValidator{}
 	}
 	if as.k8sJWKSValidator == nil {
-		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -1394,8 +1394,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1497,7 +1495,7 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
@@ -1535,9 +1533,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()
@@ -2212,6 +2207,10 @@ type certRequest struct {
 	appName string
 	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	appURI string
+	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
+	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
+	// used in other contexts (e.g., access requests).
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2460,6 +2459,8 @@ type AppTestCertRequest struct {
 	TTL time.Duration
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
+	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
@@ -2519,6 +2520,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		appSessionID:      sessionID,
 		appPublicAddr:     req.PublicAddr,
+		appTargetPort:     req.TargetPort,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
@@ -3296,6 +3298,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
 			URI:               req.appURI,
+			TargetPort:        req.appTargetPort,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
