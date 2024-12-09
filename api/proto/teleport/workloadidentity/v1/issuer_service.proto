@@ -1,0 +1,93 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1pb";
+
+// TODO: Comment
+service WorkloadIdentityIssuanceService {
+  // TODO: Comment
+  rpc IssueWorkloadIdentity(IssueWorkloadIdentityRequest) returns (IssueWorkloadIdentityResponse);
+}
+
+// TODO: Comment
+message X509SVIDParams {
+  // The PKIX, ASN.1 DER public key to encode into the X509 SVID.
+  bytes public_key = 1;
+  // The requested TTL for the X509 SVID. This request may be modified by
+  // the server according to its policies. It is the client's responsibility
+  // to check the TTL of the returned workload identity credential.
+  google.protobuf.Duration ttl = 2;
+}
+
+// TODO: Comment
+message JWTSVIDParams {
+  // The audiences to encode into the JWT SVID as the `aud` claim.
+  repeated string audiences = 1;
+  // The requested TTL for the JWT SVID. This request may be modified by
+  // the server according to its policies. It is the client's responsibility
+  // to check the TTL of the returned workload identity credential.
+  google.protobuf.Duration ttl = 2;
+}
+
+// TODO: Comment
+message SVID {
+  // The TTL that was chosen by the server.
+  google.protobuf.Duration ttl = 1;
+  // The time that the TTL is reached for this credential.
+  google.protobuf.Timestamp expiry = 2;
+  // The hint configured for this Workload Identity - if any. This is provided
+  // to workloads using the SPIFFE Workload API to fetch credentials.
+  string hint = 3;
+  // The name of the Workload Identity resource used to issue this credential.
+  string workload_identity_name = 4;
+  // The revision of the Workload Identity resource used to issue this
+  // credential.
+  string workload_identity_revision = 5;
+  // The fully qualified SPIFFE ID that was encoded into the SVID.
+  string spiffe_id = 6;
+
+  oneof credential {
+    // The X509 SVID that was issued.
+    // ASN.1 DER encoded X.509 certificate. No PEM.
+    bytes x509 = 7;
+    // The JWT SVID that was issued.
+    string jwt = 8;
+  }
+}
+
+// TODO: Comment
+message IssueWorkloadIdentityRequest {
+  // The name of the workload identity to issue.
+  string name = 1;
+  oneof credential {
+    X509SVIDParams x509_svid_params = 2;
+    JWTSVIDParams jwt_svid_params = 3;
+  }
+  WorkloadAttrs workload_attrs = 4;
+}
+
+// TODO: Comment
+message IssueWorkloadIdentityResponse {
+  SVID svid = 1;
+}
+
+// The attributes provided by `tbot` regarding the workload's attestation.
+message WorkloadAttrs {}
