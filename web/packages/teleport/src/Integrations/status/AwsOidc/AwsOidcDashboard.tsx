@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,19 +17,19 @@
  */
 
 import React from 'react';
-import { useParams } from 'react-router';
 
-import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
-import { AwsOidcRoutes } from 'teleport/Integrations/status/AwsOidc/AwsOidcRoutes';
+import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
+import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
+import { FeatureBox } from 'teleport/components/Layout';
 
-export function IntegrationStatus() {
-  const { type: integrationType } = useParams<{
-    type: PluginKind | IntegrationKind;
-  }>();
+// todo (michellescripts) after routing, ensure this view can be sticky
+export function AwsOidcDashboard() {
+  const { attempt } = useAwsOidcStatus();
 
-  if (integrationType === 'aws-oidc') {
-    return <AwsOidcRoutes />;
-  }
-
-  return <>Status for integration type {integrationType} is not supported</>;
+  return (
+    <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+      {attempt.data && <AwsOidcHeader integration={attempt.data} />}
+      Status for integration type aws-oidc is not supported
+    </FeatureBox>
+  );
 }

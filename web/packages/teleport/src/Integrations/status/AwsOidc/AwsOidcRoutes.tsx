@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,19 +17,25 @@
  */
 
 import React from 'react';
-import { useParams } from 'react-router';
 
-import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
-import { AwsOidcRoutes } from 'teleport/Integrations/status/AwsOidc/AwsOidcRoutes';
+import { Route, Switch } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 
-export function IntegrationStatus() {
-  const { type: integrationType } = useParams<{
-    type: PluginKind | IntegrationKind;
-  }>();
+import { AwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
-  if (integrationType === 'aws-oidc') {
-    return <AwsOidcRoutes />;
-  }
+import { AwsOidcDashboard } from './AwsOidcDashboard';
 
-  return <>Status for integration type {integrationType} is not supported</>;
+export function AwsOidcRoutes() {
+  return (
+    <AwsOidcStatusProvider>
+      <Switch>
+        <Route
+          key="aws-oidc-resources-list"
+          exact
+          path={cfg.routes.integrationStatus}
+          component={AwsOidcDashboard}
+        />
+      </Switch>
+    </AwsOidcStatusProvider>
+  );
 }
