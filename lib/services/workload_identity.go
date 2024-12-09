@@ -45,8 +45,10 @@ type WorkloadIdentities interface {
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// DeleteWorkloadIdentity deletes a SPIFFE Federation by name.
 	DeleteWorkloadIdentity(ctx context.Context, name string) error
-	// UpdateWorkloadIdentity updates a WorkloadIdentity. It will not act if the
-	// resource is not found or where the revision does not match.
+	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
+	// already exist, and, condition update semantics are used - e.g the submitted
+	// resource must have a revision matching the revision of the resource in the
+	// backend.
 	UpdateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)

@@ -106,7 +106,10 @@ func (b *WorkloadIdentityService) UpsertWorkloadIdentity(
 	return upserted, trace.Wrap(err)
 }
 
-// UpdateWorkloadIdentity updates a specific WorkloadIdentity.
+// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
+// already exist, and, condition update semantics are used - e.g the submitted
+// resource must have a revision matching the revision of the resource in the
+// backend.
 func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 	ctx context.Context, resource *workloadidentityv1pb.WorkloadIdentity,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
