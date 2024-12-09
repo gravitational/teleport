@@ -1409,15 +1409,12 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
         credentials: Credentials::SmartCard {
-            config: params.ad.then(|| {
-                SmartCardIdentity {
-                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
-                    reader_name: "Teleport".to_string(),
-                    container_name: "".to_string(),
-                    certificate: params.cert_der.clone(),
-                    private_key: params.key_der.clone(),
-                }
-                .into()
+            config: params.ad.then(|| SmartCardIdentity {
+                csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                reader_name: "Teleport".to_string(),
+                container_name: "".to_string(),
+                certificate: params.cert_der.clone(),
+                private_key: params.key_der.clone(),
             }),
             pin,
         },
