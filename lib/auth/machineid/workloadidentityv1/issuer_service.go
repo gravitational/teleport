@@ -76,9 +76,42 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	}, nil
 }
 
+func (s *IssuanceService) evaluateRules(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	return trace.NotImplemented("not implemented")
+}
+
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentityResponse, error) {
+	_, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: is required")
+	}
+
+	// TODO: Enforce WorkloadIdentity labelling access control?
+	wi, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Build up workload identity evaluation context.
+
+	if err := s.evaluateRules(wi); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Enforce rules
+
+	// TODO: Perform templating
+
+	// TODO: Issue X509 or JWT
+
+	// Return.
+
 	return nil, trace.NotImplemented("not implemented")
 }

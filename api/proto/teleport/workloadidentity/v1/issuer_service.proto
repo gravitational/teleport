@@ -91,3 +91,7 @@ message IssueWorkloadIdentityResponse {
 
 // The attributes provided by `tbot` regarding the workload's attestation.
 message WorkloadAttrs {}
+
+message JoinAttrs {}
+
+message Attrs {}
