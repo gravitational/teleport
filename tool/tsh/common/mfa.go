@@ -197,12 +197,14 @@ type mfaAddCommand struct {
 	devName string
 	devType string
 
-	// allowPasswordless is initially true if --allow-passwordless is set, false
-	// if not explicitly requested.
-	// It can only be set by users if wancli.IsFIDO2Available() is true.
+	// allowPasswordless and allowPasswordlessSet hold the state of the
+	// --(no-)allow-passwordless flag.
+	//
+	// allowPasswordless can only be set by users if wancli.IsFIDO2Available() is
+	// true.
 	// Note that Touch ID registrations are always passwordless-capable,
 	// regardless of other settings.
-	allowPasswordless bool
+	allowPasswordless, allowPasswordlessSet bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -213,7 +215,9 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
-		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.allowPasswordless)
+		c.Flag("allow-passwordless", "Allow passwordless logins").
+			IsSetByUser(&c.allowPasswordlessSet).
+			BoolVar(&c.allowPasswordless)
 	}
 	return c
 }
@@ -265,9 +269,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	switch c.devType {
 	case webauthnDeviceType:
 		// Ask the user?
-		// c.allowPasswordless=false at this point only means that the flag wasn't
-		// explicitly set.
-		if !c.allowPasswordless && wancli.IsFIDO2Available() {
+		if !c.allowPasswordlessSet && wancli.IsFIDO2Available() {
 			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
 				return trace.Wrap(err)

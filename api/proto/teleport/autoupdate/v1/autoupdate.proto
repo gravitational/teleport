@@ -178,6 +178,12 @@ message AutoUpdateAgentRolloutStatusGroup {
   google.protobuf.Timestamp last_update_time = 4;
   // last_update_reason is the trigger for the last update
   string last_update_reason = 5;
+  // config_days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
+  repeated string config_days = 6;
+  // config_start_hour to initiate update
+  int32 config_start_hour = 7;
+  // config_wait_days after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+  int64 config_wait_days = 8;
 }
 
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
