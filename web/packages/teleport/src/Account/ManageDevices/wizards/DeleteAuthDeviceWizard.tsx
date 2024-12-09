@@ -38,11 +38,12 @@ import { MfaDevice } from 'teleport/services/mfa';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+
 import {
   ReauthenticateStep,
   ReauthenticateStepProps,
 } from './ReauthenticateStep';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 interface DeleteAuthDeviceWizardProps {
   /** Device to be removed. */

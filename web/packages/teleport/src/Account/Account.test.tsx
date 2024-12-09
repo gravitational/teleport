@@ -29,10 +29,7 @@ import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { PasswordState } from 'teleport/services/user';
 import auth from 'teleport/services/auth/auth';
-import MfaService, {
-  MfaDevice,
-  WebauthnAssertionResponse,
-} from 'teleport/services/mfa';
+import MfaService, { MfaDevice } from 'teleport/services/mfa';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;

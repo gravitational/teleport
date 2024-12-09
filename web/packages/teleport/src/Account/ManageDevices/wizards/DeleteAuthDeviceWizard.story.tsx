@@ -20,11 +20,12 @@ import React from 'react';
 
 import Dialog from 'design/Dialog';
 
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 
 import {
-  DeviceType,
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
@@ -36,7 +37,6 @@ import {
   DeleteDeviceStep,
 } from './DeleteAuthDeviceWizard';
 import { ReauthenticateStep } from './ReauthenticateStep';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export default {
   title: 'teleport/Account/Manage Devices/Delete Device Wizard',
@@ -121,5 +121,5 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
     MFA_OPTION_TOTP,
     MFA_OPTION_SSO_DEFAULT,
   ],
-  submitWithMfa: async (mfaType?: DeviceType, otpCode?: string) => {},
+  submitWithMfa: async () => {},
 };
