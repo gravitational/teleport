@@ -19,7 +19,7 @@
 import { render, screen } from 'design/utils/testing';
 import React from 'react';
 
-import { waitFor, within } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import TeleportContext from 'teleport/teleportContext';
@@ -29,7 +29,7 @@ import auth from 'teleport/services/auth';
 
 import { DeleteAuthDeviceWizardStepProps } from './DeleteAuthDeviceWizard';
 
-import { dummyPasskey, dummyHardwareDevice, deviceCases } from './deviceCases';
+import { dummyPasskey, dummyHardwareDevice } from './deviceCases';
 
 import { DeleteAuthDeviceWizard } from '.';
 
@@ -73,14 +73,13 @@ function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
 test('deletes a device with WebAuthn reauthentication', async () => {
   render(<TestWizard />);
 
-  let reauthenticateStep;
   await waitFor(() => {
-    reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+    expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
   });
-  await user.click(reauthenticateStep.getByText('Verify my identity'));
+  await user.click(screen.getByText('Verify my identity'));
 
-  const deleteStep = within(screen.getByTestId('delete-step'));
-  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
+  expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
     'privilege-token',
@@ -92,19 +91,15 @@ test('deletes a device with WebAuthn reauthentication', async () => {
 test('deletes a device with OTP reauthentication', async () => {
   render(<TestWizard />);
 
-  let reauthenticateStep;
   await waitFor(() => {
-    reauthenticateStep = within(screen.getByTestId('reauthenticate-step'));
+    expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
   });
-  await user.click(reauthenticateStep.getByText('Authenticator App'));
-  await user.type(
-    reauthenticateStep.getByLabelText('Authenticator Code'),
-    '654987'
-  );
-  await user.click(reauthenticateStep.getByText('Verify my identity'));
+  await user.click(screen.getByText('Authenticator App'));
+  await user.type(screen.getByLabelText('Authenticator Code'), '654987');
+  await user.click(screen.getByText('Verify my identity'));
 
-  const deleteStep = within(screen.getByTestId('delete-step'));
-  await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
+  expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
 
   expect(ctx.mfaService.removeDevice).toHaveBeenCalledWith(
     'privilege-token',
@@ -130,13 +125,13 @@ test.each([
   async ({ device, title, message }) => {
     render(<TestWizard deviceToDelete={device} />);
 
-    const reauthenticateStep = await waitFor(() => {
-      return within(screen.getByTestId('reauthenticate-step'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
     });
-    await user.click(reauthenticateStep.getByText('Verify my identity'));
+    await user.click(screen.getByText('Verify my identity'));
 
-    const deleteStep = within(screen.getByTestId('delete-step'));
-    expect(deleteStep.getByText(title)).toBeVisible();
-    expect(deleteStep.getByText(message)).toBeVisible();
+    expect(screen.getByTestId('delete-step')).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeVisible();
+    expect(screen.getByText(message)).toBeVisible();
   }
 );

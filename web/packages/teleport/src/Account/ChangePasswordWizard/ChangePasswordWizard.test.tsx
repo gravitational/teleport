@@ -25,7 +25,6 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
-  MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
   MfaChallengeResponse,
@@ -90,15 +89,15 @@ describe('with passwordless reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = await waitFor(() => {
-      return within(screen.getByTestId('reauthenticate-step'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
     });
     expect(auth.getMfaChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
     });
 
-    await user.click(reauthenticateStep.getByText('Passkey'));
-    await user.click(reauthenticateStep.getByText('Next'));
+    await user.click(screen.getByText('Passkey'));
+    await user.click(screen.getByText('Next'));
     expect(auth.getMfaChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'required',
@@ -188,15 +187,15 @@ describe('with WebAuthn MFA reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = await waitFor(() => {
-      return within(screen.getByTestId('reauthenticate-step'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
     });
     expect(auth.getMfaChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
     });
 
-    await user.click(reauthenticateStep.getByText('Security Key'));
-    await user.click(reauthenticateStep.getByText('Next'));
+    await user.click(screen.getByText('Security Key'));
+    await user.click(screen.getByText('Next'));
     expect(auth.getMfaChallengeResponse).toHaveBeenCalled();
   }
 
@@ -293,11 +292,11 @@ describe('with OTP MFA reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = await waitFor(() => {
-      return within(screen.getByTestId('reauthenticate-step'));
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
     });
-    await user.click(reauthenticateStep.getByText('Authenticator App'));
-    await user.click(reauthenticateStep.getByText('Next'));
+    await user.click(screen.getByText('Authenticator App'));
+    await user.click(screen.getByText('Next'));
   }
 
   it('changes password', async () => {
