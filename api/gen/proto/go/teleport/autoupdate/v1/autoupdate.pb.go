@@ -101,8 +101,9 @@ func (AutoUpdateAgentGroupState) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{0}
 }
 
-// AutoUpdateAgentRolloutState represents the agent group state. This state controls whether the agents from this group
-// should install the start version, the target version, and if they should update immediately or wait.
+// AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
+// start version to the target version, if the update is done, still in progress
+// or if the rollout was manually reverted.
 type AutoUpdateAgentRolloutState int32
 
 const (

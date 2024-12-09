@@ -84,7 +84,7 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 	}
 
 	// Check if there is a reason change. Even if the state did not change, we
-	// might expected to explain why.
+	// might want to explain why.
 	if group.LastUpdateReason != reason {
 		group.LastUpdateReason = reason
 		changed = true
@@ -105,11 +105,8 @@ func computeRolloutState(groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup)
 	groupsByState := make(map[autoupdate.AutoUpdateAgentGroupState][]*autoupdate.AutoUpdateAgentRolloutStatusGroup)
 
 	for _, group := range groups {
-		if previousGroups, ok := groupsByState[group.State]; ok {
-			groupsByState[group.State] = append(previousGroups, group)
-		} else {
-			groupsByState[group.State] = []*autoupdate.AutoUpdateAgentRolloutStatusGroup{group}
-		}
+		previousGroups, _ := groupsByState[group.State]
+		groupsByState[group.State] = append(previousGroups, group)
 	}
 
 	// If one or more groups have been rolled back, we consider the rollout rolledback

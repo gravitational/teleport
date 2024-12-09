@@ -204,8 +204,9 @@ enum AutoUpdateAgentGroupState {
   AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
 }
 
-// AutoUpdateAgentRolloutState represents the agent group state. This state controls whether the agents from this group
-// should install the start version, the target version, and if they should update immediately or wait.
+// AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
+// start version to the target version, if the update is done, still in progress
+// or if the rollout was manually reverted.
 enum AutoUpdateAgentRolloutState {
   // AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED state
   AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED = 0;
