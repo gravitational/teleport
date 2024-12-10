@@ -69,7 +69,7 @@ describe('restoring workspace', () => {
       location: '/docs/some_uri',
     };
 
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const { workspacesService } = getTestSetup({
       cluster,
       persistedWorkspaces: { [cluster.uri]: testWorkspace },
     });
@@ -89,8 +89,8 @@ describe('restoring workspace', () => {
           isBarCollapsed: false,
         },
         localClusterUri: testWorkspace.localClusterUri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
         previous: {
           documents: testWorkspace.documents,
           location: testWorkspace.location,
@@ -108,7 +108,7 @@ describe('restoring workspace', () => {
 
   it('creates empty workspace if there is no persisted state for given clusterUri', async () => {
     const cluster = makeRootCluster();
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const { workspacesService } = getTestSetup({
       cluster,
       persistedWorkspaces: {},
     });
@@ -128,8 +128,8 @@ describe('restoring workspace', () => {
           },
         },
         localClusterUri: cluster.uri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
         previous: undefined,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
@@ -413,7 +413,6 @@ function getTestSetup(options: {
 
   return {
     workspacesService,
-    clusterDocument,
     modalsService,
     notificationsService,
     statePersistenceService,
