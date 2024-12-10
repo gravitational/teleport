@@ -338,6 +338,9 @@ func (r *GithubAuthRequest) Expiry() time.Time {
 
 // Check makes sure the request is valid
 func (r *GithubAuthRequest) Check() error {
+	authenticatedUserFlow := r.AuthenticatedUser != ""
+	regularLoginFlow := !r.SSOTestFlow && !authenticatedUserFlow
+
 	switch {
 	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
@@ -346,8 +349,10 @@ func (r *GithubAuthRequest) Check() error {
 	// we could collapse these two checks into one, but the error message would become ambiguous.
 	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	case !r.SSOTestFlow && r.ConnectorSpec != nil:
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case authenticatedUserFlow && r.ConnectorSpec == nil:
+		return trace.BadParameter("ConnectorSpec cannot be nil for authenticated user")
+	case regularLoginFlow && r.ConnectorSpec != nil:
+		return trace.BadParameter("ConnectorSpec must be nil")
 	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
 		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
 	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:

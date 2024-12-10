@@ -35,12 +35,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GitServerService_CreateGitServer_FullMethodName = "/teleport.gitserver.v1.GitServerService/CreateGitServer"
-	GitServerService_GetGitServer_FullMethodName    = "/teleport.gitserver.v1.GitServerService/GetGitServer"
-	GitServerService_ListGitServers_FullMethodName  = "/teleport.gitserver.v1.GitServerService/ListGitServers"
-	GitServerService_UpdateGitServer_FullMethodName = "/teleport.gitserver.v1.GitServerService/UpdateGitServer"
-	GitServerService_UpsertGitServer_FullMethodName = "/teleport.gitserver.v1.GitServerService/UpsertGitServer"
-	GitServerService_DeleteGitServer_FullMethodName = "/teleport.gitserver.v1.GitServerService/DeleteGitServer"
+	GitServerService_CreateGitServer_FullMethodName         = "/teleport.gitserver.v1.GitServerService/CreateGitServer"
+	GitServerService_GetGitServer_FullMethodName            = "/teleport.gitserver.v1.GitServerService/GetGitServer"
+	GitServerService_ListGitServers_FullMethodName          = "/teleport.gitserver.v1.GitServerService/ListGitServers"
+	GitServerService_UpdateGitServer_FullMethodName         = "/teleport.gitserver.v1.GitServerService/UpdateGitServer"
+	GitServerService_UpsertGitServer_FullMethodName         = "/teleport.gitserver.v1.GitServerService/UpsertGitServer"
+	GitServerService_DeleteGitServer_FullMethodName         = "/teleport.gitserver.v1.GitServerService/DeleteGitServer"
+	GitServerService_CreateGitHubAuthRequest_FullMethodName = "/teleport.gitserver.v1.GitServerService/CreateGitHubAuthRequest"
 )
 
 // GitServerServiceClient is the client API for GitServerService service.
@@ -61,6 +62,8 @@ type GitServerServiceClient interface {
 	UpsertGitServer(ctx context.Context, in *UpsertGitServerRequest, opts ...grpc.CallOption) (*types.ServerV2, error)
 	// DeleteGitServer is used to delete a Git server object.
 	DeleteGitServer(ctx context.Context, in *DeleteGitServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreateGitHubAuthRequest starts GitHub OAuth flow for authenticated user.
+	CreateGitHubAuthRequest(ctx context.Context, in *CreateGitHubAuthRequestRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
 }
 
 type gitServerServiceClient struct {
@@ -131,6 +134,16 @@ func (c *gitServerServiceClient) DeleteGitServer(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *gitServerServiceClient) CreateGitHubAuthRequest(ctx context.Context, in *CreateGitHubAuthRequestRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.GithubAuthRequest)
+	err := c.cc.Invoke(ctx, GitServerService_CreateGitHubAuthRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GitServerServiceServer is the server API for GitServerService service.
 // All implementations must embed UnimplementedGitServerServiceServer
 // for forward compatibility.
@@ -149,6 +162,8 @@ type GitServerServiceServer interface {
 	UpsertGitServer(context.Context, *UpsertGitServerRequest) (*types.ServerV2, error)
 	// DeleteGitServer is used to delete a Git server object.
 	DeleteGitServer(context.Context, *DeleteGitServerRequest) (*emptypb.Empty, error)
+	// CreateGitHubAuthRequest starts GitHub OAuth flow for authenticated user.
+	CreateGitHubAuthRequest(context.Context, *CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error)
 	mustEmbedUnimplementedGitServerServiceServer()
 }
 
@@ -176,6 +191,9 @@ func (UnimplementedGitServerServiceServer) UpsertGitServer(context.Context, *Ups
 }
 func (UnimplementedGitServerServiceServer) DeleteGitServer(context.Context, *DeleteGitServerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGitServer not implemented")
+}
+func (UnimplementedGitServerServiceServer) CreateGitHubAuthRequest(context.Context, *CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateGitHubAuthRequest not implemented")
 }
 func (UnimplementedGitServerServiceServer) mustEmbedUnimplementedGitServerServiceServer() {}
 func (UnimplementedGitServerServiceServer) testEmbeddedByValue()                          {}
@@ -306,6 +324,24 @@ func _GitServerService_DeleteGitServer_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GitServerService_CreateGitHubAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateGitHubAuthRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GitServerServiceServer).CreateGitHubAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GitServerService_CreateGitHubAuthRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GitServerServiceServer).CreateGitHubAuthRequest(ctx, req.(*CreateGitHubAuthRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GitServerService_ServiceDesc is the grpc.ServiceDesc for GitServerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -336,6 +372,10 @@ var GitServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteGitServer",
 			Handler:    _GitServerService_DeleteGitServer_Handler,
+		},
+		{
+			MethodName: "CreateGitHubAuthRequest",
+			Handler:    _GitServerService_CreateGitHubAuthRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

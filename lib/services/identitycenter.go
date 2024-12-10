@@ -198,20 +198,26 @@ func (a IdentityCenterAccountAssignment) CloneResource() types.ClonableResource1
 // IdentityCenterAccountAssignment
 type IdentityCenterAccountAssignmentID string
 
-// IdentityCenterAccountAssignments defines the operations to create and maintain
-// Identity Center account assignment records in the service.
-type IdentityCenterAccountAssignments interface {
+// IdentityCenterAccountAssignmentGetter provides read-only access to Identity
+// Center Account Assignment records
+type IdentityCenterAccountAssignmentGetter interface {
+	// GetAccountAssignment fetches a specific Account Assignment record.
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+}
+
+// IdentityCenterAccountAssignments defines the operations to create and maintain
+// Identity Center account assignment records in the service.
+type IdentityCenterAccountAssignments interface {
+	IdentityCenterAccountAssignmentGetter
 
 	// CreateAccountAssignment creates a new Account Assignment record in
 	// the service from the supplied in-memory representation. Returns the
 	// created record on success.
 	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
-
-	// GetAccountAssignment fetches a specific Account Assignment record.
-	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
 
 	// UpdateAccountAssignment performs a conditional update on the supplied
 	// Account Assignment, returning the updated record on success.
@@ -236,20 +242,16 @@ type IdentityCenter interface {
 	IdentityCenterAccountAssignments
 }
 
-// NewIdentityCenterAccountMatcher creates a new [IdentityCenterMatcher]
-// configured to match the supplied [IdentityCenterAccount].
-func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) RoleMatcher {
+// NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
+// match the supplied [IdentityCenterAccount].
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterAccountMatcher {
 	return &IdentityCenterAccountMatcher{
 		accountID: account.GetSpec().GetId(),
 	}
 }
 
 // IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
-// resources against the AccountAssignments specified in a Role condition.
-//
-// The same type is used for matching both [IdentityCenterAccount]s and
-// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
-// an Account.
+// Account resources against the AccountAssignments specified in a Role condition.
 type IdentityCenterAccountMatcher struct {
 	accountID string
 }
@@ -278,18 +280,16 @@ func (m *IdentityCenterAccountMatcher) String() string {
 
 // NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
 // configured to match the supplied [IdentityCenterAccountAssignment].
-func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
-	return &IdentityCenterAccountMatcher{
-		accountID: account.GetSpec().GetAccountId(),
+func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
+	return &IdentityCenterAccountAssignmentMatcher{
+		accountID:        assignment.GetSpec().GetAccountId(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
 	}
 }
 
 // IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
-// resources against the AccountAssignments specified in a Role condition.
-//
-// The same type is used for matching both [IdentityCenterAccount]s and
-// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
-// an Account.
+// Account Assignment resources against the AccountAssignments specified in a
+// Role condition.
 type IdentityCenterAccountAssignmentMatcher struct {
 	accountID        string
 	permissionSetARN string

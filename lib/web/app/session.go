@@ -79,7 +79,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
-		log:                   h.log,
+		log:                   h.logger,
 		clock:                 h.c.Clock,
 		proxyClient:           h.c.ProxyClient,
 		accessPoint:           h.c.AccessPoint,
@@ -104,7 +104,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		reverseproxy.WithPassHostHeader(),
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(h.log),
+		reverseproxy.WithLogger(h.logger),
 		reverseproxy.WithErrorHandler(h.handleForwardError),
 		reverseproxy.WithRewriter(hr),
 	)

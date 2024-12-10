@@ -3873,6 +3873,10 @@ message ExternalIdentity {
 
   // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
   string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -5250,7 +5254,7 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow.
+  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // AttestationStatement is an attestation statement for the given public key.
   //
@@ -5274,6 +5278,10 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // AuthenticatedUser is the username of an authenticated Teleport user. This
+  // OAuth flow is used to retrieve GitHub identity info which will be added to
+  // the existing user.
+  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5444,6 +5452,12 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
+
+  // UserID is a global unique integer that is assigned to each GitHub user. The
+  // user ID is immutable (unlike the GitHub username) and can be found in APIs
+  // like get user.
+  // https://docs.github.com/en/rest/users/users
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.

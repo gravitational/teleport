@@ -300,6 +300,12 @@ export interface ACL {
      * @generated from protobuf field: teleport.lib.teleterm.v1.ResourceAccess active_sessions = 14;
      */
     activeSessions?: ResourceAccess;
+    /**
+     * review_requests defines the ability to review requests
+     *
+     * @generated from protobuf field: bool review_requests = 15;
+     */
+    reviewRequests: boolean;
 }
 /**
  * ResourceAccess describes access verbs
@@ -649,11 +655,13 @@ class ACL$Type extends MessageType<ACL> {
             { no: 11, name: "kubeservers", kind: "message", T: () => ResourceAccess },
             { no: 12, name: "access_requests", kind: "message", T: () => ResourceAccess },
             { no: 13, name: "recorded_sessions", kind: "message", T: () => ResourceAccess },
-            { no: 14, name: "active_sessions", kind: "message", T: () => ResourceAccess }
+            { no: 14, name: "active_sessions", kind: "message", T: () => ResourceAccess },
+            { no: 15, name: "review_requests", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ACL>): ACL {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.reviewRequests = false;
         if (value !== undefined)
             reflectionMergePartial<ACL>(this, message, value);
         return message;
@@ -701,6 +709,9 @@ class ACL$Type extends MessageType<ACL> {
                     break;
                 case /* teleport.lib.teleterm.v1.ResourceAccess active_sessions */ 14:
                     message.activeSessions = ResourceAccess.internalBinaryRead(reader, reader.uint32(), options, message.activeSessions);
+                    break;
+                case /* bool review_requests */ 15:
+                    message.reviewRequests = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -753,6 +764,9 @@ class ACL$Type extends MessageType<ACL> {
         /* teleport.lib.teleterm.v1.ResourceAccess active_sessions = 14; */
         if (message.activeSessions)
             ResourceAccess.internalBinaryWrite(message.activeSessions, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* bool review_requests = 15; */
+        if (message.reviewRequests !== false)
+            writer.tag(15, WireType.Varint).bool(message.reviewRequests);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

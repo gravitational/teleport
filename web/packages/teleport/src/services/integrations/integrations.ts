@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
-import auth from '../auth/auth';
+import auth, { MfaChallengeScope } from '../auth/auth';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 
@@ -59,6 +59,7 @@ import {
   AwsDatabaseVpcsResponse,
   AwsOidcPingResponse,
   AwsOidcPingRequest,
+  IntegrationWithSummary,
 } from './types';
 
 export const integrationService = {
@@ -271,14 +272,22 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const response = await auth.getMfaChallengeResponse(challenge);
 
     return api
       .post(
         cfg.getAwsDeployTeleportServiceUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        response
       )
       .then(resp => resp.serviceDashboardUrl);
   },
@@ -293,14 +302,14 @@ export const integrationService = {
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api
       .post(
         cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
         req,
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(resp => resp.clusterDashboardUrl);
   },
@@ -309,13 +318,13 @@ export const integrationService = {
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api.post(
       cfg.getEnrollEksClusterUrl(integrationName),
       req,
       null,
-      webauthnResponse
+      mfaResponse
     );
   },
 
@@ -412,6 +421,12 @@ export const integrationService = {
           nextToken: json?.nextToken,
         };
       });
+  },
+
+  fetchIntegrationStats(name: string): Promise<IntegrationWithSummary> {
+    return api.get(cfg.getIntegrationStatsUrl(name)).then(resp => {
+      return resp;
+    });
   },
 };
 
