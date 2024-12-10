@@ -16,8 +16,9 @@
 
 use crate::client::ClientHandle;
 use crate::{piv, util};
+use ironrdp_pdu::pdu_other_err;
 use ironrdp_pdu::utils::CharacterSet;
-use ironrdp_pdu::{custom_err, other_err, PduResult};
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{DeviceControlRequest, DeviceControlResponse, NtStatus};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
@@ -154,10 +155,13 @@ impl ScardBackend {
                 ScardCall::GetReaderIconCall(_) => self.handle_get_reader_icon(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            _ => Err(custom_err!(SmartcardBackendError(format!(
-                "received unhandled ScardIoCtlCode: {:?}",
-                req.io_control_code
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:SmartcardBackendError(format!(
+                    "received unhandled ScardIoCtlCode: {:?}",
+                    req.io_control_code
+                ))
+            )),
         }?;
 
         Ok(())
@@ -336,10 +340,13 @@ impl ScardBackend {
     ) -> PduResult<()> {
         let cmd =
             CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
-                custom_err!(SmartcardBackendError(format!(
-                    "failed to parse smartcard command {:?}: {:?}",
-                    &call.send_buffer, err
-                )))
+                pdu_other_err!(
+                    "",
+                    source:SmartcardBackendError(format!(
+                        "failed to parse smartcard command {:?}: {:?}",
+                        &call.send_buffer, err
+                    ))
+                )
             })?;
 
         let card = self.contexts.get_card(&call.handle)?;
@@ -356,10 +363,13 @@ impl ScardBackend {
             ScardIoCtlCode::StatusW => CharacterSet::Unicode,
             ScardIoCtlCode::StatusA => CharacterSet::Ansi,
             _ => {
-                return Err(custom_err!(SmartcardBackendError(format!(
-                    "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
-                    req.io_control_code
-                ))));
+                return Err(pdu_other_err!(
+                    "",
+                    source:SmartcardBackendError(format!(
+                        "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
+                        req.io_control_code
+                    ))
+                ));
             }
         };
 
@@ -457,10 +467,13 @@ impl ScardBackend {
                 GetDeviceTypeIdReturn::new(ReturnCode::Success, SCARD_READER_TYPE_VENDOR),
             )
         } else {
-            Err(custom_err!(SmartcardBackendError(format!(
-                "got GetDeviceTypeIdCall for unknown context [{}]",
-                call.context.value
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:SmartcardBackendError(format!(
+                    "got GetDeviceTypeIdCall for unknown context [{}]",
+                    call.context.value
+                ))
+            ))
         }
     }
 
@@ -497,10 +510,13 @@ impl ScardBackend {
 
     /// This function returns the error for unsupported combinations of [`ScardIoCtlCode`] and [`ScardCall`].
     fn unsupported_combo_error(ioctl: ScardIoCtlCode, call: ScardCall) -> PduResult<()> {
-        Err(custom_err!(SmartcardBackendError(format!(
-            "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
-            ioctl, call
-        ))))
+        Err(pdu_other_err!(
+            "",
+            source:SmartcardBackendError(format!(
+                "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
+                ioctl, call
+            ))
+        ))
     }
 
     fn send_device_control_response(
@@ -570,7 +586,7 @@ impl Contexts {
     fn get_card(&mut self, handle: &ScardHandle) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
         self.get_internal_mut(handle.context.value)?
             .get(handle.value)
-            .ok_or_else(|| other_err!("unknown ScardHandle"))
+            .ok_or_else(|| pdu_other_err!("unknown ScardHandle"))
     }
 
     fn exists(&self, id: u32) -> bool {
@@ -592,7 +608,7 @@ impl Contexts {
     fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
-            .ok_or_else(|| other_err!("unknown context id"))
+            .ok_or_else(|| pdu_other_err!("unknown context id"))
     }
 
     fn release(&mut self, id: u32) {
@@ -627,7 +643,7 @@ impl ContextInternal {
 
     fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
         if self.scard_cancel_response.is_some() {
-            return Err(other_err!("SCARD_IOCTL_CANCEL already received",));
+            return Err(pdu_other_err!("SCARD_IOCTL_CANCEL already received",));
         }
         self.scard_cancel_response = Some(resp);
         Ok(())

@@ -586,7 +586,7 @@ func TestAccessLists(t *testing.T) {
 				require.NoError(t, backendSvc.UpsertLock(ctx, lock))
 			}
 
-			state, err := svc.Generate(ctx, test.user)
+			state, err := svc.Generate(ctx, test.user, backendSvc)
 			test.wantErr(t, err)
 
 			if err != nil {
@@ -614,9 +614,82 @@ func TestAccessLists(t *testing.T) {
 	}
 }
 
+func TestGitHubIdentity(t *testing.T) {
+	ctx := context.Background()
+	svc, backendSvc := initGeneratorSvc(t)
+
+	noGitHubIdentity, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	withGitHubIdentity, err := types.NewUser("alice")
+	require.NoError(t, err)
+	withGitHubIdentity.SetGithubIdentities([]types.ExternalIdentity{{
+		UserID:   "1234567",
+		Username: "username1234567",
+	}})
+
+	withGitHubIdentityUpdated, err := types.NewUser("alice")
+	require.NoError(t, err)
+	withGitHubIdentityUpdated.SetGithubIdentities([]types.ExternalIdentity{{
+		UserID:   "7654321",
+		Username: "username7654321",
+	}})
+
+	tests := []struct {
+		name                 string
+		user                 types.User
+		expectGitHubIdentity *userloginstate.ExternalIdentity
+	}{
+		{
+			name:                 "no github identity",
+			user:                 noGitHubIdentity,
+			expectGitHubIdentity: nil,
+		},
+		{
+			name: "with github identity",
+			user: withGitHubIdentity,
+			expectGitHubIdentity: &userloginstate.ExternalIdentity{
+				UserID:   "1234567",
+				Username: "username1234567",
+			},
+		},
+		{
+			// at this point alice's GitHub identity should be saved in old
+			// states.
+			name: "github identity preserved",
+			user: noGitHubIdentity,
+			expectGitHubIdentity: &userloginstate.ExternalIdentity{
+				UserID:   "1234567",
+				Username: "username1234567",
+			},
+		},
+		{
+			name: "github identity updated",
+			user: withGitHubIdentityUpdated,
+			expectGitHubIdentity: &userloginstate.ExternalIdentity{
+				UserID:   "7654321",
+				Username: "username7654321",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			uls, err := svc.Generate(ctx, test.user, backendSvc)
+			require.NoError(t, err)
+			require.Equal(t, test.expectGitHubIdentity, uls.Spec.GitHubIdentity)
+
+			// Upsert the state for the next test case.
+			_, err = backendSvc.UpsertUserLoginState(ctx, uls)
+			require.NoError(t, err)
+		})
+	}
+}
+
 type svc struct {
 	services.AccessLists
 	services.Access
+	services.UserLoginStates
 
 	event *usageeventsv1.UsageEventOneOf
 }
@@ -638,9 +711,15 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 	accessListsSvc, err := local.NewAccessListService(mem, clock)
 	require.NoError(t, err)
 	accessSvc := local.NewAccessService(mem)
+	ulsService, err := local.NewUserLoginStateService(mem)
+	require.NoError(t, err)
 
 	log := logrus.WithField("test", "logger")
-	svc := &svc{AccessLists: accessListsSvc, Access: accessSvc}
+	svc := &svc{
+		AccessLists:     accessListsSvc,
+		Access:          accessSvc,
+		UserLoginStates: ulsService,
+	}
 
 	generator, err := NewGenerator(GeneratorConfig{
 		Log:         log,

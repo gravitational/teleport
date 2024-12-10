@@ -401,6 +401,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating GitServer service")
 		}
 	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -499,6 +506,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		IdentityCenter:            cfg.IdentityCenter,
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 		GitServers:                cfg.GitServers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -718,6 +726,7 @@ type Services struct {
 	services.IdentityCenter
 	services.PluginStaticCredentials
 	services.GitServers
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1011,7 +1020,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -1394,8 +1403,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1497,7 +1504,7 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
@@ -1535,9 +1542,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()
@@ -3204,6 +3208,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3242,6 +3253,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            githubUserID,
+			GitHubUsername:          githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {

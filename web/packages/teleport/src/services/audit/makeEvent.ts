@@ -231,6 +231,11 @@ export const formatters: Formatters = {
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
   },
+  [eventCodes.PORTFORWARD_STOP]: {
+    type: 'port',
+    desc: 'Port Forwarding Stopped',
+    format: ({ user }) => `User [${user}] stopped port forwarding`,
+  },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
     desc: 'SAML Connector Created',
@@ -1386,6 +1391,27 @@ export const formatters: Formatters = {
     desc: 'Bot Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a Bot [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: {
+    type: 'workload_identity.create',
+    desc: 'Workload Identity Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Workload Identity [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: {
+    type: 'workload_identity.update',
+    desc: 'Workload Identity Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a Workload Identity [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: {
+    type: 'workload_identity.delete',
+    desc: 'Workload Identity Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Workload Identity [${name}]`;
     },
   },
   [eventCodes.LOGIN_RULE_CREATE]: {
