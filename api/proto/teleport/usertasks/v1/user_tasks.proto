@@ -78,6 +78,7 @@ message DiscoverEC2 {
   string installer_script = 5;
 }
 
+// Severity sdsdf
 enum Severity {
   SEVERITY_UNSPECIFIED = 0;
   SEVERITY_LOW = 1;
@@ -86,6 +87,7 @@ enum Severity {
   SEVERITY_CRITICAL = 4;
 }
 
+// RiskFactor sdasd
 message RiskFactor {
   string name = 1;
   Severity severity = 2;
