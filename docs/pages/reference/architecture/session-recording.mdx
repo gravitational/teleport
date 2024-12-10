@@ -91,7 +91,7 @@ Proxy Server cannot see the SSH traffic to the node. It is encrypted end-to-end
 In **Recording Proxy Mode**, the Proxy Service terminates (decrypts) the SSH
 connection using the certificate supplied by the client via SSH agent forwarding
 and then establishes its own SSH connection to the final destination server.
-This allows the Proxy Service to forward SSH session data to the auth server to
+This allows the Proxy Service to forward SSH session data to the Auth Service to
 be recorded, as shown below:
 
 ![recording-proxy](../../../img/recording-proxy.svg)
@@ -124,7 +124,7 @@ Auth Service.
 
 When synchronous recording is enabled, the Teleport component doing the recording
 (which may be the Teleport SSH Service or the Proxy Service instance depending on your configuration)
-submits each recording event to Teleport's Auth Server as it occurs. In this mode,
+submits each recording event to Teleport's Auth Service as it occurs. In this mode,
 failure to emit a recording event is considered fatal - the session will be terminated
 if an event cannot be recorded. This makes synchronous recording best suited for highly
 regulated environments where you need to be confident that all data is recorded.
@@ -132,9 +132,9 @@ This also means that you need a reliable and low-latency connection to the Auth
 Server for the duration of the session to ensure that the session isn't interrupted
 or terminated due to temporary connection loss.
 
-In synchronous recording modes, the Auth Server receives a stream of recording
+In synchronous recording modes, the Auth Service receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
-it to the storage backend. Since data is streamed directly to the Auth Server,
+it to the storage backend. Since data is streamed directly to the Auth Service,
 Teleport administrators don't need to be concerned with disk space on their
 Teleport SSH Service and Proxy Service instances, as no recording data is
 written to those disks.
@@ -143,7 +143,7 @@ written to those disks.
 
 When asynchronous, recording events are written to the local filesystem
 during the session. When the session completes, Teleport assembles the parts into a
-complete recording and submits the entire recording to the Auth Server for storage.
+complete recording and submits the entire recording to the Auth Service for storage.
 
 Since recording data is flushed to disk, administrators should be careful to ensure
 that the system has enough disk space to accommodate the expected number of Teleport
@@ -152,13 +152,14 @@ is a greater chance that it can be tampered with, deleted, or otherwise corrupte
 before the upload completes.
 
 The advantage of asynchronous recording is that it doesn't require a persistent
-connection to the Auth Server. For example, an SSH session can continue to operate
-even if Teleport's Auth Server goes down. When the session completes Teleport will
-attempt to upload the recording to the Auth Server. If the Auth Server is still
+connection to the Auth Service. For example, an SSH session can continue to operate
+even if Teleport's Auth Service goes down. When the session completes Teleport will
+attempt to upload the recording to the Auth Service. If the Auth Service is still
 unavailable, Teleport has built-in retry and backoff mechanisms that will upload
-the artifact when the Auth Server comes back online. Additionally, asynchronous
+the artifact when the Auth Service comes back online. Additionally, asynchronous
 recording is well-suited towards recording sessions that are extra chatty or in
-environments where the connection to the auth server is unreliable or high-latency.
+environments where the connection to the Auth Service is unreliable or
+high-latency.
 
 ## Storage
 
@@ -209,17 +210,17 @@ to be completed.
 
 In asynchronous recording modes, if the node goes down during the session, the partially
 completed recording will sit on the node's disk. The node's upload completer will eventually
-detect the abandoned upload and stream it to the Teleport Auth Server where it will be
+detect the abandoned upload and stream it to the Teleport Auth Service where it will be
 written to the storage backend.
 
-In synchronous recording modes, Teleport's Auth Server is streaming the recording directly
-to storage. If the Auth Server goes down during a session, the uncompleted upload will sit
-as a series of parts (in cloud storage or on the Auth Server's disk) and it is the
-responsibility of the Auth Server's upload completer to detect the abandoned upload and
+In synchronous recording modes, Teleport's Auth Service is streaming the recording directly
+to storage. If the Auth Service goes down during a session, the uncompleted upload will sit
+as a series of parts (in cloud storage or on an Auth Service instance's disk) and it is the
+responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
 
 ## Related reading
 
 - [Recording Proxy Mode](../../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
 - [SSH recording modes](../monitoring/audit.mdx)
-- [Desktop Access recording](../agent-services/desktop-access-reference/sessions.mdx)
+- [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)

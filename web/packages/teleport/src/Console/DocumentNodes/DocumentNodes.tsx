@@ -47,8 +47,6 @@ export default function DocumentNodes(props: Props) {
     params,
     setParams,
     setSort,
-    pathname,
-    replaceHistory,
     fetchStatus,
     attempt,
     createSshSession,
@@ -112,8 +110,6 @@ export default function DocumentNodes(props: Props) {
             params={params}
             setParams={setParams}
             setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
             onLabelClick={onLabelClick}
           />
         )}

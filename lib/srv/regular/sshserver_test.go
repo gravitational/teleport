@@ -1227,10 +1227,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		defer clientConn.Close()
 
 		go func() {
-			err := sshutils.ForwardRequests(ctx, sin, se)
-			if err != nil {
-				log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
-			}
+			_ = sshutils.ForwardRequests(ctx, sin, se)
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
@@ -2278,13 +2275,11 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 
 	// echo all bytes back across the X11 channel
 	_, err = io.Copy(xch, xch)
-	if err == nil {
-		xch.CloseWrite()
-	} else {
-		log.Errorf("X11 channel error: %v", err)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(xch.CloseWrite())
 }
 
 // startX11EchoServer starts a fake node which, for each incoming SSH connection, accepts an
@@ -2298,7 +2293,6 @@ func startX11EchoServer(ctx context.Context, t *testing.T, authSrv *auth.Server)
 		for {
 			conn, chs, _, err := node.accept()
 			if err != nil {
-				log.Warnf("X11 echo server closing: %v", err)
 				return
 			}
 			go func() {

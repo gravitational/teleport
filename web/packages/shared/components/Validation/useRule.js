@@ -39,7 +39,7 @@ export default function useRule(cb) {
   // register to validation context to be called on cb()
   React.useEffect(() => {
     function onValidate() {
-      if (validator.validating) {
+      if (validator.state.validating) {
         const result = cb();
         validator.addResult(result);
         rerender({});
@@ -47,18 +47,18 @@ export default function useRule(cb) {
     }
 
     // subscribe to store changes
-    validator.subscribe(onValidate);
+    validator.addRuleCallback(onValidate);
 
     // unsubscribe on unmount
     function cleanup() {
-      validator.unsubscribe(onValidate);
+      validator.removeRuleCallback(onValidate);
     }
 
     return cleanup;
   }, [cb]);
 
   // if validation has been requested, cb right away.
-  if (validator.validating) {
+  if (validator.state.validating) {
     return cb();
   }
 

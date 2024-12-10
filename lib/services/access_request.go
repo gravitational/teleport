@@ -2191,19 +2191,32 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
 		var (
-			rolesForResource []types.Role
-			resourceMatcher  *KubeResourcesMatcher
+			rolesForResource    []types.Role
+			matchers            []RoleMatcher
+			kubeResourceMatcher *KubeResourcesMatcher
 		)
 		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if len(kubernetesResources) > 0 {
-			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+			kubeResourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+			matchers = append(matchers, kubeResourceMatcher)
+		}
+
+		switch rr := resource.(type) {
+		case types.Resource153Unwrapper:
+			switch urr := rr.Unwrap().(type) {
+			case IdentityCenterAccount:
+				matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
+
+			case IdentityCenterAccountAssignment:
+				matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
+			}
 		}
 
 		for _, role := range allRoles {
-			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2217,7 +2230,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		// If any of the requested resources didn't match with the provided roles,
 		// we deny the request because the user is trying to request more access
 		// than what is allowed by its search_as_roles.
-		if resourceMatcher != nil && len(resourceMatcher.Unmatched()) > 0 {
+		if kubeResourceMatcher != nil && len(kubeResourceMatcher.Unmatched()) > 0 {
 			resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2226,7 +2239,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`no roles configured in the "search_as_roles" for this user allow `+
 					`access to at least one requested resources. `+
 					`resources: %s roles: %v unmatched resources: %v`,
-				resourcesStr, roles, resourceMatcher.Unmatched())
+				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -2333,15 +2346,6 @@ func (m *RequestValidator) roleAllowsResource(
 	}
 	// Role allows access to this resource.
 	return true, nil
-}
-
-// resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
-// if the resourceMatcher is not nil, otherwise returns a nil slice.
-func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {
-	if resourceMatcher == nil {
-		return nil
-	}
-	return []RoleMatcher{resourceMatcher}
 }
 
 // getUnderlyingResourcesByResourceIDs gets the underlying resources the user

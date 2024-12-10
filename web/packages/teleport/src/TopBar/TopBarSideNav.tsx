@@ -22,7 +22,7 @@ import { Link } from 'react-router-dom';
 import { Flex, Image, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
 import { Theme } from 'design/theme/themes/types';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';

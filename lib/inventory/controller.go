@@ -104,7 +104,7 @@ const (
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
 
-	timeReconciliationOk testEvent = "time-reconciliation-ok"
+	pongOk testEvent = "pong-ok"
 
 	instanceCompareFailed testEvent = "instance-compare-failed"
 
@@ -517,7 +517,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(err)
 				return
 			}
-			c.testEvent(timeReconciliationOk)
 
 		case now := <-dbKeepAliveDelay.Elapsed():
 			dbKeepAliveDelay.Advance(now)
@@ -631,6 +630,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 
 	pending.rspC <- pong
 	delete(handle.pings, msg.ID)
+	c.testEvent(pongOk)
 }
 
 func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) error {

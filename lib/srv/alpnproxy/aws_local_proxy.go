@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -33,6 +34,7 @@ import (
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 // AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.
@@ -41,6 +43,11 @@ type AWSAccessMiddleware struct {
 
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+
+	// AWSCredentialsV2Provider is an aws sdk v2 credential provider used by
+	// LocalProxy for request's signature verification if AWSCredentials is not
+	// specified.
+	AWSCredentialsV2Provider awsv2.CredentialsProvider
 
 	Log logrus.FieldLogger
 
@@ -55,7 +62,10 @@ func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 	}
 
 	if m.AWSCredentials == nil {
-		return trace.BadParameter("missing AWSCredentials")
+		if m.AWSCredentialsV2Provider == nil {
+			return trace.BadParameter("missing AWSCredentials")
+		}
+		m.AWSCredentials = credentials.NewCredentials(migration.NewProviderAdapter(m.AWSCredentialsV2Provider))
 	}
 
 	return nil

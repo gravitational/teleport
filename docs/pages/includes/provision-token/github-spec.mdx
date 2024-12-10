@@ -22,6 +22,16 @@ spec:
     # this value should be configured to the hostname of your GHES instance.
     enterprise_server_host: ghes.example.com
 
+    # static_jwks allows the JSON Web Key Set (JWKS) used to verify the token
+    # issued by GitHub Actions to be overridden. This can be used in scenarios
+    # where the Teleport Auth Service is unable to reach a GHES server.
+    #
+    # This field is optional and should only be used with GitHub Enterprise
+    # Server. When unspecified, the JWKS will be fetched automatically using the
+    # GHES server specified in `enterprise_server_host`.
+    static_jwks: |
+      {"keys":[--snip--]}
+
     # enterprise_slug allows the slug of a GitHub Enterprise organisation to be
     # included in the expected issuer of the OIDC tokens. This is for
     # compatibility with the include_enterprise_slug option in GHE.

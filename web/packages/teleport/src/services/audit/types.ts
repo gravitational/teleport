@@ -143,6 +143,7 @@ export const eventCodes = {
   OIDC_CONNECTOR_DELETED: 'T8101I',
   OIDC_CONNECTOR_UPDATED: 'T8102I',
   PORTFORWARD_FAILURE: 'T3003E',
+  PORTFORWARD_STOP: 'T3003S',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
   PRIVILEGE_TOKEN_CREATED: 'T6002I',
@@ -303,6 +304,8 @@ export const eventCodes = {
   PLUGIN_CREATE: 'PG001I',
   PLUGIN_UPDATE: 'PG002I',
   PLUGIN_DELETE: 'PG003I',
+  CONTACT_CREATE: 'TCTC001I',
+  CONTACT_DELETE: 'TCTC002I',
 } as const;
 
 /**
@@ -392,6 +395,7 @@ export type RawEvents = {
     typeof eventCodes.OIDC_CONNECTOR_UPDATED
   >;
   [eventCodes.PORTFORWARD]: RawEvent<typeof eventCodes.PORTFORWARD>;
+  [eventCodes.PORTFORWARD_STOP]: RawEvent<typeof eventCodes.PORTFORWARD_STOP>;
   [eventCodes.PORTFORWARD_FAILURE]: RawEvent<
     typeof eventCodes.PORTFORWARD_FAILURE,
     {
@@ -530,6 +534,11 @@ export type RawEvents = {
     typeof eventCodes.SESSION_START,
     {
       sid: string;
+      kubernetes_cluster: string;
+      proto: string;
+      server_hostname: string;
+      server_addr: string;
+      server_id: string;
     }
   >;
   [eventCodes.SESSION_REJECT]: RawEvent<
@@ -1713,6 +1722,20 @@ export type RawEvents = {
     {
       user: string;
       server_hostname: string;
+    }
+  >;
+  [eventCodes.CONTACT_CREATE]: RawEvent<
+    typeof eventCodes.CONTACT_CREATE,
+    {
+      email: string;
+      contact_type: number;
+    }
+  >;
+  [eventCodes.CONTACT_DELETE]: RawEvent<
+    typeof eventCodes.CONTACT_DELETE,
+    {
+      email: string;
+      contact_type: number;
     }
   >;
 };

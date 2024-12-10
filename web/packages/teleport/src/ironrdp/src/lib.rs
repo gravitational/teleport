@@ -17,13 +17,13 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
+use ironrdp_core::decode_cursor;
+use ironrdp_core::ReadCursor;
+use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
-use ironrdp_pdu::cursor::ReadCursor;
-use ironrdp_pdu::decode_cursor;
 use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
 use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
-use ironrdp_pdu::write_buf::WriteBuf;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
 use ironrdp_session::ActiveStageOutput;

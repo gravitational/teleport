@@ -38,9 +38,11 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -121,14 +123,26 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		t.MaxIdleConns = defaults.HTTPMaxIdleConns
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
-	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) { o.HTTPClient = sqsHTTPClient })
+	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig,
+		func(o *sqs.Options) {
+			o.HTTPClient = sqsHTTPClient
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
 
 	s3HTTPClient := awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
 		t.MaxIdleConns = defaults.HTTPMaxIdleConns
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
-	publisherS3Client := s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) { o.HTTPClient = s3HTTPClient })
-	storerS3Client := s3.NewFromConfig(*cfg.StorerQuerierAWSConfig, func(o *s3.Options) { o.HTTPClient = s3HTTPClient })
+	publisherS3Client := s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig,
+		func(o *s3.Options) {
+			o.HTTPClient = s3HTTPClient
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
+	storerS3Client := s3.NewFromConfig(*cfg.StorerQuerierAWSConfig,
+		func(o *s3.Options) {
+			o.HTTPClient = s3HTTPClient
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
 
 	collectCfg := sqsCollectConfig{
 		sqsReceiver: sqsClient,

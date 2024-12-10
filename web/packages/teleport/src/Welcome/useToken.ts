@@ -23,13 +23,13 @@ import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth, {
   ChangedUserAuthn,
-  DeviceUsage,
   RecoveryCodes,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   ResetToken,
 } from 'teleport/services/auth';
 import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
+import { DeviceUsage } from 'teleport/services/mfa';
 
 export default function useToken(tokenId: string): UseTokenState {
   const [resetToken, setResetToken] = useState<ResetToken>();

@@ -1,0 +1,85 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1pb";
+
+// WorkloadIdentity represents a single, or group of similar, workload
+// identities and configures the structure of workload identity credentials and
+// authorization rules. is a resource that represents the configuration of a trust
+// domain federation.
+message WorkloadIdentity {
+  // The kind of resource represented.
+  string kind = 1;
+  // Differentiates variations of the same kind. All resources should
+  // contain one, even if it is never populated.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // The configured properties of the WorkloadIdentity
+  WorkloadIdentitySpec spec = 5;
+}
+
+// The individual conditions that make up a rule.
+message WorkloadIdentityCondition {
+  // The name of the attribute to evaluate the condition against.
+  string attribute = 1;
+  // An exact string that the attribute must match.
+  string equals = 2;
+}
+
+// An individual rule that is evaluated during the issuance of a WorkloadIdentity.
+message WorkloadIdentityRule {
+  // The conditions that must be met for this rule to be considered passed.
+  repeated WorkloadIdentityCondition conditions = 1;
+}
+
+// The rules which are evaluated before the WorkloadIdentity can be issued.
+message WorkloadIdentityRules {
+  // A list of rules used to determine if a WorkloadIdentity can be issued.
+  // If none are provided, it will be considered a pass. If any are provided,
+  // then at least one must pass for the rules to be considered passed.
+  repeated WorkloadIdentityRule allow = 1;
+}
+
+// Configuration pertaining to the issuance of SPIFFE-compatible workload
+// identity credentials.
+message WorkloadIdentitySPIFFE {
+  // The path of the SPIFFE ID that will be issued to the workload.
+  //
+  // This should be prefixed with a forward-slash ("/").
+  //
+  // This field supports templating using attributes.
+  string id = 1;
+  // A freeform text field which is provided to workloads along with a
+  // credential produced by this WorkloadIdentity. This can be used to provide
+  // additional context that can be used to select between multiple credentials.
+  string hint = 2;
+}
+
+// The spec for the WorkloadIdentity resource.
+message WorkloadIdentitySpec {
+  // The rules which are evaluated before the WorkloadIdentity can be issued.
+  WorkloadIdentityRules rules = 1;
+  // Configuration pertaining to the issuance of SPIFFE-compatible workload
+  // identity credentials.
+  WorkloadIdentitySPIFFE spiffe = 2;
+}

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -66,7 +65,7 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
-		events[azureEventPrefix+aws.StringValue(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
+		events[azureEventPrefix+azure.StringVal(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
 			ResourceType:   resourceType,
 			ResourceOrigin: types.OriginCloud,
 			CloudProvider:  types.CloudAzure,
@@ -177,13 +176,13 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 	}
 
 	for _, vm := range vms {
-		location := aws.StringValue(vm.Location)
+		location := azure.StringVal(vm.Location)
 		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))
 		for key, value := range vm.Tags {
-			vmTags[key] = aws.StringValue(value)
+			vmTags[key] = azure.StringVal(value)
 		}
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
 			continue

@@ -34,7 +34,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -388,10 +390,14 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = sts.NewFromConfig(*c.awsCfg)
+			c.stsClient = sts.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
 		}
 		if c.iamClient == nil {
-			c.iamClient = iam.NewFromConfig(*c.awsCfg)
+			c.iamClient = iam.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
 		}
 		if c.Identity == nil {
 			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
@@ -413,7 +419,9 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					withRegion := func(o *ssm.Options) {
 						o.Region = region
 					}
-					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion)
+					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion, func(o *ssm.Options) {
+						o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+					})
 				}
 			}
 
@@ -422,7 +430,9 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.Policies == nil {
 			partition := c.Identity.GetPartition()
 			accountID := c.Identity.GetAccountID()
-			iamClient := iam.NewFromConfig(*c.awsCfg)
+			iamClient := iam.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
 			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)
 		}
 	}

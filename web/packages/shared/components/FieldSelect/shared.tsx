@@ -25,13 +25,14 @@ import LabelInput from 'design/LabelInput';
 
 import Flex from 'design/Flex';
 
+import { IconTooltip } from 'design/Tooltip';
+
 import { HelperTextLine } from '../FieldInput/FieldInput';
 import { useRule } from '../Validation';
 import {
   AsyncProps as AsyncSelectProps,
   Props as SelectProps,
 } from '../Select';
-import { ToolTipInfo } from '../ToolTip';
 
 export const defaultRule = () => () => ({ valid: true });
 
@@ -95,7 +96,7 @@ export const FieldSelectWrapper = <Opt, IsMulti extends boolean>({
           {toolTipContent ? (
             <Flex gap={1} alignItems="center">
               {label}
-              <ToolTipInfo children={toolTipContent} />
+              <IconTooltip children={toolTipContent} />
             </Flex>
           ) : (
             label

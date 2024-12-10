@@ -81,4 +81,11 @@ const sample = {
   remove: () => null,
   create: () => null,
   update: () => null,
+  rolesAcl: {
+    list: true,
+    create: true,
+    remove: true,
+    edit: true,
+    read: true,
+  },
 };

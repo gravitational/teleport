@@ -161,6 +161,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.samlIdpServiceProvider;
   }
 
+  hasFileTransferAccess() {
+    return this.state.acl.fileTransferAccess;
+  }
+
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to create provisioning tokens
@@ -250,5 +254,9 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getBotsAccess() {
     return this.state.acl.bots;
+  }
+
+  getContactsAccess() {
+    return this.state.acl.contacts;
   }
 }

@@ -34,6 +34,7 @@ import { PrimaryAuthType } from 'shared/services';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 
 import { outermostPadding } from '../spacing';
 
@@ -170,7 +171,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{reason.publicAddr}</strong>;
+      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
     }
     default: {
       reason satisfies never;
