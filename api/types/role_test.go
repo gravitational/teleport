@@ -641,6 +641,49 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 	}
 }
 
+func TestUnmarshallCreateDatabaseUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateDatabaseUserMode
+		input    any
+	}{
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, input: "\"\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_OFF, input: "\"off\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP, input: "\"keep\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP, input: "\"best_effort_drop\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, input: 0},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_OFF, input: 1},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP, input: 2},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP, input: 3},
+	} {
+		var got CreateDatabaseUserMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
+func TestUnmarshallCreateDatabaseUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateDatabaseUserMode
+		input    any
+	}{
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, input: "\"\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_OFF, input: "\"off\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_OFF, input: "off"},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP, input: "\"keep\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP, input: "\"best_effort_drop\""},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED, input: 0},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_OFF, input: 1},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP, input: 2},
+		{expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP, input: 3},
+	} {
+		var got CreateDatabaseUserMode
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
 func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
