@@ -35,7 +35,7 @@ type vnetCommand struct {
 
 func newVnetCommand(app *kingpin.Application) *vnetCommand {
 	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
+		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access.").Hidden(),
 	}
 	return cmd
 }
@@ -61,9 +61,9 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	return trace.Wrap(processManager.Wait())
 }
 
-// vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
-// vnetdaemon build tag. This is typically the case when running tsh in development where it's not
-// signed and bundled in tsh.app.
+// vnetAdminSetupCommand is the fallback command run as root when tsh isn't
+// compiled with the vnetdaemon build tag. This is typically the case when
+// running tsh in development where it's not signed and bundled in tsh.app.
 //
 // This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
@@ -75,23 +75,15 @@ type vnetAdminSetupCommand struct {
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
-	// egid of the user starting VNet. Unsafe for production use, as the egid comes from an unstrusted
-	// source.
-	egid int
-	// euid of the user starting VNet. Unsafe for production use, as the euid comes from an unstrusted
-	// source.
-	euid int
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
+	cmd.Flag("socket", "socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
-	cmd.Flag("egid", "effective group ID of the user starting VNet").IntVar(&cmd.egid)
-	cmd.Flag("euid", "effective user ID of the user starting VNet").IntVar(&cmd.euid)
 	return cmd
 }
 
@@ -108,9 +100,10 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		DNSAddr:    c.dnsAddr,
 		HomePath:   homePath,
 		ClientCred: daemon.ClientCred{
+			// TODO(nklaassen): figure out how to pass some form of user
+			// identifier. For now Valid: true is a hack to make
+			// CheckAndSetDefaults pass.
 			Valid: true,
-			Egid:  c.egid,
-			Euid:  c.euid,
 		},
 	}
 
