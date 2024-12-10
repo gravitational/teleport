@@ -309,6 +309,7 @@ func (r *reconciler) computeStatus(
 	}
 
 	status.Groups = groups
+	status.State = computeRolloutState(groups)
 	return status, nil
 }
 
