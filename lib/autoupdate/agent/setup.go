@@ -318,7 +318,7 @@ func writeTemplate(path, t string, values any) error {
 
 	tmpl, err := template.New(file).Funcs(template.FuncMap{
 		"replace": func(s, old, new string) string {
-			return strings.Replace(s, old, new, -1)
+			return strings.ReplaceAll(s, old, new)
 		},
 	}).Parse(t)
 	if err != nil {
