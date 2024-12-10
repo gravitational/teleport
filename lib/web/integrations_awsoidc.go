@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -292,15 +293,16 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 	}, nil
 }
 
-func fetchRelevantAWSRegions(ctx context.Context,
-	authClient interface {
-		GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
-		GetDatabases(context.Context) ([]types.Database, error)
-	},
-	discoveryConfigsClient interface {
-		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
-	},
-) ([]string, error) {
+type databaseGetter interface {
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	GetDatabases(context.Context) ([]types.Database, error)
+}
+
+type discoveryConfigLister interface {
+	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+}
+
+func fetchRelevantAWSRegions(ctx context.Context, authClient databaseGetter, discoveryConfigsClient discoveryConfigLister) ([]string, error) {
 	regionsSet := make(map[string]struct{})
 
 	// Collect Regions from Database resources.
@@ -326,21 +328,9 @@ func fetchRelevantAWSRegions(ctx context.Context,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		for _, resource := range page.Resources {
-			for _, matcher := range resource.GetResourceMatchers() {
-				if matcher.Labels == nil {
-					continue
-				}
-				for labelKey, labelValues := range *matcher.Labels {
-					if labelKey != types.DiscoveryLabelRegion {
-						continue
-					}
-					for _, labelValue := range labelValues {
-						regionsSet[labelValue] = struct{}{}
-					}
-				}
-			}
-		}
+
+		maps.Copy(regionsSet, extractRegionsFromDatabaseServicesPage(page.Resources))
+
 		if page.NextKey == "" {
 			break
 		}
@@ -355,13 +345,7 @@ func fetchRelevantAWSRegions(ctx context.Context,
 			return nil, trace.Wrap(err)
 		}
 
-		for _, dc := range resp {
-			for _, awsMatcher := range dc.Spec.AWS {
-				for _, region := range awsMatcher.Regions {
-					regionsSet[region] = struct{}{}
-				}
-			}
-		}
+		maps.Copy(regionsSet, extractRegionsFromDiscoveryConfigPage(resp))
 
 		if respNextPageKey == "" {
 			break
@@ -380,19 +364,56 @@ func fetchRelevantAWSRegions(ctx context.Context,
 	return ret, nil
 }
 
+func extractRegionsFromDatabaseServicesPage(dbServices []types.DatabaseService) map[string]struct{} {
+	regionsSet := make(map[string]struct{})
+	for _, resource := range dbServices {
+		for _, matcher := range resource.GetResourceMatchers() {
+			if matcher.Labels == nil {
+				continue
+			}
+			for labelKey, labelValues := range *matcher.Labels {
+				if labelKey != types.DiscoveryLabelRegion {
+					continue
+				}
+				for _, labelValue := range labelValues {
+					regionsSet[labelValue] = struct{}{}
+				}
+			}
+		}
+	}
+
+	return regionsSet
+}
+
+func extractRegionsFromDiscoveryConfigPage(discoveryConfigs []*discoveryconfig.DiscoveryConfig) map[string]struct{} {
+	regionsSet := make(map[string]struct{})
+
+	for _, dc := range discoveryConfigs {
+		for _, awsMatcher := range dc.Spec.AWS {
+			for _, region := range awsMatcher.Regions {
+				regionsSet[region] = struct{}{}
+			}
+		}
+	}
+
+	return regionsSet
+}
+
+type deployedDatabaseServiceLister interface {
+	ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error)
+}
+
 func listDeployedDatabaseServices(ctx context.Context,
 	logger *slog.Logger,
 	integrationName string,
 	regions []string,
-	awsoidcClient interface {
-		ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error)
-	},
+	awsOIDCClient deployedDatabaseServiceLister,
 ) ([]ui.AWSOIDCDeployedDatabaseService, error) {
 	var services []ui.AWSOIDCDeployedDatabaseService
 	for _, region := range regions {
 		var nextToken string
 		for {
-			resp, err := awsoidcClient.ListDeployedDatabaseServices(ctx, &integrationv1.ListDeployedDatabaseServicesRequest{
+			resp, err := awsOIDCClient.ListDeployedDatabaseServices(ctx, &integrationv1.ListDeployedDatabaseServicesRequest{
 				Integration: integrationName,
 				Region:      region,
 				NextToken:   nextToken,
