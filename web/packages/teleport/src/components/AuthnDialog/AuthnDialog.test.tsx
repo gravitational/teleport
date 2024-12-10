@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
 

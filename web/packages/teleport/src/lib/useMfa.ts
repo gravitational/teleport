@@ -18,12 +18,13 @@
 
 import { useState, useEffect } from 'react';
 
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
 import { parseMfaChallengeJson as parseMfaChallenge } from 'teleport/services/mfa/makeMfa';
 import { DeviceType, MfaAuthenticateChallenge } from 'teleport/services/mfa';
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
@@ -73,6 +74,6 @@ export function makeDefaultMfaState(): MfaState {
     mfaChallenge: null,
     submitAttempt: {} as Attempt,
     mfaRequired: true,
-    submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => null,
+    submitWithMfa: () => null,
   };
 }

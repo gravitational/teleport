@@ -34,10 +34,7 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type {
-  MfaChallengeResponse,
-  WebauthnAssertionResponse,
-} from './services/mfa';
+import type { MfaChallengeResponse } from './services/mfa';
 import type {
   PluginKind,
   Regions,

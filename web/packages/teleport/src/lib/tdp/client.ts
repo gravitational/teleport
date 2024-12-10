@@ -57,7 +57,6 @@ import type {
   SyncKeys,
   SharedDirectoryTruncateResponse,
 } from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
