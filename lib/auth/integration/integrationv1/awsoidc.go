@@ -495,7 +495,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	}, nil
 }
 
-// ListDeployedDatabaseServices deploys Database Services into Amazon ECS.
+// ListDeployedDatabaseServices lists Database Services deployed into Amazon ECS.
 func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *integrationpb.ListDeployedDatabaseServicesRequest) (*integrationpb.ListDeployedDatabaseServicesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
