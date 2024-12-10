@@ -1379,9 +1379,18 @@ export type RawEvents = {
   [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
   [eventCodes.BOT_UPDATED]: RawEvent<typeof eventCodes.BOT_UPDATED, HasName>;
   [eventCodes.BOT_DELETED]: RawEvent<typeof eventCodes.BOT_DELETED, HasName>;
-  [eventCodes.WORKLOAD_IDENTITY_CREATE]: RawEvent<typeof eventCodes.WORKLOAD_IDENTITY_CREATE, HasName>;
-  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: RawEvent<typeof eventCodes.WORKLOAD_IDENTITY_UPDATE, HasName>;
-  [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<typeof eventCodes.WORKLOAD_IDENTITY_DELETE, HasName>;
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
+    HasName
+  >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName
