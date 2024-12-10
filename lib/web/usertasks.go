@@ -128,3 +128,41 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 		NextKey: nextKey,
 	}, nil
 }
+
+// userTaskList returns a page of User Tasks.
+//
+// The following query params are optional:
+// - limit: max number of items
+// - startKey: used to iterate over pages
+//
+// It returns a list of user tasks with the base attributes (common among all user tasks).
+// To get a detailed UserTask use the single resource endpoint, ie, usertask/<resource's name>.
+func (h *Handler) userTaskList(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	startKey := values.Get("startKey")
+
+	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	items := make([]ui.UserTaskDetail, 0, len(userTasks))
+	for _, userTask := range userTasks {
+		items = append(items, ui.MakeDetailedUserTask(userTask))
+	}
+
+	return ui.UserTasksListDetailedResponse{
+		Items:   items,
+		NextKey: nextKey,
+	}, nil
+}
