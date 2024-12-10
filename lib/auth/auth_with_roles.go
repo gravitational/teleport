@@ -4975,7 +4975,8 @@ func (a *ServerWithRoles) UpsertTrustedClusterV2(ctx context.Context, tc types.T
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertTrustedClusterV2(ctx, tc)
+	upserted, err := a.authServer.UpsertTrustedClusterV2(ctx, tc)
+	return upserted, trace.Wrap(err)
 }
 
 // CreateTrustedClusterV2 creates a Trusted Cluster.
@@ -4993,7 +4994,8 @@ func (a *ServerWithRoles) CreateTrustedClusterV2(ctx context.Context, tc types.T
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.CreateTrustedClusterV2(ctx, tc)
+	created, err := a.authServer.CreateTrustedClusterV2(ctx, tc)
+	return created, trace.Wrap(err)
 }
 
 // UpdateTrustedClusterV2 updates a Trusted Cluster.
@@ -5011,7 +5013,8 @@ func (a *ServerWithRoles) UpdateTrustedClusterV2(ctx context.Context, tc types.T
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpdateTrustedClusterV2(ctx, tc)
+	updated, err := a.authServer.UpdateTrustedClusterV2(ctx, tc)
+	return updated, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {

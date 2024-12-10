@@ -397,6 +397,7 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 
 	//nolint:staticcheck // SA1019. UpsertTrustedCluster is deprecated but will
 	// continue being supported for tctl clients.
+	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
 	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
 		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
