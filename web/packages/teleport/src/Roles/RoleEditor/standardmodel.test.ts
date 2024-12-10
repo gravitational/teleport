@@ -17,7 +17,10 @@
  */
 
 import {
+  CreateDBUserMode,
+  CreateHostUserMode,
   KubernetesResource,
+  RequireMFAType,
   ResourceKind,
   Role,
   Rule,
@@ -45,6 +48,27 @@ const minimalRoleModel = (): RoleEditorModel => ({
   accessSpecs: [],
   rules: [],
   requiresReset: false,
+  options: {
+    maxSessionTTL: '30h0m0s',
+    clientIdleTimeout: '',
+    disconnectExpiredCert: false,
+    requireMFAType: {
+      value: false,
+      label: 'No',
+    },
+    createHostUserMode: {
+      value: '',
+      label: 'Unspecified',
+    },
+    createDBUser: false,
+    createDBUserMode: {
+      value: '',
+      label: 'Unspecified',
+    },
+    desktopClipboard: true,
+    createDesktopUser: false,
+    desktopDirectorySharing: true,
+  },
 });
 
 // These tests make sure that role to model and model to role conversions are
@@ -205,6 +229,47 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           ],
         },
       ],
+    },
+  },
+
+  {
+    name: 'Options object',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        options: {
+          ...minimalRole().spec.options,
+          max_session_ttl: '1h15m30s',
+          client_idle_timeout: '2h30m45s',
+          disconnect_expired_cert: true,
+          require_session_mfa: 'hardware_key',
+          create_host_user_mode: 'keep',
+          create_db_user: true,
+          create_db_user_mode: 'best_effort_drop',
+          desktop_clipboard: false,
+          create_desktop_user: true,
+          desktop_directory_sharing: false,
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      options: {
+        maxSessionTTL: '1h15m30s',
+        clientIdleTimeout: '2h30m45s',
+        disconnectExpiredCert: true,
+        requireMFAType: { value: 'hardware_key', label: 'Hardware Key' },
+        createHostUserMode: { value: 'keep', label: 'Keep' },
+        createDBUser: true,
+        createDBUserMode: {
+          value: 'best_effort_drop',
+          label: 'Drop (best effort)',
+        },
+        desktopClipboard: false,
+        createDesktopUser: true,
+        desktopDirectorySharing: false,
+      },
     },
   },
 ])('$name', ({ role, model }) => {
@@ -455,6 +520,69 @@ describe('roleToRoleEditorModel', () => {
           },
         },
       } as Role,
+    },
+
+    {
+      name: 'unsupported value in spec.options.require_session_mfa',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            require_session_mfa: 'bogus' as RequireMFAType,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          requireMFAType: { value: false, label: 'No' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.create_host_user_mode',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            create_host_user_mode: 'bogus' as CreateHostUserMode,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          createHostUserMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.create_db_user_mode',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            create_db_user_mode: 'bogus' as CreateDBUserMode,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          createDBUserMode: { value: '', label: 'Unspecified' },
+        },
+      },
     },
   ])(
     'requires reset because of $name',
