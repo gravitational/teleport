@@ -25,6 +25,7 @@ import { databases, moreDatabases } from 'teleport/Databases/fixtures';
 import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
 import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
+import { gitServers } from 'teleport/GitServers/fixtures';
 
 import { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
@@ -70,6 +71,7 @@ const allResources = [
   ...moreKubes,
   ...moreDesktops,
   ...moreNodes,
+  ...gitServers,
 ];
 
 const story = ({

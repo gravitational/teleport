@@ -32,8 +32,10 @@ import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
 import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
+import { GitServer } from 'teleport/services/gitservers';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
+import GitServerConnectDialog from 'teleport/GitServers/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
@@ -59,6 +61,8 @@ export const ResourceActionButton = ({ resource }: Props) => {
       return <KubeConnect kube={resource} />;
     case 'windows_desktop':
       return <DesktopConnect desktop={resource} />;
+    case 'git_server':
+      return <GitServerConnect gitserver={resource} />;
     default:
       return null;
   }
@@ -326,6 +330,42 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
     </>
   );
 };
+
+function GitServerConnect({ gitserver }: { gitserver: GitServer }) {
+  const ctx = useTeleport();
+  const { clusterId } = useStickyClusterId();
+  const [open, setOpen] = useState(false);
+  const organization = gitserver.github
+    ? gitserver.github.organization
+    : undefined;
+  const username = ctx.storeUser.state.username;
+  const authType = ctx.storeUser.state.authType;
+  const accessRequestId = ctx.storeUser.getAccessRequestId();
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        Connect
+      </ButtonBorder>
+      {open && (
+        <GitServerConnectDialog
+          username={username}
+          clusterId={clusterId}
+          organization={organization}
+          onClose={() => setOpen(false)}
+          authType={authType}
+          accessRequestId={accessRequestId}
+        />
+      )}
+    </>
+  );
+}
 
 const makeNodeOptions = (clusterId: string, node: Node | undefined) => {
   const nodeLogins = node?.sshLogins || [];
