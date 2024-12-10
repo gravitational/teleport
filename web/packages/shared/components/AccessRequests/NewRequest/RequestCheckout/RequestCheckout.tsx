@@ -791,6 +791,8 @@ function getPrettyResourceKind(kind: RequestableResourceKind): string {
       return 'SAML Application';
     case 'namespace':
       return 'Namespace';
+    case 'aws_ic_account_assignment':
+      return 'AWS IAM Identity Center Account Assignment';
     default:
       kind satisfies never;
       return kind;

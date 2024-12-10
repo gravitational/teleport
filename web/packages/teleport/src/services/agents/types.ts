@@ -88,7 +88,8 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment';
 
 export type AccessRequestScope =
   | 'my_requests'
