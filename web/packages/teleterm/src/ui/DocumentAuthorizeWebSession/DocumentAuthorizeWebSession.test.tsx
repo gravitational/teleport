@@ -65,7 +65,7 @@ test('warning is visible and authorize button is disabled when device is not tru
   expect(await screen.findByText(/Authorize Session/)).toBeDisabled();
 });
 
-test('warning is visible and authorize button is disabled when requested user is logged in', async () => {
+test('warning is visible and authorize button is disabled when requested user is not logged in', async () => {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: true, name: 'bob' }),
   });
