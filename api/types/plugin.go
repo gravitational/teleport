@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -83,6 +84,8 @@ const (
 	PluginTypeEmail = "email"
 	// PluginTypeMSTeams indicates a Microsoft Teams integration
 	PluginTypeMSTeams = "msteams"
+	// PluginTypeNetIQ indicates a NetIQ integration
+	PluginTypeNetIQ = "netiq"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -373,6 +376,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		staticCreds := p.Credentials.GetStaticCredentialsRef()
 		if staticCreds == nil {
 			return trace.BadParameter("Email plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_NetIq:
+		if settings.NetIq == nil {
+			return trace.BadParameter("missing NetIQ settings")
+		}
+		if err := settings.NetIq.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("NetIQ plugin must be used with the static credentials ref type")
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
@@ -833,6 +850,25 @@ func (c PluginStatusV1) GetLastSyncTime() time.Time {
 func (c *PluginGitlabSettings) Validate() error {
 	if c.ApiEndpoint == "" {
 		return trace.BadParameter("API endpoint must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginNetIQSettings) Validate() error {
+	if c.OauthIssuerEndpoint == "" {
+		return trace.BadParameter("oauth_issuer endpoint must be set")
+	}
+
+	if _, err := url.Parse(c.OauthIssuerEndpoint); err != nil {
+		return trace.BadParameter("oauth_issuer endpoint must be a valid URL")
+	}
+
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if _, err := url.Parse(c.ApiEndpoint); err != nil {
+		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
 	return nil

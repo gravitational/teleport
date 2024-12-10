@@ -46,6 +46,7 @@ const (
 	AccessGraphService_GitlabEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
 	AccessGraphService_EntraEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
 	AccessGraphService_AzureEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_NetIQEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -95,6 +96,8 @@ type AccessGraphServiceClient interface {
 	EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error)
 	// AzureEventsStream is a stream of commands to the Azure importer
 	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
+	// NetIQEventsStream is a stream of commands to the NetIQ importer.
+	NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error)
 }
 
 type accessGraphServiceClient struct {
@@ -223,6 +226,19 @@ func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts .
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AzureEventsStreamClient = grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse]
 
+func (c *accessGraphServiceClient) NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[NetIQEventsStreamRequest, NetIQEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_NetIQEventsStreamClient = grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility.
@@ -270,6 +286,8 @@ type AccessGraphServiceServer interface {
 	EntraEventsStream(grpc.BidiStreamingServer[EntraEventsStreamRequest, EntraEventsStreamResponse]) error
 	// AzureEventsStream is a stream of commands to the Azure importer
 	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
+	// NetIQEventsStream is a stream of commands to the NetIQ importer.
+	NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -309,6 +327,9 @@ func (UnimplementedAccessGraphServiceServer) EntraEventsStream(grpc.BidiStreamin
 }
 func (UnimplementedAccessGraphServiceServer) AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AzureEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method NetIQEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 func (UnimplementedAccessGraphServiceServer) testEmbeddedByValue()                            {}
@@ -445,6 +466,13 @@ func _AccessGraphService_AzureEventsStream_Handler(srv interface{}, stream grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AzureEventsStreamServer = grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]
 
+func _AccessGraphService_NetIQEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).NetIQEventsStream(&grpc.GenericServerStream[NetIQEventsStreamRequest, NetIQEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_NetIQEventsStreamServer = grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -501,6 +529,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AzureEventsStream",
 			Handler:       _AccessGraphService_AzureEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "NetIQEventsStream",
+			Handler:       _AccessGraphService_NetIQEventsStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
