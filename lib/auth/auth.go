@@ -390,6 +390,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -486,6 +493,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -703,6 +711,7 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
