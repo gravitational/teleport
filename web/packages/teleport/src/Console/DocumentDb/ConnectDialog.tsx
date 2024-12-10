@@ -81,7 +81,7 @@ function DbConnectDialog({ clusterId, serviceName, onClose, onConnect }: Props) 
           throw new Error('Unable to retrieve database information.');
         }
 
-        return { agents: response.agents };
+        return { agents: [response.agents[0] as Database] };
       },
       [clusterId, serviceName]
     )
