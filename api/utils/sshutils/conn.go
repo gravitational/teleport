@@ -53,20 +53,26 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 	// DiscardRequests will return when the channel or underlying connection is closed.
 	go ssh.DiscardRequests(reqC)
 
+	chwd, _ := channel.(ssh.ChannelWithDeadlines)
+	if chwd == nil {
+		_ = channel.Close()
+		return nil, false, trace.Errorf("expected ssh.ChannelWithDeadlines, got %T (this is a bug)", channel)
+	}
+
 	// Send a special SSH out-of-band request called "teleport-transport"
 	// the agent on the other side will create a new TCP/IP connection to
 	// 'addr' on its network and will start proxying that connection over
 	// this SSH channel.
-	ok, err := channel.SendRequest(constants.ChanTransportDialReq, true, payload)
+	ok, err := chwd.SendRequest(constants.ChanTransportDialReq, true, payload)
 	if err != nil {
-		return nil, true, trace.NewAggregate(trace.Wrap(err), channel.Close())
+		return nil, true, trace.NewAggregate(trace.Wrap(err), chwd.Close())
 	}
 	if !ok {
-		defer channel.Close()
+		defer chwd.Close()
 
 		// Pull the error message from the tunnel client (remote cluster)
 		// passed to us via stderr.
-		errMessageBytes, _ := io.ReadAll(channel.Stderr())
+		errMessageBytes, _ := io.ReadAll(chwd.Stderr())
 		errMessage := string(bytes.TrimSpace(errMessageBytes))
 		if len(errMessage) == 0 {
 			errMessage = fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID)
@@ -75,10 +81,10 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 	}
 
 	if exclusive {
-		return NewExclusiveChConn(sconn, channel), false, nil
+		return NewExclusiveChConn(sconn, chwd), false, nil
 	}
 
-	return NewChConn(sconn, channel), false, nil
+	return NewChConn(sconn, chwd), false, nil
 }
 
 // DialReq is a request for the address to connect to. Supports special

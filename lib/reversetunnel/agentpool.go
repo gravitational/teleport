@@ -518,7 +518,7 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 }
 
 // handleTransport runs a new teleport-transport channel.
-func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) {
+func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.ChannelWithDeadlines, requests <-chan *ssh.Request, conn sshutils.Conn) {
 	if !p.IsRemoteCluster {
 		p.handleLocalTransport(ctx, channel, requests, conn)
 		return
@@ -554,7 +554,7 @@ func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, re
 	t.start()
 }
 
-func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channel, reqC <-chan *ssh.Request, sconn sshutils.Conn) {
+func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.ChannelWithDeadlines, reqC <-chan *ssh.Request, sconn sshutils.Conn) {
 	defer channel.Close()
 	go io.Copy(io.Discard, channel.Stderr())
 

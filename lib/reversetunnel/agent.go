@@ -65,7 +65,7 @@ type AgentStateCallback func(AgentState)
 // transportHandler handles the creation of new transports over ssh.
 type transportHandler interface {
 	// handleTransport runs the receiver of a teleport-transport channel.
-	handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn)
+	handleTransport(context.Context, ssh.ChannelWithDeadlines, <-chan *ssh.Request, sshutils.Conn)
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -578,11 +578,18 @@ func (a *agent) handleDrainChannels() error {
 				a.log.Warningf("Failed to accept transport request: %v.", err)
 				continue
 			}
+			chwd, _ := ch.(ssh.ChannelWithDeadlines)
+			if chwd == nil {
+				go ssh.DiscardRequests(req)
+				go ch.Close()
+				a.log.Warningf("Failed to accept transport request: expected ssh.ChannelWithDeadlines, got %T (this is a bug).", ch)
+				continue
+			}
 
 			a.drainWG.Add(1)
 			go func() {
 				defer a.drainWG.Done()
-				a.transportHandler.handleTransport(a.ctx, ch, req, a.client)
+				a.transportHandler.handleTransport(a.ctx, chwd, req, a.client)
 			}()
 
 		}

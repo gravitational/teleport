@@ -22,9 +22,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -81,7 +83,7 @@ func TestChConn(t *testing.T) {
 
 type sshConn struct {
 	conn ssh.Conn
-	ch   ssh.Channel
+	ch   ssh.ChannelWithDeadlines
 }
 
 func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshConn) {
@@ -100,16 +102,30 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 
 	conn, chans, _, err := ssh.NewServerConn(nConn, config)
 	require.NoError(t, err)
-	t.Cleanup(func() { conn.Close() })
 
+	var wg sync.WaitGroup
+	t.Cleanup(func() {
+		defer wg.Wait()
+		_ = conn.Close()
+	})
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for newCh := range chans {
-			ch, _, err := newCh.Accept()
-			require.NoError(t, err)
+			ch, reqC, err := newCh.Accept()
+			if !assert.NoError(t, err) {
+				continue
+			}
+			go ssh.DiscardRequests(reqC)
+			if !assert.Implements(t, (*ssh.ChannelWithDeadlines)(nil), ch) {
+				ch.Close()
+				continue
+			}
 
 			sshConnCh <- sshConn{
 				conn: conn,
-				ch:   ch,
+				ch:   ch.(ssh.ChannelWithDeadlines),
 			}
 		}
 	}()

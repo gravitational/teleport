@@ -159,7 +159,7 @@ func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) 
 }
 
 // ChannelConn creates a net.Conn over a SSH channel.
-func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
+func (c *remoteConn) ChannelConn(channel ssh.ChannelWithDeadlines) net.Conn {
 	return sshutils.NewChConn(c.sconn, channel)
 }
 

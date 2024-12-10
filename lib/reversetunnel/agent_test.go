@@ -142,7 +142,7 @@ type mockAgentInjection struct {
 	client SSHClient
 }
 
-func (m *mockAgentInjection) handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) {
+func (m *mockAgentInjection) handleTransport(context.Context, ssh.ChannelWithDeadlines, <-chan *ssh.Request, sshutils.Conn) {
 }
 
 func (m *mockAgentInjection) DialContext(context.Context, utils.NetAddr) (SSHClient, error) {
