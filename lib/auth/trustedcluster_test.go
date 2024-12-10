@@ -726,7 +726,7 @@ func TestUpdateTrustedCluster(t *testing.T) {
 				{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName}},
 			},
 		})
-		require.NoError(t, err, "creating trusted cluster resource")
+		require.NoError(t, err, "updating trusted cluster resource")
 
 		server := ServerWithRoles{authServer: a}
 		_, err = server.UpdateTrustedClusterV2(ctx, tc)

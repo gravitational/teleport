@@ -197,7 +197,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
-	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedCluster))
+	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
@@ -2980,9 +2980,9 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
-// TestCreateAndUpdateTrustedCluster tests the basic create and update
+// TestCreateAndUpdateTrustedClusters tests the basic create and update
 // operations for a trusted cluster.
-func testCreateAndUpdateTrustedCluster(t *testing.T, suite *integrationTestSuite) {
+func testCreateAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
