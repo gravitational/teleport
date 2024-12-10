@@ -61,11 +61,12 @@ func newTestAuthority(t *testing.T) testAuthority {
 	tlsCA, trustedCerts, err := newSelfSignedCA(CAPriv, "localhost")
 	require.NoError(t, err)
 
+	clock := clockwork.NewFakeClock()
 	return testAuthority{
-		keygen:       testauthority.New(),
+		keygen:       testauthority.NewWithClock(clock),
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
-		clock:        clockwork.NewFakeClock(),
+		clock:        clock,
 	}
 }
 
