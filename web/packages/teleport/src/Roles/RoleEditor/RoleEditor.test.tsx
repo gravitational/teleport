@@ -156,6 +156,50 @@ test('rendering and switching tabs for a non-standard role', async () => {
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
 });
 
+test('switching tabs triggers validation', async () => {
+  // Triggering validation is necessary, because server-side yamlification
+  // sometimes will reject the data anyway.
+  render(<TestRoleEditor />);
+  await user.clear(screen.getByLabelText('Role Name'));
+  expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
+  await user.click(getYamlEditorTab());
+  expect(screen.getByLabelText('Role Name')).toHaveAccessibleDescription(
+    'Role name is required'
+  );
+  // Expect to still be on the standard tab.
+  expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
+});
+
+test('switching tabs ignores standard model validation for a non-standard role', async () => {
+  // The purpose of this test is to rule out a case where we start with a
+  // non-standard role that even after resetting would cause a validation
+  // error, then go to the standard editor only to be stuck there by the
+  // validation requirement, while the editor UI is itself blocked.
+  const originalRole = withDefaults({
+    // This will trigger a validation error. Note that empty metadata is a very
+    // blunt tool here, but that's certainly one case where we can guarantee
+    // it's gonna cause validation errors. The real-world scenarios would be
+    // much more subtle, but also more likely to get fixed in future, rendering
+    // this test case futile.
+    metadata: {},
+    spec: {},
+    unsupportedField: true, // This will cause disabling the standard editor.
+  } as any as Role);
+  render(
+    <TestRoleEditor
+      originalRole={{ object: originalRole, yaml: toFauxYaml(originalRole) }}
+    />
+  );
+  expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
+  await user.click(getStandardEditorTab());
+  expect(
+    screen.getByText(/Some fields were not readable by the standard editor/)
+  ).toBeVisible();
+  await user.click(getYamlEditorTab());
+  // Proceed, even though our validation would consider the data invalid.
+  expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
+});
+
 test('no double conversions when clicking already active tabs', async () => {
   render(<TestRoleEditor />);
   await user.click(getYamlEditorTab());
