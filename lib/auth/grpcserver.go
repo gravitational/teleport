@@ -2062,6 +2062,15 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2089,6 +2098,15 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2114,6 +2132,15 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
 	if err = services.ValidateRole(req.Role); err != nil {
