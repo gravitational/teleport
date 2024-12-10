@@ -62,24 +62,18 @@ interface AddAuthDeviceWizardProps {
   usage: DeviceUsage;
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
-  /**
-   * A privilege token that may have been created previously; if present, the
-   * reauthentication step will be skipped.
-   */
-  privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
 }
 
 /** A wizard for adding MFA and passkey devices. */
 export function AddAuthDeviceWizard({
-  privilegeToken: privilegeTokenProp = '',
   usage,
   auth2faType,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
-  const [privilegeToken, setPrivilegeToken] = useState(privilegeTokenProp);
+  const [privilegeToken, setPrivilegeToken] = useState();
   const [credential, setCredential] = useState<Credential>(null);
 
   const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
@@ -101,7 +95,20 @@ export function AddAuthDeviceWizard({
   // empty, the user has no existing device (e.g. SSO user) and can register their
   // first device without re-authentication.
   const [reauthMfaOptions, getMfaOptions] = useAsync(async () => {
-    return getMfaChallengeOptions();
+    const reauthMfaOptions = await getMfaChallengeOptions();
+
+    // registering first device does not require reauth, just get a privilege token.
+    //
+    // TODO(Joerger): v19.0.0
+    // Registering first device does not require a privilege token anymore,
+    // but the existing web register endpoint requires privilege token.
+    // We have a new endpoint "/v1/webapi/users/privilege" which does not
+    // require token, but can't be used until v19 for backwards compatibility.
+    if (reauthMfaOptions.length === 0) {
+      await auth.createPrivilegeToken().then(setPrivilegeToken);
+    }
+
+    return reauthMfaOptions;
   });
 
   useEffect(() => {
@@ -113,7 +120,6 @@ export function AddAuthDeviceWizard({
     case 'processing':
       return (
         <Box textAlign="center" m={10}>
-          <div>hi there</div>
           <Indicator />
         </Box>
       );
