@@ -1,8 +1,9 @@
+import { ButtonBorder, ButtonPrimary, Flex } from 'design';
 import React from 'react';
-import { ButtonPrimary, ButtonBorder, Flex } from 'design';
-import styled from 'styled-components';
 import Select from 'shared/components/Select';
-import { App } from 'teleport/services/apps';
+import { HoverTooltip } from 'design/Tooltip';
+import styled from 'styled-components';
+import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 import {
   RequestableResourceKind,
@@ -87,6 +88,16 @@ export function AppRequestButton({
     resourceName?: string
   ) => void;
 }) {
+  if (agent.subKind == AppSubKind.AwsIcAccount) {
+    return (
+      <IdentityCenterRequestButton
+        agent={agent}
+        addedResources={addedResources}
+        addOrRemoveResource={addOrRemoveResource}
+      />
+    );
+  }
+
   const selectedUserGroup =
     Object.keys(addedResources.user_group).length > 0
       ? Object.keys(addedResources.user_group)[0]
@@ -136,7 +147,7 @@ export function AppRequestButton({
     <Flex alignItems="center" justifyContent="end">
       <StyledSelect
         size="small"
-        className={isUserGroupAdded ? 'hasSelectedGroups' : ''}
+        className={isUserGroupAdded ? 'optionsSelected' : ''}
         placeholder={isUserGroupAdded ? 'Edit App Role' : 'Select App Role'}
         value={null}
         options={options}
@@ -182,9 +193,16 @@ const StyledSelect = styled(Select)`
 
   .react-select__dropdown-indicator {
     padding: 2px;
+    height: 24px;
   }
 
-  &.hasSelectedGroups {
+  .react-select__placeholder {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  &.optionsSelected {
     .react-select__control {
       background: ${p => p.theme.colors.interactive.solid.primary.default};
       border: transparent;
@@ -196,3 +214,83 @@ const StyledSelect = styled(Select)`
     }
   }
 `;
+
+type AccountAssignmentOption = Option & {
+  friendlyName: string;
+};
+
+/**
+ * IdentityCenterRequestButton returns select button that renders
+ * requestable permission set(s) for the given Identity Center
+ * account.
+ */
+export function IdentityCenterRequestButton({
+  agent,
+  addedResources,
+  addOrRemoveResource,
+}: {
+  agent: App;
+  addedResources: ResourceMap;
+  addOrRemoveResource: (
+    kind: RequestableResourceKind,
+    resourceId: string,
+    resourceName?: string
+  ) => void;
+}) {
+  const options = agent.permissionSets
+    .map(ps => makeAssignmentOption(ps, addedResources, agent.name))
+    .sort((a, b) => (a.label < b.label ? -1 : 1));
+
+  const handleSelect = (options: AccountAssignmentOption[]) => {
+    options.forEach(option => {
+      addOrRemoveResource(
+        'aws_ic_account_assignment',
+        option.value,
+        option.friendlyName
+      );
+    });
+  };
+
+  const hasAddedPS = options.some(aaOpt =>
+    addedResources.aws_ic_account_assignment
+      ? Boolean(addedResources.aws_ic_account_assignment[aaOpt.value])
+      : false
+  );
+
+  return (
+    <HoverTooltip tipContent="Select Permission Set(s)">
+      <StyledSelect
+        size="small"
+        placeholder="Select Permission Set(s)"
+        className={hasAddedPS ? 'optionsSelected' : ''}
+        value={null}
+        options={options}
+        isSearchable={false}
+        isClearable={false}
+        isMulti={true}
+        hideSelectedOptions={false}
+        controlShouldRenderValue={true}
+        closeMenuOnSelect={false}
+        onChange={handleSelect}
+        components={{
+          Option: CheckableOptionComponent,
+        }}
+      />
+    </HoverTooltip>
+  );
+}
+
+function makeAssignmentOption(
+  ps: PermissionSet,
+  addedResources: ResourceMap,
+  accountName: string
+) {
+  const resourceName = ps.assignmentId;
+  return {
+    label: ps.name,
+    value: resourceName,
+    disabled: false,
+    isAdded: Boolean(addedResources.aws_ic_account_assignment[resourceName]),
+    friendlyName: `"${ps.name}" on "${accountName}"`,
+  };
+}

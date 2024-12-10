@@ -442,6 +442,7 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
     role: { ...resources.role },
     saml_idp_service_provider: { ...resources.saml_idp_service_provider },
     namespace: { ...resources.namespace },
+    aws_ic_account_assignment: { ...resources.aws_ic_account_assignment },
   };
 }
 
