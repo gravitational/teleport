@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MfaChallengeResponse } from '../mfa';
+
 import api, {
   MFA_HEADER,
   defaultRequestOptions,
@@ -26,18 +28,20 @@ import api, {
 describe('api.fetch', () => {
   const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
 
-  const webauthnResp = {
-    id: 'some-id',
-    type: 'some-type',
-    extensions: {
-      appid: false,
-    },
-    rawId: 'some-raw-id',
-    response: {
-      authenticatorData: 'authen-data',
-      clientDataJSON: 'client-data-json',
-      signature: 'signature',
-      userHandle: 'user-handle',
+  const mfaResp: MfaChallengeResponse = {
+    webauthn_response: {
+      id: 'some-id',
+      type: 'some-type',
+      extensions: {
+        appid: false,
+      },
+      rawId: 'some-raw-id',
+      response: {
+        authenticatorData: 'authen-data',
+        clientDataJSON: 'client-data-json',
+        signature: 'signature',
+        userHandle: 'user-handle',
+      },
     },
   };
 
@@ -88,7 +92,7 @@ describe('api.fetch', () => {
   });
 
   test('with webauthnResponse', async () => {
-    await api.fetch('/something', undefined, webauthnResp);
+    await api.fetch('/something', undefined, mfaResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];
@@ -100,14 +104,14 @@ describe('api.fetch', () => {
         ...defaultRequestOptions.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: webauthnResp,
+          webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
     });
   });
 
   test('with customOptions and webauthnResponse', async () => {
-    await api.fetch('/something', customOpts, webauthnResp);
+    await api.fetch('/something', customOpts, mfaResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];
@@ -120,7 +124,7 @@ describe('api.fetch', () => {
         ...customOpts.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: webauthnResp,
+          webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
     });
