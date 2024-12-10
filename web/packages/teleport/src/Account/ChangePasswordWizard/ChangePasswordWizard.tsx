@@ -38,7 +38,7 @@ import Box from 'design/Box';
 
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { MfaDevice } from 'teleport/services/mfa';
+import { MfaDevice, WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 export interface ChangePasswordWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
@@ -66,7 +66,8 @@ export function ChangePasswordWizard({
   const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>(
     reauthOptions[0]?.value
   );
-  const [credential, setCredential] = useState<Credential | undefined>();
+  const [webauthnResponse, setWebauthnResponse] =
+    useState<WebauthnAssertionResponse>();
   const reauthRequired = reauthOptions.length > 0;
 
   return (
@@ -84,9 +85,9 @@ export function ChangePasswordWizard({
         // Step properties
         reauthOptions={reauthOptions}
         reauthMethod={reauthMethod}
-        credential={credential}
         onReauthMethodChange={setReauthMethod}
-        onAuthenticated={setCredential}
+        webauthnResponse={webauthnResponse}
+        onWebauthnResponse={setWebauthnResponse}
         onClose={onClose}
         onSuccess={onSuccess}
       />
@@ -146,7 +147,7 @@ const wizardFlows = {
   withoutReauthentication: [ChangePasswordStep],
 };
 
-type ChangePasswordWizardStepProps = StepComponentProps &
+export type ChangePasswordWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   ChangePasswordStepProps;
 
@@ -154,7 +155,7 @@ interface ReauthenticateStepProps {
   reauthOptions: ReauthenticationOption[];
   reauthMethod: ReauthenticationMethod;
   onReauthMethodChange(method: ReauthenticationMethod): void;
-  onAuthenticated(res: Credential): void;
+  onWebauthnResponse(res: WebauthnAssertionResponse): void;
   onClose(): void;
 }
 
@@ -166,18 +167,25 @@ export function ReauthenticateStep({
   reauthOptions,
   reauthMethod,
   onReauthMethodChange,
-  onAuthenticated,
+  onWebauthnResponse,
   onClose,
 }: ChangePasswordWizardStepProps) {
   const [reauthenticateAttempt, reauthenticate] = useAsync(
     async (m: ReauthenticationMethod) => {
       if (m === 'passwordless' || m === 'mfaDevice') {
-        const res = await auth.fetchWebAuthnChallenge({
+        const challenge = await auth.getMfaChallenge({
           scope: MfaChallengeScope.CHANGE_PASSWORD,
           userVerificationRequirement:
             m === 'passwordless' ? 'required' : 'discouraged',
         });
-        onAuthenticated(res);
+
+        const response = await auth.getMfaChallengeResponse(
+          challenge,
+          'webauthn'
+        );
+
+        // TODO(Joerger): handle non-webauthn response.
+        onWebauthnResponse(response.webauthn_response);
       }
       next();
     }
@@ -225,7 +233,7 @@ export function ReauthenticateStep({
 }
 
 interface ChangePasswordStepProps {
-  credential: Credential;
+  webauthnResponse: WebauthnAssertionResponse;
   reauthMethod: ReauthenticationMethod;
   onClose(): void;
   onSuccess(): void;
@@ -236,7 +244,7 @@ export function ChangePasswordStep({
   prev,
   stepIndex,
   flowLength,
-  credential,
+  webauthnResponse,
   reauthMethod,
   onClose,
   onSuccess,
@@ -275,7 +283,7 @@ export function ChangePasswordStep({
       oldPassword,
       newPassword,
       secondFactorToken: authCode,
-      credential,
+      webauthnResponse,
     });
   }
 

@@ -49,20 +49,23 @@ const service = {
     };
 
     // Prompt for MFA if per-session MFA is required for this app.
-    const webauthnResponse = await auth.getWebauthnResponse(
-      MfaChallengeScope.USER_SESSION,
-      false,
-      {
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.USER_SESSION,
+      allowReuse: false,
+      isMfaRequiredRequest: {
         app: resolveApp,
-      }
-    );
+      },
+    });
+
+    const resp = await auth.getMfaChallengeResponse(challenge);
 
     const createAppSession = {
       ...resolveApp,
       arn: params.arn,
-      mfa_response: webauthnResponse
+      // TODO(Joerger): Handle non-webauthn response.
+      mfa_response: resp
         ? JSON.stringify({
-            webauthnAssertionResponse: webauthnResponse,
+            webauthnAssertionResponse: resp.webauthn_response,
           })
         : null,
     };

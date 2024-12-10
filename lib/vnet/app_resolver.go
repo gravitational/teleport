@@ -91,24 +91,24 @@ type DialOptions struct {
 	InsecureSkipVerify bool
 }
 
-// TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
-type TCPAppResolver struct {
+// tcpAppResolver implements [tcpHandlerResolver] for Teleport TCP apps.
+type tcpAppResolver struct {
 	appProvider        AppProvider
 	clusterConfigCache *ClusterConfigCache
 	log                *slog.Logger
 	clock              clockwork.Clock
 }
 
-// NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
-// TCPHandlers that will proxy TCP connection to Teleport TCP apps.
+// newTCPAppResolver returns a new [*tcpAppResolver] which will resolve full-qualified domain names to
+// [tcpHandler]s that will proxy TCP connection to Teleport TCP apps.
 //
 // It uses [appProvider] to list and retrieve cluster clients which are expected to be cached to avoid
 // repeated/unnecessary dials to the cluster. These clients are then used to list TCP apps that should be
 // handled.
 //
 // [appProvider] is also used to get app certificates used to dial the apps.
-func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*TCPAppResolver, error) {
-	r := &TCPAppResolver{
+func newTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*tcpAppResolver, error) {
+	r := &tcpAppResolver{
 		appProvider: appProvider,
 		log:         log.With(teleport.ComponentKey, "VNet.AppResolver"),
 	}
@@ -120,27 +120,27 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 	return r, nil
 }
 
-type tcpAppResolverOption func(*TCPAppResolver)
+type tcpAppResolverOption func(*tcpAppResolver)
 
 // withClock is a functional option to override the default clock (for tests).
 func withClock(clock clockwork.Clock) tcpAppResolverOption {
-	return func(r *TCPAppResolver) {
+	return func(r *tcpAppResolver) {
 		r.clock = clock
 	}
 }
 
 // WithClusterConfigCache is a functional option to override the cluster config cache.
 func WithClusterConfigCache(clusterConfigCache *ClusterConfigCache) tcpAppResolverOption {
-	return func(r *TCPAppResolver) {
+	return func(r *tcpAppResolver) {
 		r.clusterConfigCache = clusterConfigCache
 	}
 }
 
-// ResolveTCPHandler resolves a fully-qualified domain name to a [TCPHandlerSpec] for a Teleport TCP app that should
+// resolveTCPHandler resolves a fully-qualified domain name to a [tcpHandlerSpec] for a Teleport TCP app that should
 // be used to handle all future TCP connections to [fqdn].
-// Avoid using [trace.Wrap] on [ErrNoTCPHandler] to prevent collecting a full stack trace on every unhandled
+// Avoid using [trace.Wrap] on [errNoTCPHandler] to prevent collecting a full stack trace on every unhandled
 // query.
-func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*TCPHandlerSpec, error) {
+func (r *tcpAppResolver) resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error) {
 	profileNames, err := r.appProvider.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err, "listing profiles")
@@ -148,7 +148,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 	for _, profileName := range profileNames {
 		if fqdn == fullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
-			return nil, ErrNoTCPHandler
+			return nil, errNoTCPHandler
 		}
 
 		clusterClient, err := r.clusterClientForAppFQDN(ctx, profileName, fqdn)
@@ -172,12 +172,12 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 		return r.resolveTCPHandlerForCluster(ctx, clusterClient, profileName, leafClusterName, fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
-	return nil, ErrNoTCPHandler
+	return nil, errNoTCPHandler
 }
 
 var errNoMatch = errors.New("cluster does not match queried FQDN")
 
-func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
+func (r *tcpAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
 	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
 	if err != nil {
 		r.log.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
@@ -236,15 +236,15 @@ func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, e
 	}
 }
 
-// resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
+// resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [tcpHandlerSpec] if a matching
 // app is found in that cluster.
-// Avoid using [trace.Wrap] on [ErrNoTCPHandler] to prevent collecting a full stack trace on every unhandled
+// Avoid using [trace.Wrap] on [errNoTCPHandler] to prevent collecting a full stack trace on every unhandled
 // query.
-func (r *TCPAppResolver) resolveTCPHandlerForCluster(
+func (r *tcpAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
 	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
-) (*TCPHandlerSpec, error) {
+) (*tcpHandlerSpec, error) {
 	log := r.log.With("profile", profileName, "leaf_cluster", leafClusterName, "fqdn", fqdn)
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
@@ -258,11 +258,11 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		// Don't return an unexpected error so we can try to find the app in different clusters or forward the
 		// request upstream.
 		log.InfoContext(ctx, "Failed to list application servers.", "error", err)
-		return nil, ErrNoTCPHandler
+		return nil, errNoTCPHandler
 	}
 	if len(resp.Resources) == 0 {
 		// Didn't find any matching app, forward the request upstream.
-		return nil, ErrNoTCPHandler
+		return nil, errNoTCPHandler
 	}
 	app := resp.Resources[0].GetApp()
 	appHandler, err := r.newTCPAppHandler(ctx, profileName, leafClusterName, app)
@@ -275,9 +275,9 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	return &TCPHandlerSpec{
-		IPv4CIDRRange: clusterConfig.IPv4CIDRRange,
-		TCPHandler:    appHandler,
+	return &tcpHandlerSpec{
+		ipv4CIDRRange: clusterConfig.IPv4CIDRRange,
+		tcpHandler:    appHandler,
 	}, nil
 }
 
@@ -293,7 +293,7 @@ type tcpAppHandler struct {
 	mu sync.Mutex
 }
 
-func (r *TCPAppResolver) newTCPAppHandler(
+func (r *tcpAppResolver) newTCPAppHandler(
 	ctx context.Context,
 	profileName string,
 	leafClusterName string,
@@ -391,9 +391,9 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	return newLP, nil
 }
 
-// HandleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
+// handleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handler certificate renewal and re-logins.
-func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+func (h *tcpAppHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	lp, err := h.getOrInitializeLocalProxy(ctx, localPort)
 	if err != nil {
 		return trace.Wrap(err)

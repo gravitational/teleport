@@ -26,7 +26,7 @@ import { Desktop } from 'teleport/services/desktops';
 
 import { UserGroup } from '../userGroups';
 
-import type { MfaAuthnResponse } from '../mfa';
+import type { MfaChallengeResponse } from '../mfa';
 import type { Platform } from 'design/platform';
 
 export type UnifiedResource =
@@ -142,7 +142,7 @@ export type ConnectionDiagnosticRequest = {
   sshNodeSetupMethod?: 'script' | 'connect_my_computer'; // `json:"ssh_node_setup_method"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
-  mfaAuthnResponse?: MfaAuthnResponse;
+  mfaAuthnResponse?: MfaChallengeResponse;
 };
 
 export type KubeImpersonation = {

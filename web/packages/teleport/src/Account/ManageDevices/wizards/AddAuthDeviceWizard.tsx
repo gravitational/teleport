@@ -40,10 +40,9 @@ import { StepHeader } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
 
 import auth from 'teleport/services/auth/auth';
-import { DeviceUsage } from 'teleport/services/auth';
 import useTeleport from 'teleport/useTeleport';
 
-import { MfaDevice } from 'teleport/services/mfa';
+import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 

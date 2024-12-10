@@ -1,6 +1,3 @@
-//go:build darwin
-// +build darwin
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -21,12 +18,15 @@ package common
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -46,7 +46,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	processManager, err := vnet.SetupAndRun(cf.Context, &vnet.SetupAndRunConfig{AppProvider: appProvider})
+	processManager, err := vnet.Run(cf.Context, &vnet.RunConfig{AppProvider: appProvider})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,18 +95,24 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	return cmd
 }
 
-type vnetDaemonCommand struct {
-	*kingpin.CmdClause
-	// Launch daemons added through SMAppService are launched from a static .plist file, hence
-	// why this command does not accept any arguments.
-	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
-}
-
-func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
-	return &vnetDaemonCommand{
-		CmdClause: app.Command(vnetDaemonSubCommand, "Start the VNet daemon").Hidden(),
+func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
+	homePath := os.Getenv(types.HomeEnvVar)
+	if homePath == "" {
+		// This runs as root so we need to be configured with the user's home path.
+		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
-}
 
-// The command must match the command provided in the .plist file.
-const vnetDaemonSubCommand = "vnet-daemon"
+	config := daemon.Config{
+		SocketPath: c.socketPath,
+		IPv6Prefix: c.ipv6Prefix,
+		DNSAddr:    c.dnsAddr,
+		HomePath:   homePath,
+		ClientCred: daemon.ClientCred{
+			Valid: true,
+			Egid:  c.egid,
+			Euid:  c.euid,
+		},
+	}
+
+	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
+}
