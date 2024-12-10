@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -82,7 +83,11 @@ func (r *REPL) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer pgConn.Close(context.TODO())
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		pgConn.Close(closeCtx)
+	}()
 
 	// term.Terminal blocks reads/writes without respecting the context. The
 	// only thing that unblocks it is closing the underlaying connection (in

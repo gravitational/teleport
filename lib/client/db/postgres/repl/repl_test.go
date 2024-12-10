@@ -117,6 +117,56 @@ func TestQuery(t *testing.T) {
 	}
 }
 
+func TestClose(t *testing.T) {
+	for name, tt := range map[string]struct {
+		closeFunc              func(tc *testCtx, cancelCtx context.CancelFunc)
+		expectTerminateMessage bool
+	}{
+		"closed by context": {
+			closeFunc: func(_ *testCtx, cancelCtx context.CancelFunc) {
+				cancelCtx()
+			},
+			expectTerminateMessage: true,
+		},
+		"closed by server": {
+			closeFunc: func(tc *testCtx, _ context.CancelFunc) {
+				tc.CloseServer()
+			},
+			expectTerminateMessage: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			_, tc := StartWithServer(t, ctx)
+			// Consume the REPL banner.
+			_ = readUntilNextLead(t, tc)
+
+			tt.closeFunc(tc, cancelFunc)
+			// After closing the REPL session, we expect any read/write to
+			// return error. In case the close wasn't effective we need to
+			// execute the read on a Eventually block to avoid blocking the
+			// test.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				var buf []byte
+				_, err := tc.conn.Read(buf[0:])
+				assert.ErrorIs(t, err, io.EOF)
+			}, 5*time.Second, time.Millisecond)
+
+			if !tt.expectTerminateMessage {
+				return
+			}
+
+			select {
+			case <-tc.terminateChan:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "expected REPL to send terminate message but got nothing")
+			}
+		})
+	}
+}
+
 func writeLine(t *testing.T, c *testCtx, line string) {
 	t.Helper()
 	data := []byte(line + lineBreak)
@@ -196,10 +246,13 @@ type testCtx struct {
 	// serverConn is the fake database server connection (that works as a
 	// PostgreSQL instance).
 	serverConn net.Conn
+	// rawPgConn is the underlaying net.Conn used by pgconn client.
+	rawPgConn net.Conn
 
-	route    clientproto.RouteToDatabase
-	pgClient *pgproto3.Backend
-	errChan  chan error
+	route         clientproto.RouteToDatabase
+	pgClient      *pgproto3.Backend
+	errChan       chan error
+	terminateChan chan struct{}
 	// queryChan handling custom queries is enabled the queries received by the
 	// test server will be sent to this channel.
 	queryChan chan string
@@ -247,15 +300,17 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 	client := pgproto3.NewBackend(pgproto3.NewChunkReader(pgConn), pgConn)
 	ctx, cancelFunc := context.WithCancel(ctx)
 	tc := &testCtx{
-		cfg:        cfg,
-		ctx:        ctx,
-		cancelFunc: cancelFunc,
-		conn:       conn,
-		clientConn: clientConn,
-		serverConn: serverConn,
-		pgClient:   client,
-		errChan:    make(chan error, 1),
-		queryChan:  make(chan string),
+		cfg:           cfg,
+		ctx:           ctx,
+		cancelFunc:    cancelFunc,
+		conn:          conn,
+		clientConn:    clientConn,
+		serverConn:    serverConn,
+		rawPgConn:     pgConn,
+		pgClient:      client,
+		errChan:       make(chan error, 1),
+		terminateChan: make(chan struct{}),
+		queryChan:     make(chan string),
 	}
 
 	t.Cleanup(func() {
@@ -271,7 +326,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 
 	go func(c *testCtx) {
 		defer close(c.errChan)
-		if err := c.processMessages(); err != nil {
+		if err := c.processMessages(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 			c.errChan <- err
 		}
 	}(tc)
@@ -292,7 +347,9 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 
 			select {
 			case err := <-runErrChan:
-				require.ErrorIs(t, err, context.Canceled, "expected the REPL instance to finish running with error due to cancelation")
+				if !errors.Is(err, context.Canceled) && !errors.Is(err, io.ErrClosedPipe) {
+					require.Fail(t, "expected the REPL instance to finish with context cancelation or server closed pipe but got %q", err)
+				}
 			case <-time.After(10 * time.Second):
 				require.Fail(t, "timeout while waiting for REPL Run result")
 			}
@@ -304,6 +361,10 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 
 func (tc *testCtx) QueryChan() chan string {
 	return tc.queryChan
+}
+
+func (tc *testCtx) CloseServer() {
+	tc.rawPgConn.Close()
 }
 
 func (tc *testCtx) close() {
@@ -398,6 +459,7 @@ func (tc *testCtx) processMessages() error {
 
 			}
 		case *pgproto3.Terminate:
+			close(tc.terminateChan)
 			return nil
 		default:
 			return trace.BadParameter("unsupported message %#v", message)
