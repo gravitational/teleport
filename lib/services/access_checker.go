@@ -19,6 +19,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -1064,11 +1065,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
 		if hostUserShell != "" {
-			if shell != "" {
-				shell = hostUserShell
-			}
-
 			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
 		}
 
