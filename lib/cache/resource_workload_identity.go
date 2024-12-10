@@ -55,7 +55,8 @@ func (workloadIdentityExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 		var page []*workloadidentityv1pb.WorkloadIdentity
 		var err error
 
-		page, nextToken, err = cache.Config.WorkloadIdentity.ListWorkloadIdentities(ctx, 0 /* default page size */, nextToken)
+		const defaultPageSize = 0
+		page, nextToken, err = cache.Config.WorkloadIdentity.ListWorkloadIdentities(ctx, defaultPageSize, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
