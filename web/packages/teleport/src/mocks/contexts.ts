@@ -60,6 +60,7 @@ export const allAccessAcl: Acl = {
   desktopSessionRecordingEnabled: true,
   directorySharingEnabled: true,
   reviewRequests: true,
+  fileTransferAccess: true,
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
@@ -74,6 +75,7 @@ export const allAccessAcl: Acl = {
   accessGraph: fullAccess,
   bots: fullAccess,
   accessMonitoringRule: fullAccess,
+  contacts: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

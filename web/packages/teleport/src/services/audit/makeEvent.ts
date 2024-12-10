@@ -231,6 +231,11 @@ export const formatters: Formatters = {
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
   },
+  [eventCodes.PORTFORWARD_STOP]: {
+    type: 'port',
+    desc: 'Port Forwarding Stopped',
+    format: ({ user }) => `User [${user}] stopped port forwarding`,
+  },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
     desc: 'SAML Connector Created',
@@ -649,7 +654,20 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_START]: {
     type: 'session.start',
     desc: 'Session Started',
-    format: ({ user, sid }) => `User [${user}] has started a session [${sid}]`,
+    format: event => {
+      const user = event.user || '';
+
+      if (event.proto === 'kube') {
+        if (!event.kubernetes_cluster) {
+          return `User [${user}] has started a Kubernetes session [${event.sid}]`;
+        }
+        return `User [${user}] has started a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
+      }
+
+      const node =
+        event.server_hostname || event.server_addr || event.server_id;
+      return `User [${user}] has started a session [${event.sid}] on node [${node}] `;
+    },
   },
   [eventCodes.SESSION_UPLOAD]: {
     type: 'session.upload',

@@ -19,6 +19,8 @@
 import React, { useEffect, useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, Flex, Link, Text } from 'design';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 
 import {
   FeatureBox,
@@ -45,7 +47,7 @@ export function RolesContainer() {
 }
 
 export function Roles(props: State) {
-  const { remove, save, fetch } = props;
+  const { remove, save, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
 
   const serverSidePagination = useServerSidePagination({
@@ -114,13 +116,30 @@ export function Roles(props: State) {
     }));
   }
 
+  const canCreate = rolesAcl.create;
+
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <ButtonPrimary ml="auto" width="240px" onClick={handleCreate}>
-          CREATE NEW ROLE
-        </ButtonPrimary>
+        <HoverTooltip
+          tipContent={
+            !canCreate ? (
+              <MissingPermissionsTooltip
+                missingPermissions={['roles.create']}
+              />
+            ) : null
+          }
+        >
+          <ButtonPrimary
+            disabled={!canCreate}
+            ml="auto"
+            width="240px"
+            onClick={handleCreate}
+          >
+            CREATE NEW ROLE
+          </ButtonPrimary>
+        </HoverTooltip>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
@@ -133,6 +152,7 @@ export function Roles(props: State) {
             search={search}
             onEdit={resources.edit}
             onDelete={resources.remove}
+            rolesAcl={rolesAcl}
           />
         </Box>
         <Box

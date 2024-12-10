@@ -39,6 +39,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -265,6 +266,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
+	workloadIdentity         collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -784,6 +786,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.accessGraphSettings
+		case types.KindWorkloadIdentity:
+			if c.Config.WorkloadIdentity == nil {
+				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
+			}
+			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")

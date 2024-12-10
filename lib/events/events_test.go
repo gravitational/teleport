@@ -235,6 +235,15 @@ var eventsMap = map[string]apievents.AuditEvent{
 	UserTaskCreateEvent:                         &apievents.UserTaskCreate{},
 	UserTaskUpdateEvent:                         &apievents.UserTaskUpdate{},
 	UserTaskDeleteEvent:                         &apievents.UserTaskDelete{},
+	AutoUpdateConfigCreateEvent:                 &apievents.AutoUpdateConfigCreate{},
+	AutoUpdateConfigUpdateEvent:                 &apievents.AutoUpdateConfigUpdate{},
+	AutoUpdateConfigDeleteEvent:                 &apievents.AutoUpdateConfigDelete{},
+	AutoUpdateVersionCreateEvent:                &apievents.AutoUpdateVersionCreate{},
+	AutoUpdateVersionUpdateEvent:                &apievents.AutoUpdateVersionUpdate{},
+	AutoUpdateVersionDeleteEvent:                &apievents.AutoUpdateVersionDelete{},
+	WorkloadIdentityCreateEvent:                 &apievents.WorkloadIdentityCreate{},
+	WorkloadIdentityUpdateEvent:                 &apievents.WorkloadIdentityUpdate{},
+	WorkloadIdentityDeleteEvent:                 &apievents.WorkloadIdentityDelete{},
 }
 
 // TestJSON tests JSON marshal events

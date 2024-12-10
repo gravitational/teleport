@@ -560,6 +560,13 @@ const (
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
 
+	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
+	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

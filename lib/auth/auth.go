@@ -359,6 +359,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -455,6 +462,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -668,6 +676,7 @@ type Services struct {
 	services.BotInstance
 	services.StaticHostUser
 	services.AutoUpdateService
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1332,8 +1341,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1435,7 +1442,7 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 								return false, nil
 							},
@@ -1451,9 +1458,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()

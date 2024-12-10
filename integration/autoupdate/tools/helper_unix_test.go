@@ -1,6 +1,8 @@
+//go:build !windows
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,22 +18,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package tools_test
 
-import Dialog from 'design/Dialog';
+import (
+	"errors"
+	"syscall"
 
-function DialogConfirmation(props) {
-  const { children, open, onClose, dialogCss } = props;
-  return (
-    <Dialog
-      dialogCss={dialogCss}
-      disableEscapeKeyDown={false}
-      onClose={onClose}
-      open={open}
-    >
-      {children}
-    </Dialog>
-  );
+	"github.com/gravitational/trace"
+)
+
+// sendInterrupt sends a SIGINT to the process.
+func sendInterrupt(pid int) error {
+	err := syscall.Kill(pid, syscall.SIGINT)
+	if errors.Is(err, syscall.ESRCH) {
+		return trace.BadParameter("can't find the process: %v", pid)
+	}
+	return trace.Wrap(err)
 }
-
-export default DialogConfirmation;

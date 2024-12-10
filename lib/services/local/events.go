@@ -234,6 +234,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSettingsParser()
 		case types.KindStaticHostUser:
 			parser = newStaticHostUserParser()
+		case types.KindWorkloadIdentity:
+			parser = newWorkloadIdentityParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2603,6 +2605,34 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(settings), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWorkloadIdentityParser() *workloadIdentityParser {
+	return &workloadIdentityParser{
+		baseParser: newBaseParser(backend.NewKey(workloadIdentityPrefix)),
+	}
+}
+
+type workloadIdentityParser struct {
+	baseParser
+}
+
+func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWorkloadIdentity, types.V1, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalWorkloadIdentity(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
