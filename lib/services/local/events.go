@@ -2623,7 +2623,7 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessGraphSettings, types.V1, 0)
+		return resourceHeader(event, types.KindWorkloadIdentity, types.V1, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalWorkloadIdentity(
 			event.Item.Value,
