@@ -396,8 +396,7 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 // which is set up with middleware to automatically handler certificate renewal and re-logins.
 func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	if len(h.app.GetTCPPorts()) > 0 {
-		tcpPorts := types.PortRanges(h.app.GetTCPPorts())
-		if !tcpPorts.Contains(int(localPort)) {
+		if !h.app.GetTCPPorts().Contains(int(localPort)) {
 			h.appProvider.OnInvalidLocalPort(ctx, h.profileName, h.leafClusterName, h.routeToApp(localPort))
 			return trace.BadParameter("local port %d is not in TCP ports of app %q", localPort, h.app.GetName())
 		}

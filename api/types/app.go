@@ -89,7 +89,7 @@ type Application interface {
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
 	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-	GetTCPPorts() []*PortRange
+	GetTCPPorts() PortRanges
 	// SetTCPPorts sets port ranges to which connections can be forwarded to.
 	SetTCPPorts([]*PortRange)
 	// GetIdentityCenter fetches identity center info for the app, if any.
@@ -315,7 +315,7 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 }
 
 // GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-func (a *AppV3) GetTCPPorts() []*PortRange {
+func (a *AppV3) GetTCPPorts() PortRanges {
 	return a.Spec.TCPPorts
 }
 

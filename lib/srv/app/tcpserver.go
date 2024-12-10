@@ -114,8 +114,7 @@ func pickDialTarget(app apitypes.Application, uriAddr *utils.NetAddr, targetPort
 		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(firstPort)), nil
 	// Multi-port TCP app with target port specified in cert.
 	default:
-		tcpPorts := apitypes.PortRanges(app.GetTCPPorts())
-		if !tcpPorts.Contains(targetPort) {
+		if !app.GetTCPPorts().Contains(targetPort) {
 			// This is not treated as an access denied error since there's no RBAC on TCP ports.
 			return "", trace.BadParameter("port %d is not in TCP ports of app %q", targetPort, app.GetName())
 		}
