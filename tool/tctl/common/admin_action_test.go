@@ -1162,7 +1162,9 @@ func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, t
 	commandName, err := app.Parse(args)
 	require.NoError(t, err)
 
-	match, err := tc.cliCommand.TryRun(ctx, commandName, client)
+	match, err := tc.cliCommand.TryRun(ctx, commandName, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(ctx2 context.Context) {}, nil
+	})
 	require.True(t, match)
 	return err
 }
