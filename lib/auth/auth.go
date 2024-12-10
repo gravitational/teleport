@@ -401,6 +401,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating GitServer service")
 		}
 	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -499,6 +506,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		IdentityCenter:            cfg.IdentityCenter,
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 		GitServers:                cfg.GitServers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -718,6 +726,7 @@ type Services struct {
 	services.IdentityCenter
 	services.PluginStaticCredentials
 	services.GitServers
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
