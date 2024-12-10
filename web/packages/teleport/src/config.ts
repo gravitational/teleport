@@ -322,6 +322,8 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationStatsPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
@@ -964,6 +966,14 @@ const cfg = {
     return generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
+    });
+  },
+
+  getIntegrationStatsUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
     });
   },
 
