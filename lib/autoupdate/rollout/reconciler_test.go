@@ -713,9 +713,11 @@ func Test_reconciler_computeStatus(t *testing.T) {
 	oldStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
 		Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
 			{
-				Name: "old group",
+				Name:  "old group",
+				State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			},
 		},
+		State: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
 	}
 	oldSpec := &autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.3",
@@ -736,6 +738,7 @@ func Test_reconciler_computeStatus(t *testing.T) {
 	require.NoError(t, err)
 	newStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
 		Groups: newGroups,
+		State:  autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
 	}
 
 	tests := []struct {
