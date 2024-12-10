@@ -19,6 +19,7 @@
 package alpnproxy
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
@@ -43,7 +43,7 @@ type AWSAccessMiddleware struct {
 	// signature verification.
 	AWSCredentialsProvider aws.CredentialsProvider
 
-	Log logrus.FieldLogger
+	Log *slog.Logger
 
 	assumedRoles utils.SyncMap[string, *sts.AssumeRoleOutput]
 }
@@ -52,7 +52,7 @@ var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
 
 func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = logrus.WithField(teleport.ComponentKey, "aws_access")
+		m.Log = slog.With(teleport.ComponentKey, "aws_access")
 	}
 
 	if m.AWSCredentialsProvider == nil {
@@ -113,7 +113,7 @@ func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	sigV4, err := awsutils.ParseSigV4(req.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
-		m.Log.WithError(err).Error("Failed to parse AWS request authorization header.")
+		m.Log.ErrorContext(req.Context(), "Failed to parse AWS request authorization header", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
 	}
@@ -135,7 +135,7 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 
 func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *http.Request) bool {
 	if err := awsutils.VerifyAWSSignatureV2(req, m.AWSCredentialsProvider); err != nil {
-		m.Log.WithError(err).Error("AWS signature verification failed.")
+		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
 	}
@@ -150,12 +150,12 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 	)
 
 	if err := awsutils.VerifyAWSSignatureV2(req, credentials); err != nil {
-		m.Log.WithError(err).Error("AWS signature verification failed.")
+		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
 	}
 
-	m.Log.Debugf("Rewriting headers for AWS request by assumed role %q.", aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	m.Log.DebugContext(req.Context(), "Rewriting headers for AWS request by assumed role", "assumed_role", aws.ToString(assumedRole.AssumedRoleUser.Arn))
 
 	// Add a custom header for marking the special request.
 	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.ToString(assumedRole.AssumedRoleUser.Arn))
@@ -178,7 +178,7 @@ func (m *AWSAccessMiddleware) HandleResponse(response *http.Response) error {
 
 	sigV4, err := awsutils.ParseSigV4(authHeader)
 	if err != nil {
-		m.Log.WithError(err).Error("Failed to parse AWS request authorization header.")
+		m.Log.ErrorContext(response.Request.Context(), "Failed to parse AWS request authorization header", "error", err)
 		return nil
 	}
 
@@ -205,13 +205,13 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 	assumedRole, err := unmarshalAssumeRoleResponse(body)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			m.Log.Warnf("Failed to unmarshal AssumeRoleResponse: %v.", err)
+			m.Log.WarnContext(response.Request.Context(), "Failed to unmarshal AssumeRoleResponse", "error", err)
 		}
 		return nil
 	}
 
 	m.assumedRoles.Store(aws.ToString(assumedRole.Credentials.AccessKeyId), assumedRole)
-	m.Log.Debugf("Saved credentials for assumed role %q.", aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	m.Log.DebugContext(response.Request.Context(), "Saved credentials for assumed role", "assumed_role", aws.ToString(assumedRole.AssumedRoleUser.Arn))
 	return nil
 }
 
