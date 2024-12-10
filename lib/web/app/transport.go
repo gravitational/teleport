@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -62,7 +62,7 @@ type transportConfig struct {
 	servers      []types.AppServer
 	ws           types.WebSession
 	clusterName  string
-	log          logrus.FieldLogger
+	log          *slog.Logger
 	clock        clockwork.Clock
 
 	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
@@ -97,7 +97,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("integration app handler missing")
 	}
 	if c.log == nil {
-		c.log = logrus.New()
+		c.log = slog.Default()
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -265,7 +265,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 				// Service should fail to parse the JWT and reject the request,
 				// but rejecting here could cause forward compatibility issues,
 				// if for example we add new types of JWT tokens.
-				t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
+				t.c.log.DebugContext(r.Context(), "failed to re-sign azure JWT", "error", err)
 			}
 
 			break
@@ -363,8 +363,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
-				Warnf("Failed to connect to application server: %v", err)
+			t.c.log.WarnContext(ctx, "Failed to connect to application server", "app_server", appServer.GetName(), "error", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if

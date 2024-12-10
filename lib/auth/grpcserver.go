@@ -74,6 +74,7 @@ import (
 	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -2062,6 +2064,15 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2089,6 +2100,15 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2114,6 +2134,15 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
 	if err = services.ValidateRole(req.Role); err != nil {
@@ -2967,6 +2996,46 @@ func (g *GRPCServer) UpsertTrustedClusterV2(ctx context.Context, cluster *types.
 		return nil, trace.Wrap(err)
 	}
 	tc, err := auth.ServerWithRoles.UpsertTrustedClusterV2(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+	}
+	return trustedClusterV2, nil
+}
+
+// CreateTrustedClusterV2 creates a Trusted Cluster.
+func (g *GRPCServer) CreateTrustedClusterV2(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tc, err := auth.ServerWithRoles.CreateTrustedClusterV2(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+	}
+	return trustedClusterV2, nil
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster.
+func (g *GRPCServer) UpdateTrustedClusterV2(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tc, err := auth.ServerWithRoles.UpdateTrustedClusterV2(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5117,6 +5186,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
+	workloadIdentityResourceService, err := workloadidentityv1.NewResourceService(&workloadidentityv1.ResourceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.WorkloadIdentities,
+		Cache:      cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity resource service")
+	}
+	workloadidentityv1pb.RegisterWorkloadIdentityResourceServiceServer(server, workloadIdentityResourceService)
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5382,8 +5463,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
+		Authorizer:               cfg.Authorizer,
+		Backend:                  cfg.AuthServer.Services,
+		ProxyPublicAddrGetter:    cfg.AuthServer.getProxyPublicAddr,
+		GitHubAuthRequestCreator: cfg.AuthServer.CreateGithubAuthRequest,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

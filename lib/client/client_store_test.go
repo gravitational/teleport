@@ -54,16 +54,19 @@ type testAuthority struct {
 	keygen       *testauthority.Keygen
 	tlsCA        *tlsca.CertAuthority
 	trustedCerts authclient.TrustedCerts
+	clock        clockwork.Clock
 }
 
 func newTestAuthority(t *testing.T) testAuthority {
 	tlsCA, trustedCerts, err := newSelfSignedCA(CAPriv, "localhost")
 	require.NoError(t, err)
 
+	clock := clockwork.NewFakeClock()
 	return testAuthority{
-		keygen:       testauthority.New(),
+		keygen:       testauthority.NewWithClock(clock),
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
+		clock:        clock,
 	}
 }
 
@@ -84,7 +87,6 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		ttl = -ttl
 	}
 
-	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
 		Groups:   []string{"groups"},
@@ -92,10 +94,10 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
+		Clock:     s.clock,
 		PublicKey: tlsKey.Public(),
 		Subject:   subject,
-		NotAfter:  clock.Now().UTC().Add(ttl),
+		NotAfter:  s.clock.Now().UTC().Add(ttl),
 	})
 	require.NoError(t, err)
 
@@ -110,6 +112,8 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		TTL:                   ttl,
 		PermitAgentForwarding: false,
 		PermitPortForwarding:  true,
+		GitHubUserID:          "1234567",
+		GitHubUsername:        "github-username",
 	})
 	require.NoError(t, err)
 

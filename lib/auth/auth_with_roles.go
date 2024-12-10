@@ -1309,7 +1309,8 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 type actionChecker func(namespace, resourceKind string, verbs ...string) error
 
 func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
-	if resourceKind == types.KindIdentityCenterAccount {
+	switch resourceKind {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		// Identity Center resources can be specified multiple ways in a Role
 		// Condition statement, so we need a special checker to handle it.
 		return a.identityCenterAction
@@ -1693,7 +1694,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount:
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1850,7 +1852,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindUserGroup,
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount:
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -4975,7 +4978,46 @@ func (a *ServerWithRoles) UpsertTrustedClusterV2(ctx context.Context, tc types.T
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertTrustedClusterV2(ctx, tc)
+	upserted, err := a.authServer.UpsertTrustedClusterV2(ctx, tc)
+	return upserted, trace.Wrap(err)
+}
+
+// CreateTrustedClusterV2 creates a Trusted Cluster.
+func (a *ServerWithRoles) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
+	if err := a.action(types.KindTrustedCluster, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.authServer.CreateTrustedClusterV2(ctx, tc)
+	return created, trace.Wrap(err)
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster.
+func (a *ServerWithRoles) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
+	if err := a.action(types.KindTrustedCluster, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := a.authServer.UpdateTrustedClusterV2(ctx, tc)
+	return updated, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {

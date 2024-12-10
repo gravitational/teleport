@@ -60,6 +60,42 @@ func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedClu
 	return upserted, trace.Wrap(err)
 }
 
+// CreateTrustedClusterV2 creates a Trusted Cluster relationship.
+func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	// verify that trusted cluster role map does not reference non-existent roles
+	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err := a.GetTrustedCluster(ctx, tc.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if err == nil {
+		return nil, trace.AlreadyExists("trusted cluster with name %s already exists", tc.GetName())
+	}
+
+	const validateNameTrue = true
+	created, err := a.createTrustedCluster(ctx, tc, validateNameTrue)
+	return created, trace.Wrap(err)
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster relationship.
+func (a *Server) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	// verify that trusted cluster role map does not reference non-existent roles
+	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingCluster, err := a.GetTrustedCluster(ctx, tc.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
+	return updated, trace.Wrap(err)
+}
+
 // upsertTrustedCluster creates or toggles a Trusted Cluster relationship.
 func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
@@ -86,6 +122,39 @@ func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 		return a.createTrustedCluster(ctx, tc, validateName)
 	}
 
+	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
+	return updated, trace.Wrap(err)
+}
+
+func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
+	remoteCAs, err := a.establishTrust(ctx, tc, validateName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Force name to the name of the trusted cluster.
+	tc.SetName(remoteCAs[0].GetClusterName())
+
+	// perform some configuration on the remote CAs
+	configureCAsForTrustedCluster(tc, remoteCAs)
+
+	// atomically create trusted cluster and cert authorities
+	revision, err := a.Services.CreateTrustedCluster(ctx, tc, remoteCAs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc.SetRevision(revision)
+
+	if err := a.onTrustedClusterWrite(ctx, tc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc, nil
+}
+
+// updateTrustedCluster updates the Trusted Cluster.
+func (a *Server) updateTrustedCluster(ctx context.Context, tc, existingCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if err := existingCluster.CanChangeStateTo(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,33 +175,6 @@ func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 	tc.SetRevision(existingCluster.GetRevision())
 
 	revision, err := a.Services.UpdateTrustedCluster(ctx, tc, cas)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tc.SetRevision(revision)
-
-	if err := a.onTrustedClusterWrite(ctx, tc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return tc, nil
-}
-
-func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
-	remoteCAs, err := a.establishTrust(ctx, tc, validateName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Force name to the name of the trusted cluster.
-	tc.SetName(remoteCAs[0].GetClusterName())
-
-	// perform some configuration on the remote CAs
-	configureCAsForTrustedCluster(tc, remoteCAs)
-
-	// atomically create trusted cluster and cert authorities
-	revision, err := a.Services.CreateTrustedCluster(ctx, tc, remoteCAs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

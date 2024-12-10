@@ -360,6 +360,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			SecReports:              svces.SecReports,
 			SnowflakeSession:        svces.Identity,
 			SPIFFEFederations:       svces.SPIFFEFederations,
+			WorkloadIdentity:        svces.WorkloadIdentities,
 			StaticHostUsers:         svces.StaticHostUser,
 			Trust:                   svces.TrustInternal,
 			UserGroups:              svces.UserGroups,

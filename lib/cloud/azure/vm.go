@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -46,7 +46,7 @@ type VirtualMachinesClient interface {
 	// Get returns the virtual machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
 	// GetByVMID returns the virtual machine for a given VM ID.
-	GetByVMID(ctx context.Context, resourceGroup, vmID string) (*VirtualMachine, error)
+	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
@@ -146,15 +146,19 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 }
 
 // GetByVMID returns the virtual machine for a given VM ID.
-func (c *vmClient) GetByVMID(ctx context.Context, resourceGroup, vmID string) (*VirtualMachine, error) {
-	vms, err := c.ListVirtualMachines(ctx, resourceGroup)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, vm := range vms {
-		if vm.Properties != nil && *vm.Properties.VMID == vmID {
-			result, err := parseVirtualMachine(vm)
-			return result, trace.Wrap(err)
+func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error) {
+	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
+	for pager.more() {
+		res, err := pager.nextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		for _, vm := range res {
+			if vm.Properties != nil && *vm.Properties.VMID == vmID {
+				result, err := parseVirtualMachine(vm)
+				return result, trace.Wrap(err)
+			}
 		}
 	}
 	return nil, trace.NotFound("no VM with ID %q", vmID)
