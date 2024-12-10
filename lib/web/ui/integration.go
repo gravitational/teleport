@@ -371,6 +371,26 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
+type AWSOIDCDeployedDatabaseService struct {
+	// Name is the ECS Service name.
+	Name string `json:"name,omitempty"`
+	// DashboardURL is the link to the ECS Service in Amazon Web Console.
+	DashboardURL string `json:"dashboardUrl,omitempty"`
+	// ValidTeleportConfig returns whether this ECS Service has a valid Teleport Configuration for a deployed Database Service.
+	// ECS Services with non-valid configuration require the user to take action on them.
+	// No MatchingLabels are returned with an invalid configuration.
+	ValidTeleportConfig bool `json:"validTeleportConfig,omitempty"`
+	// MatchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
+	MatchingLabels []ui.Label `json:"matchingLabels,omitempty"`
+}
+
+// AWSOIDCListDeployedDatabaseServiceResponse is a list of Teleport Database Services that are deployed as ECS Services.
+type AWSOIDCListDeployedDatabaseServiceResponse struct {
+	// Services are the ECS Services.
+	Services []AWSOIDCDeployedDatabaseService `json:"services"`
+}
+
 // AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCEnrollEKSClustersRequest struct {
 	// Region is the AWS Region.
