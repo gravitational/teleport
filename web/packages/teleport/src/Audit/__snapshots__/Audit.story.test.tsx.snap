@@ -5731,7 +5731,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -5779,7 +5779,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -5827,7 +5827,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created kubernetes cluster [kube-local]
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created Kubernetes cluster [kube-local]
         </td>
         <td
           style="min-width: 120px;"
@@ -9347,7 +9347,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] received a [200] from a [GET /api/v1/namespaces/teletest/pods/test-pod] request to kubernetes cluster [gke_teleport-a]
+          User [alex] received a [200] from a [GET /api/v1/namespaces/teletest/pods/test-pod] request to Kubernetes cluster [gke_teleport-a]
         </td>
         <td
           style="min-width: 120px;"
@@ -9503,7 +9503,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] executed a command on kubernetes cluster [clusterOne]
+          User [alex] executed a command on Kubernetes cluster [clusterOne]
         </td>
         <td
           style="min-width: 120px;"
@@ -12800,7 +12800,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
+          User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a] on node [de3800ea-69d9-4d72-a108-97e57f8eb393] 
         </td>
         <td
           style="min-width: 120px;"
@@ -13599,6 +13599,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c9 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);

@@ -412,6 +412,36 @@ func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, 
 		e.Log.Debugf("Created PostgreSQL role %q.", teleportAutoUserRole)
 	}
 
+	// v16 Postgres changed the role grant permissions model such that you can
+	// no longer grant non-superuser role membership just by having the
+	// CREATEROLE attribute.
+	// On v16 Postgres, when a role is created the creator is automatically
+	// granted that role with "INHERIT FALSE, SET FALSE, ADMIN OPTION" options.
+	// Prior to v16 Postgres that grant is not automatically made, because
+	// the CREATEROLE attribute alone was sufficient to grant the role to
+	// others.
+	// This is the only role that is created and granted to others by the
+	// Teleport database admin.
+	// It grants the auto user role to every role it provisions.
+	// To avoid breaking user auto-provisioning for customers who upgrade from
+	// v15 postgres to v16, we should grant this role with the admin option to
+	// ourselves after creating it.
+	// Also note that the grant syntax in v15 postgres and below does not
+	// support WITH INHERIT FALSE or WITH SET FALSE syntax, so we only specify
+	// WITH ADMIN OPTION.
+	// See: https://www.postgresql.org/docs/16/release-16.html
+	adminUser := sessionCtx.Database.GetAdminUser().Name
+	stmt := fmt.Sprintf("grant role %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
+	_, err = conn.Exec(ctx, stmt)
+	if err != nil {
+		if !strings.Contains(err.Error(), "cannot be granted back") && !strings.Contains(err.Error(), "already") {
+			e.Log.Debugf("Failed to grant required role %q to the Teleport database admin %q, user auto-provisioning may not work until the database admin is granted the role by a superuser",
+				teleportAutoUserRole,
+				adminUser,
+			)
+		}
+	}
+
 	// Install stored procedures for creating and disabling database users.
 	for name, sql := range pickProcedures(sessionCtx) {
 		_, err := conn.Exec(ctx, sql)

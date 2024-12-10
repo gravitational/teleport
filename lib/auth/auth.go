@@ -1266,8 +1266,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1369,7 +1367,7 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 								return false, nil
 							},
@@ -1385,9 +1383,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()

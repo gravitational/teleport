@@ -418,6 +418,13 @@ message EKSCluster {
   // Known values are:
   // CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
   string status = 6;
+  // EndpointPublicAccess indicates whether this EKS Cluster is accessible publicly.
+  // If only private access is available, then the EKS Cluster can't be enrolled from Teleport Cloud.
+  bool endpoint_public_access = 7;
+  // AuthenticationMode is the allowed authentication mode for the cluster.
+  // Known values are:
+  // API | API_AND_CONFIG_MAP | CONFIG_MAP
+  string authentication_mode = 8;
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.

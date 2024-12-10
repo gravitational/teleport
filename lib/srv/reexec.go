@@ -1282,7 +1282,7 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	}
 
 	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
+	parkerCommandOSTweaks(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)

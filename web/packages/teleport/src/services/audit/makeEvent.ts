@@ -166,9 +166,9 @@ export const formatters: Formatters = {
       const { proto, kubernetes_cluster, user = '' } = event;
       if (proto === 'kube') {
         if (!kubernetes_cluster) {
-          return `User [${user}] executed a kubernetes command`;
+          return `User [${user}] executed a Kubernetes command`;
         }
-        return `User [${user}] executed a command on kubernetes cluster [${kubernetes_cluster}]`;
+        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}]`;
       }
 
       return `User [${user}] executed a command on node ${
@@ -230,6 +230,11 @@ export const formatters: Formatters = {
     desc: 'Port Forwarding Failed',
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
+  },
+  [eventCodes.PORTFORWARD_STOP]: {
+    type: 'port',
+    desc: 'Port Forwarding Stopped',
+    format: ({ user }) => `User [${user}] stopped port forwarding`,
   },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
@@ -616,9 +621,9 @@ export const formatters: Formatters = {
 
       if (event.proto === 'kube') {
         if (!event.kubernetes_cluster) {
-          return `User [${user}] has ended a kubernetes session [${event.sid}]`;
+          return `User [${user}] has ended a Kubernetes session [${event.sid}]`;
         }
-        return `User [${user}] has ended a session [${event.sid}] on kubernetes cluster [${event.kubernetes_cluster}]`;
+        return `User [${user}] has ended a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
       }
 
       if (!event.interactive) {
@@ -649,7 +654,20 @@ export const formatters: Formatters = {
   [eventCodes.SESSION_START]: {
     type: 'session.start',
     desc: 'Session Started',
-    format: ({ user, sid }) => `User [${user}] has started a session [${sid}]`,
+    format: event => {
+      const user = event.user || '';
+
+      if (event.proto === 'kube') {
+        if (!event.kubernetes_cluster) {
+          return `User [${user}] has started a Kubernetes session [${event.sid}]`;
+        }
+        return `User [${user}] has started a session [${event.sid}] on Kubernetes cluster [${event.kubernetes_cluster}]`;
+      }
+
+      const node =
+        event.server_hostname || event.server_addr || event.server_id;
+      return `User [${user}] has started a session [${event.sid}] on node [${node}] `;
+    },
   },
   [eventCodes.SESSION_UPLOAD]: {
     type: 'session.upload',
@@ -836,25 +854,25 @@ export const formatters: Formatters = {
     type: 'kube.request',
     desc: 'Kubernetes Request',
     format: ({ user, kubernetes_cluster, verb, request_path, response_code }) =>
-      `User [${user}] received a [${response_code}] from a [${verb} ${request_path}] request to kubernetes cluster [${kubernetes_cluster}]`,
+      `User [${user}] received a [${response_code}] from a [${verb} ${request_path}] request to Kubernetes cluster [${kubernetes_cluster}]`,
   },
   [eventCodes.KUBE_CREATED]: {
     type: 'kube.create',
     desc: 'Kubernetes Created',
     format: ({ user, name }) =>
-      `User [${user}] created kubernetes cluster [${name}]`,
+      `User [${user}] created Kubernetes cluster [${name}]`,
   },
   [eventCodes.KUBE_UPDATED]: {
     type: 'kube.update',
     desc: 'Kubernetes Updated',
     format: ({ user, name }) =>
-      `User [${user}] updated kubernetes cluster [${name}]`,
+      `User [${user}] updated Kubernetes cluster [${name}]`,
   },
   [eventCodes.KUBE_DELETED]: {
     type: 'kube.delete',
     desc: 'Kubernetes Deleted',
     format: ({ user, name }) =>
-      `User [${user}] deleted kubernetes cluster [${name}]`,
+      `User [${user}] deleted Kubernetes cluster [${name}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
