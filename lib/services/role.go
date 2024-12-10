@@ -1186,17 +1186,12 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 
 	// Perform full match.
 	for key, selectorValues := range selector {
-		slog.Warn("checking label selector",
-			"key", key,
-			"selector_values", selectorValues)
 		targetVal, hasKey := labelGetter.GetLabel(key)
 		if !hasKey {
-			slog.Warn("no such key")
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
 		if slices.Contains(selectorValues, types.Wildcard) {
-			slog.Warn("slice contains wildcard")
 			continue
 		}
 
@@ -1204,7 +1199,6 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 		if err != nil {
 			return false, "", trace.Wrap(err)
 		} else if !result {
-			slog.Warn("no value matches")
 			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 		}
 	}
@@ -2581,10 +2575,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	logger := slog.Default().With(
-		"kind", r.GetKind(),
-		"name", r.GetName())
-
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
@@ -2609,21 +2599,16 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 	// Check deny rules.
 	for _, role := range set {
-		logger := logger.With("role", role.GetName())
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
 		if !matchNamespace {
 			continue
 		}
-
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
 			if err != nil {
-				logger.Warn("Error during label match")
 				return trace.Wrap(err)
 			}
 			if matchLabels {
-				logger.Warn("Access denied via label match")
-
 				debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
 					r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
@@ -2656,8 +2641,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	allowed := false
 	// Check allow rules.
 	for _, role := range set {
-		logger := logger.With("role", role.GetName())
-
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
 			if isDebugEnabled {
@@ -2670,13 +2653,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
 			if err != nil {
-				logger.Error("Error during label match", "error", err)
 				return trace.Wrap(err)
 			}
 
 			if !matchLabels {
-				logger.Warn("No Access via label match")
-
 				if isDebugEnabled {
 					errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
 						role.GetName(), labelsMessage))
@@ -2739,7 +2719,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	if allowed {
-		logger.Info("Access Allowed")
 		return nil
 	}
 

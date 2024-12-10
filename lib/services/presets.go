@@ -19,7 +19,6 @@
 package services
 
 import (
-	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"

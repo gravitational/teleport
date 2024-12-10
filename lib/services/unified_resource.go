@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -49,6 +50,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
 	types.KindIdentityCenterAccount,
+	types.KindIdentityCenterAccountAssignment,
 	types.KindGitServer,
 }
 
@@ -770,6 +772,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 				case IdentityCenterAccount:
 					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
 
+				case IdentityCenterAccountAssignment:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
 				default:
 					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
 				}
@@ -1002,7 +1007,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		if !ok {
 			return nil, trace.BadParameter(
 				"Unexpected type for Identity Center Account Assignment: %T",
-				unwrapper.Unwrap())
+				unwrapper)
 		}
 
 		protoResource = &proto.PaginatedResource{
@@ -1039,7 +1044,7 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 	}
 	acct, ok := unwrapper.Unwrap().(IdentityCenterAccount)
 	if !ok {
-		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, unwrapper.Unwrap())
+		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, resource)
 	}
 	srcPSs := acct.GetSpec().GetPermissionSetInfo()
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
@@ -1051,35 +1056,36 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 		}
 	}
 
-	appServer := &types.AppServerV3{
-		Kind:     types.KindAppServer,
-		Version:  types.V3,
-		Metadata: resource.GetMetadata(),
-		Spec: types.AppServerSpecV3{
-			App: &types.AppV3{
-				Kind:     types.KindApp,
-				SubKind:  types.KindIdentityCenterAccount,
+	protoResource := &proto.PaginatedResource{
+		Resource: &proto.PaginatedResource_AppServer{
+			AppServer: &types.AppServerV3{
+				Kind:     types.KindAppServer,
 				Version:  types.V3,
-				Metadata: types.Metadata153ToLegacy(acct.Metadata),
-				Spec: types.AppSpecV3{
-					URI:        acct.Spec.StartUrl,
-					PublicAddr: acct.Spec.StartUrl,
-					AWS: &types.AppAWS{
-						ExternalID: acct.Spec.Id,
-					},
-					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      acct.Spec.Id,
-						PermissionSets: pss,
+				Metadata: resource.GetMetadata(),
+				Spec: types.AppServerSpecV3{
+					App: &types.AppV3{
+						Kind:    types.KindApp,
+						SubKind: types.KindIdentityCenterAccount,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name:        acct.Spec.Name,
+							Description: acct.Spec.Description,
+							Labels:      maps.Clone(acct.Metadata.Labels),
+						},
+						Spec: types.AppSpecV3{
+							URI:        acct.Spec.StartUrl,
+							PublicAddr: acct.Spec.StartUrl,
+							AWS: &types.AppAWS{
+								ExternalID: acct.Spec.Id,
+							},
+							IdentityCenter: &types.AppIdentityCenter{
+								AccountID:      acct.Spec.Id,
+								PermissionSets: pss,
+							},
+						},
 					},
 				},
 			},
-		},
-	}
-	appServer.Metadata.Description = acct.Spec.Name
-
-	protoResource := &proto.PaginatedResource{
-		Resource: &proto.PaginatedResource_AppServer{
-			AppServer: appServer,
 		},
 		RequiresRequest: requiresRequest,
 	}

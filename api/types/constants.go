@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// The `Kind*` constants in this const block identify resource kinds used for
+	// storage an/or and access control. Please keep these in sync with the
+	// `ResourceKind` enum in
+	// `web/packages/teleport/src/services/resources/types.ts`.
+
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
@@ -177,10 +182,6 @@ const (
 
 	// KindApp is a web app resource.
 	KindApp = "app"
-
-	// AppSubKindIdentityCenterAccount indicates that an App actually represents
-	// an Identity Center account
-	AppSubKindIdentityCenterAccount = KindIdentityCenterAccount
 
 	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
 	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to

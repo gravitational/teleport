@@ -5845,7 +5845,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 			init: func(subtestT *testing.T) {
 				asmt, err := srv.Auth().CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
 					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccount,
+						Kind:    types.KindIdentityCenterAccountAssignment,
 						Version: types.V1,
 						Metadata: &headerv1.Metadata{
 							Name: "test-account",

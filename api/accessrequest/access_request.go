@@ -19,7 +19,6 @@ package accessrequest
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -39,15 +38,10 @@ type ListResourcesRequestOption func(*proto.ListResourcesRequest)
 // it will be overridden.
 func GetResourcesByKind(ctx context.Context, clt client.ListResourcesClient, req proto.ListResourcesRequest, kind string) ([]types.ResourceWithLabels, error) {
 	req.ResourceType = mapResourceKindToListResourcesType(kind)
-
-	slog.Warn("GetResourcesByKind()", "kind", req.ResourceType)
-
 	results, err := client.GetResourcesWithFilters(ctx, clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	slog.Warn("GetResourcesByKind()", "count", len(results))
 	resources := make([]types.ResourceWithLabels, 0, len(results))
 	for _, result := range results {
 		leafResource, err := mapListResourcesResultToLeafResource(result, kind)

@@ -346,5 +346,5 @@ func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels
 	// to implement ClonableResource153 in [Resource153ToUnifiedResource], which
 	// is the only externally-visible constructor function.
 	clone := r.inner.(ClonableResource153).CloneResource()
-	return Resource153ToUnifiedResource(clone.(ClonableResource153))
+	return Resource153ToUnifiedResource(clone)
 }

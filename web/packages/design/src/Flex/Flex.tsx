@@ -42,10 +42,15 @@ export interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
-    GapProps {}
+    GapProps {
+  /**
+   * Uses inline-flex instead of just flex as the display property.
+   */
+  inline?: boolean;
+}
 
 const Flex = styled(Box)<FlexProps>`
-  display: flex;
+  display: ${props => (props.inline ? 'inline-flex' : 'flex')};
   ${alignItems}
   ${justifyContent}
   ${flexWrap}

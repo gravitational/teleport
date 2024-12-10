@@ -8308,7 +8308,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	transportService, err := transportv1.NewService(transportv1.ServerConfig{
 		FIPS:   false,
-		Logger: utils.NewLoggerForTests(),
+		Logger: utils.NewSlogLoggerForTests(),
 		Dialer: router,
 		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
 			return agentless.SignerFromAuthzContext(authzCtx, client, clusterName)

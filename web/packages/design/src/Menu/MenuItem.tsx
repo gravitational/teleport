@@ -27,6 +27,7 @@ import {
 } from 'styled-system';
 
 import { Theme } from 'design/theme/themes/types';
+import Flex from 'design/Flex';
 
 const defaultValues = {
   fontSize: 1,
@@ -40,6 +41,70 @@ interface MenuItemProps extends FontSizeProps, SpaceProps, ColorProps {
 interface ThemedMenuItemProps extends MenuItemProps {
   theme: Theme;
 }
+
+// TODO(ravicious): This probably can be simplified when the time comes to do a redesign of Menu.
+// For now it's based on the existing code from fromTheme so that we don't break anything.
+const fromThemeBase = (props: { theme: Theme }) => {
+  const values = {
+    ...defaultValues,
+    ...props,
+  };
+  return {
+    ...fontSize(values),
+    ...space(values),
+    ...color(values),
+    fontWeight: values.theme.regular,
+  };
+};
+
+const MenuItemBase = styled(Flex)`
+  min-height: 40px;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  align-items: center;
+  min-width: 140px;
+  overflow: hidden;
+  text-decoration: none;
+  white-space: nowrap;
+  color: ${props => props.theme.colors.text.main};
+
+  ${fromThemeBase}
+`;
+
+export const MenuItemSectionLabel = styled(MenuItemBase).attrs({
+  px: 2,
+  onClick: event => {
+    // Make sure that clicks on this element don't trigger onClick set on MenuList.
+    event.stopPropagation();
+  },
+})`
+  font-weight: bold;
+  min-height: 16px;
+`;
+
+export const MenuItemSectionSeparator = styled.hr.attrs({
+  onClick: event => {
+    // Make sure that clicks on this element don't trigger onClick set on MenuList.
+    event.stopPropagation();
+  },
+})`
+  background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
+  height: 1px;
+  border: 0;
+  font-size: 0;
+
+  // Add padding to the label for extra visual space, but only when it follows a separator.
+  // If a separator follows a MenuItem, there's already enough visual space, so no extra space is
+  // needed. The hover state of MenuItem highlights everything right from the separator start to the
+  // end of MenuItem.
+  //
+  // Padding is used instead of margin here on purpose, so that there's no empty transparent space
+  // between Separator and Label – otherwise clicking on that space would count as a click on
+  // MenuList and not trigger onClick set on Separator or Label.
+  & + ${MenuItemSectionLabel} {
+    padding-top: ${props => props.theme.space[1]}px;
+  }
+`;
 
 const fromTheme = (props: ThemedMenuItemProps) => {
   const values = {
@@ -64,17 +129,10 @@ const fromTheme = (props: ThemedMenuItemProps) => {
   };
 };
 
-const MenuItem = styled.div.attrs({ role: 'menuitem' })<MenuItemProps>`
-  min-height: 40px;
-  box-sizing: border-box;
+const MenuItem = styled(MenuItemBase).attrs({
+  role: 'menuitem',
+})<MenuItemProps>`
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  min-width: 140px;
-  overflow: hidden;
-  text-decoration: none;
-  white-space: nowrap;
   color: ${props =>
     props.disabled
       ? props.theme.colors.text.disabled
