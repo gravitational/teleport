@@ -1020,7 +1020,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -3208,6 +3208,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3246,6 +3253,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            githubUserID,
+			GitHubUsername:          githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {

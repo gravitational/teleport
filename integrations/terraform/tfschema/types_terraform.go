@@ -2864,6 +2864,11 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"user_id": {
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"username": {
 							Description: "Username is username supplied by external identity provider",
 							Optional:    true,
@@ -2882,6 +2887,11 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"samlSingleLogoutUrl": {
 							Description: "SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user_id": {
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2908,6 +2918,11 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"samlSingleLogoutUrl": {
 							Description: "SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user_id": {
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -29718,6 +29733,23 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+												{
+													a, ok := tf.Attrs["user_id"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"UserV2.Spec.OIDCIdentities.UserID"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"UserV2.Spec.OIDCIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.UserID = t
+														}
+													}
+												}
 											}
 											obj.OIDCIdentities[k] = t
 										}
@@ -29797,6 +29829,23 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+												{
+													a, ok := tf.Attrs["user_id"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"UserV2.Spec.SAMLIdentities.UserID"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"UserV2.Spec.SAMLIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.UserID = t
+														}
+													}
+												}
 											}
 											obj.SAMLIdentities[k] = t
 										}
@@ -29873,6 +29922,23 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																t = string(v.Value)
 															}
 															obj.SAMLSingleLogoutURL = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["user_id"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"UserV2.Spec.GithubIdentities.UserID"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"UserV2.Spec.GithubIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.UserID = t
 														}
 													}
 												}
@@ -30405,6 +30471,28 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 													tf.Attrs["samlSingleLogoutUrl"] = v
 												}
 											}
+											{
+												t, ok := tf.AttrTypes["user_id"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"UserV2.Spec.OIDCIdentities.UserID"})
+												} else {
+													v, ok := tf.Attrs["user_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"UserV2.Spec.OIDCIdentities.UserID", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"UserV2.Spec.OIDCIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.UserID) == ""
+													}
+													v.Value = string(obj.UserID)
+													v.Unknown = false
+													tf.Attrs["user_id"] = v
+												}
+											}
 										}
 										v.Unknown = false
 										c.Elems[k] = v
@@ -30527,6 +30615,28 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 													tf.Attrs["samlSingleLogoutUrl"] = v
 												}
 											}
+											{
+												t, ok := tf.AttrTypes["user_id"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"UserV2.Spec.SAMLIdentities.UserID"})
+												} else {
+													v, ok := tf.Attrs["user_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"UserV2.Spec.SAMLIdentities.UserID", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"UserV2.Spec.SAMLIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.UserID) == ""
+													}
+													v.Value = string(obj.UserID)
+													v.Unknown = false
+													tf.Attrs["user_id"] = v
+												}
+											}
 										}
 										v.Unknown = false
 										c.Elems[k] = v
@@ -30647,6 +30757,28 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 													v.Value = string(obj.SAMLSingleLogoutURL)
 													v.Unknown = false
 													tf.Attrs["samlSingleLogoutUrl"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["user_id"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"UserV2.Spec.GithubIdentities.UserID"})
+												} else {
+													v, ok := tf.Attrs["user_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"UserV2.Spec.GithubIdentities.UserID", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"UserV2.Spec.GithubIdentities.UserID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.UserID) == ""
+													}
+													v.Value = string(obj.UserID)
+													v.Unknown = false
+													tf.Attrs["user_id"] = v
 												}
 											}
 										}
