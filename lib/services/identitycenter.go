@@ -244,7 +244,7 @@ type IdentityCenter interface {
 
 // NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
 // match the supplied [IdentityCenterAccount].
-func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) RoleMatcher {
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterAccountMatcher {
 	return &IdentityCenterAccountMatcher{
 		accountID: account.GetSpec().GetId(),
 	}
@@ -280,9 +280,10 @@ func (m *IdentityCenterAccountMatcher) String() string {
 
 // NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
 // configured to match the supplied [IdentityCenterAccountAssignment].
-func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
-	return &IdentityCenterAccountMatcher{
-		accountID: account.GetSpec().GetAccountId(),
+func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
+	return &IdentityCenterAccountAssignmentMatcher{
+		accountID:        assignment.GetSpec().GetAccountId(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
 	}
 }
 
