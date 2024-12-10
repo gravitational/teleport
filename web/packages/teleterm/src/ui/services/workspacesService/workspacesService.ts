@@ -74,17 +74,7 @@ export interface WorkspacesState {
    * of the app. It is useful in places that want to wait for the state to be restored before
    * proceeding.
    *
-   * If during the previous start of the app the user was logged into a workspace which cert has
-   * since expired, isInitialized will be set to true only _after_ the user logs in to that
-   * workspace (or closes the login modal).
-   *
    * This field is not persisted to disk.
-   *
-   * Side note: Arguably, depending on the use case, the moment isInitialized is set to true could
-   * be changed to happen right before the modal is shown. Ultimately, the thing that interests us
-   * the most is whether the state from disk was loaded into memory. Maybe in the future we will
-   * need to separate values or an enum.
-   *
    */
   isInitialized: boolean;
 }
@@ -104,10 +94,7 @@ export interface Workspace {
   // This requires updating many of tests
   // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
-  previous?: {
-    documents: Document[];
-    location: DocumentUri;
-  };
+  documentsRestoredOrDiscarded?: boolean;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -121,6 +108,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     workspaces: {},
     isInitialized: false,
   };
+  private restoredState?: WorkspacesPersistedState;
 
   constructor(
     private modalsService: ModalsService,
@@ -367,8 +355,16 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       draftState.rootClusterUri = clusterUri;
     });
 
-    const previousWorkspaceState = this.getWorkspace(clusterUri)?.previous;
-    if (!previousWorkspaceState) {
+    const documentsRestoredOrDiscarded =
+      this.getWorkspace(clusterUri)?.documentsRestoredOrDiscarded;
+    const restoredWorkspace = this.restoredState?.workspaces?.[clusterUri];
+    const askAboutRestoringDocuments =
+      !documentsRestoredOrDiscarded &&
+      hasDocumentsToReopen({
+        previousDocuments: restoredWorkspace?.documents,
+        currentDocuments: this.state.workspaces[clusterUri].documents,
+      });
+    if (!askAboutRestoringDocuments) {
       return { isAtDesiredWorkspace: true };
     }
 
@@ -376,13 +372,16 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.modalsService.openRegularDialog({
         kind: 'documents-reopen',
         rootClusterUri: clusterUri,
-        numberOfDocuments: previousWorkspaceState.documents.length,
+        numberOfDocuments: restoredWorkspace.documents.length,
         onConfirm: () => resolve(true),
         onCancel: () => resolve(false),
       })
     );
     if (reopen) {
-      this.reopenPreviousDocuments(clusterUri);
+      this.reopenPreviousDocuments(clusterUri, {
+        documents: restoredWorkspace.documents,
+        location: restoredWorkspace.location,
+      });
     } else {
       this.discardPreviousDocuments(clusterUri);
     }
@@ -403,38 +402,47 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 
   /**
+   * Returns the state that was restored when the app was launched.
+   * This state is not processed in any way, so it may, for example,
+   * contain clusters that are no longer available.
+   */
+  getRestoredState(): WorkspacesPersistedState | undefined {
+    return this.restoredState;
+  }
+
+  /**
    * Loads the state from disk into the app.
    */
-  async restorePersistedState(): Promise<void> {
-    const persistedState = this.statePersistenceService.getWorkspacesState();
+  restorePersistedState(): void {
+    const restoredState = this.statePersistenceService.getWorkspacesState();
+    this.restoredState = restoredState;
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
       .reduce((workspaces, cluster) => {
-        const persistedWorkspace = persistedState.workspaces[cluster.uri];
+        const restoredWorkspace = restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(
           cluster.uri,
-          persistedWorkspace
+          restoredWorkspace
         );
         return workspaces;
       }, {});
 
     this.setState(draftState => {
       draftState.workspaces = restoredWorkspaces;
-    });
-
-    if (persistedState.rootClusterUri) {
-      await this.setActiveWorkspace(persistedState.rootClusterUri);
-    }
-
-    this.setState(draft => {
-      draft.isInitialized = true;
+      draftState.isInitialized = true;
     });
   }
 
-  private reopenPreviousDocuments(clusterUri: RootClusterUri): void {
+  private reopenPreviousDocuments(
+    rootClusterUri: RootClusterUri,
+    reopen: {
+      documents: Document[];
+      location: DocumentUri;
+    }
+  ): void {
     this.setState(draftState => {
-      const workspace = draftState.workspaces[clusterUri];
-      workspace.documents = workspace.previous.documents.map(d => {
+      const workspace = draftState.workspaces[rootClusterUri];
+      workspace.documents = reopen.documents.map(d => {
         //TODO: create a function that will prepare a new document, it will be used in:
         // DocumentsService
         // TrackedConnectionOperationsFactory
@@ -478,15 +486,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
         return d;
       });
-      workspace.location = workspace.previous.location;
-      workspace.previous = undefined;
+      workspace.location = getLocationToRestore(
+        reopen.documents,
+        reopen.location
+      );
+      workspace.documentsRestoredOrDiscarded = true;
     });
   }
 
   private discardPreviousDocuments(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
-      workspace.previous = undefined;
+      workspace.documentsRestoredOrDiscarded = true;
     });
   }
 
@@ -497,13 +508,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
-      const documentsToPersist = getDocumentsToPersist(
-        workspace.previous?.documents || workspace.documents
-      );
+      const documentsToPersist = getDocumentsToPersist(workspace.documents);
 
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
-        location: workspace.previous?.location || workspace.location,
+        location: workspace.location,
         documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
@@ -590,7 +599,7 @@ function getWorkspaceDefaultState(
     location: defaultDocument.uri,
     documents: [defaultDocument],
     connectMyComputer: undefined,
-    previous: undefined,
+    documentsRestoredOrDiscarded: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
   };
@@ -601,18 +610,6 @@ function getWorkspaceDefaultState(
         restoredWorkspace.unifiedResourcePreferences
       );
     defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
-    defaultWorkspace.previous = hasDocumentsToReopen({
-      previousDocuments: restoredWorkspace.documents,
-      currentDocuments: defaultWorkspace.documents,
-    })
-      ? {
-          location: getLocationToRestore(
-            restoredWorkspace.documents,
-            restoredWorkspace.location
-          ),
-          documents: restoredWorkspace.documents,
-        }
-      : undefined;
   }
 
   return defaultWorkspace;
