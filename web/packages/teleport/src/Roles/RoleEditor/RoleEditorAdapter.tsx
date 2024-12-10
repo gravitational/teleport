@@ -109,17 +109,18 @@ export function RoleEditorAdapter({
         )}
       </Flex>
       <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-        <Box>
+        {/* Same width as promo image + border */}
+        <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
           <H1 mb={2}>Teleport Policy</H1>
-          <Flex mb={4}>
-            <Box flex="1" width="min-content">
+          <Flex mb={4} gap={4} flexWrap="wrap" justifyContent="space-between">
+            <Box flex="1" minWidth="30ch">
               <P>
                 Teleport Policy will visualize resource access paths as you
                 create and edit roles so you can always see what you are
                 granting before you push a role into production.
               </P>
             </Box>
-            <Flex flex="0 0 auto" ml={6} alignItems="start">
+            <Flex flex="0 0 auto" alignItems="start">
               <ButtonLockedFeature noIcon py={0} width={undefined}>
                 Contact Sales
               </ButtonLockedFeature>
@@ -137,24 +138,13 @@ export function RoleEditorAdapter({
             flexDirection="column"
             bg={theme.colors.levels.surface}
             borderRadius={3}
-            // I found hardcoding the width of the container to be the only way
-            // to play well with the StepSlider below. Trying to use implicit
-            // width in combination with `width: min-content` inside a
-            // StepSlider child caused a miscalculation of child's height.
-            width={promoImageWidth + 2 * 2}
           >
             <Box
               border={2}
               borderRadius={3}
               borderColor={theme.colors.interactive.tonal.neutral[0]}
             >
-              {/* Note: image dimensions hardcoded to prevent UI glitches while
-                  loading. */}
-              <Image
-                src={tagpromo}
-                width={promoImageWidth}
-                height={promoImageHeight}
-              />
+              <Image src={tagpromo} width="100%" />
             </Box>
             <StepSlider flows={promoFlows} currFlow="default" />
           </Flex>
@@ -165,7 +155,6 @@ export function RoleEditorAdapter({
 }
 
 const promoImageWidth = 782;
-const promoImageHeight = 401;
 
 const promoFlows = {
   default: [PromoPanel1, PromoPanel2],
@@ -224,15 +213,15 @@ function PromoPanel({
         </Box>
       </Box>
       <Flex gap={2} alignItems="center">
-        <ButtonSecondary size="small" width="24px">
-          <ChevronLeft size="small" disabled={stepIndex <= 0} onClick={prev} />
+        <ButtonSecondary size="small" width="24px" disabled={stepIndex <= 0}>
+          <ChevronLeft size="small" onClick={prev} />
         </ButtonSecondary>
-        <ButtonSecondary size="small" width="24px">
-          <ChevronRight
-            size="small"
-            disabled={stepIndex >= flowLength - 1}
-            onClick={next}
-          />
+        <ButtonSecondary
+          size="small"
+          width="24px"
+          disabled={stepIndex >= flowLength - 1}
+        >
+          <ChevronRight size="small" onClick={next} />
         </ButtonSecondary>
       </Flex>
     </Flex>

@@ -90,9 +90,9 @@ func (r *legacyToResource153Adapter) GetKind() string {
 	return r.inner.GetKind()
 }
 
-func (r *legacyToResource153Adapter) GetMetadata() *headerv1.Metadata {
-	md := r.inner.GetMetadata()
-
+// LegacyTo153Metadata converts a legacy [Metadata] object an RFD153-style
+// [headerv1.Metadata] block
+func LegacyTo153Metadata(md Metadata) *headerv1.Metadata {
 	var expires *timestamppb.Timestamp
 	if md.Expires != nil {
 		expires = timestamppb.New(*md.Expires)
@@ -106,6 +106,10 @@ func (r *legacyToResource153Adapter) GetMetadata() *headerv1.Metadata {
 		Expires:     expires,
 		Revision:    md.Revision,
 	}
+}
+
+func (r *legacyToResource153Adapter) GetMetadata() *headerv1.Metadata {
+	return LegacyTo153Metadata(r.inner.GetMetadata())
 }
 
 func (r *legacyToResource153Adapter) GetSubKind() string {
@@ -166,9 +170,9 @@ func (r *resource153ToLegacyAdapter) GetKind() string {
 	return r.inner.GetKind()
 }
 
-func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
-	md := r.inner.GetMetadata()
-
+// Metadata153ToLegacy converts RFD153-style resource metadata to legacy
+// metadata.
+func Metadata153ToLegacy(md *headerv1.Metadata) Metadata {
 	// use zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
 	expires := md.Expires.AsTime()
 	if md.Expires == nil {
@@ -183,6 +187,10 @@ func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 		Expires:     &expires,
 		Revision:    md.Revision,
 	}
+}
+
+func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
+	return Metadata153ToLegacy(r.inner.GetMetadata())
 }
 
 func (r *resource153ToLegacyAdapter) GetName() string {
@@ -217,6 +225,86 @@ func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
 }
 
+// Resource153ToResourceWithLabels wraps a [Resource153]-style resource in
+// the legacy [Resource] and [ResourceWithLabels] interfaces.
+//
+// The same caveats that apply to [Resource153ToLegacy] apply.
+func Resource153ToResourceWithLabels(r Resource153) ResourceWithLabels {
+	return &resource153ToResourceWithLabelsAdapter{
+		resource153ToLegacyAdapter{
+			inner: r,
+		},
+	}
+}
+
+// resource153ToResourceWithLabelsAdapter wraps a new-style resource in a
+// type implementing the legacy resource interfaces
+type resource153ToResourceWithLabelsAdapter struct {
+	resource153ToLegacyAdapter
+}
+
+// Origin implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) Origin() string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return ""
+	}
+	return m.Labels[OriginLabel]
+}
+
+// SetOrigin implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) SetOrigin(origin string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels[OriginLabel] = origin
+}
+
+// GetLabel implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetLabel(key string) (value string, ok bool) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return "", false
+	}
+	value, ok = m.Labels[key]
+	return
+}
+
+// GetAllLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetAllLabels() map[string]string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return nil
+	}
+	return m.Labels
+}
+
+// GetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetStaticLabels() map[string]string {
+	return r.GetAllLabels()
+}
+
+// SetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) SetStaticLabels(labels map[string]string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels = labels
+}
+
+// MatchSearch implements ResourceWithLabels for the adapter. If the underlying
+// type exposes a MatchSearch method, this method will defer to that, otherwise
+// it will match against the resource label values and name.
+func (r *resource153ToResourceWithLabelsAdapter) MatchSearch(searchValues []string) bool {
+	if matcher, ok := r.inner.(interface{ MatchSearch([]string) bool }); ok {
+		return matcher.MatchSearch(searchValues)
+	}
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, searchValues, nil)
+}
+
 // ClonableResource153 adds a restriction on [Resource153] such that implementors
 // must have a CloneResource() method.
 type ClonableResource153 interface {
@@ -238,8 +326,10 @@ type UnifiedResource interface {
 // The same caveats that apply to [Resource153ToLegacy] apply.
 func Resource153ToUnifiedResource(r ClonableResource153) UnifiedResource {
 	return &resource153ToUnifiedResourceAdapter{
-		resource153ToLegacyAdapter: resource153ToLegacyAdapter{
-			inner: r,
+		resource153ToResourceWithLabelsAdapter: resource153ToResourceWithLabelsAdapter{
+			resource153ToLegacyAdapter{
+				inner: r,
+			},
 		},
 	}
 }
@@ -247,80 +337,14 @@ func Resource153ToUnifiedResource(r ClonableResource153) UnifiedResource {
 // resource153ToUnifiedResourceAdapter wraps a [resource153ToLegacyAdapter] to
 // provide an implementation of [UnifiedResource]
 type resource153ToUnifiedResourceAdapter struct {
-	resource153ToLegacyAdapter
-}
-
-// Origin implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) Origin() string {
-	m := r.inner.GetMetadata()
-	if m == nil {
-		return ""
-	}
-	return m.Labels[OriginLabel]
-}
-
-// SetOrigin implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) SetOrigin(origin string) {
-	m := r.inner.GetMetadata()
-	if m == nil {
-		return
-	}
-	m.Labels[OriginLabel] = origin
-}
-
-// GetLabel implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) GetLabel(key string) (value string, ok bool) {
-	m := r.inner.GetMetadata()
-	if m == nil {
-		return "", false
-	}
-	value, ok = m.Labels[key]
-	return
-}
-
-// GetAllLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) GetAllLabels() map[string]string {
-	m := r.inner.GetMetadata()
-	if m == nil {
-		return nil
-	}
-	return m.Labels
-}
-
-// GetStaticLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) GetStaticLabels() map[string]string {
-	return r.GetAllLabels()
-}
-
-// SetStaticLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToUnifiedResourceAdapter) SetStaticLabels(labels map[string]string) {
-	m := r.inner.GetMetadata()
-	if m == nil {
-		return
-	}
-	m.Labels = labels
-}
-
-// MatchSearch implements ResourceWithLabels for the adapter. If the underlying
-// type exposes a MatchSearch method, this method will defer to that, otherwise
-// it will match against the resource label values and name.
-func (r *resource153ToUnifiedResourceAdapter) MatchSearch(searchValues []string) bool {
-	if matcher, ok := r.inner.(interface{ MatchSearch([]string) bool }); ok {
-		return matcher.MatchSearch(searchValues)
-	}
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
-	return MatchSearch(fieldVals, searchValues, nil)
+	resource153ToResourceWithLabelsAdapter
 }
 
 // CloneResource clones the underlying resource and wraps it in
 func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels {
 	// We assume that this type assertion will work because we force `inner`
 	// to implement ClonableResource153 in [Resource153ToUnifiedResource], which
-	// is the only externally-visible constructor function
+	// is the only externally-visible constructor function.
 	clone := r.inner.(ClonableResource153).CloneResource()
-	return &resource153ToUnifiedResourceAdapter{
-		resource153ToLegacyAdapter: resource153ToLegacyAdapter{
-			inner: clone,
-		},
-	}
+	return Resource153ToUnifiedResource(clone)
 }

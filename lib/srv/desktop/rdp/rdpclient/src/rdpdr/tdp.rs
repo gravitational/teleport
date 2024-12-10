@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{filesystem::FileCacheObject, path::UnixPath};
+use crate::rdpdr::filesystem::cast_length;
 use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
@@ -23,11 +24,13 @@ use crate::{
     CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
     CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
-use ironrdp_pdu::{cast_length, custom_err, PduResult};
+
+use ironrdp_pdu::pdu_other_err;
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{
     self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
 };
-use std::convert::TryInto;
+
 use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
@@ -137,10 +140,13 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(TdpHandlingError(format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:TdpHandlingError(format!(
+                    "failed to extract name from path: {:?}",
+                    self.path
+                ))
+            ))
         }
     }
 
@@ -158,10 +164,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -182,10 +188,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -210,7 +216,7 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!("FileSystemObject::into_directory", "self.size", self.size)?,
+            cast_length("FileSystemObject::into_directory", "self.size", self.size)?,
             file_attributes,
             self.name()?,
         ))

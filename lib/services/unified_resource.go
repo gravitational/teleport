@@ -50,6 +50,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
 	types.KindIdentityCenterAccount,
+	types.KindIdentityCenterAccountAssignment,
 	types.KindGitServer,
 }
 
@@ -357,6 +358,7 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
+	IdentityCenterAccountAssignmentGetter
 	GitServerGetter
 }
 
@@ -469,6 +471,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newGitServers, err := c.getGitServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -490,6 +497,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
 	putResources[resource](c, newICAccounts)
+	putResources[resource](c, newICAccountAssignments)
 	putResources[types.Server](c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
@@ -607,6 +615,26 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 	var pageRequest pagination.PageRequestToken
 	for {
 		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
+		}
+		for _, a := range resultsPage {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		}
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		pageRequest.Update(nextPage)
+	}
+	return accounts, nil
+}
+
+func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
+	var accounts []resource
+	var pageRequest pagination.PageRequestToken
+	for {
+		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
@@ -742,6 +770,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 				// to restore them to a useful state.
 				switch unwrapped := r.Unwrap().(type) {
 				case IdentityCenterAccount:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				case IdentityCenterAccountAssignment:
 					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
 
 				default:
@@ -965,6 +996,23 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+	case types.KindIdentityCenterAccountAssignment:
+		unwrapper, ok := resource.(types.Resource153Unwrapper)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		assignment, ok := unwrapper.Unwrap().(IdentityCenterAccountAssignment)
+		if !ok {
+			return nil, trace.BadParameter(
+				"Unexpected type for Identity Center Account Assignment: %T",
+				unwrapper)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
+			RequiresRequest: requiresRequest,
 		}
 
 	case types.KindGitServer:
