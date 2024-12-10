@@ -204,8 +204,11 @@ func formatResult(results []*pgconn.Result, err error) string {
 		return errorReplyPrefix + err.Error()
 	}
 
-	var sb strings.Builder
-	for _, res := range results {
+	var (
+		sb         strings.Builder
+		resultsLen = len(results)
+	)
+	for i, res := range results {
 		if !res.CommandTag.Select() {
 			return res.CommandTag.String()
 		}
@@ -230,6 +233,12 @@ func formatResult(results []*pgconn.Result, err error) string {
 
 		table.AsBuffer().WriteTo(&sb)
 		sb.WriteString(rowsText(len(res.Rows)))
+
+		// Add line breaks to separate results. Except the last result, which
+		// will have line breaks added later in the reply.
+		if i != resultsLen-1 {
+			sb.WriteString(lineBreak + lineBreak)
+		}
 	}
 
 	return sb.String()

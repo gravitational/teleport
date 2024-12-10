@@ -70,6 +70,13 @@ func TestStart(t *testing.T) {
 		golden.SetNamed(t, "data_type", []byte(dataTypeQueryResult))
 	}
 	require.Equal(t, string(golden.GetNamed(t, "data_type")), dataTypeQueryResult)
+
+	writeLine(t, tc, multiQuery)
+	multiQueryResult := readUntilNextLead(t, tc)
+	if golden.ShouldSet() {
+		golden.SetNamed(t, "multiquery", []byte(multiQueryResult))
+	}
+	require.Equal(t, string(golden.GetNamed(t, "multiquery")), multiQueryResult)
 }
 
 // TestQuery given some input lines, the REPL should execute the expected
@@ -449,6 +456,17 @@ func (tc *testCtx) processMessages() error {
 				}
 			case dataTypesQuery:
 				messages = testdata.TestDataQueryResult
+			case multiQuery:
+				messages = []pgproto3.BackendMessage{
+					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("?column?")}}},
+					&pgproto3.DataRow{Values: [][]byte{[]byte("1")}},
+					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
+					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("id")}, {Name: []byte("email")}}},
+					&pgproto3.DataRow{Values: [][]byte{[]byte("1"), []byte("alice@example.com")}},
+					&pgproto3.DataRow{Values: [][]byte{[]byte("2"), []byte("bob@example.com")}},
+					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
+					&pgproto3.ReadyForQuery{},
+				}
 			case errorQuery:
 				messages = []pgproto3.BackendMessage{
 					&pgproto3.ErrorResponse{Severity: "ERROR", Code: "42703", Message: "error"},
@@ -477,6 +495,7 @@ func (tc *testCtx) processMessages() error {
 const (
 	singleRowQuery = "SELECT * FROM users LIMIT 1;"
 	multiRowQuery  = "SELECT * FROM users;"
+	multiQuery     = "SELECT 1; SELECT * FROM users;"
 	dataTypesQuery = "SELECT * FROM test_data_types;"
 	errorQuery     = "SELECT err;"
 )
