@@ -75,6 +75,41 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	return OK(), nil
 }
 
+type deleteMfaDeviceRequest struct {
+	// DeviceName is the name of the device to delete.
+	DeviceName string `json:"deviceName"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
+}
+
+// deleteMFADeviceHandle deletes an mfa device for the user defined in the `token`, given as a query parameter.
+func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req deleteMfaDeviceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
+		DeviceName:          req.DeviceName,
+		ExistingMFAResponse: mfaResponse,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
 type addMFADeviceRequest struct {
 	// PrivilegeTokenID is privilege token id.
 	PrivilegeTokenID string `json:"tokenId"`
@@ -203,7 +238,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 	return makeAuthenticateChallenge(chal), nil
 }
 
-type createRegisterChallengeRequest struct {
+type createRegisterChallengeWithTokenRequest struct {
 	// DeviceType is the type of MFA device to get a register challenge for.
 	DeviceType string `json:"deviceType"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
@@ -214,7 +249,7 @@ type createRegisterChallengeRequest struct {
 
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
 func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req createRegisterChallengeRequest
+	var req createRegisterChallengeWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,6 +273,72 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		TokenID:     p.ByName("token"),
 		DeviceType:  deviceType,
 		DeviceUsage: deviceUsage,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
+}
+
+type createRegisterChallengeRequest struct {
+	// DeviceType is the type of MFA device to get a register challenge for.
+	DeviceType string `json:"deviceType"`
+	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
+	// It mimics the proto.DeviceUsage enum.
+	// Defaults to MFA.
+	DeviceUsage string `json:"deviceUsage"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
+}
+
+// createRegisterChallengeHandle creates and returns MFA register challenges for a new device for the specified device type.
+func (h *Handler) createRegisterChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createRegisterChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var deviceType proto.DeviceType
+	switch req.DeviceType {
+	case "totp":
+		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
+	case "webauthn":
+		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
+	default:
+		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
+	}
+
+	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := c.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	chal, err := clt.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
+		DeviceType:          deviceType,
+		DeviceUsage:         deviceUsage,
+		ExistingMFAResponse: mfaResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

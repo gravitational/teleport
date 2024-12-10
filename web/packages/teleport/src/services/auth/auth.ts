@@ -323,7 +323,7 @@ const auth = {
     );
   },
 
-  createPrivilegeToken(existingMfaResponse: MfaChallengeResponse) {
+  createPrivilegeToken(existingMfaResponse?: MfaChallengeResponse) {
     return api.post(cfg.api.createPrivilegeTokenPath, {
       existingMfaResponse,
       // TODO(Joerger): DELETE IN v19.0.0

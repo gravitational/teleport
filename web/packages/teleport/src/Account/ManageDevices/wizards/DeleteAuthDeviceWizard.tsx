@@ -64,6 +64,11 @@ export function DeleteAuthDeviceWizard({
     useReAuthenticate({
       challengeScope: MfaChallengeScope.MANAGE_DEVICES,
       onMfaResponse: mfaResponse => {
+        // TODO(Joerger): v19.0.0
+        // Devices can be deleted with an MFA response, so exchanging it for a
+        // privilege token adds an unnecessary API call. The device deletion
+        // endpoint requires a token, but the new endpoint "DELETE: /webapi/mfa/devices"
+        // can be used after v19 backwards compatibly.
         auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
       },
     });
