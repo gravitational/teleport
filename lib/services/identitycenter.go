@@ -242,20 +242,16 @@ type IdentityCenter interface {
 	IdentityCenterAccountAssignments
 }
 
-// NewIdentityCenterAccountMatcher creates a new [IdentityCenterMatcher]
-// configured to match the supplied [IdentityCenterAccount].
-func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) RoleMatcher {
+// NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
+// match the supplied [IdentityCenterAccount].
+func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterAccountMatcher {
 	return &IdentityCenterAccountMatcher{
 		accountID: account.GetSpec().GetId(),
 	}
 }
 
 // IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
-// resources against the AccountAssignments specified in a Role condition.
-//
-// The same type is used for matching both [IdentityCenterAccount]s and
-// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
-// an Account.
+// Account resources against the AccountAssignments specified in a Role condition.
 type IdentityCenterAccountMatcher struct {
 	accountID string
 }
@@ -284,18 +280,16 @@ func (m *IdentityCenterAccountMatcher) String() string {
 
 // NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
 // configured to match the supplied [IdentityCenterAccountAssignment].
-func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
-	return &IdentityCenterAccountMatcher{
-		accountID: account.GetSpec().GetAccountId(),
+func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
+	return &IdentityCenterAccountAssignmentMatcher{
+		accountID:        assignment.GetSpec().GetAccountId(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
 	}
 }
 
 // IdentityCenterMatcher implements a [RoleMatcher] for comparing Identity Center
-// resources against the AccountAssignments specified in a Role condition.
-//
-// The same type is used for matching both [IdentityCenterAccount]s and
-// [IdentityCenterAccountAssignment]s, the permission set is `nil` when matching
-// an Account.
+// Account Assignment resources against the AccountAssignments specified in a
+// Role condition.
 type IdentityCenterAccountAssignmentMatcher struct {
 	accountID        string
 	permissionSetARN string
