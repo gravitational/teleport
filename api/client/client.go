@@ -2309,6 +2309,32 @@ func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster type
 	return resp, nil
 }
 
+// CreateTrustedClusterV2 creates a Trusted Cluster.
+func (c *Client) CreateTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	resp, err := c.grpc.CreateTrustedClusterV2(ctx, trustedClusterV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster.
+func (c *Client) UpdateTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	resp, err := c.grpc.UpdateTrustedClusterV2(ctx, trustedClusterV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // DeleteTrustedCluster deletes a Trusted Cluster by name.
 func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if name == "" {

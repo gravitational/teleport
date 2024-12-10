@@ -2977,6 +2977,46 @@ func (g *GRPCServer) UpsertTrustedClusterV2(ctx context.Context, cluster *types.
 	return trustedClusterV2, nil
 }
 
+// CreateTrustedClusterV2 creates a Trusted Cluster.
+func (g *GRPCServer) CreateTrustedClusterV2(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tc, err := auth.ServerWithRoles.CreateTrustedClusterV2(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+	}
+	return trustedClusterV2, nil
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster.
+func (g *GRPCServer) UpdateTrustedClusterV2(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateTrustedCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tc, err := auth.ServerWithRoles.UpdateTrustedClusterV2(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+	}
+	return trustedClusterV2, nil
+}
+
 // DeleteTrustedCluster deletes a Trusted Cluster by name.
 func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

@@ -4978,6 +4978,42 @@ func (a *ServerWithRoles) UpsertTrustedClusterV2(ctx context.Context, tc types.T
 	return a.authServer.UpsertTrustedClusterV2(ctx, tc)
 }
 
+// CreateTrustedClusterV2 creates a Trusted Cluster.
+func (a *ServerWithRoles) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
+	if err := a.action(types.KindTrustedCluster, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateTrustedClusterV2(ctx, tc)
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster.
+func (a *ServerWithRoles) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
+	if err := a.action(types.KindTrustedCluster, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateTrustedClusterV2(ctx, tc)
+}
+
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {

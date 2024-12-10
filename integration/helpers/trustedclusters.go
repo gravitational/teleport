@@ -56,7 +56,61 @@ func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 // propagate and services to start
 //
 // Duplicated in tool/tsh/tsh_test.go
-func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
+func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	t.Helper()
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.CreateTrustedClusterV2(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to update a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	t.Helper()
+	ctx := context.TODO()
+	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpdateTrustedClusterV2(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to upsert a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
 	t.Helper()
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
