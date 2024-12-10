@@ -472,7 +472,7 @@ func (a *AppV3) GetDisplayName() string {
 	if a.Spec.IdentityCenter == nil {
 		return ""
 	}
-	return a.GetName()
+	return a.Metadata.Description
 }
 
 // IsEqual determines if two application resources are equivalent to one another.

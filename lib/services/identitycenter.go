@@ -280,9 +280,10 @@ func (m *IdentityCenterAccountMatcher) String() string {
 
 // NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
 // configured to match the supplied [IdentityCenterAccountAssignment].
-func NewIdentityCenterAccountAssignmentMatcher(account IdentityCenterAccountAssignment) RoleMatcher {
-	return &IdentityCenterAccountMatcher{
-		accountID: account.GetSpec().GetAccountId(),
+func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) RoleMatcher {
+	return &IdentityCenterAccountAssignmentMatcher{
+		accountID:        assignment.GetSpec().GetAccountId(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
 	}
 }
 

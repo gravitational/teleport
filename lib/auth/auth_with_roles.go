@@ -40,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1272,7 +1274,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
@@ -1474,6 +1476,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
+				if err := a.filterICPermissionSets(d.GetApp(), resourceAccess); err != nil {
+					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
+					continue
+				}
+
 				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
@@ -1488,6 +1495,63 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
+}
+
+func (a *ServerWithRoles) filterICPermissionSets(r services.AccessCheckable, checker *resourceAccess) error {
+	app, isApp := r.(*types.AppV3)
+	if !isApp {
+		return trace.BadParameter("resource must be an app")
+	}
+
+	pss := app.Spec.IdentityCenter.GetPermissionSets()
+	if pss == nil {
+		return nil
+	}
+
+	assignment := services.IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:    types.KindIdentityCenterAccountAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "rbac-tester",
+			},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId:     app.GetName(),
+				PermissionSet: &identitycenterv1.PermissionSetInfo{},
+			},
+		},
+	}
+	permissionSetQuery := assignment.Spec.PermissionSet
+	checkable := types.Resource153ToResourceWithLabels(assignment)
+
+	var requestableAccessChecker resourceAccessChecker
+	regularAccessChecker := checker.accessChecker
+	if checker.baseAuthChecker != nil {
+		regularAccessChecker = checker.baseAuthChecker
+		requestableAccessChecker = checker.accessChecker
+	}
+
+	var output []*types.IdentityCenterPermissionSet
+	for _, ps := range pss {
+		permissionSetQuery.Arn = ps.ARN
+
+		if err := regularAccessChecker.CanAccess(checkable); err == nil {
+			output = append(output, ps)
+			continue
+		}
+
+		if requestableAccessChecker == nil {
+			continue
+		}
+
+		if err := requestableAccessChecker.CanAccess(checkable); err == nil {
+			ps.RequiresRequest = true
+			output = append(output, ps)
+			continue
+		}
+	}
+	app.Spec.IdentityCenter.PermissionSets = output
+	return nil
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
@@ -1831,8 +1895,18 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 
 	case types.Resource153Unwrapper:
-		if checkable, ok := rr.(services.AccessCheckable); ok {
-			return r.CheckAccess(checkable, state)
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			switch unwrapped := rr.Unwrap().(type) {
+			case services.IdentityCenterAccount:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
+
+			case services.IdentityCenterAccountAssignment:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+
+			default:
+				return r.CheckAccess(checkable, state)
+			}
 		}
 	}
 
