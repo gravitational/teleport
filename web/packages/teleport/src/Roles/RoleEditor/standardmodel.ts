@@ -27,9 +27,13 @@ import {
 } from 'teleport/services/resources';
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
+  CreateDBUserMode,
+  CreateHostUserMode,
   KubernetesResourceKind,
   KubernetesVerb,
+  RequireMFAType,
   ResourceKind,
+  RoleOptions,
   Rule,
   Verb,
 } from 'teleport/services/resources/types';
@@ -53,6 +57,7 @@ export type RoleEditorModel = {
   metadata: MetadataModel;
   accessSpecs: AccessSpec[];
   rules: RuleModel[];
+  options: OptionsModel;
   /**
    * Indicates whether the current resource, as described by YAML, is
    * accurately represented by this editor model. If it's not, the user needs
@@ -251,6 +256,50 @@ export type RuleModel = {
   verbs: readonly VerbOption[];
 };
 
+export type OptionsModel = {
+  maxSessionTTL: string;
+  clientIdleTimeout: string;
+  disconnectExpiredCert: boolean;
+  requireMFAType: RequireMFATypeOption;
+  createHostUserMode: CreateHostUserModeOption;
+  createDBUser: boolean;
+  createDBUserMode: CreateDBUserModeOption;
+  desktopClipboard: boolean;
+  createDesktopUser: boolean;
+  desktopDirectorySharing: boolean;
+};
+
+type RequireMFATypeOption = Option<RequireMFAType>;
+export const requireMFATypeOptions: RequireMFATypeOption[] = [
+  { value: false, label: 'No' },
+  { value: true, label: 'Yes' },
+  { value: 'hardware_key', label: 'Hardware Key' },
+  { value: 'hardware_key_touch', label: 'Hardware Key (touch)' },
+  {
+    value: 'hardware_key_touch_and_pin',
+    label: 'Hardware Key (touch and PIN)',
+  },
+];
+const requireMFATypeOptionsMap = optionsToMap(requireMFATypeOptions);
+
+type CreateHostUserModeOption = Option<CreateHostUserMode>;
+export const createHostUserModeOptions: CreateHostUserModeOption[] = [
+  { value: '', label: 'Unspecified' },
+  { value: 'off', label: 'Off' },
+  { value: 'keep', label: 'Keep' },
+  { value: 'insecure-drop', label: 'Drop (insecure)' },
+];
+const createHostUserModeOptionsMap = optionsToMap(createHostUserModeOptions);
+
+type CreateDBUserModeOption = Option<CreateDBUserMode>;
+export const createDBUserModeOptions: CreateDBUserModeOption[] = [
+  { value: '', label: 'Unspecified' },
+  { value: 'off', label: 'Off' },
+  { value: 'keep', label: 'Keep' },
+  { value: 'best_effort_drop', label: 'Drop (best effort)' },
+];
+const createDBUserModeOptionsMap = optionsToMap(createDBUserModeOptions);
+
 const roleVersion = 'v7';
 
 /**
@@ -341,6 +390,8 @@ export function roleToRoleEditorModel(
     rules,
     requiresReset: allowRequiresReset,
   } = roleConditionsToModel(allow);
+  const { model: optionsModel, requiresReset: optionsRequireReset } =
+    optionsToModel(options);
 
   return {
     metadata: {
@@ -350,6 +401,7 @@ export function roleToRoleEditorModel(
     },
     accessSpecs,
     rules,
+    options: optionsModel,
     requiresReset:
       revision !== originalRole?.metadata?.revision ||
       version !== roleVersion ||
@@ -357,10 +409,10 @@ export function roleToRoleEditorModel(
         isEmpty(unsupported) &&
         isEmpty(unsupportedMetadata) &&
         isEmpty(unsupportedSpecs) &&
-        isEmpty(deny) &&
-        equalsDeep(options, defaultOptions())
+        isEmpty(deny)
       ) ||
-      allowRequiresReset,
+      allowRequiresReset ||
+      optionsRequireReset,
   };
 }
 
@@ -581,6 +633,80 @@ function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
   };
 }
 
+function optionsToModel(options: RoleOptions): {
+  model: OptionsModel;
+  requiresReset: boolean;
+} {
+  const {
+    // Customizable options.
+    max_session_ttl,
+    client_idle_timeout = '',
+    disconnect_expired_cert = false,
+    require_session_mfa = false,
+    create_host_user_mode = '',
+    create_db_user,
+    create_db_user_mode = '',
+    desktop_clipboard,
+    create_desktop_user,
+    desktop_directory_sharing,
+
+    // These options must keep their default values, as we don't support them
+    // in the standard editor.
+    cert_format,
+    enhanced_recording,
+    forward_agent,
+    idp,
+    pin_source_ip,
+    port_forwarding,
+    record_session,
+    ssh_file_copy,
+
+    ...unsupported
+  } = options;
+
+  const requireMFATypeOption =
+    requireMFATypeOptionsMap.get(require_session_mfa);
+  const createHostUserModeOption = createHostUserModeOptionsMap.get(
+    create_host_user_mode
+  );
+  const createDBUserModeOption =
+    createDBUserModeOptionsMap.get(create_db_user_mode);
+
+  const defaultOpts = defaultOptions();
+
+  return {
+    model: {
+      maxSessionTTL: max_session_ttl,
+      clientIdleTimeout: client_idle_timeout,
+      disconnectExpiredCert: disconnect_expired_cert,
+      requireMFAType:
+        requireMFATypeOption ?? requireMFATypeOptionsMap.get(false),
+      createHostUserMode:
+        createHostUserModeOption ?? createHostUserModeOptionsMap.get(''),
+      createDBUser: create_db_user,
+      createDBUserMode:
+        createDBUserModeOption ?? createDBUserModeOptionsMap.get(''),
+      desktopClipboard: desktop_clipboard,
+      createDesktopUser: create_desktop_user,
+      desktopDirectorySharing: desktop_directory_sharing,
+    },
+
+    requiresReset:
+      cert_format !== defaultOpts.cert_format ||
+      !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
+      forward_agent !== defaultOpts.forward_agent ||
+      !equalsDeep(idp, defaultOpts.idp) ||
+      pin_source_ip !== defaultOpts.pin_source_ip ||
+      port_forwarding !== defaultOpts.port_forwarding ||
+      !equalsDeep(record_session, defaultOpts.record_session) ||
+      ssh_file_copy !== defaultOpts.ssh_file_copy ||
+      requireMFATypeOption === undefined ||
+      createHostUserModeOption === undefined ||
+      createDBUserModeOption === undefined ||
+      !isEmpty(unsupported),
+  };
+}
+
 function isEmpty(obj: object) {
   return Object.keys(obj).length === 0;
 }
@@ -603,7 +729,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     spec: {
       allow: {},
       deny: {},
-      options: defaultOptions(),
+      options: optionsModelToRoleOptions(roleModel.options),
     },
     version: roleVersion,
   };
@@ -681,6 +807,27 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
     }
   }
   return labels;
+}
+
+function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
+  return {
+    ...defaultOptions(),
+
+    // Note: technically, coercing the optional fields to undefined is not
+    // necessary, but it's easier to test it this way, since we achieve
+    // symmetry between what goes into the model and what goes out of it, even
+    // if some fields are optional.
+    max_session_ttl: model.maxSessionTTL,
+    client_idle_timeout: model.clientIdleTimeout || undefined,
+    disconnect_expired_cert: model.disconnectExpiredCert || undefined,
+    require_session_mfa: model.requireMFAType.value || undefined,
+    create_host_user_mode: model.createHostUserMode.value || undefined,
+    create_db_user: model.createDBUser,
+    create_db_user_mode: model.createDBUserMode.value || undefined,
+    desktop_clipboard: model.desktopClipboard,
+    create_desktop_user: model.createDesktopUser,
+    desktop_directory_sharing: model.desktopDirectorySharing,
+  };
 }
 
 function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {
