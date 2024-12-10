@@ -159,7 +159,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
-	processManager, err := vnet.SetupAndRun(ctx, &vnet.SetupAndRunConfig{
+	processManager, err := vnet.Run(ctx, &vnet.RunConfig{
 		AppProvider:        appProvider,
 		ClusterConfigCache: s.clusterConfigCache,
 	})
@@ -379,12 +379,20 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
 	appURI := clusterURI.AppendApp(routeToApp.Name)
 
+	apiteletermRouteToApp := apiteleterm.RouteToApp{
+		Name:        routeToApp.Name,
+		PublicAddr:  routeToApp.PublicAddr,
+		ClusterName: routeToApp.ClusterName,
+		Uri:         routeToApp.URI,
+		TargetPort:  routeToApp.TargetPort,
+	}
+
 	reloginReq := &apiteleterm.ReloginRequest{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
 			VnetCertExpired: &apiteleterm.VnetCertExpired{
 				TargetUri:  appURI.String(),
-				PublicAddr: routeToApp.GetPublicAddr(),
+				RouteToApp: &apiteletermRouteToApp,
 			},
 		},
 	}
@@ -411,7 +419,7 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 					TargetUri:  appURI.String(),
-					PublicAddr: routeToApp.PublicAddr,
+					RouteToApp: &apiteletermRouteToApp,
 					Error:      err.Error(),
 				},
 			},

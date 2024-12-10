@@ -26,19 +26,22 @@ import selectEvent from 'react-select-event';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
+import { ResourceKind } from 'teleport/services/resources';
+
 import {
-  AccessSpec,
   AppAccessSpec,
   DatabaseAccessSpec,
   KubernetesAccessSpec,
   newAccessSpec,
   newRole,
   roleToRoleEditorModel,
+  RuleModel,
   ServerAccessSpec,
   StandardEditorModel,
   WindowsDesktopAccessSpec,
 } from './standardmodel';
 import {
+  AccessRules,
   AppAccessSpecSection,
   DatabaseAccessSpecSection,
   KubernetesAccessSpecSection,
@@ -48,7 +51,12 @@ import {
   StandardEditorProps,
   WindowsDesktopAccessSpecSection,
 } from './StandardEditor';
-import { validateAccessSpec } from './validation';
+import {
+  AccessSpecValidationResult,
+  AccessRuleValidationResult,
+  validateAccessSpec,
+  validateAccessRule,
+} from './validation';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();
@@ -58,13 +66,15 @@ const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   });
   return (
     <TeleportContextProvider ctx={ctx}>
-      <StandardEditor
-        originalRole={null}
-        standardEditorModel={model}
-        isProcessing={false}
-        onChange={setModel}
-        {...props}
-      />
+      <Validation>
+        <StandardEditor
+          originalRole={null}
+          standardEditorModel={model}
+          isProcessing={false}
+          onChange={setModel}
+          {...props}
+        />
+      </Validation>
     </TeleportContextProvider>
   );
 };
@@ -165,19 +175,21 @@ const getSectionByName = (name: string) =>
   // eslint-disable-next-line testing-library/no-node-access
   screen.getByRole('heading', { level: 3, name }).closest('details');
 
-const StatefulSection = <S extends AccessSpec>({
+function StatefulSection<Spec, ValidationResult>({
   defaultValue,
   component: Component,
   onChange,
   validatorRef,
+  validate,
 }: {
-  defaultValue: S;
-  component: React.ComponentType<SectionProps<S, any>>;
-  onChange(spec: S): void;
+  defaultValue: Spec;
+  component: React.ComponentType<SectionProps<Spec, any>>;
+  onChange(spec: Spec): void;
   validatorRef?(v: Validator): void;
-}) => {
-  const [model, setModel] = useState<S>(defaultValue);
-  const validation = validateAccessSpec(model);
+  validate(arg: Spec): ValidationResult;
+}) {
+  const [model, setModel] = useState<Spec>(defaultValue);
+  const validation = validate(model);
   return (
     <Validation>
       {({ validator }) => {
@@ -196,20 +208,21 @@ const StatefulSection = <S extends AccessSpec>({
       }}
     </Validation>
   );
-};
+}
 
 describe('ServerAccessSpecSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<ServerAccessSpec>
+      <StatefulSection<ServerAccessSpec, AccessSpecValidationResult>
         component={ServerAccessSpecSection}
         defaultValue={newAccessSpec('node')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -258,13 +271,14 @@ describe('KubernetesAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<KubernetesAccessSpec>
+      <StatefulSection<KubernetesAccessSpec, AccessSpecValidationResult>
         component={KubernetesAccessSpecSection}
         defaultValue={newAccessSpec('kube_cluster')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -399,13 +413,14 @@ describe('AppAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<AppAccessSpec>
+      <StatefulSection<AppAccessSpec, AccessSpecValidationResult>
         component={AppAccessSpecSection}
         defaultValue={newAccessSpec('app')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -476,13 +491,14 @@ describe('DatabaseAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<DatabaseAccessSpec>
+      <StatefulSection<DatabaseAccessSpec, AccessSpecValidationResult>
         component={DatabaseAccessSpecSection}
         defaultValue={newAccessSpec('db')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -532,13 +548,14 @@ describe('WindowsDesktopAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<WindowsDesktopAccessSpec>
+      <StatefulSection<WindowsDesktopAccessSpec, AccessSpecValidationResult>
         component={WindowsDesktopAccessSpecSection}
         defaultValue={newAccessSpec('windows_desktop')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -566,6 +583,63 @@ describe('WindowsDesktopAccessSpecSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
+  });
+});
+
+describe('AccessRules', () => {
+  const setup = () => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<RuleModel[], AccessRuleValidationResult[]>
+        component={AccessRules}
+        defaultValue={[]}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={rules => rules.map(validateAccessRule)}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { user, onChange } = setup();
+    await user.click(screen.getByRole('button', { name: 'Add New' }));
+    await selectEvent.select(screen.getByLabelText('Resources'), [
+      'db',
+      'node',
+    ]);
+    await selectEvent.select(screen.getByLabelText('Permissions'), [
+      'list',
+      'read',
+    ]);
+    expect(onChange).toHaveBeenLastCalledWith([
+      {
+        id: expect.any(String),
+        resources: [
+          { label: ResourceKind.Database, value: 'db' },
+          { label: ResourceKind.Node, value: 'node' },
+        ],
+        verbs: [
+          { label: 'list', value: 'list' },
+          { label: 'read', value: 'read' },
+        ],
+      },
+    ] as RuleModel[]);
+  });
+
+  test('validation', async () => {
+    const { user, validator } = setup();
+    await user.click(screen.getByRole('button', { name: 'Add New' }));
+    act(() => validator.validate());
+    expect(
+      screen.getByText('At least one resource kind is required')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('At least one permission is required')
+    ).toBeInTheDocument();
   });
 });
 
