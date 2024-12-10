@@ -410,6 +410,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListUsers",
 			"iam:GetUser",
 			"iam:ListRoles",
+			"iam:GetRole",
 			"iam:ListGroups",
 			"iam:ListPolicies",
 			"iam:ListGroupsForUser",
