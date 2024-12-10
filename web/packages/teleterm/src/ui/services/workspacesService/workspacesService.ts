@@ -300,23 +300,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
      */
     isAtDesiredWorkspace: boolean;
   }> {
-    const setWorkspace = () => {
-      this.setState(draftState => {
-        // adding a new workspace
-        if (!draftState.workspaces[clusterUri]) {
-          draftState.workspaces[clusterUri] =
-            this.getWorkspaceDefaultState(clusterUri);
-        }
-        draftState.rootClusterUri = clusterUri;
-      });
-    };
-
-    // empty cluster URI - no cluster selected
     if (!clusterUri) {
       this.setState(draftState => {
         draftState.rootClusterUri = undefined;
       });
-      return Promise.resolve({ isAtDesiredWorkspace: true });
+      return { isAtDesiredWorkspace: true };
     }
 
     let cluster = this.clustersService.findCluster(clusterUri);
@@ -328,7 +316,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.logger.warn(
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
-      return Promise.resolve({ isAtDesiredWorkspace: false });
+      return { isAtDesiredWorkspace: false };
     }
 
     if (cluster.profileStatusError) {
@@ -353,51 +341,51 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       }
     }
 
-    return new Promise<void>((resolve, reject) => {
-      if (cluster.connected) {
-        setWorkspace();
-        return resolve();
+    if (!cluster.connected) {
+      const connected = await new Promise<boolean>(resolve =>
+        this.modalsService.openRegularDialog({
+          kind: 'cluster-connect',
+          clusterUri,
+          reason: undefined,
+          prefill,
+          onCancel: () => resolve(false),
+          onSuccess: () => resolve(true),
+        })
+      );
+      if (!connected) {
+        return { isAtDesiredWorkspace: false };
       }
-      this.modalsService.openRegularDialog({
-        kind: 'cluster-connect',
-        clusterUri,
-        reason: undefined,
-        prefill,
-        onCancel: () => {
-          reject();
-        },
-        onSuccess: () => {
-          setWorkspace();
-          resolve();
-        },
-      });
-    }).then(
-      () => {
-        return new Promise<{ isAtDesiredWorkspace: boolean }>(resolve => {
-          const previousWorkspaceState =
-            this.getWorkspace(clusterUri)?.previous;
-          if (!previousWorkspaceState) {
-            return resolve({ isAtDesiredWorkspace: true });
-          }
-          const numberOfDocuments = previousWorkspaceState.documents.length;
+    }
+    // If we don't have a workspace for this cluster, add it.
+    this.setState(draftState => {
+      if (!draftState.workspaces[clusterUri]) {
+        draftState.workspaces[clusterUri] =
+          this.getWorkspaceDefaultState(clusterUri);
+      }
+      draftState.rootClusterUri = clusterUri;
+    });
 
-          this.modalsService.openRegularDialog({
-            kind: 'documents-reopen',
-            rootClusterUri: clusterUri,
-            numberOfDocuments,
-            onConfirm: () => {
-              this.reopenPreviousDocuments(clusterUri);
-              resolve({ isAtDesiredWorkspace: true });
-            },
-            onCancel: () => {
-              this.discardPreviousDocuments(clusterUri);
-              resolve({ isAtDesiredWorkspace: true });
-            },
-          });
-        });
-      },
-      () => ({ isAtDesiredWorkspace: false }) // catch ClusterConnectDialog cancellation
+    const previousWorkspaceState = this.getWorkspace(clusterUri)?.previous;
+    if (!previousWorkspaceState) {
+      return { isAtDesiredWorkspace: true };
+    }
+
+    const reopen = await new Promise<boolean>(resolve =>
+      this.modalsService.openRegularDialog({
+        kind: 'documents-reopen',
+        rootClusterUri: clusterUri,
+        numberOfDocuments: previousWorkspaceState.documents.length,
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false),
+      })
     );
+    if (reopen) {
+      this.reopenPreviousDocuments(clusterUri);
+    } else {
+      this.discardPreviousDocuments(clusterUri);
+    }
+
+    return { isAtDesiredWorkspace: true };
   }
 
   removeWorkspace(clusterUri: RootClusterUri): void {
