@@ -33,6 +33,7 @@ import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
 import StyledXterm from '../../StyledXterm';
+import { Document } from 'teleport/Console/stores';
 
 export interface TerminalProps {
   tty: Tty;
@@ -43,6 +44,7 @@ export interface TerminalProps {
   convertEol?: boolean;
   // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
+  doc?: Document;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -73,6 +75,13 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     termCtrl.open();
 
     const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
+      // Handle CTRL-C special case for database sessions.
+      // TODO(gabrielcorado): remove this once the server can properly handle it.
+      if (props.doc?.kind === 'db' && event.ctrlKey && event.key == 'c') {
+        return false;
+      }
+
+
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;

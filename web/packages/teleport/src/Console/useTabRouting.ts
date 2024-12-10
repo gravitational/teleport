@@ -19,7 +19,7 @@
 import React from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
 
-import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
+import cfg, { UrlDbConnectParams, UrlKubeExecParams, UrlSshParams } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
@@ -35,6 +35,7 @@ export default function useRouting(ctx: ConsoleContext) {
   const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
     cfg.routes.consoleSession
   );
+  const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(cfg.routes.dbConnect);
 
   // Ensure that each URL has corresponding document
   React.useMemo(() => {
@@ -58,6 +59,8 @@ export default function useRouting(ctx: ConsoleContext) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
       ctx.addKubeExecDocument(kubeExecRouteMatch.params);
+    } else if (dbConnectMatch) {
+      ctx.addDbDocument(dbConnectMatch.params);
     }
   }, [ctx, pathname]);
 
