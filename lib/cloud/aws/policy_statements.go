@@ -429,6 +429,13 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+
+			// Policy generation
+			// https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-policy-generation.html
+			"cloudtrail:GetTrail",
+			"iam:GetServiceLastAccessedDetails",
+			"iam:GenerateServiceLastAccessedDetails",
+			"s3:GetObject", // TODO: scope this down to the object containing report
 		},
 		Resources: allResources,
 	}
