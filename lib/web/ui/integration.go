@@ -346,7 +346,7 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
-// AWSOIDCDeployedDatabaseService represents an Teleport Database Service that is deployed in Amazon ECS.
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
 type AWSOIDCDeployedDatabaseService struct {
 	// Name is the ECS Service name.
 	Name string `json:"name,omitempty"`
