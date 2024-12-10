@@ -31,6 +31,9 @@ import (
 const (
 	GithubURL    = "https://github.com"
 	GithubAPIURL = "https://api.github.com"
+
+	// GitHubSSHServerAddr is the public SSH address for "github.com".
+	GitHubSSHServerAddr = "github.com:22"
 )
 
 // GithubConnector defines an interface for a Github OAuth2 connector

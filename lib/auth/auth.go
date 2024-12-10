@@ -3214,6 +3214,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
 		githubUserID = githubIdentities[0].UserID
 		githubUsername = githubIdentities[0].Username
+		allowedLogins = append(allowedLogins, teleport.SSHGitPrincipal)
 	}
 
 	var signedSSHCert []byte

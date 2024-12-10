@@ -4333,6 +4333,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	gitServerWatcher, err := services.NewGitServerWatcher(process.ExitContext(), services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentProxy,
+			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
+		},
+		GitServerGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -4448,6 +4461,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,
+				GitServerWatcher:      gitServerWatcher,
 				CertAuthorityWatcher:  caWatcher,
 				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),

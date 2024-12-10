@@ -185,6 +185,11 @@ func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, readon
 	return s.srv.NodeWatcher, nil
 }
 
+// GitServerWatcher returns a Git server watcher for this cluster.
+func (s *localSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	return s.srv.GitServerWatcher, nil
+}
+
 // GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil
@@ -240,6 +245,10 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
+	// forward to "github.com" from Proxy
+	if params.TargetServer != nil && params.TargetServer.GetGitHub() != nil {
+		return true
+	}
 	// proxy session recording mode is being used and an SSH session
 	// is being requested, the connection must be forwarded
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
@@ -260,7 +269,6 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 	if shouldDialAndForward(params, recConfig) {
 		return s.dialAndForward(params)
 	}
-
 	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
