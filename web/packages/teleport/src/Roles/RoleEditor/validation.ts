@@ -63,7 +63,10 @@ function validateMetadata(model: MetadataModel): MetadataValidationResult {
   return runRules(model, metadataRules);
 }
 
-const metadataRules = { name: requiredField('Role name is required') };
+const metadataRules = {
+  name: requiredField('Role name is required'),
+  labels: nonEmptyLabels,
+};
 export type MetadataValidationResult = RuleSetValidationResult<
   typeof metadataRules
 >;
