@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -101,7 +102,14 @@ func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSR
 	},
 		func(page *iam.ListRolesOutput, lastPage bool) bool {
 			for _, role := range page.Roles {
-				roles = append(roles, awsRoleToProtoRole(role, a.AccountID))
+				role2, err := iamClient.GetRoleWithContext(ctx, &iam.GetRoleInput{
+					RoleName: role.RoleName,
+				})
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to fetch role", "name", aws.ToString(role.RoleName), "error", err)
+					continue
+				}
+				roles = append(roles, awsRoleToProtoRole(role2.Role, a.AccountID))
 			}
 			return !lastPage
 		},
