@@ -19,6 +19,8 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+
 import makeNode from '../nodes/makeNode';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import { App } from '../apps';
@@ -60,6 +62,7 @@ import {
   AwsOidcPingResponse,
   AwsOidcPingRequest,
   IntegrationWithSummary,
+  IntegrationDiscoveryRules,
 } from './types';
 
 export const integrationService = {
@@ -427,6 +430,20 @@ export const integrationService = {
     return api.get(cfg.getIntegrationStatsUrl(name)).then(resp => {
       return resp;
     });
+  },
+
+  fetchIntegrationRules(
+    name: string,
+    resourceType: AwsResource
+  ): Promise<IntegrationDiscoveryRules> {
+    return api
+      .get(cfg.getIntegrationRulesUrl(name, resourceType))
+      .then(resp => {
+        return {
+          rules: resp?.rules || [],
+          nextKey: resp?.nextKey,
+        };
+      });
   },
 };
 

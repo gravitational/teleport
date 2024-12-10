@@ -20,14 +20,23 @@ import React from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { ButtonIcon, Flex, Label, Text } from 'design';
-import { ArrowLeft } from 'design/Icon';
+import { ArrowLeft, ChevronRight } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+
+import Link from 'design/Link';
 
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import { Integration } from 'teleport/services/integrations';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 
-export function AwsOidcHeader({ integration }: { integration: Integration }) {
+export function AwsOidcHeader({
+  integration,
+  resource = undefined,
+}: {
+  integration: Integration;
+  resource?: AwsResource;
+}) {
   const { status, labelKind } = getStatusAndLabel(integration);
   return (
     <Flex alignItems="center">
@@ -40,10 +49,30 @@ export function AwsOidcHeader({ integration }: { integration: Integration }) {
           <ArrowLeft size="medium" />
         </ButtonIcon>
       </HoverTooltip>
-      <Text bold fontSize={6} mx={2}>
-        {integration.name}
-      </Text>
-      <Label kind={labelKind} aria-label="status" px={3}>
+      {!resource ? (
+        <Text bold fontSize={6} mx={2}>
+          {integration.name}
+        </Text>
+      ) : (
+        <>
+          <Link
+            color="text.main"
+            href={cfg.getIntegrationStatusRoute(
+              integration.kind,
+              integration.name
+            )}
+          >
+            <Text bold fontSize={6} mx={2}>
+              {integration.name}
+            </Text>
+          </Link>
+          <ChevronRight />
+          <Text bold fontSize={6}>
+            {resource.toUpperCase()}
+          </Text>
+        </>
+      )}
+      <Label kind={labelKind} aria-label="status" px={3} ml={3}>
         {status}
       </Label>
     </Flex>
