@@ -76,10 +76,21 @@ WantedBy={{.TeleportService}}
 [Service]
 Environment=TELEPORT_UPDATE_CONFIG_FILE={{.UpdaterConfigFile}}
 `
-
+	// This configuration sets the default value for needrestart-trigger automatic restarts for teleport.service to disabled.
+	// Users may still choose to enable needrestart for teleport.service when installing packaging interactively (or via dpkg config),
+	// but doing so will result in a hard restart that disconnects the agent whenever any dependent libraries are updated.
+	// Other network services, like openvpn, follow this pattern.
+	// It is possible to configure needrestart to trigger a soft restart (via restart.d script), but given that Teleport subprocesses
+	// can use a wide variety of installed binaries (when executed by the user), this could trigger many unexpected reloads.
 	needrestartConfTemplate = `$nrconf{override_rc}{qr(^{{replace .TeleportService "." "\\."}})} = 0;
 `
 )
+
+type confParams struct {
+	TeleportService   string
+	UpdaterCommand    string
+	UpdaterConfigFile string
+}
 
 // Namespace represents a namespace within various system paths for a isolated installation of Teleport.
 type Namespace struct {
@@ -246,34 +257,21 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context) error {
 	if ns.name != "" {
 		args = " --install-suffix=" + ns.name
 	}
-	err := writeTemplate(ns.updaterServiceFile, updateServiceTemplate,
-		struct {
-			UpdaterCommand string
-		}{
-			ns.updaterBinFile + args + " update",
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	teleportService := filepath.Base(ns.serviceFile)
-	err = writeTemplate(ns.updaterTimerFile, updateTimerTemplate,
-		struct {
-			TeleportService string
-		}{
-			teleportService,
-		},
-	)
+	params := confParams{
+		TeleportService:   teleportService,
+		UpdaterCommand:    ns.updaterBinFile + args + " update",
+		UpdaterConfigFile: ns.updaterConfigFile,
+	}
+	err := writeTemplate(ns.updaterServiceFile, updateServiceTemplate, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = writeTemplate(ns.dropInFile, teleportDropInTemplate,
-		struct {
-			UpdaterConfigFile string
-		}{
-			ns.updaterConfigFile,
-		},
-	)
+	err = writeTemplate(ns.updaterTimerFile, updateTimerTemplate, params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = writeTemplate(ns.dropInFile, teleportDropInTemplate, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -287,13 +285,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context) error {
 		return nil
 	}
 	ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, teleportService)
-	err = writeTemplate(ns.needrestartConfFile, needrestartConfTemplate,
-		struct {
-			TeleportService string
-		}{
-			teleportService,
-		},
-	)
+	err = writeTemplate(ns.needrestartConfFile, needrestartConfTemplate, params)
 	if err != nil {
 		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
 		return nil
