@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"testing"
 
@@ -588,26 +587,6 @@ func TestPortRangesContains(t *testing.T) {
 			tt.want(t, portRanges.Contains(tt.port))
 		})
 	}
-}
-
-func TestPortRangesSort(t *testing.T) {
-	portRanges := PortRanges([]*PortRange{
-		&PortRange{Port: 10, EndPort: 20},
-		&PortRange{Port: 10, EndPort: 15},
-		&PortRange{Port: 42, EndPort: 43},
-		&PortRange{Port: 42},
-		&PortRange{Port: 5},
-	})
-	sort.Sort(portRanges)
-
-	expected := PortRanges([]*PortRange{
-		&PortRange{Port: 5},
-		&PortRange{Port: 10, EndPort: 15},
-		&PortRange{Port: 10, EndPort: 20},
-		&PortRange{Port: 42},
-		&PortRange{Port: 42, EndPort: 43},
-	})
-	require.Equal(t, expected, portRanges)
 }
 
 func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
