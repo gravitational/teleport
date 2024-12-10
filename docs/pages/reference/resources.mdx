@@ -222,10 +222,17 @@ Global cluster configuration options for authentication.
 metadata:
   name: cluster-auth-preference
 spec:
-  # Sets the type of second factor to use.
+  # Sets the list of allowed second factors for the cluster. 
+  # Possible values: "otp" and "webauthn".
+  # Defaults to ["otp"].
+  second_factors: ["webauthn", "otp"]
+
+  # second_factors is the list of allowed second factors for the cluster.
   # Possible values: "on", "otp" and "webauthn"
   # If "on" is set, all MFA protocols are supported.
-  second_factor: "otp"
+  #
+  # Prefer setting second_factors instead.
+  #second_factor: "webauthn"
 
   # The name of the OIDC or SAML connector. if this is not set, the first connector in the backend is used.
   connector_name: ""
