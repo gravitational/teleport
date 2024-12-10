@@ -109,6 +109,7 @@ func initCache(srv *auth.Server, args CacheArgs) error {
 		DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
 		PluginStaticCredentials: svces.PluginStaticCredentials,
 		GitServers:              svces.GitServers,
+		WorkloadIdentity:        svces.WorkloadIdentities,
 	})
 	if err != nil {
 		return trace.Wrap(err)
