@@ -414,6 +414,64 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 	d.issuesSyncQueue[g] = struct{}{}
 }
 
+// awsEKSTasks contains the Discover EKS User Tasks that must be reported to the user.
+type awsEKSTasks struct {
+	mu sync.RWMutex
+	// clusterIssues maps the Discover EKS User Task grouping parts to a set of clusters metadata.
+	clusterIssues map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster
+	// issuesSyncQueue is used to register which groups were changed in memory but were not yet sent to the cluster.
+	// When upserting User Tasks, if the group is not in issuesSyncQueue,
+	// then the cluster already has the latest version of this particular group.
+	issuesSyncQueue map[awsEKSTaskKey]struct{}
+}
+
+// awsEKSTaskKey identifies a UserTask group.
+type awsEKSTaskKey struct {
+	integration     string
+	issueType       string
+	accountID       string
+	region          string
+	appAutoDiscover bool
+}
+
+// iterationStarted clears out any in memory issues that were recorded.
+// This is used when starting a new Auto Discover EKS watcher iteration.
+func (d *awsEKSTasks) reset() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.clusterIssues = make(map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster)
+	d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
+}
+
+// addFailedEnrollment adds an enrollment failure of a given cluster.
+func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.DiscoverEKSCluster) {
+	// Only failures associated with an Integration are reported.
+	// There's no major blocking for showing non-integration User Tasks, but this keeps scope smaller.
+	if g.integration == "" {
+		return
+	}
+
+	if g.issueType == "" {
+		return
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.clusterIssues == nil {
+		d.clusterIssues = make(map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster)
+	}
+	if _, ok := d.clusterIssues[g]; !ok {
+		d.clusterIssues[g] = make(map[string]*usertasksv1.DiscoverEKSCluster)
+	}
+	d.clusterIssues[g][cluster.Name] = cluster
+
+	if d.issuesSyncQueue == nil {
+		d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
+	}
+	d.issuesSyncQueue[g] = struct{}{}
+}
+
 // acquireSemaphoreForUserTask tries to acquire a semaphore lock for this user task.
 // It returns a func which must be called to release the lock.
 // It also returns a context which is tied to the lease and will be canceled if the lease ends.
@@ -571,4 +629,111 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 
 		delete(s.awsEC2Tasks.issuesSyncQueue, g)
 	}
+}
+
+func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
+	s.awsEKSTasks.mu.Lock()
+	defer s.awsEKSTasks.mu.Unlock()
+	for g := range s.awsEKSTasks.issuesSyncQueue {
+		clustersIssueByID := s.awsEKSTasks.clusterIssues[g]
+		if len(clustersIssueByID) == 0 {
+			continue
+		}
+
+		if err := s.mergeUpsertDiscoverEKSTask(g, clustersIssueByID); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to create discover eks user task",
+				"integration", g.integration,
+				"issue_type", g.issueType,
+				"aws_account_id", g.accountID,
+				"aws_region", g.region,
+				"error", err,
+			)
+			continue
+		}
+
+		delete(s.awsEKSTasks.issuesSyncQueue, g)
+	}
+}
+
+// mergeUpsertDiscoverEKSTask takes the current DiscoverEKS User Task issues stored in memory and
+// merges them against the ones that exist in the cluster.
+//
+// All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
+func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters map[string]*usertasksv1.DiscoverEKSCluster) error {
+	userTaskName := usertasks.TaskNameForDiscoverEKS(usertasks.TaskNameForDiscoverEKSParts{
+		Integration:     taskGroup.integration,
+		IssueType:       taskGroup.issueType,
+		AccountID:       taskGroup.accountID,
+		Region:          taskGroup.region,
+		AppAutoDiscover: taskGroup.appAutoDiscover,
+	})
+
+	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(userTaskName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseFn()
+
+	// Fetch the current task because it might have instances discovered by another group of DiscoveryServices.
+	currentUserTask, err := s.AccessPoint.GetUserTask(ctxWithLease, userTaskName)
+	switch {
+	case trace.IsNotFound(err):
+	case err != nil:
+		return trace.Wrap(err)
+	default:
+		failedClusters = s.discoverEKSUserTaskAddExistingClusters(currentUserTask, failedClusters)
+	}
+
+	// If the DiscoveryService is stopped, or the issue does not happen again
+	// the task is removed to prevent users from working on issues that are no longer happening.
+	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
+
+	task, err := usertasks.NewDiscoverEKSUserTask(
+		&usertasksv1.UserTaskSpec{
+			Integration: taskGroup.integration,
+			TaskType:    usertasks.TaskTypeDiscoverEKS,
+			IssueType:   taskGroup.issueType,
+			State:       usertasks.TaskStateOpen,
+			DiscoverEks: &usertasksv1.DiscoverEKS{
+				Clusters:        failedClusters,
+				AccountId:       taskGroup.accountID,
+				Region:          taskGroup.region,
+				AppAutoDiscover: taskGroup.appAutoDiscover,
+			},
+		},
+		usertasks.WithExpiration(taskExpiration),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := s.AccessPoint.UpsertUserTask(ctxWithLease, task); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// discoverEKSUserTaskAddExistingClusters takes the UserTask stored in the cluster and merges it into the existing map of failed clusters.
+func (s *Server) discoverEKSUserTaskAddExistingClusters(currentUserTask *usertasksv1.UserTask, failedClusters map[string]*usertasksv1.DiscoverEKSCluster) map[string]*usertasksv1.DiscoverEKSCluster {
+	for existingClusterName, existingCluster := range currentUserTask.Spec.DiscoverEks.Clusters {
+		// Each DiscoveryService works on all the DiscoveryConfigs assigned to a given DiscoveryGroup.
+		// So, it's safe to say that current DiscoveryService has the last state for a given DiscoveryGroup.
+		// If other clusters exist for this DiscoveryGroup, they can be discarded because, as said before, the current DiscoveryService has the last state for a given DiscoveryGroup.
+		if existingCluster.DiscoveryGroup == s.DiscoveryGroup {
+			continue
+		}
+
+		// For existing clusters whose sync time is too far in the past, just drop them.
+		// This ensures that if a cluster is removed from AWS, it will eventually disappear from the User Tasks' cluster list.
+		// It might also be the case that the DiscoveryConfig was changed and the cluster is no longer matched (because of labels/regions or other matchers).
+		clusterIssueExpiration := s.clock.Now().Add(-2 * s.PollInterval)
+		if existingCluster.SyncTime.AsTime().Before(clusterIssueExpiration) {
+			continue
+		}
+
+		// Merge existing cluster state into in-memory object.
+		failedClusters[existingClusterName] = existingCluster
+	}
+	return failedClusters
 }

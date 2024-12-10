@@ -27,8 +27,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -75,6 +77,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: func() {
 			s.awsEKSResourcesStatus.reset()
+			s.awsEKSTasks.reset()
 		},
 	})
 	if err != nil {
@@ -199,6 +202,7 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfig string, 
 		mu.Unlock()
 
 		s.updateDiscoveryConfigStatus(discoveryConfig)
+		s.upsertTasksForAWSEKSFailedEnrollments()
 	}()
 
 	// We sort input clusters into two batches - one that has Kubernetes App Discovery
@@ -212,8 +216,10 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfig string, 
 	var clusterNames []string
 
 	for _, kubeAppDiscovery := range []bool{true, false} {
+		clustersByName := make(map[string]types.DiscoveredEKSCluster)
 		for _, c := range batchedClusters[kubeAppDiscovery] {
 			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
+			clustersByName[c.GetAWSConfig().Name] = c
 		}
 		if len(clusterNames) == 0 {
 			continue
@@ -242,10 +248,28 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfig string, 
 					integration:     integration,
 				}, 1)
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.EksClusterName, "error", err)
+					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.EksClusterName, "issue_type", r.IssueType, "error", r.Error)
 				} else {
 					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
 				}
+
+				cluster := clustersByName[r.EksClusterName]
+				s.awsEKSTasks.addFailedEnrollment(
+					awsEKSTaskKey{
+						integration:     integration,
+						issueType:       r.IssueType,
+						accountID:       cluster.GetAWSConfig().AccountID,
+						region:          cluster.GetAWSConfig().Region,
+						appAutoDiscover: kubeAppDiscovery,
+					},
+					&usertasksv1.DiscoverEKSCluster{
+						DiscoveryConfig: discoveryConfig,
+						DiscoveryGroup:  s.DiscoveryGroup,
+						SyncTime:        timestamppb.New(s.clock.Now()),
+						Name:            cluster.GetAWSConfig().Name,
+					},
+				)
+				s.upsertTasksForAWSEKSFailedEnrollments()
 			} else {
 				s.Log.InfoContext(ctx, "Successfully enrolled EKS cluster", "cluster_name", r.EksClusterName)
 			}
