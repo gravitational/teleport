@@ -77,11 +77,24 @@ follow the steps below:
    URL handler).
 3. Make sure Teleport Connect can access the same resource you are trying to
    access on the Web
-4. Ask your cluster administrator if device trust is enabled (cluster mode
+4. Ask your cluster administrator if Device Trust is enabled (cluster mode
    "optional" or higher)
 
-If all of the above steps are done, try logging out from the Web UI and logging
-in again.
+After the steps above are done try logging out from the Web UI and logging in
+again. If the error persists, check your audit log for failed "device
+authenticated" or "device web" events and look for failure details within the
+events.
+
+### "device web authentication IP mismatch" errors
+
+"IP mismatch" errors in audit logs indicate that the IP checks performed by the
+device web authentication ceremony failed. In this case it's likely that
+end-user IPs are not propagated correctly to your Teleport deployment.
+
+* L7 load balancer: make sure it propagates the [X-Forwarded-For header](
+  ../../reference/config.mdx#proxy-service)
+* L4 load balancer: enable [PROXY protocol](
+  ../../admin-guides/management/security/proxy-protocol.mdx)
 
 ### Checking Device Trust authorization status in the web UI
 
