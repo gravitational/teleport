@@ -44,7 +44,7 @@ func NewWorkloadIdentityService(b backend.Backend) (*WorkloadIdentityService, er
 		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentity]{
 			Backend:       b,
 			ResourceKind:  types.KindWorkloadIdentity,
-			BackendPrefix: backend.NewKey(workloadIdentityPrefix),
+			BackendPrefix: workloadIdentityPrefix,
 			MarshalFunc:   services.MarshalWorkloadIdentity,
 			UnmarshalFunc: services.UnmarshalWorkloadIdentity,
 			ValidateFunc:  services.ValidateWorkloadIdentity,
