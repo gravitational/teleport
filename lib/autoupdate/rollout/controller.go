@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	reconcilerPeriod = time.Minute
+	defaultReconcilerPeriod = time.Minute
 )
 
 // Controller wakes up every minute to reconcile the autoupdate_agent_rollout resource.
@@ -43,10 +43,14 @@ type Controller struct {
 	reconciler reconciler
 	clock      clockwork.Clock
 	log        *slog.Logger
+	period     time.Duration
 }
 
 // NewController creates a new Controller for the autoupdate_agent_rollout kind.
-func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Controller, error) {
+// The period can be specified to control the sync frequency. This is mainly
+// used to speed up tests or for demo purposes. When empty, the controller picks
+// a sane default value.
+func NewController(client Client, log *slog.Logger, clock clockwork.Clock, period time.Duration) (*Controller, error) {
 	if client == nil {
 		return nil, trace.BadParameter("missing client")
 	}
@@ -55,6 +59,10 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Con
 	}
 	if clock == nil {
 		return nil, trace.BadParameter("missing clock")
+	}
+
+	if period <= 0 {
+		period = defaultReconcilerPeriod
 	}
 
 	return &Controller{
@@ -67,14 +75,15 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock) (*Con
 				// TODO(hugoShaka): add the strategies here as we implement them
 			},
 		},
+		period: period,
 	}, nil
 }
 
 // Run the autoupdate_agent_rollout controller. This function returns only when its context is canceled.
 func (c *Controller) Run(ctx context.Context) error {
 	config := interval.Config{
-		Duration:      reconcilerPeriod,
-		FirstDuration: reconcilerPeriod,
+		Duration:      c.period,
+		FirstDuration: c.period,
 		Jitter:        retryutils.SeventhJitter,
 		Clock:         c.clock,
 	}

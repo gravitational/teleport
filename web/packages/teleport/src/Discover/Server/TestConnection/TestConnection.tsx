@@ -39,7 +39,7 @@ import { NodeMeta } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export function TestConnection(props: AgentStepProps) {
   const {
@@ -65,7 +65,7 @@ export function TestConnection(props: AgentStepProps) {
     openNewTab(url);
   }
 
-  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+  function testConnection(login: string, mfaResponse?: MfaChallengeResponse) {
     runConnectionDiagnostic(
       {
         resourceKind: 'node',
