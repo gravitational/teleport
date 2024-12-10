@@ -271,7 +271,9 @@ test('adding an MFA device', async () => {
 
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add MFA' }));
-  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  await waitFor(async () => {
+    user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  });
   await user.click(
     screen.getByRole('button', { name: 'Create an MFA method' })
   );
@@ -318,7 +320,9 @@ test('adding a passkey', async () => {
 
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add a Passkey' }));
-  await user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  await waitFor(async () => {
+    user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+  });
   await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
   await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
 
