@@ -293,9 +293,8 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && !isAdmin(authCtx) {
-		return nil, trace.AccessDenied("only role %q is allowed to modifying %q in cloud",
-			types.RoleAdmin, types.KindAutoUpdateVersion)
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate); err != nil {
@@ -339,9 +338,8 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && !isAdmin(authCtx) {
-		return nil, trace.AccessDenied("only role %q is allowed to modifying %q in cloud",
-			types.RoleAdmin, types.KindAutoUpdateVersion)
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbUpdate); err != nil {
@@ -385,9 +383,8 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && !isAdmin(authCtx) {
-		return nil, trace.AccessDenied("only role %q is allowed to modifying %q in cloud",
-			types.RoleAdmin, types.KindAutoUpdateVersion)
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -431,9 +428,8 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && !isAdmin(authCtx) {
-		return nil, trace.AccessDenied("only role %q is allowed to modifying %q in cloud",
-			types.RoleAdmin, types.KindAutoUpdateVersion)
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbDelete); err != nil {
@@ -611,7 +607,13 @@ func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 	}
 }
 
-// isAdmin returns true if the given context has the builtin admin role.
-func isAdmin(authCtx *authz.Context) bool {
-	return authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
+// checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
+			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
+			"opt-out or configure update schedules.",
+			types.KindAutoUpdateVersion, types.KindAutoUpdateConfig)
+	}
+	return nil
 }
