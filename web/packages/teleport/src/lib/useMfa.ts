@@ -77,6 +77,6 @@ export function makeDefaultMfaState(): MfaState {
     mfaChallenge: null,
     submitAttempt: makeEmptyAttempt(),
     submitMfa: () => null,
-    mfaRequired: false,
+    mfaRequired: true,
   };
 }
