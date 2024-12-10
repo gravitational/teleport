@@ -1069,9 +1069,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
 	}
-	if r.Spec.Options.PortForwarding == nil {
-		r.Spec.Options.PortForwarding = NewBoolOption(true)
-	}
 	if len(r.Spec.Options.BPF) == 0 {
 		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
