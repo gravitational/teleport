@@ -255,7 +255,9 @@ type ProfileStatus struct {
 
 // GitHubIdentity is the GitHub identity attached to the user.
 type GitHubIdentity struct {
-	UserID   string
+	// UserID is the unique ID of the GitHub user.
+	UserID string
+	// Username is the GitHub username.
 	Username string
 }
 

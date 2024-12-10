@@ -878,6 +878,9 @@ type CreateUserParams struct {
 	// Username is the Teleport user name .
 	Username string
 
+	// UserID is the unique ID of the GitHub user.
+	UserID string
+
 	// KubeGroups is the list of Kubernetes groups this user belongs to.
 	KubeGroups []string
 
@@ -898,6 +901,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,
+		UserID:        claims.UserID,
 	}
 
 	// Calculate logins, kubegroups, roles, and traits.
@@ -961,6 +965,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 			GithubIdentities: []types.ExternalIdentity{{
 				ConnectorID: p.ConnectorName,
 				Username:    p.Username,
+				UserID:      p.UserID,
 			}},
 			CreatedBy: types.CreatedBy{
 				User: types.UserRef{Name: teleport.UserSystem},

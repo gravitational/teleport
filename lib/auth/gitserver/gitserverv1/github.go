@@ -39,6 +39,12 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	if err := types.ValidateGitHubOrganizationName(in.Organization); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if in.Request.SSOTestFlow {
+		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
+	}
+	if in.Request.CreateWebSession {
+		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
+	}
 
 	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.Organization)
 	if err != nil {
