@@ -72,6 +72,16 @@ type UserTasksListResponse struct {
 	NextKey string `json:"nextKey"`
 }
 
+// UserTasksListDetailedResponse contains a list of UserTaskDetail.
+// In case of exceeding the pagination limit (either via query param `limit` or the default 1000)
+// a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
+type UserTasksListDetailedResponse struct {
+	// Items is a list of resources retrieved.
+	Items []UserTaskDetail `json:"items"`
+	// NextKey is the position to resume listing events.
+	NextKey string `json:"nextKey"`
+}
+
 // MakeUserTasks creates a UI list of UserTasks.
 func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 	uiList := make([]UserTask, 0, len(uts))

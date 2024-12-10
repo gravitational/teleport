@@ -57,6 +57,9 @@ message UserTaskSpec {
   // DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
   // Present when TaskType is discover-ec2.
   DiscoverEC2 discover_ec2 = 5;
+  // AccessGraph contains the risk factors that were detected in the cluster.
+  // Present when TaskType is access-graph.
+  AccessGraph access_graph = 6;
 }
 
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
@@ -73,6 +76,25 @@ message DiscoverEC2 {
   string ssm_document = 4;
   // InstallerScript is the Teleport installer script that was used to install teleport on the instance.
   string installer_script = 5;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_LOW = 1;
+  SEVERITY_MEDIUM = 2;
+  SEVERITY_HIGH = 3;
+  SEVERITY_CRITICAL = 4;
+}
+
+message RiskFactor {
+  string name = 1;
+  Severity severity = 2;
+}
+
+// AccessGraph contains the instances that failed to auto-enroll into the cluster.
+message AccessGraph {
+  Severity severity = 1;
+  repeated RiskFactor risk_factors = 2;
 }
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.

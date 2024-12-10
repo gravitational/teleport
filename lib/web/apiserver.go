@@ -1039,6 +1039,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Tasks CRUD
 	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
 	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
+	h.GET("/webapi/sites/:site/usertasks", h.WithClusterAuth(h.userTaskList))
 	h.GET("/webapi/sites/:site/usertask/:name", h.WithClusterAuth(h.userTaskGet))
 	h.PUT("/webapi/sites/:site/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
 
