@@ -71,7 +71,7 @@ func newTeleportService(ctx context.Context, config *servicecfg.Config, name str
 	}
 	go func() {
 		defer close(t.errC)
-		t.err = svc.WaitForSignals(ctx, nil)
+		t.err = svc.Wait()
 	}()
 	t.process = svc
 
