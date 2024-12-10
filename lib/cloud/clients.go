@@ -254,7 +254,7 @@ type ClientsOption func(cfg *cloudClients)
 // NewClients returns a new instance of cloud clients retriever.
 func NewClients(opts ...ClientsOption) (Clients, error) {
 	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 15 * time.Minute,
+		TTL: 30 * time.Second,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -20,12 +20,18 @@ package utils
 
 import (
 	"encoding/base64"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/request"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 // GenAWSEKSToken creates an AWS token to access EKS clusters.
@@ -44,6 +50,8 @@ func GenAWSEKSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork
 	// generate an sts:GetCallerIdentity request and add our custom cluster ID header
 	request, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
 	request.HTTPRequest.Header.Add(clusterIDHeader, clusterID)
+	// override the Sign handler so we can control the now time for testing.
+	request.Handlers.Sign.Swap("v4.SignRequestHandler", getNamedSigningHandler(clock.Now))
 
 	// Sign the request.  The expires parameter (sets the x-amz-expires header) is
 	// currently ignored by STS, and the token expires 15 minutes after the x-amz-date
@@ -56,7 +64,64 @@ func GenAWSEKSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork
 		return "", time.Time{}, trace.Wrap(err)
 	}
 
+	logDetails(presignedURLString, clusterID)
 	// Set token expiration to 1 minute before the presigned URL expires for some cushion
 	tokenExpiration := clock.Now().Add(presignedURLExpiration - 1*time.Minute)
 	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString)), tokenExpiration, nil
+}
+
+func getNamedSigningHandler(nowFunc func() time.Time) request.NamedHandler {
+	return request.NamedHandler{
+		Name: "v4.SignRequestHandler", Fn: func(req *request.Request) {
+			v4.SignSDKRequestWithCurrentTime(req, nowFunc)
+		},
+	}
+}
+
+func logDetails(token, clusterID string) {
+
+	parsedURL, err := url.Parse(token)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"cluster": clusterID,
+		}).Error("Failed to parse token")
+		return
+	}
+	queryParamsLower := make(url.Values)
+	queryParams, err := url.ParseQuery(parsedURL.RawQuery)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"cluster": clusterID,
+		}).Error("Failed to parse token query parameters")
+		return
+	}
+
+	for key, values := range queryParams {
+		if len(values) != 1 {
+			logrus.WithFields(logrus.Fields{
+				"cluster": clusterID,
+				"key":     key,
+				"values":  values,
+			}).Warn("Unexpected number of values for query parameter")
+			continue
+		}
+		queryParamsLower.Set(strings.ToLower(key), values[0])
+	}
+
+	expires, err := strconv.Atoi(queryParamsLower.Get("x-amz-expires"))
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"cluster": clusterID,
+			"expires": expires,
+		}).WithError(err).Warn("Unexpected value for x-amz-expires")
+	}
+
+	date := queryParamsLower.Get("x-amz-date")
+	logrus.WithFields(logrus.Fields{
+		"cluster": clusterID,
+		"expires": expires,
+		"date":    date,
+		"now":     time.Now().UTC(),
+	}).Warn("Expires value for token")
+
 }
