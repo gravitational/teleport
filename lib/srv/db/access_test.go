@@ -33,7 +33,6 @@ import (
 	"testing"
 	"time"
 
-	gspanner "cloud.google.com/go/spanner"
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	elastic "github.com/elastic/go-elasticsearch/v8"
@@ -2146,7 +2145,7 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
-func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*gspanner.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*spanner.SpannerTestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolSpanner,
@@ -2159,7 +2158,7 @@ func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService
 		return nil, nil, trace.Wrap(err)
 	}
 
-	db, err := spanner.MakeTestClient(ctx, common.TestClientConfig{
+	clt, err := spanner.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient:      c.authClient,
 		AuthServer:      c.authServer,
 		Address:         proxy.GetAddr(),
@@ -2171,7 +2170,7 @@ func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return db, proxy, nil
+	return clt, proxy, nil
 }
 
 type roleOptFn func(types.Role)
@@ -2390,7 +2389,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2543,7 +2542,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

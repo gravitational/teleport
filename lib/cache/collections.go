@@ -41,6 +41,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -176,6 +177,9 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
+	gitServers                         collectionReader[services.GitServerGetter]
+	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -704,6 +708,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindWorkloadIdentity:
+			if c.Config.WorkloadIdentity == nil {
+				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
+			}
+			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -784,6 +797,33 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
 
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
+
+		case types.KindGitServer:
+			if c.GitServers == nil {
+				return nil, trace.BadParameter("missing parameter GitServers")
+			}
+			collections.gitServers = &genericCollection[
+				types.Server,
+				services.GitServerGetter,
+				gitServerExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}

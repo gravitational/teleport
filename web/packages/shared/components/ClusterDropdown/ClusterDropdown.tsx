@@ -24,7 +24,7 @@ import { ChevronDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 export interface ClusterDropdownProps {
   clusterLoader: ClusterLoader;

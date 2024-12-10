@@ -109,7 +109,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	}
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to upgrade weboscket.", "error", err)
+		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer wsConn.Close()

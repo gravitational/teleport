@@ -22,12 +22,15 @@ import (
 	"context"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -49,6 +52,23 @@ type ExportAuthoritiesRequest struct {
 	AuthType                   string
 	ExportAuthorityFingerprint string
 	UseCompatVersion           bool
+	Integration                string
+}
+
+func (r *ExportAuthoritiesRequest) shouldExportIntegration(ctx context.Context) (bool, error) {
+	switch r.AuthType {
+	case "github":
+		if r.Integration == "" {
+			return false, trace.BadParameter("integration name must be provided for %q CAs", r.AuthType)
+		}
+		return true, nil
+	default:
+		if r.Integration != "" {
+			r.Integration = ""
+			slog.DebugContext(ctx, "Integration name is ignored for non-integration CAs")
+		}
+		return false, nil
+	}
 }
 
 // ExportAuthorities returns the list of authorities in OpenSSH compatible formats as a string.
@@ -76,12 +96,22 @@ type ExportAuthoritiesRequest struct {
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func ExportAuthorities(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
+	if isIntegration, err := req.shouldExportIntegration(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if isIntegration {
+		return exportAuthForIntegration(ctx, client, req)
+	}
 	return exportAuth(ctx, client, req, false /* exportSecrets */)
 }
 
 // ExportAuthoritiesSecrets exports the Authority Certificate secrets (private keys).
 // See ExportAuthorities for more information.
 func ExportAuthoritiesSecrets(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
+	if isIntegration, err := req.shouldExportIntegration(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if isIntegration {
+		return "", trace.NotImplemented("export with secrets is not supported for %q CAs", req.AuthType)
+	}
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
 }
 
@@ -343,4 +373,50 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.Cli
 			"logins": allowedLogins,
 		},
 	})
+}
+
+func exportAuthForIntegration(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
+	switch req.AuthType {
+	case "github":
+		keySet, err := fetchIntegrationCAKeySet(ctx, client, req.Integration)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		ret, err := exportGitHubCAs(keySet, req)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return ret, nil
+
+	default:
+		return "", trace.BadParameter("unknown integration CA type %q", req.AuthType)
+	}
+}
+
+func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, integration string) (*types.CAKeySet, error) {
+	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
+		Integration: integration,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CertAuthorities, nil
+}
+
+func exportGitHubCAs(keySet *types.CAKeySet, req ExportAuthoritiesRequest) (string, error) {
+	ret := strings.Builder{}
+	for _, key := range keySet.SSH {
+		if req.ExportAuthorityFingerprint != "" {
+			if fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey); err != nil {
+				return "", trace.Wrap(err)
+			} else if !sshutils.EqualFingerprints(req.ExportAuthorityFingerprint, fingerprint) {
+				continue
+			}
+		}
+
+		// GitHub only needs the keys like "ssh-rsa xxx" so print them without
+		// cert-authority for easier copy-and-paste.
+		ret.WriteString(fmt.Sprintf("%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration))
+	}
+	return ret.String(), nil
 }
