@@ -5465,8 +5465,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
+		Authorizer:               cfg.Authorizer,
+		Backend:                  cfg.AuthServer.Services,
+		ProxyPublicAddrGetter:    cfg.AuthServer.getProxyPublicAddr,
+		GitHubAuthRequestCreator: cfg.AuthServer.CreateGithubAuthRequest,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

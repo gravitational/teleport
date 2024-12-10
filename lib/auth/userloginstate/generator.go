@@ -132,15 +132,24 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 }
 
 // Generate will generate the user login state for the given user.
-func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+func (g *Generator) Generate(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
 	var originalTraits map[string][]string
 	var traits map[string][]string
+	var githubIdentity *userloginstate.ExternalIdentity
 	if len(user.GetTraits()) > 0 {
 		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
 			originalTraits[k] = utils.CopyStrings(v)
 			traits[k] = utils.CopyStrings(v)
+		}
+	}
+
+	// Only expecting one for now.
+	if githubIdentities := user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubIdentity = &userloginstate.ExternalIdentity{
+			UserID:   githubIdentities[0].UserID,
+			Username: githubIdentities[0].Username,
 		}
 	}
 
@@ -155,6 +164,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 			Roles:          utils.CopyStrings(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
+			GitHubIdentity: githubIdentity,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -163,6 +173,13 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	// Generate the user login state.
 	inheritedRoles, inheritedTraits, err := g.addAccessListsToState(ctx, user, uls)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Preserve states like GitHub identities across logins.
+	// TODO(greedy52) implement a way to remove the identity or find a way to
+	// avoid keeping the identity forever.
+	if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -400,9 +417,29 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
+func (g *Generator) maybePreserveGitHubIdentity(ctx context.Context, uls *userloginstate.UserLoginState, ulsService services.UserLoginStates) error {
+	// Use the new one.
+	if uls.Spec.GitHubIdentity != nil {
+		return nil
+	}
+
+	// Find the old state if exists.
+	oldUls, err := ulsService.GetUserLoginState(ctx, uls.GetName())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	if oldUls.Spec.GitHubIdentity != nil {
+		uls.Spec.GitHubIdentity = oldUls.Spec.GitHubIdentity
+	}
+	return nil
+}
+
 // Refresh will take the user and update the user login state in the backend.
 func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
-	uls, err := g.Generate(ctx, user)
+	uls, err := g.Generate(ctx, user, ulsService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

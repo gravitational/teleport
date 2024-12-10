@@ -112,6 +112,12 @@ type Identity struct {
 	// DeviceCredentialID is the identifier for the credential used by the device
 	// to authenticate itself.
 	DeviceCredentialID string
+	// GitHubUserID indicates the GitHub user ID identified by the GitHub
+	// connector.
+	GitHubUserID string
+	// GitHubUserID indicates the GitHub username identified by the GitHub
+	// connector.
+	GitHubUsername string
 }
 
 // Check performs validation of certain fields in the identity.
@@ -199,6 +205,12 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if credID := i.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	}
+	if i.GitHubUserID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
+	}
+	if i.GitHubUsername != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = i.GitHubUsername
 	}
 
 	if i.PinnedIP != "" {
@@ -329,6 +341,8 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceID = takeValue(teleport.CertExtensionDeviceID)
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
+	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
+	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")
