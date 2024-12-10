@@ -46,6 +46,8 @@ export const Failed = () => (
 const props: State = {
   attempt: { status: '' },
   clearAttempt: () => null,
+  mfaChallenge: null,
+  setMfaChallenge: () => null,
   getMfaChallenge: () => null,
   getMfaChallengeOptions: async () => [
     MFA_OPTION_WEBAUTHN,
