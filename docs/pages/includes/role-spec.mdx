@@ -206,10 +206,11 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
+        # - <arbitrary string> (custom resources, e.g. 'stable.example.com/v1/myresources')
         # - pod
         # - secret
         # - configmap
-        # - namespace
+        # - namespace (including all resources kinds in the namespace)
         # - service
         # - serviceaccount
         # - kube_node

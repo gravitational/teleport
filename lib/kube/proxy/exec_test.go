@@ -482,6 +482,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 				Minor:      "31",
 				GitVersion: "v1.31.0",
 			}),
+		testingkubemock.WithTeleportRoleCRD,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

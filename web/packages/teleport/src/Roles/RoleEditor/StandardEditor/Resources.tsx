@@ -360,6 +360,52 @@ export function KubernetesAccessSection({
   );
 }
 
+function KubernetesResourceKindView({
+  value,
+  validation,
+  isProcessing,
+  onChange,
+}: {
+  value: KubernetesResourceModel;
+  validation: KubernetesResourceValidationResult['kind'];
+  isProcessing: boolean;
+  onChange?(m: KubernetesResourceModel): void;
+}) {
+  const selectField = (
+    <FieldSelect
+      label="Kind"
+      isDisabled={isProcessing}
+      options={kubernetesResourceKindOptions}
+      value={value.kind}
+      rule={precomputed(validation)}
+      onChange={k => onChange?.({ ...value, kind: k })}
+    />
+  );
+  if (value.kind.label !== 'CustomResource') {
+    // If we are not dealing with a custom resource, return the select field.
+    return selectField;
+  }
+  // If we are dealing with a custom resource, show an input field.
+  return (
+    <>
+      {selectField}
+      <FieldInput
+        label="Custom Resource full name including group/version"
+        disabled={isProcessing}
+        value={value.kind.value}
+        placeholder='e.g. "stable.example.com/v1/MyResource"'
+        rule={precomputed(validation)}
+        onChange={e =>
+          onChange?.({
+            ...value,
+            kind: { ...value.kind, value: e.target.value },
+          })
+        }
+      />
+    </>
+  );
+}
+
 function KubernetesResourceView({
   value,
   validation,
@@ -373,7 +419,7 @@ function KubernetesResourceView({
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
 }) {
-  const { kind, name, namespace, verbs } = value;
+  const { name, namespace, verbs } = value;
   const theme = useTheme();
   return (
     <Box
@@ -397,13 +443,11 @@ function KubernetesResourceView({
           />
         </ButtonIcon>
       </Flex>
-      <FieldSelect
-        label="Kind"
-        isDisabled={isProcessing}
-        options={kubernetesResourceKindOptions}
-        value={kind}
-        rule={precomputed(validation.kind)}
-        onChange={k => onChange?.({ ...value, kind: k })}
+      <KubernetesResourceKindView
+        value={value}
+        validation={validation.kind}
+        isProcessing={isProcessing}
+        onChange={onChange}
       />
       <FieldInput
         label="Name"
