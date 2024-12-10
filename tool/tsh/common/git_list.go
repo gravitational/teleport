@@ -134,12 +134,20 @@ func printGitServers(cf *CLIConf, servers []types.Server) error {
 func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 	var rows [][]string
 	var showLoginNote bool
+	profileStatus, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, server := range servers {
-		// TODO(greedy52) fill in GitHub login when available from Profile.
 		login := "(n/a)*"
-		showLoginNote = true
 
 		if github := server.GetGitHub(); github != nil {
+			if profileStatus.GitHubIdentity != nil {
+				login = profileStatus.GitHubIdentity.Username
+			} else {
+				showLoginNote = true
+			}
+
 			rows = append(rows, []string{
 				"GitHub",
 				github.Organization,

@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -32,14 +33,35 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// Backend handpicks a list of backend functions this service needs.
+type Backend interface {
+	services.GitServers
+
+	// GetIntegration returns the specified integration resources.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
+	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
+}
+
+// GitHubAuthRequestCreator creates a new auth request for GitHub OAuth2 flow.
+type GitHubAuthRequestCreator func(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error)
+
 // Config is the config for Service.
 type Config struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
-	// Backend is the backend for storing UserTask.
-	Backend services.GitServers
+	// Backend is the backend service.
+	Backend Backend
 	// Log is the slog logger.
 	Log *slog.Logger
+	// ProxyPublicAddrGetter gets the public proxy address.
+	ProxyPublicAddrGetter func() string
+	// GitHubAuthRequestCreator is a callback to create the prepared request in
+	// the backend.
+	GitHubAuthRequestCreator GitHubAuthRequestCreator
+
+	clock clockwork.Clock
 }
 
 // Service implements the gRPC service that manages git servers.
@@ -57,8 +79,17 @@ func NewService(cfg Config) (*Service, error) {
 	if cfg.Backend == nil {
 		return nil, trace.BadParameter("backend is required")
 	}
+	if cfg.ProxyPublicAddrGetter == nil {
+		return nil, trace.BadParameter("ProxyPublicAddrGetter is required")
+	}
+	if cfg.GitHubAuthRequestCreator == nil {
+		return nil, trace.BadParameter("GitHubAuthRequestCreator is required")
+	}
 	if cfg.Log == nil {
 		cfg.Log = slog.With(teleport.ComponentKey, "gitserver.service")
+	}
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewRealClock()
 	}
 	return &Service{
 		cfg: cfg,
