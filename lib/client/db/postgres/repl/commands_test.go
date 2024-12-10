@@ -169,3 +169,17 @@ func TestCommands(t *testing.T) {
 		})
 	}
 }
+
+func FuzzCommands(f *testing.F) {
+	f.Add("q")
+	f.Add("?")
+	f.Add("session")
+	f.Add("teleport")
+
+	repl := &REPL{commands: make(map[string]*command)}
+	f.Fuzz(func(t *testing.T, line string) {
+		require.NotPanics(t, func() {
+			_, _ = repl.processCommand(line)
+		})
+	})
+}
