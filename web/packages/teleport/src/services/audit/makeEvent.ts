@@ -1925,7 +1925,7 @@ export const formatters: Formatters = {
     type: 'git.command',
     desc: 'Git Command Failed',
     format: ({ user, exitError, service, path }) => {
-      return `User [${user}] Git command [${service}] at [${path}] failed [${exitError}]`;
+      return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
 };
