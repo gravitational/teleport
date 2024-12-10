@@ -286,6 +286,9 @@ const (
 	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
 
+	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
+	ComponentForwardingGit = "git:forward"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -781,6 +784,9 @@ const (
 	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
 	// This starts with a hyphen so it isn't a valid unix login.
 	SSHSessionJoinPrincipal = "-teleport-internal-join"
+
+	// SSHGitPrincipal is the SSH principal used when proxying Git commands.
+	SSHGitPrincipal = "-teleport-git"
 )
 
 const (

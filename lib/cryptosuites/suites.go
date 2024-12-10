@@ -114,6 +114,10 @@ const (
 	// GitHubProxyCASSH represents the SSH key for GitHub proxy CAs.
 	GitHubProxyCASSH
 
+	// GitClient represents a key used to forward Git commands to Git services
+	// like GitHub.
+	GitClient
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -189,6 +193,8 @@ var (
 		EC2InstanceConnect: Ed25519,
 		// GitHubProxyCASSH uses same algorithms as UserCASSH.
 		GitHubProxyCASSH: RSA2048,
+		// GitClient uses same algorithms as UserCASSH.
+		GitClient: RSA2048,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -220,6 +226,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitHubProxyCASSH:        Ed25519,
+		GitClient:               Ed25519,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -251,6 +258,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      ECDSAP256,
 		GitHubProxyCASSH:        ECDSAP256,
+		GitClient:               ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -284,6 +292,7 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitHubProxyCASSH:        ECDSAP256,
+		GitClient:               ECDSAP256,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

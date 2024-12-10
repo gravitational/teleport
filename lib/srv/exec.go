@@ -43,6 +43,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -99,6 +100,16 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		return &localExec{
 			Ctx:     ctx,
 			Command: command,
+		}, nil
+	}
+	if ctx.srv.Component() == teleport.ComponentForwardingGit {
+		if err := git.CheckSSHCommand(ctx.srv.GetInfo(), command); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &remoteExec{
+			ctx:     ctx,
+			command: command,
+			session: ctx.RemoteSession,
 		}, nil
 	}
 
@@ -408,6 +419,8 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 
 	// Emit the result of execution to the Audit Log.
+	// TODO(greedy52) implement Git command auditor to replace the regular
+	// event.
 	emitExecAuditEvent(e.ctx, e.command, err)
 
 	return &ExecResult{
