@@ -78,7 +78,7 @@ func initCommands() map[string]*command {
 				// - another item
 				var limitations strings.Builder
 				for _, l := range descriptiveLimitations {
-					limitations.WriteString("- " + strings.Join(strings.Split(l, "\n"), "\n  "))
+					limitations.WriteString("- " + strings.Join(strings.Split(l, "\n"), "\n  ") + lineBreak)
 				}
 
 				return fmt.Sprintf(
@@ -99,12 +99,12 @@ func initCommands() map[string]*command {
 						typesTable[cmd.Type] = &table
 					}
 
-					typesTable[cmd.Type].AddRow([]string{cmdStr, cmd.Description})
+					typesTable[cmd.Type].AddRow([]string{"\\" + cmdStr, cmd.Description})
 				}
 
 				var res strings.Builder
 				for cmdType, output := range typesTable {
-					res.WriteString(string(cmdType))
+					res.WriteString(string(cmdType) + lineBreak)
 					output.AsBuffer().WriteTo(&res)
 					res.WriteString(lineBreak)
 				}
