@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { wait } from 'shared/utils/wait';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -33,39 +34,41 @@ import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 
 export default {
   title: 'Teleterm/DocumentAuthorizeWebSession',
-};
-
-const doc: types.DocumentAuthorizeWebSession = {
-  uri: '/docs/e2hyt5',
-  rootClusterUri: rootClusterUri,
-  kind: 'doc.authorize_web_session',
-  title: 'Authorize Web Session',
-  webSessionRequest: {
-    redirectUri: '',
-    token: '',
-    id: '',
+  component: Story,
+  argTypes: {
+    isDeviceTrusted: { control: { type: 'boolean' } },
+    isRequestedUserLoggedIn: { control: { type: 'boolean' } },
   },
-};
+  args: {
+    isDeviceTrusted: true,
+    isRequestedUserLoggedIn: true,
+  },
+} satisfies Meta<StoryProps>;
 
-export function DeviceNotTrusted() {
-  const rootCluster = makeRootCluster();
-  const appContext = new MockAppContext();
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
-        <DocumentAuthorizeWebSession doc={doc} visible={true} />
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
+interface StoryProps {
+  isDeviceTrusted: boolean;
+  isRequestedUserLoggedIn: boolean;
 }
 
-export function DeviceTrusted() {
+export function Story(props: StoryProps) {
   const rootCluster = makeRootCluster({
-    loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
+    loggedInUser: makeLoggedInUser({ isDeviceTrusted: props.isDeviceTrusted }),
   });
+  const doc: types.DocumentAuthorizeWebSession = {
+    uri: '/docs/e2hyt5',
+    rootClusterUri: rootClusterUri,
+    kind: 'doc.authorize_web_session',
+    title: 'Authorize Web Session',
+    webSessionRequest: {
+      redirectUri: '',
+      token: '',
+      id: '',
+      username: props.isRequestedUserLoggedIn
+        ? rootCluster.loggedInUser.name
+        : 'bob',
+    },
+  };
+
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);
