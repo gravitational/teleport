@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
 	dnsIPv6        tcpip.Address
-	ns             *NetworkStack
+	ns             *networkStack
 
 	testStack        *stack.Stack
 	testLinkEndpoint *channel.Endpoint
@@ -128,15 +128,15 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
+	tcpHandlerResolver, err := newTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
-	ns, err := newNetworkStack(&Config{
-		TUNDevice:                tun2,
-		IPv6Prefix:               vnetIPv6Prefix,
-		DNSIPv6:                  dnsIPv6,
-		TCPHandlerResolver:       tcpHandlerResolver,
+	ns, err := newNetworkStack(&networkStackConfig{
+		tunDevice:                tun2,
+		ipv6Prefix:               vnetIPv6Prefix,
+		dnsIPv6:                  dnsIPv6,
+		tcpHandlerResolver:       tcpHandlerResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := ns.Run(ctx); !errIsOK(err) {
+			if err := ns.run(ctx); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil

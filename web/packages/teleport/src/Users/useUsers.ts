@@ -87,16 +87,12 @@ export default function useUsers({
   }
 
   async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u, ExcludeUserField.Traits, webauthnResponse)
+      .createUser(u, ExcludeUserField.Traits, mfaResponse)
       .then(result => setUsers([result, ...users]))
       .then(() =>
-        ctx.userService.createResetPasswordToken(
-          u.name,
-          'invite',
-          webauthnResponse
-        )
+        ctx.userService.createResetPasswordToken(u.name, 'invite', mfaResponse)
       );
   }
 

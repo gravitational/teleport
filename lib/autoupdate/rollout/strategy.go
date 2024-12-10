@@ -84,7 +84,7 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 	}
 
 	// Check if there is a reason change. Even if the state did not change, we
-	// might expected to explain why.
+	// might want to explain why.
 	if group.LastUpdateReason != reason {
 		group.LastUpdateReason = reason
 		changed = true
@@ -93,4 +93,41 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 	if changed {
 		group.LastUpdateTime = timestamppb.New(now)
 	}
+}
+
+func computeRolloutState(groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) autoupdate.AutoUpdateAgentRolloutState {
+	groupCount := len(groups)
+
+	if groupCount == 0 {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED
+	}
+
+	var doneGroups, unstartedGroups int
+
+	for _, group := range groups {
+		switch group.State {
+		// If one or more groups have been rolled back, we consider the rollout rolledback
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
+			return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK
+
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
+			unstartedGroups++
+
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
+			doneGroups++
+		}
+	}
+
+	// If every group is done, the rollout is done.
+	if doneGroups == groupCount {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE
+	}
+
+	// If every group is unstarted, the rollout is unstarted.
+	if unstartedGroups == groupCount {
+		return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED
+	}
+
+	// Else at least one group is active or done, but not everything is finished. We consider the rollout active.
+	return autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE
 }
