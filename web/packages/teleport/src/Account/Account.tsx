@@ -105,14 +105,12 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 
 export function Account({
   devices,
-  token,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
   onDeviceRemoved,
   deviceToRemove,
   fetchDevicesAttempt,
-  createRestrictedTokenAttempt,
   addDeviceWizardVisible,
   hideRemoveDevice,
   closeAddDeviceWizard,
@@ -127,11 +125,8 @@ export function Account({
 }: AccountProps) {
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
-  const disableAddDevice =
-    createRestrictedTokenAttempt.status === 'processing' ||
-    fetchDevicesAttempt.status !== 'success';
-  const disableAddPasskey = disableAddDevice || !canAddPasskeys;
-  const disableAddMfa = disableAddDevice || !canAddMfa;
+  const disableAddPasskey = !canAddPasskeys;
+  const disableAddMfa = !canAddMfa;
 
   let mfaPillState = undefined;
   if (fetchDevicesAttempt.status !== 'processing') {
@@ -140,7 +135,6 @@ export function Account({
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
-  const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
 
   function addNotification(severity: NotificationSeverity, content: string) {
     setNotifications(n => [
@@ -162,13 +156,6 @@ export function Account({
     setPrevFetchStatus(fetchDevicesAttempt.status);
     if (fetchDevicesAttempt.status === 'failed') {
       addNotification('error', fetchDevicesAttempt.statusText);
-    }
-  }
-
-  if (prevTokenStatus !== createRestrictedTokenAttempt.status) {
-    setPrevTokenStatus(createRestrictedTokenAttempt.status);
-    if (createRestrictedTokenAttempt.status === 'failed') {
-      addNotification('error', createRestrictedTokenAttempt.statusText);
     }
   }
 
@@ -220,9 +207,6 @@ export function Account({
           </Box>
           {!isSso && (
             <PasswordBox
-              changeDisabled={
-                createRestrictedTokenAttempt.status === 'processing'
-              }
               devices={devices}
               passwordState={passwordState}
               onPasswordChange={onPasswordChange}
@@ -278,7 +262,6 @@ export function Account({
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
-          privilegeToken={token}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />
