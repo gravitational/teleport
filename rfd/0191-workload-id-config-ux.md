@@ -1400,6 +1400,9 @@ Negatives:
   to us. That being said, CEL is more mature and battle-tested, it's unlikely
   we will encounter problems which are not already well-documented.
 
+At this time, it is felt that consistency with the rest of the product is a 
+higher priority. We can revisit the introduction of CEL at a later date.
+
 ## Security Considerations
 
 ### Auditing
