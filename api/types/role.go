@@ -1996,6 +1996,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
 		return r.makeGitServerLabelMatchers(cond), nil
+	case KindWorkloadIdentity:
+		return LabelMatchers{cond.WorkloadIdentityLabels, ""}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2048,6 +2050,9 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindUserGroup:
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWorkloadIdentity:
+		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
