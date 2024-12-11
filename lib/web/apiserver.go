@@ -938,7 +938,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
 	// Web UI.
-	h.GET("/webapi/devices/webconfirm", h.WithAuthCookieAndCSRF(h.deviceWebConfirm))
+	h.GET("/webapi/devices/webconfirm", h.WithSession(h.deviceWebConfirm))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", h.WithUnauthenticatedLimiter(h.validateTrustedCluster))
@@ -4698,9 +4698,22 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 }
 
 // WithAuth ensures that a request is authenticated.
+// Authenticated requests require both a session cookie as well as a bearer token.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		sctx, err := h.AuthenticateRequest(w, r, true)
+		sctx, err := h.AuthenticateRequest(w, r, true /* check bearer token */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p, sctx)
+	})
+}
+
+// WithSession ensures that the request provides a session cookie.
+// It does not check for a bearer token.
+func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false /* check bearer token */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
