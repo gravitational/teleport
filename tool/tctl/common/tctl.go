@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/client/mfa"
@@ -98,7 +99,11 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
+func Run(ctx context.Context, commands []CLICommand) {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+		utils.FatalError(err)
+	}
+
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError

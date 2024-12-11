@@ -70,6 +70,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -633,6 +634,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile(true); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
+		return trace.Wrap(err)
+	}
+
+	if err := tools.CheckAndUpdateRemote(ctx, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 		return trace.Wrap(err)
 	}
 

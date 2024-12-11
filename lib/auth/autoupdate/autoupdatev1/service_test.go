@@ -18,352 +18,358 @@ package autoupdatev1
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestAutoUpdateCRUD(t *testing.T) {
+var allAdminStates = map[authz.AdminActionAuthState]string{
+	authz.AdminActionAuthUnauthorized:         "Unauthorized",
+	authz.AdminActionAuthNotRequired:          "NotRequired",
+	authz.AdminActionAuthMFAVerified:          "MFAVerified",
+	authz.AdminActionAuthMFAVerifiedWithReuse: "MFAVerifiedWithReuse",
+}
+
+func stateToString(state authz.AdminActionAuthState) string {
+	str, ok := allAdminStates[state]
+	if !ok {
+		return fmt.Sprintf("unknown(%v)", state)
+	}
+	return str
+}
+
+// otherAdminStates returns all admin states except for those passed in
+func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAuthState {
+	var out []authz.AdminActionAuthState
+	for state := range allAdminStates {
+		found := slices.Index(states, state) != -1
+		if !found {
+			out = append(out, state)
+		}
+	}
+	return out
+}
+
+// callMethod calls a method with given name in the DatabaseObjectService service
+func callMethod(t *testing.T, service *Service, method string) error {
+	for _, desc := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
+		if desc.MethodName == method {
+			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
+			return err
+		}
+	}
+	require.FailNow(t, "method %v not found", method)
+	panic("this line should never be reached: FailNow() should interrupt the test")
+}
+
+func TestServiceAccess(t *testing.T) {
 	t.Parallel()
 
-	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
-			require.True(t, traceFn(err), "received an un-expected error: %v", err)
+	testCases := []struct {
+		name             string
+		allowedVerbs     []string
+		allowedStates    []authz.AdminActionAuthState
+		disallowedStates []authz.AdminActionAuthState
+	}{
+		{
+			name: "CreateAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
+		},
+		{
+			name: "UpdateAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "UpsertAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
+		},
+		{
+			name: "GetAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
+		},
+		{
+			name:          "DeleteAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+		},
+		// AutoUpdate version check.
+		{
+			name: "CreateAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
+		},
+		{
+			name: "UpdateAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "UpsertAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
+		},
+		{
+			name: "GetAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
+		},
+		{
+			name:          "DeleteAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// test the method with allowed admin states, each one separately.
+			t.Run("allowed admin states", func(t *testing.T) {
+				for _, state := range tt.allowedStates {
+					t.Run(stateToString(state), func(t *testing.T) {
+						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
+							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
+								service := newService(t, state, fakeChecker{allowedVerbs: verbs}, &libevents.DiscardEmitter{})
+								err := callMethod(t, service, tt.name)
+								// expect access denied except with full set of verbs.
+								if len(verbs) == len(tt.allowedVerbs) {
+									require.False(t, trace.IsAccessDenied(err))
+								} else {
+									require.True(t, trace.IsAccessDenied(err), "expected access denied for verbs %v, got err=%v", verbs, err)
+								}
+							})
+						}
+					})
+				}
+			})
+
+			// test the method with disallowed admin states; expect failures.
+			t.Run("disallowed admin states", func(t *testing.T) {
+				disallowedStates := otherAdminStates(tt.allowedStates)
+				if tt.disallowedStates != nil {
+					disallowedStates = tt.disallowedStates
+				}
+				for _, state := range disallowedStates {
+					t.Run(stateToString(state), func(t *testing.T) {
+						// it is enough to test against tt.allowedVerbs,
+						// this is the only different data point compared to the test cases above.
+						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs}, &libevents.DiscardEmitter{})
+						err := callMethod(t, service, tt.name)
+						require.True(t, trace.IsAccessDenied(err))
+					})
+				}
+			})
+		})
+	}
+
+	// verify that all declared methods have matching test cases
+	t.Run("verify coverage", func(t *testing.T) {
+		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
+			t.Run(method.MethodName, func(t *testing.T) {
+				match := false
+				for _, testCase := range testCases {
+					match = match || testCase.name == method.MethodName
+				}
+				require.True(t, match, "method %v without coverage, no matching tests", method.MethodName)
+			})
+		}
+	})
+}
+
+func TestAutoUpdateConfigEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
+
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigDelete).Name)
+	mockEmitter.Reset()
+}
+
+func TestAutoUpdateVersionEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
+
+	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionDelete).Name)
+	mockEmitter.Reset()
+}
+
+type fakeChecker struct {
+	allowedVerbs []string
+	services.AccessChecker
+}
+
+func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
+	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion {
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
 		}
 	}
 
-	ctx, localClient, resourceSvc := initSvc(t, "test-cluster")
-	initialConfig, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		ToolsAutoupdate: true,
-	})
-	require.NoError(t, err)
-	initialVersion, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		ToolsVersion: "1.2.3",
-	})
-	require.NoError(t, err)
-
-	tt := []struct {
-		Name         string
-		Role         types.RoleSpecV6
-		Setup        func(t *testing.T, dcName string)
-		Test         func(ctx context.Context, resourceSvc *Service, dcName string) error
-		ErrAssertion require.ErrorAssertionFunc
-	}{
-		// Read
-		{
-			Name: "allowed read access to auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbRead},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		{
-			Name: "no access to auto update resources",
-			Role: types.RoleSpecV6{},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		// Create
-		{
-			Name: "no access to create auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to create auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbCreate},
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Update
-		{
-			Name: "no access to update auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to update auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Upsert
-		{
-			Name: "no access to upsert auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate}, // missing VerbCreate
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to upsert auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Delete
-		{
-			Name: "no access to delete auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to delete auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbDelete},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-	}
-
-	for _, tc := range tt {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
-			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-
-			dcName := uuid.NewString()
-			if tc.Setup != nil {
-				tc.Setup(t, dcName)
-			}
-
-			err := tc.Test(localCtx, resourceSvc, dcName)
-			tc.ErrAssertion(t, err)
-			err = localClient.DeleteAutoUpdateConfig(ctx)
-			if !trace.IsNotFound(err) {
-				require.NoError(t, err)
-			}
-			err = localClient.DeleteAutoUpdateVersion(ctx)
-			if !trace.IsNotFound(err) {
-				require.NoError(t, err)
-			}
-		})
-	}
+	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
-	// Create role
-	roleName := "role-" + uuid.NewString()
-	role, err := types.NewRole(roleName, roleSpec)
+func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, emitter apievents.Emitter) *Service {
+	t.Helper()
+
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	err = localClient.CreateRole(ctx, role)
+	storage, err := local.NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	// Create user
-	user, err := types.NewUser("user-" + uuid.NewString())
-	require.NoError(t, err)
-	user.AddRole(roleName)
-	err = localClient.CreateUser(user)
-	require.NoError(t, err)
-
-	return authz.ContextWithUser(ctx, authz.LocalUser{
-		Username: user.GetName(),
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-			Groups:   []string{role.GetName()},
-		},
-	})
+	return newServiceWithStorage(t, authState, checker, storage, emitter)
 }
 
-type localClient interface {
-	CreateUser(user types.User) error
-	CreateRole(ctx context.Context, role types.Role) error
-	services.AutoUpdateService
-}
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoUpdateService, emitter apievents.Emitter) *Service {
+	t.Helper()
 
-func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *Service) {
-	ctx := context.Background()
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	trustSvc := local.NewCAService(backend)
-	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
-
-	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
-	require.NoError(t, err)
-	require.NoError(t, clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference()))
-	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
-	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
-	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-	}{
-		ClusterConfiguration: clusterConfigSvc,
-		Trust:                trustSvc,
-		RoleGetter:           roleSvc,
-		UserGetter:           userSvc,
-	}
-
-	accessService := local.NewAccessService(backend)
-	eventService := local.NewEventsService(backend)
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Client:    eventService,
-			Component: "test",
-		},
-		LockGetter: accessService,
+	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		user, err := types.NewUser("alice")
+		if err != nil {
+			return nil, err
+		}
+		return &authz.Context{
+			User:                 user,
+			Checker:              checker,
+			AdminActionAuthState: authState,
+		}, nil
 	})
-	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-	})
-	require.NoError(t, err)
-
-	localResourceService, err := local.NewAutoUpdateService(backend)
-	require.NoError(t, err)
-
-	resourceSvc, err := NewService(ServiceConfig{
-		Backend:    localResourceService,
-		Cache:      localResourceService,
+	service, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
+		Backend:    storage,
+		Cache:      storage,
+		Emitter:    emitter,
 	})
 	require.NoError(t, err)
-
-	return ctx, struct {
-		*local.AccessService
-		*local.IdentityService
-		*local.AutoUpdateService
-	}{
-		AccessService:     roleSvc,
-		IdentityService:   userSvc,
-		AutoUpdateService: localResourceService,
-	}, resourceSvc
+	return service
 }

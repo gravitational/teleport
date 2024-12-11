@@ -1980,3 +1980,27 @@ func (m *IntegrationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *IntegrationDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+func (m *AutoUpdateConfigCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateConfigUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateConfigDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

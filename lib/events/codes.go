@@ -555,6 +555,20 @@ const (
 	// IntegrationDeleteCode is the integration resource delete event code.
 	IntegrationDeleteCode = "IG003I"
 
+	// AutoUpdateConfigCreateCode is the auto update config create event code.
+	AutoUpdateConfigCreateCode = "AUC001I"
+	// AutoUpdateConfigUpdateCode is the auto update config update event code.
+	AutoUpdateConfigUpdateCode = "AUC002I"
+	// AutoUpdateConfigDeleteCode is the auto update config delete event code.
+	AutoUpdateConfigDeleteCode = "AUC003I"
+
+	// AutoUpdateVersionCreateCode is the auto update version create event code.
+	AutoUpdateVersionCreateCode = "AUV001I"
+	// AutoUpdateVersionUpdateCode is the auto update version update event code.
+	AutoUpdateVersionUpdateCode = "AUV002I"
+	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
+	AutoUpdateVersionDeleteCode = "AUV003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
