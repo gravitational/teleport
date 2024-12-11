@@ -203,6 +203,10 @@ func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, e
 	result, err := a.poll(ctx, features)
 	deduplicateResources(result)
 	a.storeReport(result, err)
+	taskErr := a.createAccessTasks(ctx, result)
+	if taskErr != nil {
+		err = trace.NewAggregate(err, taskErr)
+	}
 	return result, trace.Wrap(err)
 }
 
@@ -299,6 +303,7 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return result, trace.NewAggregate(errs...)
 }
 
