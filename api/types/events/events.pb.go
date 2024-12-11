@@ -15293,7 +15293,7 @@ func (m *WorkloadIdentityDelete) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_WorkloadIdentityDelete proto.InternalMessageInfo
 
-// GitCommand is emitted when a user performance a Git fetch or push command.
+// GitCommand is emitted when a user performs a Git fetch or push command.
 type GitCommand struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`

@@ -7802,7 +7802,7 @@ message WorkloadIdentityDelete {
   ];
 }
 
-// GitCommand is emitted when a user performance a Git fetch or push command.
+// GitCommand is emitted when a user performs a Git fetch or push command.
 message GitCommand {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
