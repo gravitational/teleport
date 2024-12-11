@@ -1,6 +1,8 @@
+//go:build windows
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +18,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package packaging
 
-import (
-	"context"
-
-	"github.com/gravitational/teleport/lib/utils/signal"
-	"github.com/gravitational/teleport/tool/tctl/common"
-)
-
-func main() {
-	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
-	defer cancel()
-
-	// aggregate common and oss-specific command variants
-	commands := common.Commands()
-	commands = append(commands, common.OSSCommands()...)
-	common.Run(ctx, commands)
+// ReplaceToolsBinaries extracts executables specified by execNames from archivePath into
+// extractDir. After each executable is extracted, it is symlinked from extractDir/[name] to
+// toolsDir/[name].
+//
+// For Windows, archivePath must be a .zip file.
+func ReplaceToolsBinaries(toolsDir string, archivePath string, extractPath string, execNames []string) error {
+	return replaceZip(toolsDir, archivePath, extractPath, execNames)
 }

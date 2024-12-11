@@ -1,6 +1,8 @@
+//go:build windows
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +18,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package tools_test
 
 import (
-	"context"
+	"syscall"
 
-	"github.com/gravitational/teleport/lib/utils/signal"
-	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 )
 
-func main() {
-	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
-	defer cancel()
+var (
+	kernel    = windows.NewLazyDLL("kernel32.dll")
+	ctrlEvent = kernel.NewProc("GenerateConsoleCtrlEvent")
+)
 
-	// aggregate common and oss-specific command variants
-	commands := common.Commands()
-	commands = append(commands, common.OSSCommands()...)
-	common.Run(ctx, commands)
+// sendInterrupt sends a Ctrl-Break event to the process.
+func sendInterrupt(pid int) error {
+	r, _, err := ctrlEvent.Call(uintptr(syscall.CTRL_BREAK_EVENT), uintptr(pid))
+	if r == 0 {
+		return trace.Wrap(err)
+	}
+	return nil
 }

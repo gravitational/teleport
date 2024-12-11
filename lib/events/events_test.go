@@ -225,6 +225,12 @@ var eventsMap = map[string]apievents.AuditEvent{
 	CrownJewelCreateEvent:                       &apievents.CrownJewelCreate{},
 	CrownJewelUpdateEvent:                       &apievents.CrownJewelUpdate{},
 	CrownJewelDeleteEvent:                       &apievents.CrownJewelDelete{},
+	AutoUpdateConfigCreateEvent:                 &apievents.AutoUpdateConfigCreate{},
+	AutoUpdateConfigUpdateEvent:                 &apievents.AutoUpdateConfigUpdate{},
+	AutoUpdateConfigDeleteEvent:                 &apievents.AutoUpdateConfigDelete{},
+	AutoUpdateVersionCreateEvent:                &apievents.AutoUpdateVersionCreate{},
+	AutoUpdateVersionUpdateEvent:                &apievents.AutoUpdateVersionUpdate{},
+	AutoUpdateVersionDeleteEvent:                &apievents.AutoUpdateVersionDelete{},
 }
 
 // TestJSON tests JSON marshal events
