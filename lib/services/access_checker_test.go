@@ -791,10 +791,10 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 			Name: "no-labels",
 		},
 	}
-	fooLabelledWI := &workloadidentityv1pb.WorkloadIdentity{
+	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
 		Kind: types.KindWorkloadIdentity,
 		Metadata: &headerv1.Metadata{
-			Name: "foo-labelled",
+			Name: "foo-labeled",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
@@ -843,7 +843,7 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 			roleSet: NewRoleSet(
 				roleWildcard,
 			),
-			resource:     fooLabelledWI,
+			resource:     fooLabeledWI,
 			requireError: require.NoError,
 		},
 		{
@@ -851,7 +851,7 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 			roleSet: NewRoleSet(
 				roleNoLabels,
 			),
-			resource:     fooLabelledWI,
+			resource:     fooLabeledWI,
 			requireError: require.Error,
 		},
 		{
@@ -859,7 +859,7 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 			roleSet: NewRoleSet(
 				roleFooLabel,
 			),
-			resource:     fooLabelledWI,
+			resource:     fooLabeledWI,
 			requireError: require.NoError,
 		},
 	}
