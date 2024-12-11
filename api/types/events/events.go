@@ -2425,3 +2425,7 @@ func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
 func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
