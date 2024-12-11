@@ -42,4 +42,9 @@ export type NotificationItemObjectContent = {
   description?: string;
   icon?: React.ComponentType<IconProps>;
   action?: Action;
+  /**
+   * If defined, isAutoRemovable circumvents the auto-removing logic in the Notification component,
+   * which automatically removes 'success', 'info', and 'neutral' notifications.
+   */
+  isAutoRemovable?: boolean;
 };
