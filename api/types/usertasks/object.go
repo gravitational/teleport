@@ -252,6 +252,7 @@ type TaskNameForDiscoverAWSSyncParts struct {
 	Integration string
 	IssueType   string
 	AccountID   string
+	Name        string
 }
 
 func TaskNameForDiscoverAWSync(parts TaskNameForDiscoverAWSSyncParts) string {
@@ -262,6 +263,8 @@ func TaskNameForDiscoverAWSync(parts TaskNameForDiscoverAWSSyncParts) string {
 	bs = append(bs, []byte(parts.IssueType)...)
 	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
 	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Name)))...)
+	bs = append(bs, []byte(parts.Name)...)
 	return uuid.NewSHA1(discoverEC2Namespace, bs).String()
 }
 
@@ -269,7 +272,8 @@ func NewDiscoverAWSSyncUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTask
 	taskName := TaskNameForDiscoverAWSync(TaskNameForDiscoverAWSSyncParts{
 		Integration: spec.GetIntegration(),
 		IssueType:   spec.GetIssueType(),
-		AccountID:   spec.GetDiscoverEc2().GetAccountId(),
+		AccountID:   spec.GetAccessGraph().GetAccountId(),
+		Name:        spec.GetAccessGraph().GetRoleName(),
 	})
 
 	ut := &usertasksv1.UserTask{
