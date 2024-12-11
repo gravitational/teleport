@@ -129,9 +129,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
 
   await user.click(getStandardEditorTab());
-  expect(
-    screen.getByText(/Some fields were not readable by the standard editor/)
-  ).toBeVisible();
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
   expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
