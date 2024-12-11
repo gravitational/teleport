@@ -82,7 +82,7 @@ export interface WorkspacesState {
 export interface Workspace {
   localClusterUri: ClusterUri;
   documents: Document[];
-  location: DocumentUri;
+  location: DocumentUri | undefined;
   accessRequests: {
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
