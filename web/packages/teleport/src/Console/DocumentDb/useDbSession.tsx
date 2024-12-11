@@ -22,24 +22,23 @@ import { context, trace } from '@opentelemetry/api';
 
 import cfg from 'teleport/config';
 import { TermEvent } from 'teleport/lib/term/enums';
-import Tty from 'teleport/lib/term/tty';
+import Tty, { DbConnectData } from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentDb } from 'teleport/Console/stores';
 
 import type {
-  ParticipantMode,
   Session,
   SessionMetadata,
 } from 'teleport/services/session';
 
 const tracer = trace.getTracer('TTY');
 
-export default function useDbSession(doc: DocumentDb) {
+export function useDbSession(doc: DocumentDb) {
   const { clusterId, sid } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
-  const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
+  const tty = ttyRef.current;
   const [session, setSession] = React.useState<Session>(null);
   const [status, setStatus] = React.useState<Status>('loading');
 
@@ -47,25 +46,20 @@ export default function useDbSession(doc: DocumentDb) {
     ctx.closeTab(doc);
   }
 
-  function sendDbConnectData(
-    name: string,
-    protocol: string,
-    dbUser: string,
-    dbName: string,
-    dbRoles: string[],
-  ): void {
-    tty.sendDbConnectData({ serviceName: name, protocol, dbUser, dbName,  dbRoles });
+  function sendDbConnectData(data: DbConnectData): void {
+    tty.sendDbConnectData(data);
     ctx.updateDbDocument(doc.id, {
-      title: `${dbUser}@${name}`,
+      title: `${data.dbUser}@${data.serviceName}`,
     });
     setStatus('initialized');
   }
 
   React.useEffect(() => {
-    const session: any = {
-      kind: 'db',
-      clusterId,
-      sid,
+    const session: Session = {
+        kind: 'db',
+        clusterId,
+        sid,
+        resourceName: doc.name,
     }
 
     tracer.startActiveSpan(
@@ -85,7 +79,7 @@ export default function useDbSession(doc: DocumentDb) {
 
         tty.on(TermEvent.SESSION, payload => {
           const data = JSON.parse(payload);
-          data.session.kind = 'k8s';
+          data.session.kind = 'db';
           setSession(data.session);
           handleTtyConnect(ctx, data.session, doc.id);
         });

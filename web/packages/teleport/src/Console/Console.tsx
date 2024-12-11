@@ -37,7 +37,7 @@ import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
-import DocumentDb from './DocumentDb';
+import { DocumentDb } from './DocumentDb';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 

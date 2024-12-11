@@ -27,15 +27,15 @@ import { useMfa } from 'teleport/lib/useMfa';
 import Document from 'teleport/Console/Document';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
-import useDbSession from './useDbSession';
-import ConnectDialog from './ConnectDialog';
+import { useDbSession } from './useDbSession';
+import { ConnectDialog } from './ConnectDialog';
 
 type Props = {
   visible: boolean;
   doc: stores.DocumentDb;
 };
 
-export default function DocumentDb({ doc, visible }: Props) {
+export function DocumentDb({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendDbConnectData } =
     useDbSession(doc);
@@ -45,17 +45,6 @@ export default function DocumentDb({ doc, visible }: Props) {
     terminalRef.current?.focus();
   }, [visible, mfa.requested, status]);
   const theme = useTheme();
-
-  const terminal = (
-    <Terminal
-      ref={terminalRef}
-      tty={tty}
-      fontFamily={theme.fonts.mono}
-      theme={theme.colors.terminal}
-      convertEol
-      doc={doc}
-    />
-  );
 
   return (
     <Document visible={visible} flexDirection="column">
@@ -69,7 +58,16 @@ export default function DocumentDb({ doc, visible }: Props) {
       {status === 'waiting' && (
         <ConnectDialog clusterId={doc.clusterId} serviceName={doc.name} onConnect={sendDbConnectData} onClose={closeDocument} />
       )}
-      {status !== 'loading' && terminal}
+      {status !== 'loading' && (
+        <Terminal
+          ref={terminalRef}
+          tty={tty}
+          fontFamily={theme.fonts.mono}
+          theme={theme.colors.terminal}
+          convertEol
+          doc={doc}
+        />
+      )}
     </Document>
   );
 }

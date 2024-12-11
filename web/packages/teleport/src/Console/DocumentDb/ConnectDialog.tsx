@@ -36,98 +36,87 @@ import { Option } from 'shared/components/Select';
 import { FieldSelect, FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Database } from 'teleport/services/databases';
 import { useTeleport } from 'teleport';
-import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import { Danger } from 'design/Alert';
 import { requiredField } from 'shared/components/Validation/rules';
+import { useAsync } from 'shared/hooks/useAsync';
+import { DbConnectData } from 'teleport/lib/term/tty';
 
-type Props = {
-  clusterId: string;
-  serviceName: string;
-  onClose(): void;
-  onConnect: onConnectCallback;
-};
-
-type onConnectCallback = (
-  name: string,
-  protocol: string,
-  dbName: string,
-  dbUser: string,
-  dbRoles: string[],
-) => void;
-
-function DbConnectDialog({ clusterId, serviceName, onClose, onConnect }: Props) {
+export function ConnectDialog(props: { 
+  clusterId: string; 
+  serviceName: string; 
+  onClose(): void; 
+  onConnect(data: DbConnectData): void; 
+}) {
   // Fetch database information to pre-fill the connection parameters.
   const ctx = useTeleport();
-  const {
-    fetch: unifiedFetch,
-    attempt,
-    resources,
-  } = useUnifiedResourcesFetch({
-    fetchFunc: useCallback(
-      async (_, signal) => {
-        const response = await ctx.resourceService.fetchUnifiedResources(
-          clusterId,
-          {
-            query: `name == "${serviceName}"`,
-            sort: { fieldName: 'name', dir: 'ASC'},
-            limit: 1,
-          },
-          signal
-        );
-
-
-        // TODO(gabrielcorado): Handle scenarios where there is conflict on the name.
-        if (response.agents.length !== 1 || response.agents[0].kind !== 'db') {
-          throw new Error('Unable to retrieve database information.');
+  const [attempt, getDatabase] = useAsync(
+    useCallback(async () => {
+      const response = await ctx.resourceService.fetchUnifiedResources(
+        props.clusterId,
+        {
+          query: `name == "${props.serviceName}"`,
+          kinds: ['db'],
+          sort: { fieldName: 'name', dir: 'ASC' },
+          limit: 1,
         }
+      );
 
-        return { agents: [response.agents[0] as Database] };
-      },
-      [clusterId, serviceName]
-    )
-  })
-  useEffect(() => { unifiedFetch({clear: true})}, [])
+      // TODO(gabrielcorado): Handle scenarios where there is conflict on the name.
+      if (response.agents.length !== 1 || response.agents[0].kind !== 'db') {
+        throw new Error('Unable to retrieve database information.');
+      }
 
+      return response.agents[0];
+    }, [props.clusterId, ctx.resourceService, props.serviceName])
+  );
+
+  useEffect(() => {
+    void getDatabase();
+  }, [getDatabase]);
 
   return (
     <Dialog
       dialogCss={dialogCss}
       disableEscapeKeyDown={false}
-      onClose={onClose}
+      onClose={props.onClose}
       open={true}
     >
       <DialogHeader mb={4}>
         <DialogTitle>Connect To Database</DialogTitle>
       </DialogHeader>
 
-      {attempt.status === 'failed' && <Danger children={attempt.statusText} />}
+      {attempt.status === 'error' && <Danger children={attempt.statusText} />}
       {(attempt.status === '' || attempt.status === 'processing') && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && <DbConnectDialogForm db={resources[0]} onConnect={onConnect} onClose={onClose} />}
+      {attempt.status === 'success' && <ConnectForm db={attempt.data} onConnect={props.onConnect} onClose={props.onClose} />}
     </Dialog>
   );
 }
 
-type FormProps = {
-  db: Database;
-  onConnect: onConnectCallback;
-  onClose(): void;
-};
-
-function DbConnectDialogForm({ db, onConnect, onClose }: FormProps) {
-  const dbUserOpts = db.users?.map(user => ({value: user, label: user}));
-  const dbNamesOpts = db.names?.map(name => ({value: name, label: name}));
-  const dbRolesOpts = db.roles?.map(role => ({value: role, label: role}));
+function ConnectForm(props: { 
+  db: Database; 
+  onConnect(data: DbConnectData): void; 
+  onClose(): void; 
+}) {
+  const dbUserOpts = props.db.users?.map(user => ({value: user, label: user}));
+  const dbNamesOpts = props.db.names?.map(name => ({value: name, label: name}));
+  const dbRolesOpts = props.db.roles?.map(role => ({value: role, label: role}));
 
   const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
   const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
   const [selectedRoles, setSelectedRoles] = useState<readonly Option[]>();
 
   const dbConnect = () => {
-    onConnect(db.name, db.protocol, selectedName.value, selectedUser.value, selectedRoles?.map((role) => role.value));
+    props.onConnect({
+      serviceName: props.db.name,
+      protocol: props.db.protocol,
+      dbName: selectedName.value,
+      dbUser: selectedUser.value,
+      dbRoles: selectedRoles?.map((role) => role.value)
+    });
   };
 
   return (
@@ -170,7 +159,7 @@ function DbConnectDialogForm({ db, onConnect, onClose }: FormProps) {
                 type="button"
                 width="45%"
                 size="large"
-                onClick={onClose}
+                onClick={props.onClose}
               >
                 Close
               </ButtonSecondary>
@@ -198,5 +187,3 @@ const dialogCss = () => `
   max-width: 600px;
   width: 100%;
 `;
-
-export default DbConnectDialog;

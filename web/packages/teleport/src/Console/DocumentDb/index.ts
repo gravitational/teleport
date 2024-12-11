@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DocumentDb from './DocumentDb';
-export default DocumentDb;
+export { DocumentDb } from './DocumentDb';

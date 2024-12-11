@@ -1,4 +1,3 @@
-
 /**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -16,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 import React from 'react';
 import { screen } from '@testing-library/react';
 
@@ -32,9 +32,9 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import Tty from 'teleport/lib/term/tty';
 
-import useDbSession, { Status } from './useDbSession';
+import { useDbSession, Status }  from './useDbSession';
 
-import DocumentDb from './DocumentDb';
+import { DocumentDb } from './DocumentDb';
 
 import type { Session } from 'teleport/services/session';
 
@@ -72,20 +72,6 @@ describe('DocumentDb', () => {
     );
   };
 
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: jest.fn().mockImplementation(query => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // Deprecated
-      removeListener: jest.fn(), // Deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
-
   test('renders loading indicator when status is loading', async () => {
     jest.useFakeTimers();
     setup('loading');
@@ -109,7 +95,7 @@ describe('DocumentDb', () => {
   test('does not render data dialog when status is initialized', () => {
     setup('initialized');
 
-    expect(screen.queryByText('Exec into a pod')).not.toBeInTheDocument();
+    expect(screen.queryByText('Connect to Database')).not.toBeInTheDocument();
   });
 });
 

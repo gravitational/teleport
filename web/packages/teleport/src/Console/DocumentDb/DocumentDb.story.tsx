@@ -26,7 +26,7 @@ import { TestLayout } from 'teleport/Console/Console.story';
 import TeleportContext from 'teleport/teleportContext';
 import * as stores from 'teleport/Console/stores/types';
 
-import DocumentDb from './DocumentDb';
+import { DocumentDb } from './DocumentDb';
 
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
 
@@ -155,7 +155,7 @@ const DocumentDbWrapper = ({ ctx, consoleCtx, doc }: Props) => {
   );
 };
 
-function getContexts(resources: any) {
+function getContexts(resources: Promise<ResourcesResponse<UnifiedResource>>) {
   const ctx = createTeleportContext();
   ctx.resourceService.fetchUnifiedResources = () => resources;
 
