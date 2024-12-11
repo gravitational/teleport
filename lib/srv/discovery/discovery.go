@@ -395,6 +395,7 @@ type Server struct {
 	awsRDSResourcesStatus awsResourcesStatus
 	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
+	awsEKSTasks           awsEKSTasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server

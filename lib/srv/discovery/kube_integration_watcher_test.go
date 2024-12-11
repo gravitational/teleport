@@ -586,4 +586,4 @@ func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Con
 	return "", nil
 }
 
-var _ awsoidc.EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+var _ awsoidc.EnrollEKSClusterClient = &mockEnrollEKSClusterClient{}

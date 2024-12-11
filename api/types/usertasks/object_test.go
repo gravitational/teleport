@@ -58,6 +58,30 @@ func TestValidateUserTask(t *testing.T) {
 		return userTask
 	}
 
+	exampleClusterName := "MyCluster"
+	baseEKSDiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
+		userTask, err := usertasks.NewDiscoverEKSUserTask(&usertasksv1.UserTaskSpec{
+			Integration: "my-integration",
+			TaskType:    "discover-eks",
+			IssueType:   "eks-agent-not-connecting",
+			State:       "OPEN",
+			DiscoverEks: &usertasksv1.DiscoverEKS{
+				AccountId: "123456789012",
+				Region:    "us-east-1",
+				Clusters: map[string]*usertasksv1.DiscoverEKSCluster{
+					exampleClusterName: {
+						Name:            exampleClusterName,
+						DiscoveryConfig: "dc01",
+						DiscoveryGroup:  "dg01",
+						SyncTime:        timestamppb.Now(),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return userTask
+	}
+
 	tests := []struct {
 		name    string
 		task    func(t *testing.T) *usertasksv1.UserTask
@@ -201,6 +225,119 @@ func TestValidateUserTask(t *testing.T) {
 			},
 			wantErr: require.Error,
 		},
+		{
+			name:    "DiscoverEKS: valid",
+			task:    baseEKSDiscoverTask,
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverEKS: invalid issue type",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.IssueType = "unknown error"
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: missing integration",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.Integration = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: missing discover eks field",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.DiscoverEks = nil
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: wrong task name",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Metadata.Name = "another-name"
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: missing account id",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.DiscoverEks.AccountId = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: missing region",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.DiscoverEks.Region = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: clusters - missing cluster name in map key",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				origClusterMetadata := ut.Spec.DiscoverEks.Clusters[exampleClusterName]
+				ut.Spec.DiscoverEks.Clusters[""] = origClusterMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: clusters - missing cluster name in cluster metadata",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				origClusterMetadata := ut.Spec.DiscoverEks.Clusters[exampleClusterName]
+				origClusterMetadata.Name = ""
+				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: clusters - different cluster name",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				origClusterMetadata := ut.Spec.DiscoverEks.Clusters[exampleClusterName]
+				origClusterMetadata.Name = "another-cluster"
+				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: clusters - missing discovery config",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				origClusterMetadata := ut.Spec.DiscoverEks.Clusters[exampleClusterName]
+				origClusterMetadata.DiscoveryConfig = ""
+				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverEKS: clusters - missing discovery group",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				origClusterMetadata := ut.Spec.DiscoverEks.Clusters[exampleClusterName]
+				origClusterMetadata.DiscoveryGroup = ""
+				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
@@ -264,6 +401,65 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotTask, err := usertasks.NewDiscoverEC2UserTask(tt.taskSpec, tt.taskOption...)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedTask, gotTask)
+		})
+	}
+}
+
+func TestNewDiscoverEKSUserTask(t *testing.T) {
+	t.Parallel()
+
+	userTaskExpirationTime := time.Now()
+	userTaskExpirationTimestamp := timestamppb.New(userTaskExpirationTime)
+	clusterSyncTimestamp := userTaskExpirationTimestamp
+
+	baseEKSDiscoverTaskSpec := &usertasksv1.UserTaskSpec{
+		Integration: "my-integration",
+		TaskType:    "discover-eks",
+		IssueType:   "eks-agent-not-connecting",
+		State:       "OPEN",
+		DiscoverEks: &usertasksv1.DiscoverEKS{
+			AccountId: "123456789012",
+			Region:    "us-east-1",
+			Clusters: map[string]*usertasksv1.DiscoverEKSCluster{
+				"MyKubeCluster": {
+					Name:            "MyKubeCluster",
+					DiscoveryConfig: "dc01",
+					DiscoveryGroup:  "dg01",
+					SyncTime:        clusterSyncTimestamp,
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		taskSpec     *usertasksv1.UserTaskSpec
+		taskOption   []usertasks.UserTaskOption
+		expectedTask *usertasksv1.UserTask
+	}{
+		{
+			name:     "options are applied task type",
+			taskSpec: baseEKSDiscoverTaskSpec,
+			expectedTask: &usertasksv1.UserTask{
+				Kind:    "user_task",
+				Version: "v1",
+				Metadata: &headerv1.Metadata{
+					Name:    "09b7d37e-3570-531a-b326-1860cafc23fb",
+					Expires: userTaskExpirationTimestamp,
+				},
+				Spec: baseEKSDiscoverTaskSpec,
+			},
+			taskOption: []usertasks.UserTaskOption{
+				usertasks.WithExpiration(userTaskExpirationTime),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotTask, err := usertasks.NewDiscoverEKSUserTask(tt.taskSpec, tt.taskOption...)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
