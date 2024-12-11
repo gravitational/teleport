@@ -2402,3 +2402,7 @@ func (m *WorkloadIdentityUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

@@ -2548,6 +2548,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WebSession = services.Identity.WebSessions()
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
+	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
@@ -4407,6 +4408,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				FIPS:                  cfg.FIPS,
 				Emitter:               streamEmitter,
 				Log:                   process.log,
+				Logger:                process.logger,
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,

@@ -482,6 +482,8 @@ message EnrollEKSClustersRequest {
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
   string agent_version = 5;
+  // ExtraLabels added to the enrolled clusters.
+  map<string, string> extra_labels = 6;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
@@ -492,6 +494,16 @@ message EnrollEKSClusterResult {
   string resource_id = 2;
   // Error show what error happened during enrollment. Empty if no error happened.
   string error = 3;
+  // IssueType contains the UserTask's issue type for well-known errors.
+  // Example of allowed values:
+  // - eks-status-not-active
+  // - eks-missing-endpoint-public-access
+  // - eks-authentication-mode-unsupported
+  // - eks-cluster-unreachable
+  // - eks-agent-not-connecting
+  // See usertasks.DiscoverEKSIssueTypes for a complete list of allowed values.
+  // Empty if no error happened, or the error is not yet handled.
+  string issue_type = 4;
 }
 
 // EnrollEKSClustersResponse is a response to enrolling EKS clusters.
