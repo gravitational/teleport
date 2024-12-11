@@ -92,10 +92,19 @@ message RiskFactor {
   string name = 1;
   Severity severity = 2;
   string reason = 3;
+  RiskFactorKind kind = 4;
+}
+
+// RiskFactorKind asdasd
+enum RiskFactorKind {
+  RISK_FACTOR_KIND_UNSPECIFIED = 0;
+  RISK_FACTOR_KIND_UNSUED_ROLE = 1;
+  RISK_FACTOR_KIND_EXCESSIVE_PERMISSIONS = 2;
 }
 
 // AccessGraph contains the instances that failed to auto-enroll into the cluster.
 message AccessGraph {
+  string role_name = 4;
   Severity severity = 1;
   repeated RiskFactor risk_factors = 2;
   string account_id = 3;

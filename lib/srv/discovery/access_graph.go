@@ -33,11 +33,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -84,12 +82,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
 	accountIds := map[string]struct{}{}
-	type mapKey struct {
-		accountID   string
-		integration string
-	}
-	userTaks := make(map[mapKey][]*usertasksv1.RiskFactor, 0)
-	var mu sync.Mutex
+
 	for _, fetcher := range allFetchers {
 		fetcher := fetcher
 		accountIds[fetcher.GetAccountID()] = struct{}{}
@@ -100,41 +93,6 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 			}()
 			result, err := fetcher.Poll(ctx, features)
 			resultsC <- fetcherResult{result, trace.Wrap(err)}
-
-			var riskFactors []*usertasksv1.RiskFactor
-			for _, role := range result.Roles {
-				lastUsedTime := role.GetRoleLastUsed().GetLastUsedDate().AsTime()
-				switch {
-				case role.GetRoleLastUsed().GetLastUsedDate() == nil || lastUsedTime.IsZero():
-					riskFactors = append(riskFactors, &usertasksv1.RiskFactor{
-						Name:     role.GetName(),
-						Reason:   "Role has never been used",
-						Severity: usertasksv1.Severity_SEVERITY_CRITICAL,
-					})
-				case lastUsedTime.Before(s.clock.Now().Add(-6 * 30 * 24 * time.Hour)):
-					riskFactors = append(riskFactors, &usertasksv1.RiskFactor{
-						Name:     role.GetName(),
-						Reason:   "Role has not been used in the last 6 months",
-						Severity: usertasksv1.Severity_SEVERITY_HIGH,
-					})
-				case lastUsedTime.Before(s.clock.Now().Add(-30 * 24 * time.Hour)):
-					riskFactors = append(riskFactors, &usertasksv1.RiskFactor{
-						Name:     role.GetName(),
-						Reason:   "Role has not been used in the last 30 days",
-						Severity: usertasksv1.Severity_SEVERITY_MEDIUM,
-					})
-				case lastUsedTime.Before(s.clock.Now().Add(-7 * 24 * time.Hour)):
-					riskFactors = append(riskFactors, &usertasksv1.RiskFactor{
-						Name:     role.GetName(),
-						Reason:   "Role has not been used in the last 7 days",
-						Severity: usertasksv1.Severity_SEVERITY_LOW,
-					})
-				}
-			}
-			mu.Lock()
-			key := mapKey{accountID: fetcher.GetAccountID(), integration: fetcher.GetIntegration()}
-			userTaks[key] = append(userTaks[key], riskFactors...)
-			mu.Unlock()
 
 		}()
 	}
@@ -182,16 +140,6 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		},
 	}); err != nil {
 		s.Log.ErrorContext(ctx, "Error submitting usage event", "error", err)
-	}
-
-	for key, riskFactors := range userTaks {
-		if err := s.mergeUpsertDiscoverAWSSyncTask(awsAWSSyncTaskKey{
-			accountID:   key.accountID,
-			integration: key.integration,
-			issueType:   usertasks.AWSSyncDiscoveryUnusedRoles,
-		}, riskFactors); err != nil {
-			s.Log.ErrorContext(ctx, "Error submitting user task", "error", err)
-		}
 	}
 
 	return nil
