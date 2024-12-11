@@ -49,13 +49,13 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -172,6 +172,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
+		types.KindWorkloadIdentity:         rc.createWorkloadIdentity,
 		types.KindStaticHostUser:           rc.createStaticHostUser,
 		types.KindUserTask:                 rc.createUserTask,
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
@@ -1079,6 +1080,32 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 	return nil
 }
 
+func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalWorkloadIdentity(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.WorkloadIdentityResourceServiceClient()
+	if rc.force {
+		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw)
 	if err != nil {
@@ -1974,13 +2001,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentity:
+		if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
 	case types.KindGitServer:
-		if _, err := client.GitServerClient().DeleteGitServer(ctx, &gitserverv1.DeleteGitServerRequest{Name: rc.ref.Name}); err != nil {
+		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
@@ -3132,6 +3167,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
+	case types.KindWorkloadIdentity:
+		if rc.ref.Name != "" {
+			resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentity
+		pageToken := ""
+		for {
+			resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentities...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
@@ -3232,29 +3297,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
 	case types.KindGitServer:
-		var servers []types.Server
+		var page, servers []types.Server
 
 		// TODO(greedy52) use unified resource request once available.
 		if rc.ref.Name != "" {
-			server, err := client.GitServerClient().GetGitServer(ctx, &gitserverv1.GetGitServerRequest{Name: rc.ref.Name})
+			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &serverCollection{servers: append(servers, server)}, nil
 		}
-		req := &gitserverv1.ListGitServersRequest{}
+		var err error
+		var token string
 		for {
-			resp, err := client.GitServerClient().ListGitServers(ctx, req)
+			page, token, err = client.GitServerClient().ListGitServers(ctx, 0, token)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, server := range resp.Servers {
-				servers = append(servers, server)
-			}
-			if resp.NextPageToken == "" {
+			servers = append(servers, page...)
+			if token == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
 		}
 		// TODO(greedy52) consider making dedicated git server collection.
 		return &serverCollection{servers: servers}, nil
@@ -3676,14 +3739,10 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
 	if rc.IsForced() {
-		_, err = client.GitServerClient().UpsertGitServer(ctx, &gitserverv1.UpsertGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
 	} else {
-		_, err = client.GitServerClient().CreateGitServer(ctx, &gitserverv1.CreateGitServerRequest{Server: serverV2})
+		_, err = client.GitServerClient().CreateGitServer(ctx, server)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3696,11 +3755,7 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverV2, ok := server.(*types.ServerV2)
-	if !ok {
-		return trace.CompareFailed("expecting types.ServerV2 but got %T", server)
-	}
-	_, err = client.GitServerClient().UpdateGitServer(ctx, &gitserverv1.UpdateGitServerRequest{Server: serverV2})
+	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -26,7 +26,7 @@ import { ResourceIcon } from 'design/ResourceIcon';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';

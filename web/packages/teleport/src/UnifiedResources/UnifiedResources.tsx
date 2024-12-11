@@ -46,7 +46,6 @@ import {
 import { useNoMinWidth } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
 import { UnifiedResource } from 'teleport/services/agents';
@@ -132,7 +131,7 @@ export function ClusterResources({
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const [loadClusterError, setLoadClusterError] = useState('');
 
-  const { params, setParams, replaceHistory, pathname } = useUrlFiltering(
+  const { params, setParams } = useUrlFiltering(
     {
       sort: {
         fieldName: 'name',
@@ -274,22 +273,7 @@ export function ClusterResources({
             ) || <ResourceActionButton resource={resource} />,
           },
         }))}
-        setParams={newParams => {
-          setParams(newParams);
-          const isAdvancedSearch = !!newParams.query;
-          replaceHistory(
-            encodeUrlQueryParams({
-              pathname,
-              searchString: isAdvancedSearch
-                ? newParams.query
-                : newParams.search,
-              sort: newParams.sort,
-              kinds: newParams.kinds,
-              isAdvancedSearch,
-              pinnedOnly: newParams.pinnedOnly,
-            })
-          );
-        }}
+        setParams={setParams}
         Header={
           <>
             <FeatureHeader
@@ -310,12 +294,7 @@ export function ClusterResources({
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between" mb={3}>
-              <ServersideSearchPanel
-                params={params}
-                pathname={pathname}
-                replaceHistory={replaceHistory}
-                setParams={setParams}
-              />
+              <ServersideSearchPanel params={params} setParams={setParams} />
             </Flex>
           </>
         }

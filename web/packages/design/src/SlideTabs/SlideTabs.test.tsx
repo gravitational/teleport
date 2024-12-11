@@ -21,6 +21,8 @@ import { screen } from '@testing-library/react';
 
 import { render, userEvent } from 'design/utils/testing';
 
+import * as Icon from 'design/Icon';
+
 import { SlideTabs, SlideTabsProps } from './SlideTabs';
 
 describe('design/SlideTabs', () => {
@@ -87,7 +89,12 @@ describe('design/SlideTabs', () => {
       <Component
         tabs={[
           { key: 'id1', title: 'first', controls: 'tabpanel-1' },
-          { key: 'id2', title: 'second', controls: 'tabpanel-2' },
+          {
+            key: 'id2',
+            icon: Icon.Check,
+            ariaLabel: 'second',
+            controls: 'tabpanel-2',
+          },
         ]}
       />
     );

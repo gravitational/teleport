@@ -104,7 +104,7 @@ const (
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
 
-	timeReconciliationOk testEvent = "time-reconciliation-ok"
+	pongOk testEvent = "pong-ok"
 
 	instanceCompareFailed testEvent = "instance-compare-failed"
 
@@ -284,13 +284,11 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	c.store.Insert(handle)
 
 	// Increment the concurrent connection counter that we use to calculate the
-	// variable instance heartbeat duration. It's done here synchronously rather
-	// than in handleControlStream for the sake of tests.
+	// variable instance heartbeat duration. To make the behavior more easily
+	// testable, we increment it here and we decrement it before closing the
+	// stream in handleControlStream.
 	c.instanceHBVariableDuration.Inc()
-	go func() {
-		defer c.instanceHBVariableDuration.Dec()
-		c.handleControlStream(handle)
-	}()
+	go c.handleControlStream(handle)
 }
 
 // GetControlStream gets a control stream for the given server ID if one exists (if multiple control streams
@@ -400,6 +398,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 		}
 
+		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
 		}
@@ -518,7 +517,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(err)
 				return
 			}
-			c.testEvent(timeReconciliationOk)
 
 		case now := <-dbKeepAliveDelay.Elapsed():
 			dbKeepAliveDelay.Advance(now)
@@ -632,6 +630,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 
 	pending.rspC <- pong
 	delete(handle.pings, msg.ID)
+	c.testEvent(pongOk)
 }
 
 func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) error {

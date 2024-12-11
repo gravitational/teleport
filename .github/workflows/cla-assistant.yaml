@@ -63,5 +63,5 @@ jobs:
           path-to-document: 'https://github.com/gravitational/teleport/blob/master/CLA.md'
           # branch should not be protected
           branch: 'main'
-          allowlist: '*[bot]'
+          allowlist: 'dependabot[bot],teleport-post-release-automation[bot]'
           lock-pullrequest-aftermerge: false

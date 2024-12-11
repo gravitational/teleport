@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -31,6 +32,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,6 +54,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,7 +67,7 @@ func TestMain(m *testing.M) {
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
 	dnsIPv6        tcpip.Address
-	ns             *NetworkStack
+	ns             *networkStack
 
 	testStack        *stack.Stack
 	testLinkEndpoint *channel.Endpoint
@@ -126,15 +129,15 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
+	tcpHandlerResolver, err := newTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
-	ns, err := newNetworkStack(&Config{
-		TUNDevice:                tun2,
-		IPv6Prefix:               vnetIPv6Prefix,
-		DNSIPv6:                  dnsIPv6,
-		TCPHandlerResolver:       tcpHandlerResolver,
+	ns, err := newNetworkStack(&networkStackConfig{
+		tunDevice:                tun2,
+		ipv6Prefix:               vnetIPv6Prefix,
+		dnsIPv6:                  dnsIPv6,
+		tcpHandlerResolver:       tcpHandlerResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
 	require.NoError(t, err)
@@ -142,7 +145,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := ns.Run(ctx); !errIsOK(err) {
+			if err := ns.run(ctx); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil
@@ -210,7 +213,7 @@ func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error
 	return resolver.LookupHost(ctx, host)
 }
 
-func (p *testPack) dialHost(ctx context.Context, host string) (net.Conn, error) {
+func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
 	addrs, err := p.lookupHost(ctx, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -219,7 +222,7 @@ func (p *testPack) dialHost(ctx context.Context, host string) (net.Conn, error) 
 	for _, addr := range addrs {
 		netIP := net.ParseIP(addr)
 		ip := tcpip.AddrFromSlice(netIP)
-		conn, err := p.dialIPPort(ctx, ip, 123)
+		conn, err := p.dialIPPort(ctx, ip, uint16(port))
 		if err != nil {
 			allErrs = append(allErrs, trace.Wrap(err, "dialing %s", addr))
 			continue
@@ -235,26 +238,37 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 	return nil, nil
 }
 
+type appSpec struct {
+	// publicAddr is used both as the name of the app and its public address in the final spec.
+	publicAddr string
+	tcpPorts   []*types.PortRange
+}
+
 type testClusterSpec struct {
-	apps           []string
+	apps           []appSpec
 	cidrRange      string
 	customDNSZones []string
 	leafClusters   map[string]testClusterSpec
 }
 
 type echoAppProvider struct {
-	clusters                 map[string]testClusterSpec
-	dialOpts                 DialOptions
-	reissueAppCert           func() tls.Certificate
-	onNewConnectionCallCount atomic.Uint32
+	clusters                    map[string]testClusterSpec
+	dialOpts                    DialOptions
+	reissueAppCert              func() tls.Certificate
+	onNewConnectionCallCount    atomic.Uint32
+	onInvalidLocalPortCallCount atomic.Uint32
+	// requestedRouteToApps indexed by public address.
+	requestedRouteToApps   map[string][]proto.RouteToApp
+	requestedRouteToAppsMu sync.RWMutex
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
 func newEchoAppProvider(clusterSpecs map[string]testClusterSpec, dialOpts DialOptions, reissueAppCert func() tls.Certificate) *echoAppProvider {
 	return &echoAppProvider{
-		clusters:       clusterSpecs,
-		dialOpts:       dialOpts,
-		reissueAppCert: reissueAppCert,
+		clusters:             clusterSpecs,
+		dialOpts:             dialOpts,
+		reissueAppCert:       reissueAppCert,
+		requestedRouteToApps: make(map[string][]proto.RouteToApp),
 	}
 }
 
@@ -274,8 +288,9 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if leafClusterName == "" {
 		return &fakeClusterClient{
 			authClient: &fakeAuthClient{
-				clusterSpec: rootCluster,
-				clusterName: profileName,
+				clusterSpec:     rootCluster,
+				clusterName:     profileName,
+				rootClusterName: profileName,
 			},
 		}, nil
 	}
@@ -285,14 +300,31 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}
 	return &fakeClusterClient{
 		authClient: &fakeAuthClient{
-			clusterSpec: leafCluster,
-			clusterName: leafClusterName,
+			clusterSpec:     leafCluster,
+			clusterName:     leafClusterName,
+			rootClusterName: profileName,
 		},
 	}, nil
 }
 
 func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
+	p.requestedRouteToAppsMu.Lock()
+	defer p.requestedRouteToAppsMu.Unlock()
+
+	p.requestedRouteToApps[routeToApp.PublicAddr] = append(p.requestedRouteToApps[routeToApp.PublicAddr], routeToApp)
+
 	return p.reissueAppCert(), nil
+}
+
+func (p *echoAppProvider) RequestedRouteToApps(publicAddr string) []proto.RouteToApp {
+	p.requestedRouteToAppsMu.RLock()
+	defer p.requestedRouteToAppsMu.RUnlock()
+
+	requestedRoutes := p.requestedRouteToApps[publicAddr]
+	returnedRoutes := make([]proto.RouteToApp, len(requestedRoutes))
+	copy(returnedRoutes, requestedRoutes)
+
+	return returnedRoutes
 }
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
@@ -355,6 +387,10 @@ func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leaf
 	return nil
 }
 
+func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+	p.onInvalidLocalPortCallCount.Add(1)
+}
+
 type fakeClusterClient struct {
 	authClient *fakeAuthClient
 }
@@ -367,37 +403,48 @@ func (c *fakeClusterClient) ClusterName() string {
 	return c.authClient.clusterName
 }
 
+func (c *fakeClusterClient) RootClusterName() string {
+	return c.authClient.rootClusterName
+}
+
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type fakeAuthClient struct {
 	authclient.ClientI
-	clusterSpec testClusterSpec
-	clusterName string
+	clusterSpec     testClusterSpec
+	clusterName     string
+	rootClusterName string
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.clusterSpec.apps {
 		// Poor-man's predicate expression filter.
-		if !strings.Contains(req.PredicateExpression, app) {
+		if !strings.Contains(req.PredicateExpression, app.publicAddr) {
 			continue
 		}
+		spec := &types.AppV3{
+			Metadata: types.Metadata{
+				Name: app.publicAddr,
+			},
+			Spec: types.AppSpecV3{
+				PublicAddr: app.publicAddr,
+			},
+		}
+
+		if len(app.tcpPorts) != 0 {
+			spec.SetTCPPorts(app.tcpPorts)
+		}
+
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
 				AppServer: &types.AppServerV3{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{
-						Name: app,
+						Name: app.publicAddr,
 					},
 					Spec: types.AppServerSpecV3{
-						App: &types.AppV3{
-							Metadata: types.Metadata{
-								Name: app,
-							},
-							Spec: types.AppSpecV3{
-								PublicAddr: app,
-							},
-						},
+						App: spec,
 					},
 				},
 			},
@@ -456,12 +503,23 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps: []string{
-				"echo1.root1.example.com",
-				"echo2.root1.example.com",
-				"echo.myzone.example.com",
-				"echo.nested.myzone.example.com",
-				"not.in.a.custom.zone",
+			apps: []appSpec{
+				appSpec{publicAddr: "echo1.root1.example.com"},
+				appSpec{publicAddr: "echo2.root1.example.com"},
+				appSpec{publicAddr: "echo.myzone.example.com"},
+				appSpec{publicAddr: "echo.nested.myzone.example.com"},
+				appSpec{publicAddr: "not.in.a.custom.zone"},
+				appSpec{
+					publicAddr: "multi-port.root1.example.com",
+					tcpPorts: []*types.PortRange{
+						&types.PortRange{
+							Port: 1337,
+						},
+						&types.PortRange{
+							Port: 4242,
+						},
+					},
+				},
 			},
 			customDNSZones: []string{
 				"myzone.example.com",
@@ -469,18 +527,38 @@ func TestDialFakeApp(t *testing.T) {
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
-					apps: []string{"echo1.leaf1.example.com"},
+					apps: []appSpec{
+						appSpec{publicAddr: "echo1.leaf1.example.com"},
+						appSpec{
+							publicAddr: "multi-port.leaf1.example.com",
+							tcpPorts: []*types.PortRange{
+								&types.PortRange{
+									Port: 1337,
+								},
+								&types.PortRange{
+									Port: 4242,
+								},
+							},
+						},
+					},
 				},
 				"leaf2.example.com": {
-					apps: []string{"echo1.leaf2.example.com"},
+					apps: []appSpec{
+						appSpec{publicAddr: "echo1.leaf2.example.com"},
+					},
 				},
 			},
 		},
 		"root2.example.com": {
-			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
+			apps: []appSpec{
+				appSpec{publicAddr: "echo1.root2.example.com"},
+				appSpec{publicAddr: "echo2.root2.example.com"},
+			},
 			leafClusters: map[string]testClusterSpec{
 				"leaf3.example.com": {
-					apps: []string{"echo1.leaf3.example.com"},
+					apps: []appSpec{
+						appSpec{publicAddr: "echo1.leaf3.example.com"},
+					},
 				},
 			},
 		},
@@ -493,6 +571,7 @@ func TestDialFakeApp(t *testing.T) {
 
 	validTestCases := []struct {
 		app        string
+		port       int
 		expectCIDR string
 	}{
 		{
@@ -531,6 +610,16 @@ func TestDialFakeApp(t *testing.T) {
 			app:        "echo1.leaf3.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
+		{
+			app:        "multi-port.root1.example.com",
+			port:       1337,
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "multi-port.leaf1.example.com",
+			port:       1337,
+			expectCIDR: defaultIPv4CIDRRange,
+		},
 	}
 
 	t.Run("valid", func(t *testing.T) {
@@ -550,7 +639,8 @@ func TestDialFakeApp(t *testing.T) {
 						_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
 						require.NoError(t, err)
 
-						conn, err := p.dialHost(ctx, tc.app)
+						const defaultPort = 80
+						conn, err := p.dialHost(ctx, tc.app, cmp.Or(tc.port, defaultPort))
 						require.NoError(t, err)
 						t.Cleanup(func() { assert.NoError(t, conn.Close()) })
 
@@ -565,6 +655,16 @@ func TestDialFakeApp(t *testing.T) {
 						require.True(t, expectNet.Contains(remoteIPSuffix), "expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
 
 						testEchoConnection(t, conn)
+
+						requestedRoutes := appProvider.RequestedRouteToApps(tc.app)
+						// For multi-port apps, certs should have RouteToApp.TargetPort set to the specified
+						// cert.
+						//
+						// Single-port apps are going to be dialed on defaultPort in tests, but certs for them
+						// need to have RouteToApp.TargetPort set to 0.
+						require.True(t, apiutils.All(requestedRoutes, func(route proto.RouteToApp) bool {
+							return int(route.TargetPort) == tc.port
+						}), "not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
 					})
 				}
 			})
@@ -572,7 +672,7 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid", func(t *testing.T) {
+	t.Run("invalid FQDN", func(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
@@ -587,6 +687,23 @@ func TestDialFakeApp(t *testing.T) {
 				require.Error(t, err)
 			})
 		}
+	})
+
+	t.Run("invalid target port", func(t *testing.T) {
+		t.Parallel()
+		app := "multi-port.root1.example.com"
+		port := 1000
+
+		_, err := p.dialHost(ctx, app, port)
+		// VNet is expected to refuse the connection rather than let the dial go through and then
+		// immediately close it.
+		require.ErrorContains(t, err, "connection was refused")
+
+		requestedRoutes := appProvider.RequestedRouteToApps(app)
+		require.False(t, slices.ContainsFunc(requestedRoutes, func(route proto.RouteToApp) bool {
+			return int(route.TargetPort) == port
+		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
+		require.Equal(t, uint32(1), appProvider.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
 	})
 }
 
@@ -627,7 +744,9 @@ func TestOnNewConnection(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:         []string{"echo1"},
+			apps: []appSpec{
+				appSpec{publicAddr: "echo1"},
+			},
 			cidrRange:    "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{},
 		},
@@ -650,7 +769,7 @@ func TestOnNewConnection(t *testing.T) {
 	require.Equal(t, uint32(0), appProvider.onNewConnectionCallCount.Load())
 
 	// Establish a connection to a valid app and verify that OnNewConnection was called.
-	conn, err := p.dialHost(ctx, validAppName)
+	conn, err := p.dialHost(ctx, validAppName, 80 /* bogus port */)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), appProvider.onNewConnectionCallCount.Load())

@@ -53,9 +53,9 @@ export function IntegrationTiles({
         data-testid="tile-aws-oidc"
       >
         <Flex flexBasis={100}>
-          <IntegrationIcon name="aws" />
+          <IntegrationIcon name="aws" size={80} />
         </Flex>
-        <Flex flexBasis={50}>
+        <Flex>
           <Text>AWS OIDC Identity Provider</Text>
         </Flex>
         {!hasIntegrationAccess && (
@@ -84,9 +84,9 @@ export function IntegrationTiles({
           data-testid="tile-external-audit-storage"
         >
           <Flex flexBasis={100}>
-            <IntegrationIcon name="aws" />
+            <IntegrationIcon name="aws" size={80} />
           </Flex>
-          <Flex flexBasis={50}>
+          <Flex>
             <Text>AWS External Audit Storage</Text>
           </Flex>
           {renderExternalAuditStorageBadge(

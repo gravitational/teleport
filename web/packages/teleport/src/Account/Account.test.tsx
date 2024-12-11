@@ -243,7 +243,7 @@ test('adding an MFA device', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
-  jest.spyOn(auth, 'getChallenge').mockResolvedValue({
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: null,
     totpChallenge: true,
     ssoChallenge: null,
@@ -327,7 +327,7 @@ test('removing an MFA method', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
-  jest.spyOn(auth, 'getChallenge').mockResolvedValue({
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: null,
     totpChallenge: false,
     ssoChallenge: null,

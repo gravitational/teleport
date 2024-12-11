@@ -117,9 +117,16 @@ func NewPresetEditorRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+					Local: &types.SSHLocalPortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+				ForwardAgent: types.NewBool(true),
+				BPF:          apidefaults.EnhancedEvents(),
 				RecordSession: &types.RecordSession{
 					Desktop: types.NewBoolOption(false),
 				},
@@ -183,6 +190,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindUserTask, RW()),
 					types.NewRule(types.KindIdentityCenter, RW()),
+					types.NewRule(types.KindContact, RW()),
+					types.NewRule(types.KindWorkloadIdentity, RW()),
 				},
 			},
 		},
@@ -208,10 +217,17 @@ func NewPresetAccessRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+					Local: &types.SSHLocalPortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+				ForwardAgent:  types.NewBool(true),
+				BPF:           apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
 				Namespaces:            []string{apidefaults.Namespace},
@@ -613,6 +629,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindInstaller,
 							types.KindAccessMonitoringRule,
 							types.KindStaticHostUser,
+							types.KindWorkloadIdentity,
 						},
 						Verbs: RW(),
 					},

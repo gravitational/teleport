@@ -45,8 +45,10 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -1764,4 +1766,52 @@ func (i *TeleInstance) StopAll() error {
 
 	i.Log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
+}
+
+// WaitForNodeCount waits for a certain number of nodes in the provided cluster
+// to be visible to the Proxy. This should be called prior to any client dialing
+// of nodes to be sure that the node is registered and routable.
+func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, count int) error {
+	const (
+		deadline     = time.Second * 30
+		iterWaitTime = time.Second
+	)
+
+	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
+		site, err := i.Tunnel.GetSite(cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Validate that the site cache contains the expected count.
+		accessPoint, err := site.CachingAccessPoint()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		nodes, err := accessPoint.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(nodes) != count {
+			return trace.BadParameter("cache contained %v nodes, but wanted to find %v nodes", len(nodes), count)
+		}
+
+		// Validate that the site watcher contains the expected count.
+		watcher, err := site.NodeWatcher()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if watcher.ResourceCount() != count {
+			return trace.BadParameter("node watcher contained %v nodes, but wanted to find %v nodes", watcher.ResourceCount(), count)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

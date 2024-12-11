@@ -21,7 +21,7 @@ import { Link as InternalLink } from 'react-router-dom';
 
 import { ButtonIcon, Flex, Label, Text } from 'design';
 import { ArrowLeft } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
@@ -40,7 +40,7 @@ export function AwsOidcHeader({ integration }: { integration: Integration }) {
           <ArrowLeft size="medium" />
         </ButtonIcon>
       </HoverTooltip>
-      <Text bold fontSize={6} mr={2}>
+      <Text bold fontSize={6} mx={2}>
         {integration.name}
       </Text>
       <Label kind={labelKind} aria-label="status" px={3}>

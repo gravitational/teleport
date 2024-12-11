@@ -17,7 +17,6 @@
  */
 
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
-import { processRedirectUri } from 'shared/redirects';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -28,7 +27,6 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
-const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
     private runtimeSettings: RuntimeSettings,
@@ -97,9 +95,9 @@ export class DeepLinksService {
   }
 
   /**
-   * askAuthorizeDeviceTrust opens a dialog asking the user if they'd like to authorize
+   * askAuthorizeDeviceTrust opens a document asking the user if they'd like to authorize
    * a web session with device trust. If confirmed, the web session will be upgraded and the
-   * user will be directed back to the web UI
+   * user will be directed back to the web UI.
    */
   private async askAuthorizeDeviceTrust(
     url: AuthenticateWebDeviceDeepURL
@@ -112,32 +110,19 @@ export class DeepLinksService {
     }
 
     const { rootClusterUri } = result;
-    const rootCluster = this.clustersService.findCluster(rootClusterUri);
-
-    this.modalsService.openRegularDialog({
-      kind: 'device-trust-authorize',
+    const documentService =
+      this.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+    const doc = documentService.createAuthorizeWebSessionDocument({
       rootClusterUri,
-      onCancel: () => {
-        const processedRedirectURI = processRedirectUri(redirect_uri);
-        window.open(`https://${rootCluster.proxyHost}${processedRedirectURI}`);
-      },
-      onAuthorize: async () => {
-        const result = await this.clustersService.authenticateWebDevice(
-          rootClusterUri,
-          {
-            id,
-            token,
-          }
-        );
-        let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`;
-        if (redirect_uri) {
-          url = `${url}&redirect_uri=${redirect_uri}`;
-        }
-        // open url to confirm the token. This endpoint verifies the token and "upgrades"
-        // the web session and redirects to "/web"
-        window.open(url);
+      webSessionRequest: {
+        id,
+        token,
+        username: url.username,
+        redirectUri: redirect_uri,
       },
     });
+    documentService.add(doc);
+    documentService.open(doc.uri);
   }
 
   /**

@@ -35,6 +35,7 @@ import {
   makeApp,
   rootClusterUri,
   leafClusterUri,
+  makeAcl,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
@@ -168,7 +169,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
         userType: tsh.LoggedInUser_UserType.LOCAL,
-        acl: {
+        acl: makeAcl({
           tokens: {
             create: true,
             list: true,
@@ -177,7 +178,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
             read: true,
             use: true,
           },
-        },
+        }),
       }),
     })
   );
@@ -204,7 +205,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
           userType: tsh.LoggedInUser_UserType.SSO,
-          acl: {
+          acl: makeAcl({
             tokens: {
               create: true,
               list: true,
@@ -213,7 +214,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );
@@ -238,7 +239,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        acl: {
+        acl: makeAcl({
           tokens: {
             create: false,
             list: true,
@@ -247,7 +248,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
             read: true,
             use: true,
           },
-        },
+        }),
       }),
     })
   );

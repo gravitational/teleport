@@ -278,9 +278,17 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    contacts: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     clipboardSharingEnabled: true,
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
+    fileTransferAccess: true,
   };
 
   expect(response).toEqual({

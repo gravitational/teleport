@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -77,7 +78,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
-	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -98,6 +99,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -878,6 +880,12 @@ func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClie
 
 func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
 	return machineidv1pb.NewSPIFFEFederationServiceClient(c.conn)
+}
+
+// WorkloadIdentityResourceServiceClient returns an unadorned client for the
+// workload identity resource service.
+func (c *Client) WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -3807,6 +3815,12 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
+		case types.KindIdentityCenterAccount:
+			resources[i] = respResource.GetAppServer()
+		case types.KindIdentityCenterAccountAssignment:
+			src := respResource.GetIdentityCenterAccountAssignment()
+			dst := proto.UnpackICAccountAssignment(src)
+			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3895,6 +3909,8 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetAppServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
@@ -4876,8 +4892,8 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 }
 
 // GitServerClient returns a client for managing git servers
-func (c *Client) GitServerClient() gitserverv1.GitServerServiceClient {
-	return gitserverv1.NewGitServerServiceClient(c.conn)
+func (c *Client) GitServerClient() *gitserverclient.Client {
+	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -5195,4 +5211,9 @@ func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceCl
 // an underlying gRPC connection.
 func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
 	return provisioningv1.NewProvisioningServiceClient(c.conn)
+}
+
+// IntegrationsClient returns integrations client.
+func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
+	return c.integrationsClient()
 }

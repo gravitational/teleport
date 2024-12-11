@@ -17,10 +17,13 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { IconProps } from 'design/Icon/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import { Position } from 'design/Popover/Popover';
+import { StatusIcon, StatusKind } from 'design/StatusIcon';
 
 export function SlideTabs({
   appearance = 'square',
@@ -31,7 +34,9 @@ export function SlideTabs({
   isProcessing = false,
   disabled = false,
   fitContent = false,
+  hideStatusIconOnActiveTab,
 }: SlideTabsProps) {
+  const theme = useTheme();
   const activeTab = useRef<HTMLButtonElement>(null);
   const tabContainer = useRef<HTMLDivElement>(null);
 
@@ -75,7 +80,15 @@ export function SlideTabs({
             icon: Icon,
             ariaLabel,
             controls,
+            tooltip: {
+              content: tooltipContent,
+              position: tooltipPosition,
+            } = {},
+            status: { kind: statusKind, ariaLabel: statusAriaLabel } = {},
           } = toFullTabSpec(tabSpec, tabIndex);
+          const statusIconColorActive = hideStatusIconOnActiveTab
+            ? 'transparent'
+            : theme.colors.text.primaryInverse;
 
           let onClick = undefined;
           if (!disabled && !isProcessing) {
@@ -86,32 +99,45 @@ export function SlideTabs({
           }
 
           return (
-            <TabButton
+            <HoverTooltip
               key={key}
-              ref={selected ? activeTab : undefined}
-              role="tab"
-              onClick={onClick}
-              selected={selected}
-              className={selected ? 'selected' : undefined}
-              aria-controls={controls}
-              tabIndex={!disabled && selected ? 0 : -1}
-              processing={isProcessing}
-              disabled={disabled}
-              aria-selected={selected}
-              size={size}
-              aria-label={ariaLabel}
+              tipContent={tooltipContent}
+              position={tooltipPosition}
             >
-              {/* We need a separate tab content component, since the spinner,
-                  when displayed, shouldn't take up space to prevent layout
-                  jumping. TabContent serves as a positioning anchor whose left
-                  edge is the left edge of the content (not the tab button,
-                  which can be much wider). */}
-              <TabContent gap={1}>
-                {selected && isProcessing && <Spinner delay="none" size={25} />}
-                {Icon && <Icon size={size} role="graphics-symbol" />}
-                {title}
-              </TabContent>
-            </TabButton>
+              <TabButton
+                ref={selected ? activeTab : undefined}
+                role="tab"
+                onClick={onClick}
+                selected={selected}
+                className={selected ? 'selected' : undefined}
+                aria-controls={controls}
+                tabIndex={!disabled && selected ? 0 : -1}
+                processing={isProcessing}
+                disabled={disabled}
+                aria-selected={selected}
+                size={size}
+                aria-label={ariaLabel}
+              >
+                {/* We need a separate tab content component, since the status
+                  icon, when displayed, shouldn't take up space to prevent
+                  layout jumping. TabContent serves as a positioning anchor
+                  whose left edge is the left edge of the content (not the tab
+                  button, which can be much wider). */}
+                <TabContent gap={1}>
+                  <StatusIconContainer>
+                    <StatusIconOrSpinner
+                      statusKind={statusKind}
+                      ariaLabel={statusAriaLabel}
+                      showSpinner={isProcessing && selected}
+                      size={size}
+                      color={selected ? statusIconColorActive : undefined}
+                    />
+                  </StatusIconContainer>
+                  {Icon && <Icon size={size} role="graphics-symbol" />}
+                  {title}
+                </TabContent>
+              </TabButton>
+            </HoverTooltip>
           );
         })}
         {/* The tab slider is positioned absolutely and appears below the
@@ -169,6 +195,13 @@ export type SlideTabsProps = {
    * but instead wraps its contents.
    */
   fitContent?: boolean;
+  /**
+   * Hides the status icon on active tab. Note that this is not the same as
+   * simply making some tab's `tabSpec.status` field set conditionally on
+   * whether that tab is active or not. Using this field provides a smooth
+   * animation for transitions between active and inactive state.
+   */
+  hideStatusIconOnActiveTab?: boolean;
 };
 
 /**
@@ -179,7 +212,7 @@ export type SlideTabsProps = {
  * TODO(bl-nero): remove the string option once Enterprise is migrated to
  * simplify it a bit.
  */
-type TabSpec = string | FullTabSpec;
+export type TabSpec = string | FullTabSpec;
 
 type FullTabSpec = TabContentSpec & {
   /** Iteration key for the tab. */
@@ -190,6 +223,19 @@ type FullTabSpec = TabContentSpec & {
    * attribute set to "tabpanel".
    */
   controls?: string;
+  tooltip?: {
+    content: React.ReactNode;
+    position?: Position;
+  };
+  /**
+   * An icon that will be displayed on the side. The layout will stay the same
+   * whether the icon is there or not. If `isProcessing` prop is set to `true`,
+   * the icon for an active tab is replaced by a spinner.
+   */
+  status?: {
+    kind: StatusKind;
+    ariaLabel?: string;
+  };
 };
 
 /**
@@ -218,6 +264,48 @@ function toFullTabSpec(spec: TabSpec, index: number): FullTabSpec {
     key: index,
     title: spec,
   };
+}
+
+function StatusIconOrSpinner({
+  showSpinner,
+  statusKind,
+  size,
+  color,
+  ariaLabel,
+}: {
+  showSpinner: boolean;
+  statusKind: StatusKind | undefined;
+  size: Size;
+  color: string | undefined;
+  ariaLabel: string | undefined;
+}) {
+  if (showSpinner) {
+    return <Spinner delay="none" size={size} />;
+  }
+
+  // This is one of these rare cases when there is a difference between
+  // property being undefined and not present at all: undefined props would
+  // override the default ones, but we want it them to interfere at all.
+  const optionalProps: { color?: string; 'aria-label'?: string } = {};
+  if (color !== undefined) {
+    optionalProps.color = color;
+  }
+  if (ariaLabel !== undefined) {
+    optionalProps['aria-label'] = ariaLabel;
+  }
+
+  if (!statusKind) {
+    return null;
+  }
+
+  return (
+    <StatusIcon
+      kind={statusKind}
+      size={size}
+      style={{ transition: 'color 0.2s ease-in 0s' }}
+      {...optionalProps}
+    />
+  );
 }
 
 const TabSliderInner = styled.div<{ appearance: Appearance }>`
@@ -343,6 +431,9 @@ const TabList = styled.div<{ itemCount: number }>`
 
 const Spinner = styled(Indicator)`
   color: ${p => p.theme.colors.levels.deep};
+`;
+
+const StatusIconContainer = styled.div`
   position: absolute;
   left: -${p => p.theme.space[5]}px;
 `;

@@ -21,7 +21,8 @@ import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
 import { displayDateWithPrefixedTime } from 'design/datetime';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
+
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export function PromotedMessage({

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// ExcludesFalse is a method that can be used instead of [].filter(Boolean)
-// this removes the false values from the array type
 import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
@@ -137,6 +135,24 @@ export function notificationRequestOneOfIsCannotProxyVnetConnection(
   cannotProxyVnetConnection: api.CannotProxyVnetConnection;
 } {
   return subject.oneofKind === 'cannotProxyVnetConnection';
+}
+
+export function cannotProxyVnetConnectionReasonIsCertReissueError(
+  reason: api.CannotProxyVnetConnection['reason']
+): reason is {
+  oneofKind: 'certReissueError';
+  certReissueError: api.CertReissueError;
+} {
+  return reason.oneofKind === 'certReissueError';
+}
+
+export function cannotProxyVnetConnectionReasonIsInvalidLocalPort(
+  reason: api.CannotProxyVnetConnection['reason']
+): reason is {
+  oneofKind: 'invalidLocalPort';
+  invalidLocalPort: api.InvalidLocalPort;
+} {
+  return reason.oneofKind === 'invalidLocalPort';
 }
 
 export function reloginReasonOneOfIsGatewayCertExpired(

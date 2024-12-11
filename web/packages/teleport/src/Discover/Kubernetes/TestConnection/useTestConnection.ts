@@ -22,7 +22,7 @@ import { KubeMeta } from '../../useDiscover';
 
 import type { KubeImpersonation } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
 
 /**
  * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component
@@ -34,7 +34,7 @@ export function useTestConnection(props: AgentStepProps) {
 
   function testConnection(
     impersonate: KubeImpersonation,
-    mfaResponse?: MfaAuthnResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     runConnectionDiagnostic(
       {

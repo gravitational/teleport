@@ -18,18 +18,43 @@
 
 import React from 'react';
 
+import { Flex, H2, Indicator } from 'design';
+
+import { Danger } from 'design/Alert';
+
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { FeatureBox } from 'teleport/components/Layout';
+import {
+  AwsResource,
+  StatCard,
+} from 'teleport/Integrations/status/AwsOidc/StatCard';
 
-// todo (michellescripts) after routing, ensure this view can be sticky
 export function AwsOidcDashboard() {
-  const { attempt } = useAwsOidcStatus();
+  const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
 
+  if (statsAttempt.status == 'processing') {
+    return <Indicator />;
+  }
+  if (statsAttempt.status == 'error') {
+    return <Danger>{statsAttempt.statusText}</Danger>;
+  }
+  if (!statsAttempt.data) {
+    return null;
+  }
+
+  // todo (michellescripts) after routing, ensure this view can be sticky
+  const { awsec2, awseks, awsrds } = statsAttempt.data;
+  const { data: integration } = integrationAttempt;
   return (
     <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
-      {attempt.data && <AwsOidcHeader integration={attempt.data} />}
-      Status for integration type aws-oidc is not supported
+      {integration && <AwsOidcHeader integration={integration} />}
+      <H2 my={3}>Auto-Enrollment</H2>
+      <Flex gap={3}>
+        <StatCard resource={AwsResource.ec2} summary={awsec2} />
+        <StatCard resource={AwsResource.rds} summary={awsrds} />
+        <StatCard resource={AwsResource.eks} summary={awseks} />
+      </Flex>
     </FeatureBox>
   );
 }

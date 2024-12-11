@@ -691,7 +691,11 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "localhost1"
+  uri: "tcp://localhost1"
+  tcp_ports:
+  - port: 1234
+  - port: 30000
+    end_port: 30768
 ---
 kind: app
 version: v3
@@ -1198,7 +1202,11 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "localhost1",
+		URI: "tcp://localhost1",
+		TCPPorts: []*types.PortRange{
+			&types.PortRange{Port: 1234},
+			&types.PortRange{Port: 30000, EndPort: 30768},
+		},
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1931,11 +1939,15 @@ func testCreateAppServer(t *testing.T, clt *authclient.Client) {
 kind: app_server
 metadata:
   name: my-integration
+  labels:
+    account_id: "123456789012"
 spec:
   app:
     kind: app
     metadata:
       name: my-integration
+      labels:
+        account_id: "123456789012"
     spec:
       uri: https://console.aws.amazon.com
       integration: my-integration
@@ -1979,7 +1991,7 @@ version: v3
 	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
 	require.Len(t, appServers, 1)
 
-	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com")
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com", map[string]string{"account_id": "123456789012"})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
 		expectedAppServer,

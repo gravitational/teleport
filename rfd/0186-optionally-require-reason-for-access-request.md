@@ -1,9 +1,9 @@
 ---
 authors: Pawel Kopiczko (pawel.kopiczko@goteleport.com)
-state: draft
+state: implemented
 ---
 
-# RFD 186 - Optionally require reason for access request
+# RFD 186 - Optionally require reason for Access Request
 
 
 ## Required Approvers

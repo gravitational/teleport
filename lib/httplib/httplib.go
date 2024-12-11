@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
@@ -163,7 +163,7 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 			errHeader := csrf.VerifyHTTPHeader(r)
 			errForm := csrf.VerifyFormField(r)
 			if errForm != nil && errHeader != nil {
-				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				slog.WarnContext(r.Context(), "unable to validate CSRF token", "header_error", errHeader, "form_error", errForm)
 				trace.WriteError(w, trace.AccessDenied("access denied"))
 				return
 			}
@@ -190,12 +190,12 @@ func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		log.Warningf("Error parsing media type for reading JSON: %v", err)
+		slog.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)
 		return trace.BadParameter("invalid request")
 	}
 
 	if contentType != "application/json" {
-		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		slog.WarnContext(r.Context(), "Invalid HTTP request header content-type for reading JSON", "content_type", contentType)
 		return trace.BadParameter("invalid request")
 	}
 

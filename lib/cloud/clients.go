@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -60,8 +60,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
@@ -133,8 +131,6 @@ type AWSClients interface {
 	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSSSMClient returns AWS SSM client for the specified region.
-	GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error)
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
 	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -592,15 +588,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 	return sts.New(session), nil
 }
 
-// GetAWSSSMClient returns AWS SSM client for the specified region.
-func (c *cloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ssm.New(session), nil
-}
-
 // GetAWSEKSClient returns AWS EKS client for the specified region.
 func (c *cloudClients) GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -1021,7 +1008,6 @@ type TestCloudClients struct {
 	GCPGKE                  gcp.GKEClient
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
-	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        imds.Client
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
@@ -1189,15 +1175,6 @@ func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.KMS, nil
-}
-
-// GetAWSSSMClient returns an AWS SSM client
-func (c *TestCloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.SSM, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
