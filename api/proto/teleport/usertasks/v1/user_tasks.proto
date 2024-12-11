@@ -98,6 +98,7 @@ message PolicyUpdate {
 // UnusedRoleRiskFactor asdad
 message UnusedRoleRiskFactor {
   string last_used = 1;
+  string description = 2;
 }
 
 // asdasd

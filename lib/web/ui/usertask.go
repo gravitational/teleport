@@ -60,8 +60,13 @@ type RiskFactor struct {
 	Name             string            `json:"name,omitempty"`
 	Severity         string            `json:"severity,omitempty"`
 	Reason           string            `json:"reason,omitempty"`
-	UnusedRole       *string           `json:"unused_role,omitempty"`
+	UnusedRole       *UnusedRole       `json:"unused_role,omitempty"`
 	PolicyRiskFactor *PolicyRiskFactor `json:"policy_risk_factor,omitempty"`
+}
+
+type UnusedRole struct {
+	LastUsed    string `json:"last_used,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -146,10 +151,13 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 			RoleName:    ut.GetSpec().GetAccessGraph().GetRoleName(),
 		}
 		for _, rf := range ut.GetSpec().GetAccessGraph().GetRiskFactors() {
-			var unusedRole *string
+			var unusedRole *UnusedRole
 			var policyRiskFactor *PolicyRiskFactor
 			if uRole := rf.GetUnusedRole(); unusedRole != nil {
-				unusedRole = &(uRole.LastUsed)
+				unusedRole = &UnusedRole{
+					LastUsed:    uRole.GetLastUsed(),
+					Description: uRole.GetDescription(),
+				}
 			} else if policy := rf.GetPolicy(); policy != nil {
 				updates := make([]*PolicyUpdate, 0, len(policy.GetUpdates()))
 				for _, update := range policy.GetUpdates() {
