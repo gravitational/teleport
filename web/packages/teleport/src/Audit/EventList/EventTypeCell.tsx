@@ -290,6 +290,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CONTACT_CREATE]: Icons.Info,
   [eventCodes.CONTACT_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
+  [eventCodes.GIT_COMMAND]: Icons.GitHub,
+  [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
 };
 
 export default function renderTypeCell(event: Event) {

@@ -1914,6 +1914,41 @@ export const formatters: Formatters = {
     format: ({ unknown_type, unknown_code }) =>
       `Unknown '${unknown_type}' event (${unknown_code})`,
   },
+  [eventCodes.GIT_COMMAND]: {
+    type: 'git.command',
+    desc: 'Git Command',
+    format: ({ user, service, path, actions }) => {
+      // "git-upload-pack" are fetches like "git fetch", "git pull".
+      if (service === 'git-upload-pack') {
+        return `User [${user}] has fetched from [${path}]`;
+      }
+      // "git-receive-pack" are pushes. Usually it should have one action.
+      if (service === 'git-receive-pack') {
+        if (actions && actions.length == 1) {
+          switch (actions[0].action) {
+            case 'delete':
+              return `User [${user}] has deleted [${actions[0].reference}] from [${path}]`;
+            case 'create':
+              return `User [${user}] has created [${actions[0].reference}] on [${path}]`;
+            case 'update':
+              return `User [${user}] has updated [${actions[0].reference}] to [${actions[0].new.substring(0, 7)}] on [${path}]`;
+          }
+        }
+        return `User [${user}] has attempted a push to [${path}]`;
+      }
+      if (service && path) {
+        return `User [${user}] has executed a Git Command [${service}] at [${path}]`;
+      }
+      return `User [${user}] has executed a Git Command`;
+    },
+  },
+  [eventCodes.GIT_COMMAND_FAILURE]: {
+    type: 'git.command',
+    desc: 'Git Command Failed',
+    format: ({ user, exitError, service, path }) => {
+      return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
+    },
+  },
 };
 
 const unknownFormatter = {
