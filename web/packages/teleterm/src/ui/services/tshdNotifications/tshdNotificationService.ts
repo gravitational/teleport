@@ -102,8 +102,10 @@ export class TshdNotificationsService {
           }
           case 'invalidLocalPort': {
             return {
-              title: `Invalid local port for ${publicAddrWithTargetPort(routeToApp)}`,
-              description: `The port ${routeToApp.targetPort} is not included in target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`,
+              title: `Invalid port for ${publicAddrWithTargetPort(routeToApp)}`,
+              description:
+                `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
+                `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`,
               // 3rd-party clients can potentially make dozens of attempts to connect to an invalid
               // port within a short time. As all notifications from this service go as errors, we
               // don't want to force the user to manually close each notification.
