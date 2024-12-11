@@ -19,6 +19,7 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -60,10 +61,18 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 		// We're interested in hostname or friendly name details. These apply to
 		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		case types.KindIdentityCenterAccount:
+			resourceID.Kind = types.KindApp
+			resourceIDs = append(resourceIDs, resourceID)
+
+		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccountAssignment:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
+
+	slog.Info(
+		"Getting resource details",
+		"resources", resourceIDs)
 
 	withExtraRoles := func(req *proto.ListResourcesRequest) {
 		req.UseSearchAsRoles = true

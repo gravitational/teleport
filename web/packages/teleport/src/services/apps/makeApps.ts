@@ -20,7 +20,7 @@ import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App } from './types';
+import { App, AppSubKind } from './types';
 
 export default function makeApp(json: any): App {
   json = json || {};
@@ -69,7 +69,7 @@ export default function makeApp(json: any): App {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
   }
 
-  const appKind = (subkind == 'aws_ic_account') ? 'aws_ic_account' : undefined
+  const appKind = (subKind == 'aws_ic_account') ? AppSubKind.AwsIcAccount : undefined
 
   return {
     kind: 'app',

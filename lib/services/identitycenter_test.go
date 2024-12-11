@@ -59,7 +59,7 @@ func TestIdentityCenterAccountClone(t *testing.T) {
 
 	// EXPECT that the cloned object DOES NOT inherit the update
 	require.NotEqual(t, src, dst)
-	require.Equal(t, "original value", dst.(IdentityCenterAccount).Spec.PermissionSetInfo[0].Name)
+	require.Equal(t, "original value", dst.Spec.PermissionSetInfo[0].Name)
 }
 
 func TestIdentityCenterAccountAssignmentClone(t *testing.T) {

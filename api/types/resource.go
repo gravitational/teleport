@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"sort"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
@@ -674,6 +677,11 @@ func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
 // FriendlyName will return the friendly name for a resource if it has one. Otherwise, it
 // will return an empty string.
 func FriendlyName(resource ResourceWithLabels) string {
+	slog.Info("Getting friendly name",
+		"name", resource.GetName(),
+		"kind", resource.GetKind(),
+		"type", fmt.Sprintf("%T", resource))
+
 	// Right now, only resources sourced from Okta and nodes have friendly names.
 	if resource.Origin() == OriginOkta {
 		if appName, ok := resource.GetLabel(OktaAppNameLabel); ok {
@@ -686,7 +694,14 @@ func FriendlyName(resource ResourceWithLabels) string {
 		return resource.GetMetadata().Description
 	}
 
-	switch rr := resource.(type) {
+	target := (any)(resource)
+	if unwrapper, isUnwrapper := resource.(Resource153Unwrapper); isUnwrapper {
+		target = unwrapper.Unwrap()
+	}
+
+	switch rr := target.(type) {
+	case *identitycenterv1.AccountAssignment:
+		return rr.GetSpec().GetDisplay()
 	case interface{ GetHostname() string }:
 		return rr.GetHostname()
 	case interface{ GetDisplayName() string }:

@@ -1068,8 +1068,8 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 						SubKind: types.KindIdentityCenterAccount,
 						Version: types.V3,
 						Metadata: types.Metadata{
-							Name:        acct.Spec.Name,
-							Description: acct.Spec.Description,
+							Name:        acct.Spec.Id,
+							Description: acct.Spec.Name,
 							Labels:      maps.Clone(acct.Metadata.Labels),
 						},
 						Spec: types.AppSpecV3{

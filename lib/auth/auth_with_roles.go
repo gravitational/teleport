@@ -1918,8 +1918,18 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
 
 			case services.IdentityCenterAccountAssignment:
-				slog.Warn("Checking IC Account Assignment access")
-				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+				err := r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+				var msg string
+				if err != nil {
+					msg = err.Error()
+				}
+
+				slog.Warn("Checked IC Account Assignment",
+					"assignment", unwrapped.GetMetadata().GetName(),
+					"allowed", err == nil,
+					"message", msg)
+
+				return err
 
 			default:
 				slog.Warn(fmt.Sprintf("Using default access checker for %T", unwrapped))
