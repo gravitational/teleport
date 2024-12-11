@@ -33,6 +33,7 @@ import (
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -631,3 +632,29 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 }
 
 var _ EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+
+func TestKubeAgentLabels(t *testing.T) {
+	kubeClusterLabels := map[string]string{
+		"priority": "yes",
+		"region":   "us-east-1",
+	}
+	resourceID := uuid.NewString()
+	extraLabels := map[string]string{
+		"priority": "no",
+		"custom":   "yes",
+	}
+
+	got := kubeAgentLabels(
+		&types.KubernetesClusterV3{Metadata: types.Metadata{Labels: kubeClusterLabels}},
+		resourceID,
+		extraLabels,
+	)
+
+	expectedLabels := map[string]string{
+		"priority":                      "yes",
+		"region":                        "us-east-1",
+		"custom":                        "yes",
+		"teleport.internal/resource-id": resourceID,
+	}
+	require.Equal(t, expectedLabels, got)
+}
