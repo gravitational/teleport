@@ -269,7 +269,7 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 		// If the token is from a user-assigned managed identity, the resource ID is
 		// for the identity and we need to look the VM up by VM ID.
 	} else {
-		vm, err = vmClient.GetByVMID(ctx, types.Wildcard, vmID)
+		vm, err = vmClient.GetByVMID(ctx, vmID)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.AccessDenied("no VM found with matching VM ID")
