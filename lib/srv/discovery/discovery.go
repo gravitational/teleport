@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -133,9 +132,6 @@ type Config struct {
 	AccessPoint authclient.DiscoveryAccessPoint
 	// Log is the logger.
 	Log *slog.Logger
-	// LegacyLogger is the old logger
-	// Deprecated: use Log instead.
-	LegacyLogger logrus.FieldLogger
 	// ServerID identifies the Teleport instance where this service runs.
 	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
@@ -258,9 +254,7 @@ kubernetes matchers are present.`)
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
-	if c.LegacyLogger == nil {
-		c.LegacyLogger = logrus.New()
-	}
+
 	if c.protocolChecker == nil {
 		c.protocolChecker = fetchers.NewProtoChecker(false)
 	}
@@ -281,7 +275,6 @@ kubernetes matchers are present.`)
 	}
 
 	c.Log = c.Log.With(teleport.ComponentKey, teleport.ComponentDiscovery)
-	c.LegacyLogger = c.LegacyLogger.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
 		const warningMessage = "discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
@@ -573,7 +566,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, otherMatchers, noDiscoveryConfig)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -601,7 +594,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
 			Namespaces:       matcher.Namespaces,
-			Log:              s.LegacyLogger,
+			Logger:           s.Log,
 			ClusterName:      s.DiscoveryGroup,
 			ProtocolChecker:  s.Config.protocolChecker,
 		})
@@ -699,7 +692,7 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, awsKubeMatchers, discoveryConfigName)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers, discoveryConfigName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -766,7 +759,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						Regions:             matcher.Regions,
 						FilterLabels:        matcher.ResourceTags,
 						ResourceGroups:      matcher.ResourceGroups,
-						Log:                 s.LegacyLogger,
+						Logger:              s.Log,
 						DiscoveryConfigName: discoveryConfigName,
 					})
 					if err != nil {
@@ -857,7 +850,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 								Location:      location,
 								FilterLabels:  matcher.GetLabels(),
 								ProjectID:     projectID,
-								Log:           s.LegacyLogger,
+								Logger:        s.Log,
 							})
 						if err != nil {
 							return trace.Wrap(err)
