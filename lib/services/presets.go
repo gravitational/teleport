@@ -250,6 +250,12 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 				},
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       types.Wildcard,
+						PermissionSet: types.Wildcard,
+					},
+				},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -259,6 +265,7 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
+					types.NewRule(types.KindIdentityCenter, RO()),
 				},
 			},
 		},
