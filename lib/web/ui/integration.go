@@ -354,6 +354,8 @@ type AWSOIDCEnrollEKSClustersRequest struct {
 	ClusterNames []string `json:"clusterNames"`
 	// EnableAppDiscovery specifies if Teleport Kubernetes App discovery should be enabled inside enrolled clusters.
 	EnableAppDiscovery bool `json:"enableAppDiscovery"`
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels []ui.Label `json:"extraLabels"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
