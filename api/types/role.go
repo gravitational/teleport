@@ -107,6 +107,13 @@ type Role interface {
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
 	SetNodeLabels(RoleConditionType, Labels)
 
+	// GetWorkloadIdentityLabels gets the map of node labels this role is
+	// allowed or denied access to.
+	GetWorkloadIdentityLabels(RoleConditionType) Labels
+	// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this
+	// role is allowed or denied access to.
+	SetWorkloadIdentityLabels(RoleConditionType, Labels)
+
 	// GetAppLabels gets the map of app labels this role is allowed or denied access to.
 	GetAppLabels(RoleConditionType) Labels
 	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
@@ -613,6 +620,25 @@ func (r *RoleV6) SetNodeLabels(rct RoleConditionType, labels Labels) {
 		r.Spec.Allow.NodeLabels = labels.Clone()
 	} else {
 		r.Spec.Deny.NodeLabels = labels.Clone()
+	}
+}
+
+// GetWorkloadIdentityLabels gets the map of WorkloadIdentity labels for
+// allow or deny.
+func (r *RoleV6) GetWorkloadIdentityLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.WorkloadIdentityLabels
+	}
+	return r.Spec.Deny.WorkloadIdentityLabels
+}
+
+// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this role
+// is allowed or denied access to.
+func (r *RoleV6) SetWorkloadIdentityLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.WorkloadIdentityLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.WorkloadIdentityLabels = labels.Clone()
 	}
 }
 
