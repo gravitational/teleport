@@ -2305,12 +2305,9 @@ func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster type
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedClusterV2(ctx, trustedClusterV2)
+	req := &trustpb.UpsertTrustedClusterV2Request{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpsertTrustedClusterV2(ctx, req)
 	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err, "control plane does not support this operation, "+
-				"consider upgrading your control plane")
-		}
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
@@ -2322,7 +2319,8 @@ func (c *Client) CreateTrustedClusterV2(ctx context.Context, trustedCluster type
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.CreateTrustedClusterV2(ctx, trustedClusterV2)
+	req := &trustpb.CreateTrustedClusterV2Request{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().CreateTrustedClusterV2(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2335,7 +2333,8 @@ func (c *Client) UpdateTrustedClusterV2(ctx context.Context, trustedCluster type
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpdateTrustedClusterV2(ctx, trustedClusterV2)
+	req := &trustpb.UpdateTrustedClusterV2Request{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpdateTrustedClusterV2(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
