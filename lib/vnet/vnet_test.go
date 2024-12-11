@@ -288,8 +288,8 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if leafClusterName == "" {
 		return &fakeClusterClient{
 			authClient: &fakeAuthClient{
-				clusterSpec: rootCluster,
-				clusterName: profileName,
+				clusterSpec:     rootCluster,
+				clusterName:     profileName,
 				rootClusterName: profileName,
 			},
 		}, nil
@@ -300,8 +300,8 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}
 	return &fakeClusterClient{
 		authClient: &fakeAuthClient{
-			clusterSpec: leafCluster,
-			clusterName: leafClusterName,
+			clusterSpec:     leafCluster,
+			clusterName:     leafClusterName,
 			rootClusterName: profileName,
 		},
 	}, nil
@@ -411,8 +411,8 @@ func (c *fakeClusterClient) RootClusterName() string {
 // basic/faked predicate filtering.
 type fakeAuthClient struct {
 	authclient.ClientI
-	clusterSpec testClusterSpec
-	clusterName string
+	clusterSpec     testClusterSpec
+	clusterName     string
 	rootClusterName string
 }
 

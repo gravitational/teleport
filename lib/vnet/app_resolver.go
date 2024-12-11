@@ -171,7 +171,7 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 
 		leafClusterName := ""
 		clusterName := clusterClient.ClusterName()
-		if clusterName != "" && clusterName != profileName && clusterName != clusterClient.RootClusterName() {
+		if clusterName != "" && clusterName != clusterClient.RootClusterName() {
 			leafClusterName = clusterName
 		}
 
