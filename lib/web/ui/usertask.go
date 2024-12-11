@@ -153,7 +153,7 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 		for _, rf := range ut.GetSpec().GetAccessGraph().GetRiskFactors() {
 			var unusedRole *UnusedRole
 			var policyRiskFactor *PolicyRiskFactor
-			if uRole := rf.GetUnusedRole(); unusedRole != nil {
+			if uRole := rf.GetUnusedRole(); uRole != nil {
 				unusedRole = &UnusedRole{
 					LastUsed:    uRole.GetLastUsed(),
 					Description: uRole.GetDescription(),
