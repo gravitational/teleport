@@ -32,6 +32,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -251,10 +252,11 @@ type testClusterSpec struct {
 }
 
 type echoAppProvider struct {
-	clusters                 map[string]testClusterSpec
-	dialOpts                 DialOptions
-	reissueAppCert           func() tls.Certificate
-	onNewConnectionCallCount atomic.Uint32
+	clusters                    map[string]testClusterSpec
+	dialOpts                    DialOptions
+	reissueAppCert              func() tls.Certificate
+	onNewConnectionCallCount    atomic.Uint32
+	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
@@ -286,8 +288,9 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if leafClusterName == "" {
 		return &fakeClusterClient{
 			authClient: &fakeAuthClient{
-				clusterSpec: rootCluster,
-				clusterName: profileName,
+				clusterSpec:     rootCluster,
+				clusterName:     profileName,
+				rootClusterName: profileName,
 			},
 		}, nil
 	}
@@ -297,8 +300,9 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}
 	return &fakeClusterClient{
 		authClient: &fakeAuthClient{
-			clusterSpec: leafCluster,
-			clusterName: leafClusterName,
+			clusterSpec:     leafCluster,
+			clusterName:     leafClusterName,
+			rootClusterName: profileName,
 		},
 	}, nil
 }
@@ -312,15 +316,15 @@ func (p *echoAppProvider) ReissueAppCert(ctx context.Context, profileName, leafC
 	return p.reissueAppCert(), nil
 }
 
-func (p *echoAppProvider) AreAllRequestedRouteToAppsForPort(publicAddr string, port int) bool {
+func (p *echoAppProvider) RequestedRouteToApps(publicAddr string) []proto.RouteToApp {
 	p.requestedRouteToAppsMu.RLock()
 	defer p.requestedRouteToAppsMu.RUnlock()
 
-	routes := p.requestedRouteToApps[publicAddr]
+	requestedRoutes := p.requestedRouteToApps[publicAddr]
+	returnedRoutes := make([]proto.RouteToApp, len(requestedRoutes))
+	copy(returnedRoutes, requestedRoutes)
 
-	return apiutils.All(routes, func(route proto.RouteToApp) bool {
-		return route.TargetPort == uint32(port)
-	})
+	return returnedRoutes
 }
 
 func (p *echoAppProvider) GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error) {
@@ -383,6 +387,10 @@ func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leaf
 	return nil
 }
 
+func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+	p.onInvalidLocalPortCallCount.Add(1)
+}
+
 type fakeClusterClient struct {
 	authClient *fakeAuthClient
 }
@@ -395,12 +403,17 @@ func (c *fakeClusterClient) ClusterName() string {
 	return c.authClient.clusterName
 }
 
+func (c *fakeClusterClient) RootClusterName() string {
+	return c.authClient.rootClusterName
+}
+
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type fakeAuthClient struct {
 	authclient.ClientI
-	clusterSpec testClusterSpec
-	clusterName string
+	clusterSpec     testClusterSpec
+	clusterName     string
+	rootClusterName string
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
@@ -643,13 +656,15 @@ func TestDialFakeApp(t *testing.T) {
 
 						testEchoConnection(t, conn)
 
+						requestedRoutes := appProvider.RequestedRouteToApps(tc.app)
 						// For multi-port apps, certs should have RouteToApp.TargetPort set to the specified
 						// cert.
 						//
 						// Single-port apps are going to be dialed on defaultPort in tests, but certs for them
 						// need to have RouteToApp.TargetPort set to 0.
-						require.True(t, appProvider.AreAllRequestedRouteToAppsForPort(tc.app, tc.port),
-							"not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
+						require.True(t, apiutils.All(requestedRoutes, func(route proto.RouteToApp) bool {
+							return int(route.TargetPort) == tc.port
+						}), "not all requested certs had RouteToApp.TargetPort set to %d", tc.port)
 					})
 				}
 			})
@@ -657,7 +672,7 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid", func(t *testing.T) {
+	t.Run("invalid FQDN", func(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
@@ -672,6 +687,23 @@ func TestDialFakeApp(t *testing.T) {
 				require.Error(t, err)
 			})
 		}
+	})
+
+	t.Run("invalid target port", func(t *testing.T) {
+		t.Parallel()
+		app := "multi-port.root1.example.com"
+		port := 1000
+
+		_, err := p.dialHost(ctx, app, port)
+		// VNet is expected to refuse the connection rather than let the dial go through and then
+		// immediately close it.
+		require.ErrorContains(t, err, "connection was refused")
+
+		requestedRoutes := appProvider.RequestedRouteToApps(app)
+		require.False(t, slices.ContainsFunc(requestedRoutes, func(route proto.RouteToApp) bool {
+			return int(route.TargetPort) == port
+		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
+		require.Equal(t, uint32(1), appProvider.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
 	})
 }
 
