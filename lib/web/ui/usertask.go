@@ -56,9 +56,11 @@ type AccessGraph struct {
 }
 
 type RiskFactor struct {
-	Name     string `json:"name,omitempty"`
-	Severity string `json:"severity,omitempty"`
-	Reason   string `json:"reason,omitempty"`
+	Name             string            `json:"name,omitempty"`
+	Severity         string            `json:"severity,omitempty"`
+	Reason           string            `json:"reason,omitempty"`
+	UnusedRole       *string           `json:"unused_role,omitempty"`
+	PolicyRiskFactor *PolicyRiskFactor `json:"policy_risk_factor,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -122,6 +124,16 @@ func severityToString(severity usertasksv1.Severity) string {
 	}
 }
 
+type PolicyUpdate struct {
+	PolicyName     string `json:"policy_name,omitempty"`
+	PreviousPolicy string `json:"previous_policy,omitempty"`
+	NewPolicy      string `json:"new_policy,omitempty"`
+	Detach         bool   `json:"detach,omitempty"`
+}
+type PolicyRiskFactor struct {
+	Updates []*PolicyUpdate `json:"updates,omitempty"`
+}
+
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	var accessGraph *AccessGraph
@@ -132,10 +144,30 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 			AccountId:   ut.GetSpec().GetAccessGraph().GetAccountId(),
 		}
 		for _, rf := range ut.GetSpec().GetAccessGraph().GetRiskFactors() {
+			var unusedRole *string
+			var policyRiskFactor *PolicyRiskFactor
+			if uRole := rf.GetUnusedRole(); unusedRole != nil {
+				unusedRole = &(uRole.LastUsed)
+			} else if policy := rf.GetPolicy(); policy != nil {
+				updates := make([]*PolicyUpdate, 0, len(policy.GetUpdates()))
+				for _, update := range policy.GetUpdates() {
+					updates = append(updates, &PolicyUpdate{
+						PolicyName:     update.GetPolicyName(),
+						PreviousPolicy: update.GetPreviousPolicy(),
+						NewPolicy:      update.GetNewPolicy(),
+						Detach:         update.GetDetach(),
+					})
+				}
+				policyRiskFactor = &PolicyRiskFactor{
+					Updates: updates,
+				}
+			}
 			accessGraph.RiskFactors = append(accessGraph.RiskFactors, &RiskFactor{
 				Name:     rf.GetName(),
 				Severity: severityToString(rf.GetSeverity()),
-				Reason:   rf.GetReason(),
+
+				UnusedRole:       unusedRole,
+				PolicyRiskFactor: policyRiskFactor,
 			})
 		}
 	}
