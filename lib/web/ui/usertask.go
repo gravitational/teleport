@@ -53,6 +53,7 @@ type AccessGraph struct {
 	Severity    string        `json:"severity,omitempty"`
 	RiskFactors []*RiskFactor `json:"risk_factors,omitempty"`
 	AccountId   string        `json:"account_id,omitempty"`
+	RoleName    string        `json:"role_name,omitempty"`
 }
 
 type RiskFactor struct {
@@ -142,6 +143,7 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 			Severity:    severityToString(ut.GetSpec().GetAccessGraph().GetSeverity()),
 			RiskFactors: make([]*RiskFactor, 0, len(ut.GetSpec().GetAccessGraph().GetRiskFactors())),
 			AccountId:   ut.GetSpec().GetAccessGraph().GetAccountId(),
+			RoleName:    ut.GetSpec().GetAccessGraph().GetRoleName(),
 		}
 		for _, rf := range ut.GetSpec().GetAccessGraph().GetRiskFactors() {
 			var unusedRole *string
