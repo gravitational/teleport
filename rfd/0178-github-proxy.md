@@ -20,14 +20,14 @@ for GitHub repositories.
 GitHub Enterprise provides a security feature to bring your own SSH certificate
 authorities (CA). Once a CA is added, your organization can sign short-lived
 client SSH certificates to access organization resources on GitHub. You can
-also require your memebers to use these SSH certificates, which disables Git
+also require your members to use these SSH certificates, which disables Git
 access using personal tokens.
 
 The concept of short-lived SSH certificates to access organization resources
 aligns well with Teleport, where a Teleport user begins their day with a 'tsh'
 session, accessing only what their roleset permits. Teleport can also easily
 provide the capability to issue of short-lived client SSH certificates for
-GitHub organzations so Teleport customers do not need to implement a separate
+GitHub organizations so Teleport customers do not need to implement a separate
 system for issuing these certificates. 
 
 Teleport also offers other GitHub-related features, such as [GitHub IAM
@@ -185,14 +185,14 @@ $ tsh git clone git@github.com:my-org/my-repo.git
 
 The first `git` command (including the `clone`) will open a browser window to
 trigger the GitHub OAuth flow for Teleport to grab Bob's GitHub ID and
-username. Once Bob sees "Login Successful" from the brower and goes back to his
+username. Once Bob sees "Login Successful" from the browser and goes back to his
 terminal.
 
 The repo is cloned by now, and Bob can `cd` into the directory and perform regular
 `git` commands naturally, without using `tsh`. Bob can also find the
 "authorized" GitHub username in `tsh status` or `tsh git ls`.
 
-On the second day (as the `tsh` session expiress), when Bob tries to `git
+On the second day (as the `tsh` session expires), when Bob tries to `git
 fetch` from the repo, the command prompts to login into Teleport. The command
 proceeds as usual once Teleport login is successful.
 
@@ -264,7 +264,7 @@ Charlie is an auditor and is able to see the audit events from Web UI:
 #### Alice wants to understand the available break glass options
 
 Alice, a system administrator, manages the Teleport cluster by checking
-Terrafrom scripts and values into various GitHub repos. CI/CD then picks the
+Terraform scripts and values into various GitHub repos. CI/CD then picks the
 changes and apply to the Teleport cluster.
 
 A change to the Terraform script may break the Teleport cluster and the GitHub
@@ -275,7 +275,7 @@ at the organization level and does not want to allow it for security purpose.
 
 Alice still has a few options to access the organization repos when the GitHub
 proxy is unavailable:
-- Alice can still logs into GitHub through a browser and make chnages there if
+- Alice can still logs into GitHub through a browser and make changes there if
    necessary.
 - Alice can manually sign an user certificate according to [GitHub
   spec](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-git-access-to-your-organizations-repositories/about-ssh-certificate-authorities#issuing-certificates).
@@ -471,7 +471,7 @@ matched against the hidden label from the `git_server` resources.
 #### SSH transport
 
 Existing [SSH
-transprt](https://github.com/gravitational/teleport/blob/master/rfd/0100-proxy-ssh-grpc.md)
+transport](https://github.com/gravitational/teleport/blob/master/rfd/0100-proxy-ssh-grpc.md)
 is used for proxying Git commands. 
 
 No change is necessary on the client side or on the GRPC protocol to support
@@ -509,7 +509,7 @@ message GenerateGitHubUserCertRequest {
   bytes public_key = 2;
   // UserID is the GitHub user ID.
   string user_id = 3;
-  // KeyId is the certficate ID, usually the Teleport username.
+  // KeyId is the certificate ID, usually the Teleport username.
   string key_id = 4;
   // Ttl is the duration the certificate will be valid for.
   google.protobuf.Duration ttl = 5;
@@ -548,7 +548,7 @@ hint: use 'tsh git clone <git-clone-ssh-url>' to clone a new repository
 To forward SSH traffic from `git` to Teleport, the Git repo will be configured
 with
 [`core.sshCommand`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresshCommand)
-set to `tsh git ssh --githb-org <my-org>`. The `core.sshCommand` makes `git` to
+set to `tsh git ssh --github-org <my-org>`. The `core.sshCommand` makes `git` to
 call this command instead of `ssh`.
 
 `tsh git ssh` is a hidden command that basically does `tsh ssh
@@ -565,7 +565,7 @@ In addition, `tsh` provides two helper commands to automatically configures
 make a clone. Before cloning, the GitHub organization is parsed from the
 `<git-url>`, and a GitHub proxy server with its logins is retrieved matching
 the GitHub organization. If more than one GitHub logins are available, users
-can expliclitly specify one using `--username` when running `tsh git clone`.
+can explicitly specify one using `--username` when running `tsh git clone`.
 
 `tsh git config` checks Teleport-related configurations in the current Git dir
 by running `git config --local --default "" --get core.sshCommand`.
@@ -633,7 +633,7 @@ message GitCommandAction {
 
 There is no heartbeats for `git_server` with subkind `github` (yet).
 
-Exising `SessionStartEvent` will be expanded to include git metadata with
+Existing `SessionStartEvent` will be expanded to include git metadata with
 `session_type` of `git`:
 ```grpc
 // SessionStartGitMetadata contains additional information about git commands.         
@@ -752,7 +752,7 @@ integration on each Auth service and combines all the keys.
 Support for Git servers should be implemented similar to how SSH is supported
 today for Machine ID.
 
-As mentinoned earlier, since services like GitHub actions are not affected by
+As mentioned earlier, since services like GitHub actions are not affected by
 this feature (by not using Teleport), Machine ID supported can be added after
 the MVP.
 
