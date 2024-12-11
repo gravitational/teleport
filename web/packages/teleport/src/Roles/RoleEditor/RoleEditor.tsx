@@ -134,7 +134,7 @@ export const RoleEditor = ({
     // requires model to be valid. However, if it's OK, we reset the validator.
     // We don't want it to be validating at this point, since the user didn't
     // attempt to submit the form.
-    if (!validator.validate()) return;
+    if (!standardModel.roleModel.requiresReset && !validator.validate()) return;
     validator.reset();
 
     switch (activeIndex) {
