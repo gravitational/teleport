@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Alert, ButtonPrimary, H1, ButtonText } from 'design';
+import { Text, Alert, ButtonPrimary, H1, ButtonText, Link } from 'design';
 import Flex from 'design/Flex';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 import { processRedirectUri } from 'shared/redirects';
@@ -115,28 +115,29 @@ export function DocumentAuthorizeWebSession(props: {
             </Alert>
           )}
           {!isRequestedUserLoggedIn && (
-            <Alert
-              mb={0}
-              primaryAction={{
-                content: 'Log Out',
-                onClick: () => {
-                  ctx.commandLauncher.executeCommand('cluster-logout', {
-                    clusterUri: rootCluster.uri,
-                  });
-                },
-              }}
-              details={
-                <>
-                  You are logged in as <b>{rootCluster.loggedInUser?.name}</b>.
-                  To authorize this web session request, please log out in
-                  Teleport Connect and log in again as{' '}
-                  <b>{props.doc.webSessionRequest.username}</b>.
-                  <br />
-                  Then click Launch Teleport Connect again in the browser.
-                </>
-              }
-            >
-              Requested user is not logged in
+            <Alert mb={0}>
+              <Text>
+                Requested user is not logged in.
+                <br />
+                You are logged in as <b>{rootCluster.loggedInUser?.name}</b>. To
+                authorize this web session request, please{' '}
+                <Link
+                  css={`
+                    cursor: pointer;
+                  `}
+                  onClick={() => {
+                    ctx.commandLauncher.executeCommand('cluster-logout', {
+                      clusterUri: rootCluster.uri,
+                    });
+                  }}
+                >
+                  log out
+                </Link>{' '}
+                in Teleport Connect and log in again as{' '}
+                <b>{props.doc.webSessionRequest.username}</b>.
+                <br />
+                Then click Launch Teleport Connect again in the browser.
+              </Text>
             </Alert>
           )}
           {authorizeAttempt.status === 'error' && (
