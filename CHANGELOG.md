@@ -9,7 +9,7 @@
 * Our OSS OS packages (rpm, deb, etc) now have up-to-date metadata. [#49963](https://github.com/gravitational/teleport/pull/49963)
 * Tsh correctly respects the --no-allow-passwordless flag. [#49934](https://github.com/gravitational/teleport/pull/49934)
 * The web session authorization dialog in Teleport Connect is now a dedicated tab, which properly shows a re-login dialog when the local session is expired. [#49932](https://github.com/gravitational/teleport/pull/49932)
-* Prevent a panic if the auth server does not provide a license expiry. [#49877](https://github.com/gravitational/teleport/pull/49877)
+* Prevent a panic if the Auth Service does not provide a license expiry. [#49877](https://github.com/gravitational/teleport/pull/49877)
 
 Enterprise:
 * Improved "IP mismatch" audit entries for device trust web.
