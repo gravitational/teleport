@@ -24,6 +24,7 @@ import cfg from 'teleport/config';
 import { AwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
 import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
+import {Tasks} from "teleport/Integrations/status/AwsOidc/Tasks/Tasks";
 
 import { AwsOidcDashboard } from './AwsOidcDashboard';
 
@@ -36,6 +37,12 @@ export function AwsOidcRoutes() {
           exact
           path={cfg.routes.integrationStatusResources}
           component={Details}
+        />
+        <Route
+          key="aws-oidc-task-table"
+          exact
+          path={cfg.routes.integrationTasks}
+          component={Tasks}
         />
         <Route
           key="aws-oidc-dashboard"

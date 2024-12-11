@@ -33,9 +33,11 @@ import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 export function AwsOidcHeader({
   integration,
   resource = undefined,
+  tasks = false,
 }: {
   integration: Integration;
   resource?: AwsResource;
+  tasks?: boolean;
 }) {
   const { status, labelKind } = getStatusAndLabel(integration);
   return (
@@ -49,26 +51,36 @@ export function AwsOidcHeader({
           <ArrowLeft size="medium" />
         </ButtonIcon>
       </HoverTooltip>
-      {!resource ? (
+      {!resource && !tasks ? (
         <Text bold fontSize={6} mx={2}>
           {integration.name}
         </Text>
       ) : (
+        <Link
+          color="text.main"
+          href={cfg.getIntegrationStatusRoute(
+            integration.kind,
+            integration.name
+          )}
+        >
+          <Text bold fontSize={6} mx={2}>
+            {integration.name}
+          </Text>
+        </Link>
+      )}
+      {resource && (
         <>
-          <Link
-            color="text.main"
-            href={cfg.getIntegrationStatusRoute(
-              integration.kind,
-              integration.name
-            )}
-          >
-            <Text bold fontSize={6} mx={2}>
-              {integration.name}
-            </Text>
-          </Link>
           <ChevronRight />
           <Text bold fontSize={6}>
             {resource.toUpperCase()}
+          </Text>
+        </>
+      )}
+      {tasks && (
+        <>
+          <ChevronRight />
+          <Text bold fontSize={6}>
+            Pending Tasks
           </Text>
         </>
       )}

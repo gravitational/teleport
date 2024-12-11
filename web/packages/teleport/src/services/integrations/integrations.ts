@@ -63,6 +63,7 @@ import {
   AwsOidcPingRequest,
   IntegrationWithSummary,
   IntegrationDiscoveryRules,
+  UserTasksListResponse,
 } from './types';
 
 export const integrationService = {
@@ -444,6 +445,19 @@ export const integrationService = {
           nextKey: resp?.nextKey,
         };
       });
+  },
+
+  fetchIntegrationUserTasksList(
+      name: string,
+  ): Promise<UserTasksListResponse> {
+    return api
+        .get(cfg.getIntegrationUserTasksListUrl(name))
+        .then(resp => {
+          return {
+            items: resp?.items || [],
+            nextKey: resp?.nextKey,
+          };
+        });
   },
 };
 
