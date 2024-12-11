@@ -239,7 +239,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: utils.NewLoggerForTests(),
+			log: utils.NewSlogLoggerForTests(),
 		},
 	}
 

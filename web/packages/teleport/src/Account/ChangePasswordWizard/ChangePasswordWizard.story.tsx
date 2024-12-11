@@ -23,10 +23,11 @@ import Dialog from 'design/Dialog';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
 
-import { MfaDevice } from 'teleport/services/mfa';
+import { MfaDevice, WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 import {
   ChangePasswordStep,
+  ChangePasswordWizardStepProps,
   ReauthenticateStep,
   createReauthOptions,
 } from './ChangePasswordWizard';
@@ -107,12 +108,16 @@ const stepProps = {
   flowLength: 2,
   refCallback: () => {},
 
-  // Other props
-  reauthOptions: defaultReauthOptions,
-  reauthMethod: defaultReauthOptions[0].value,
-  credential: { id: '', type: '' },
-  onReauthMethodChange() {},
-  onAuthenticated() {},
+  // Shared props
+  reauthMethod: 'mfaDevice',
   onClose() {},
   onSuccess() {},
-};
+
+  // ReauthenticateStepProps
+  reauthOptions: defaultReauthOptions,
+  onReauthMethodChange() {},
+  onWebauthnResponse() {},
+
+  // ChangePasswordStepProps
+  webauthnResponse: {} as WebauthnAssertionResponse,
+} satisfies ChangePasswordWizardStepProps;
