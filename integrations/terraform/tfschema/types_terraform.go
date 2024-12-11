@@ -2075,6 +2075,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
 					}),
 					Description: "Allow is the set of conditions evaluated to grant access.",
 					Optional:    true,
@@ -2551,6 +2555,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
 					}),
 					Description: "Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.",
 					Optional:    true,
@@ -19152,6 +19160,13 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
 								}
 							}
 						}
@@ -21155,6 +21170,13 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 												}
 											}
 										}
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
 									}
 								}
 							}
@@ -25943,6 +25965,15 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -29448,6 +29479,15 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												c.Unknown = false
 												tf.Attrs["github_permissions"] = c
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
 										}
 									}
 								}
