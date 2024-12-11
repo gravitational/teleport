@@ -97,7 +97,7 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 		//
 		// Hopefully this is just a temporary hack until we can display the AWS
 		// accounts natively.
-		if resource.GetKind() == types.KindApp && resource.GetSubKind() == types.AppSubKindIdentityCenterAccount {
+		if resource.GetKind() == types.KindApp && resource.GetSubKind() == types.KindIdentityCenterAccount {
 			appResource, ok := resource.(*types.AppV3)
 			if !ok {
 				return nil, trace.BadParameter("invalid type for kind App: %T", resource)

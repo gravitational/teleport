@@ -36,8 +36,8 @@ export default function makeApp(json: any): App {
     friendlyName = '',
     requiresRequest,
     integration = '',
-    subkind,
     samlAppPreset,
+    subKind,
     permissionSets,
   } = json;
 
@@ -73,7 +73,7 @@ export default function makeApp(json: any): App {
 
   return {
     kind: 'app',
-    appKind: appKind,
+    subKind: appKind,
     id,
     name,
     description,

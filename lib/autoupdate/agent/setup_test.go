@@ -20,6 +20,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -42,17 +43,19 @@ func TestNewNamespace(t *testing.T) {
 		{
 			name: "no namespace",
 			ns: &Namespace{
-				dataDir:            "/var/lib/teleport",
-				linkDir:            "/usr/local/bin",
-				versionsDir:        "/opt/teleport/default/versions",
-				serviceFile:        "/lib/systemd/system/teleport.service",
-				configFile:         "/etc/teleport.yaml",
-				pidFile:            "/run/teleport.pid",
-				updaterLockFile:    "/opt/teleport/default/update.lock",
-				updaterConfigFile:  "/opt/teleport/default/update.yaml",
-				updaterBinFile:     "/usr/local/bin/teleport-update",
-				updaterServiceFile: "/etc/systemd/system/teleport-update.service",
-				updaterTimerFile:   "/etc/systemd/system/teleport-update.timer",
+				dataDir:             "/var/lib/teleport",
+				linkDir:             "/usr/local/bin",
+				versionsDir:         "/opt/teleport/default/versions",
+				serviceFile:         "/lib/systemd/system/teleport.service",
+				configFile:          "/etc/teleport.yaml",
+				pidFile:             "/run/teleport.pid",
+				updaterLockFile:     "/opt/teleport/default/update.lock",
+				updaterConfigFile:   "/opt/teleport/default/update.yaml",
+				updaterBinFile:      "/usr/local/bin/teleport-update",
+				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
+				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
+				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
+				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update.conf",
 			},
 		},
 		{
@@ -60,35 +63,39 @@ func TestNewNamespace(t *testing.T) {
 			linkDir: "/link",
 			dataDir: "/data",
 			ns: &Namespace{
-				dataDir:            "/data",
-				linkDir:            "/link",
-				versionsDir:        "/opt/teleport/default/versions",
-				serviceFile:        "/lib/systemd/system/teleport.service",
-				configFile:         "/etc/teleport.yaml",
-				pidFile:            "/run/teleport.pid",
-				updaterLockFile:    "/opt/teleport/default/update.lock",
-				updaterConfigFile:  "/opt/teleport/default/update.yaml",
-				updaterBinFile:     "/link/teleport-update",
-				updaterServiceFile: "/etc/systemd/system/teleport-update.service",
-				updaterTimerFile:   "/etc/systemd/system/teleport-update.timer",
+				dataDir:             "/data",
+				linkDir:             "/link",
+				versionsDir:         "/opt/teleport/default/versions",
+				serviceFile:         "/lib/systemd/system/teleport.service",
+				configFile:          "/etc/teleport.yaml",
+				pidFile:             "/run/teleport.pid",
+				updaterLockFile:     "/opt/teleport/default/update.lock",
+				updaterConfigFile:   "/opt/teleport/default/update.yaml",
+				updaterBinFile:      "/link/teleport-update",
+				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
+				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
+				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
+				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update.conf",
 			},
 		},
 		{
 			name:      "test namespace",
 			namespace: "test",
 			ns: &Namespace{
-				name:               "test",
-				dataDir:            "/var/lib/teleport_test",
-				linkDir:            "/opt/teleport/test/bin",
-				versionsDir:        "/opt/teleport/test/versions",
-				serviceFile:        "/etc/systemd/system/teleport_test.service",
-				configFile:         "/etc/teleport_test.yaml",
-				pidFile:            "/run/teleport_test.pid",
-				updaterLockFile:    "/opt/teleport/test/update.lock",
-				updaterConfigFile:  "/opt/teleport/test/update.yaml",
-				updaterBinFile:     "/opt/teleport/test/bin/teleport-update",
-				updaterServiceFile: "/etc/systemd/system/teleport-update_test.service",
-				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
+				name:                "test",
+				dataDir:             "/var/lib/teleport_test",
+				linkDir:             "/opt/teleport/test/bin",
+				versionsDir:         "/opt/teleport/test/versions",
+				serviceFile:         "/etc/systemd/system/teleport_test.service",
+				configFile:          "/etc/teleport_test.yaml",
+				pidFile:             "/run/teleport_test.pid",
+				updaterLockFile:     "/opt/teleport/test/update.lock",
+				updaterConfigFile:   "/opt/teleport/test/update.yaml",
+				updaterBinFile:      "/opt/teleport/test/bin/teleport-update",
+				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
+				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update_test.conf",
+				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
 			},
 		},
 		{
@@ -97,18 +104,20 @@ func TestNewNamespace(t *testing.T) {
 			linkDir:   "/link",
 			dataDir:   "/data",
 			ns: &Namespace{
-				name:               "test",
-				dataDir:            "/data",
-				linkDir:            "/link",
-				versionsDir:        "/opt/teleport/test/versions",
-				serviceFile:        "/etc/systemd/system/teleport_test.service",
-				configFile:         "/etc/teleport_test.yaml",
-				pidFile:            "/run/teleport_test.pid",
-				updaterLockFile:    "/opt/teleport/test/update.lock",
-				updaterConfigFile:  "/opt/teleport/test/update.yaml",
-				updaterBinFile:     "/link/teleport-update",
-				updaterServiceFile: "/etc/systemd/system/teleport-update_test.service",
-				updaterTimerFile:   "/etc/systemd/system/teleport-update_test.timer",
+				name:                "test",
+				dataDir:             "/data",
+				linkDir:             "/link",
+				versionsDir:         "/opt/teleport/test/versions",
+				serviceFile:         "/etc/systemd/system/teleport_test.service",
+				configFile:          "/etc/teleport_test.yaml",
+				pidFile:             "/run/teleport_test.pid",
+				updaterLockFile:     "/opt/teleport/test/update.lock",
+				updaterConfigFile:   "/opt/teleport/test/update.yaml",
+				updaterBinFile:      "/link/teleport-update",
+				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
+				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
+				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update_test.conf",
+				needrestartConfFile: "/etc/needrestart/conf.d/teleport-update_test.conf",
 			},
 		},
 		{
@@ -157,28 +166,33 @@ func TestWriteConfigFiles(t *testing.T) {
 			require.NoError(t, err)
 			ns.updaterServiceFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterServiceFile))
 			ns.updaterTimerFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterTimerFile))
-			err = ns.writeConfigFiles()
+			ns.dropInFile = filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.dropInFile)), filepath.Base(ns.dropInFile))
+			ns.needrestartConfFile = filepath.Join(linkDir, filepath.Base(ns.dropInFile))
+			ctx := context.Background()
+			err = ns.writeConfigFiles(ctx)
 			require.NoError(t, err)
 
-			data, err := os.ReadFile(ns.updaterServiceFile)
-			require.NoError(t, err)
-			data = replaceValues(data, map[string]string{
-				DefaultLinkDir: linkDir,
-			})
-			if golden.ShouldSet() {
-				golden.SetNamed(t, "service", data)
+			for _, tt := range []struct {
+				name string
+				path string
+			}{
+				{name: "service", path: ns.updaterServiceFile},
+				{name: "timer", path: ns.updaterTimerFile},
+				{name: "dropin", path: ns.dropInFile},
+				{name: "needrestart", path: ns.needrestartConfFile},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					data, err := os.ReadFile(tt.path)
+					require.NoError(t, err)
+					data = replaceValues(data, map[string]string{
+						DefaultLinkDir: linkDir,
+					})
+					if golden.ShouldSet() {
+						golden.Set(t, data)
+					}
+					require.Equal(t, string(golden.Get(t)), string(data))
+				})
 			}
-			require.Equal(t, string(golden.GetNamed(t, "service")), string(data))
-
-			data, err = os.ReadFile(ns.updaterTimerFile)
-			require.NoError(t, err)
-			data = replaceValues(data, map[string]string{
-				DefaultLinkDir: linkDir,
-			})
-			if golden.ShouldSet() {
-				golden.SetNamed(t, "timer", data)
-			}
-			require.Equal(t, string(golden.GetNamed(t, "timer")), string(data))
 		})
 	}
 }

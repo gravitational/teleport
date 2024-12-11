@@ -164,6 +164,7 @@ message AutoUpdateAgentRolloutSpec {
 // AutoUpdateAgentRolloutStatus tracks the current agent rollout status.
 message AutoUpdateAgentRolloutStatus {
   repeated AutoUpdateAgentRolloutStatusGroup groups = 1;
+  AutoUpdateAgentRolloutState state = 2;
 }
 
 // AutoUpdateAgentRolloutStatusGroup tracks the current agent rollout status of a specific group.
@@ -201,4 +202,22 @@ enum AutoUpdateAgentGroupState {
   // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolleback.
   // New agents should run v1, existing agents should update to v1.
   AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
+}
+
+// AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
+// start version to the target version, if the update is done, still in progress
+// or if the rollout was manually reverted.
+enum AutoUpdateAgentRolloutState {
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED state
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED = 0;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED represents that no group in the rollout has been started yet.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED = 1;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE represents that at least one group of the rollout has started.
+  // If every group is finished, the state will be AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE = 2;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE represents that every group is in the DONE state, or has been in the done
+  // state (groups might become active again in time-based strategy).
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE = 3;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK represents that at least one group is in the rolledback state.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK = 4;
 }
