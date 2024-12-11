@@ -106,11 +106,11 @@ metadata:
 spec:
   github:
     organization: my-org
-    proxy:
-      connector:
-        client_id: <oauth-app-client-id>
-        client_secret: <oauth-app-client-secret>
-        redirect_url: <proxy-address>/v1/webapi/github/callback
+
+  credentials:
+    id_secret:
+      id: <oauth-app-client-id>
+      secret: <oauth-app-client-secret>
 ```
 
 Next she exports the SSH CA and imports it to her GitHub organization:
@@ -390,8 +390,6 @@ and is shared with [GitHub IAM
 integration](https://github.com/gravitational/teleport.e/blob/master/rfd/0021e-github-iam-integration.md)
 feature.
 
-In addition to Organization and settings used for IAM, the integration now
-contains these proxy-related settings:
 ```yaml
 kind: integration
 sub_kind: github
@@ -401,21 +399,13 @@ metadata:
 spec:
   github:
     organization: my-org
-    proxy:
-      cert_authority:
-      - public_key: <public_key> 
-        private_key: <private_key> 
-      connector:
-        client_id: <oauth-app-client-id>
-        client_secret: <oauth-app-client-secret>
-        redirect_url: <proxy-address>/v1/webapi/github/callback
 ```
 
-`cert_authority`, which contains the SSH key pairs for CA, is populated by Auth
-when creating the resource.
+The SSH CAs and GitHub OAuth secrets are stored as
+`types.PluginStaticCredentials` in the backend.
 
-Also note that the connector info is saved in the same `integration` resource
-instead of linking a `connector` resource.
+The integration resource owns a hidden `types.PluginStaticCredentialsRef`
+which can be used to retrieve the actual credentials.
 
 #### GitHub proxy server resource
 
@@ -705,12 +695,9 @@ CA. Details on the key types for each suite can be found in [rfd
 
 #### RBAC on integration resources
 
-By default, private keys and client secret are not retrieved when listing or
-getting the integration type. A `--with-secrets` flag (for `tctl` commands)
-must be used to reveal the secrets.
-
-Besides admin users that can load secrets from integrations, only Auth service
-is allowed to get the secrets.
+Secrets like GitHub OAuth client secret and private keys for the SSH CAs are
+stored in `types.PluginStaticCredentials` separate in the backend. Only Auth
+servers have the permissions to retrieve them.
 
 ## Future work
 
