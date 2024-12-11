@@ -353,7 +353,8 @@ export type RoleOptions = {
   pin_source_ip: boolean;
   port_forwarding: boolean;
   record_session: {
-    default: string;
+    default: SessionRecordingMode;
+    ssh?: SessionRecordingMode;
     desktop: boolean;
   };
   ssh_file_copy: boolean;
@@ -374,6 +375,8 @@ export type RequireMFAType =
 export type CreateHostUserMode = '' | 'off' | 'keep' | 'insecure-drop';
 
 export type CreateDBUserMode = '' | 'off' | 'keep' | 'best_effort_drop';
+
+export type SessionRecordingMode = '' | 'strict' | 'best_effort';
 
 export type RoleWithYaml = {
   object: Role;

@@ -44,10 +44,10 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { SlideTabs } from 'design/SlideTabs';
-
 import { RadioGroup } from 'design/RadioGroup';
-
 import Select from 'shared/components/Select';
+
+import { components, MultiValueProps } from 'react-select';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { LabelsInput } from 'teleport/components/LabelsInput';
@@ -79,6 +79,10 @@ import {
   OptionsModel,
   requireMFATypeOptions,
   createHostUserModeOptions,
+  createDBUserModeOptions,
+  sessionRecordingModeOptions,
+  resourceKindOptionsMap,
+  ResourceKindOption,
 } from './standardmodel';
 import {
   validateRoleEditorModel,
@@ -424,10 +428,18 @@ const MetadataSection = ({
       placeholder="Enter Role Description"
       value={value.description || ''}
       disabled={isProcessing}
-      mb={0}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
         onChange({ ...value, description: e.target.value })
       }
+    />
+    <Text typography="body3" mb={1}>
+      Labels
+    </Text>
+    <LabelsInput
+      disableBtns={isProcessing}
+      labels={value.labels}
+      setLabels={labels => onChange?.({ ...value, labels })}
+      rule={precomputed(validation.fields.labels)}
     />
   </Section>
 );
@@ -1014,7 +1026,8 @@ function AccessRule({
       validation={validation}
       onRemove={onRemove}
     >
-      <FieldSelect
+      <ResourceKindSelect
+        components={{ MultiValue: ResourceKindMultiValue }}
         isMulti
         label="Resources"
         isDisabled={isProcessing}
@@ -1037,6 +1050,32 @@ function AccessRule({
   );
 }
 
+const ResourceKindSelect = styled(
+  FieldSelectCreatable<ResourceKindOption, true>
+)`
+  .teleport-resourcekind__value--unknown {
+    background: ${props => props.theme.colors.interactive.solid.alert.default};
+    .react-select__multi-value__label,
+    .react-select__multi-value__remove {
+      color: ${props => props.theme.colors.text.primaryInverse};
+    }
+  }
+`;
+
+function ResourceKindMultiValue(props: MultiValueProps<ResourceKindOption>) {
+  if (resourceKindOptionsMap.has(props.data.value)) {
+    return <components.MultiValue {...props} />;
+  }
+  return (
+    <HoverTooltip tipContent="Unrecognized resource type">
+      <components.MultiValue
+        {...props}
+        className="teleport-resourcekind__value--unknown"
+      />
+    </HoverTooltip>
+  );
+}
+
 function Options({
   value,
   isProcessing,
@@ -1048,6 +1087,9 @@ function Options({
   const clientIdleTimeoutId = `${id}-client-idle-timeout`;
   const requireMFATypeId = `${id}-require-mfa-type`;
   const createHostUserModeId = `${id}-create-host-user-mode`;
+  const createDBUserModeId = `${id}-create-db-user-mode`;
+  const defaultSessionRecordingModeId = `${id}-default-session-recording-mode`;
+  const sshSessionRecordingModeId = `${id}-ssh-session-recording-mode`;
   return (
     <OptionsGridContainer
       border={1}
@@ -1093,6 +1135,17 @@ function Options({
         onChange={t => onChange?.({ ...value, requireMFAType: t })}
       />
 
+      <OptionLabel htmlFor={defaultSessionRecordingModeId}>
+        Default Session Recording Mode
+      </OptionLabel>
+      <Select
+        inputId={defaultSessionRecordingModeId}
+        isDisabled={isProcessing}
+        options={sessionRecordingModeOptions}
+        value={value.defaultSessionRecordingMode}
+        onChange={m => onChange?.({ ...value, defaultSessionRecordingMode: m })}
+      />
+
       <OptionsHeader separator>SSH</OptionsHeader>
 
       <OptionLabel htmlFor={createHostUserModeId}>
@@ -1106,6 +1159,24 @@ function Options({
         onChange={m => onChange?.({ ...value, createHostUserMode: m })}
       />
 
+      <Box>Agent Forwarding</Box>
+      <BoolRadioGroup
+        name="forward-agent"
+        value={value.forwardAgent}
+        onChange={f => onChange({ ...value, forwardAgent: f })}
+      />
+
+      <OptionLabel htmlFor={sshSessionRecordingModeId}>
+        Session Recording Mode
+      </OptionLabel>
+      <Select
+        inputId={sshSessionRecordingModeId}
+        isDisabled={isProcessing}
+        options={sessionRecordingModeOptions}
+        value={value.sshSessionRecordingMode}
+        onChange={m => onChange?.({ ...value, sshSessionRecordingMode: m })}
+      />
+
       <OptionsHeader separator>Database</OptionsHeader>
 
       <Box>Create Database User</Box>
@@ -1117,6 +1188,16 @@ function Options({
 
       {/* TODO(bl-nero): a bug in YAML unmarshalling backend breaks the
           createDBUserMode field. Fix it and add the field here. */}
+      <OptionLabel htmlFor={createDBUserModeId}>
+        Create Database User Mode
+      </OptionLabel>
+      <Select
+        inputId={createDBUserModeId}
+        isDisabled={isProcessing}
+        options={createDBUserModeOptions}
+        value={value.createDBUserMode}
+        onChange={m => onChange?.({ ...value, createDBUserMode: m })}
+      />
 
       <OptionsHeader separator>Desktop</OptionsHeader>
 
@@ -1139,6 +1220,13 @@ function Options({
         name="desktop-directory-sharing"
         value={value.desktopDirectorySharing}
         onChange={s => onChange({ ...value, desktopDirectorySharing: s })}
+      />
+
+      <Box>Record Desktop Sessions</Box>
+      <BoolRadioGroup
+        name="record-desktop-sessions"
+        value={value.recordDesktopSessions}
+        onChange={r => onChange({ ...value, recordDesktopSessions: r })}
       />
     </OptionsGridContainer>
   );

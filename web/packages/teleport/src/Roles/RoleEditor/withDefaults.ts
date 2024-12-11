@@ -52,7 +52,7 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
   },
 });
 
-const optionsWithDefaults = (
+export const optionsWithDefaults = (
   options?: DeepPartial<RoleOptions>
 ): RoleOptions => {
   const defaults = defaultOptions();
