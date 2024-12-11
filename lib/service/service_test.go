@@ -293,7 +293,10 @@ func TestMonitor(t *testing.T) {
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
@@ -1633,7 +1636,10 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1747,6 +1753,7 @@ func TestInstanceMetadata(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, process.Close())
+				require.NoError(t, process.Wait())
 			})
 
 			if tc.expectCloudLabels {
