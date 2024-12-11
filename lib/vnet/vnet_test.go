@@ -387,7 +387,7 @@ func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leaf
 	return nil
 }
 
-func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+func (p *echoAppProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
 	p.onInvalidLocalPortCallCount.Add(1)
 }
 
