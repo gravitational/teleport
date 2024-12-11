@@ -91,12 +91,14 @@ enum Severity {
 message RiskFactor {
   string name = 1;
   Severity severity = 2;
+  string reason = 3;
 }
 
 // AccessGraph contains the instances that failed to auto-enroll into the cluster.
 message AccessGraph {
   Severity severity = 1;
   repeated RiskFactor risk_factors = 2;
+  string account_id = 3;
 }
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.

@@ -83,7 +83,8 @@ const (
 	// TaskTypeDiscoverEC2 identifies a User Tasks that is created
 	// when an auto-enrollment of an EC2 instance fails.
 	// UserTasks that have this Task Type must include the DiscoverEC2 field.
-	TaskTypeDiscoverEC2 = "discover-ec2"
+	TaskTypeDiscoverEC2     = "discover-ec2"
+	TaskTypeDiscoverTAGSync = "discover-tag-sync"
 )
 
 // List of Auto Discover EC2 issues identifiers.
@@ -115,6 +116,8 @@ const (
 	// because the SSM Script Run (also known as Invocation) failed.
 	// This happens when there's a failure with permissions or an invalid configuration (eg, invalid document name).
 	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
+
+	AWSSyncDiscoveryUnusedRoles = "aws-sync-unused-roles"
 )
 
 // discoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
@@ -151,7 +154,7 @@ func ValidateUserTask(ut *usertasksv1.UserTask) error {
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.BadParameter("task type %q is not valid", ut.Spec.TaskType)
+		//	return trace.BadParameter("task type %q is not valid", ut.Spec.TaskType)
 	}
 
 	return nil
@@ -244,3 +247,46 @@ func TaskNameForDiscoverEC2(parts TaskNameForDiscoverEC2Parts) string {
 
 // discoverEC2Namespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEC2 User Task names.
 var discoverEC2Namespace = uuid.Must(uuid.Parse("6ba7b815-9dad-11d1-80b4-00c04fd430c8"))
+
+type TaskNameForDiscoverAWSSyncParts struct {
+	Integration string
+	IssueType   string
+	AccountID   string
+}
+
+func TaskNameForDiscoverAWSync(parts TaskNameForDiscoverAWSSyncParts) string {
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	return uuid.NewSHA1(discoverEC2Namespace, bs).String()
+}
+
+func NewDiscoverAWSSyncUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOption) (*usertasksv1.UserTask, error) {
+	taskName := TaskNameForDiscoverAWSync(TaskNameForDiscoverAWSSyncParts{
+		Integration: spec.GetIntegration(),
+		IssueType:   spec.GetIssueType(),
+		AccountID:   spec.GetDiscoverEc2().GetAccountId(),
+	})
+
+	ut := &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: taskName,
+		},
+		Spec: spec,
+	}
+	for _, o := range opts {
+		o(ut)
+	}
+
+	if err := ValidateUserTask(ut); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ut, nil
+}

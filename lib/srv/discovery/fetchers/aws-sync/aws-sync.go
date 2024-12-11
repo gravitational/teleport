@@ -89,6 +89,7 @@ type AWSSync interface {
 	IsFromDiscoveryConfig() bool
 	// GetAccountID returns the AWS account ID.
 	GetAccountID() string
+	GetIntegration() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -216,6 +217,10 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 
 func (a *awsFetcher) GetAccountID() string {
 	return a.AccountID
+}
+
+func (a *awsFetcher) GetIntegration() string {
+	return a.Config.Integration
 }
 
 func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
