@@ -42,6 +42,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1773,6 +1774,37 @@ func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error 
 		rows = append(rows, []string{
 			item.Metadata.Name,
 			lastSynced,
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type workloadIdentityCollection struct {
+	items []*workloadidentityv1pb.WorkloadIdentity
+}
+
+func (c *workloadIdentityCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *workloadIdentityCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "SPIFFE ID"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			item.GetSpec().GetSpiffe().GetId(),
 		})
 	}
 
