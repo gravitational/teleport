@@ -33,7 +33,7 @@ export const Story = () => {
         rootClusterUri="/clusters/foo.cloud.gravitational.io"
         numberOfDocuments={8}
         onConfirm={() => {}}
-        onCancel={() => {}}
+        onDiscard={() => {}}
       />
     </MockAppContextProvider>
   );
@@ -46,7 +46,7 @@ export const OneTab = () => {
         rootClusterUri="/clusters/foo.cloud.gravitational.io"
         numberOfDocuments={1}
         onConfirm={() => {}}
-        onCancel={() => {}}
+        onDiscard={() => {}}
       />
     </MockAppContextProvider>
   );
@@ -59,7 +59,7 @@ export const LongClusterName = () => {
         rootClusterUri="/clusters/foo.bar.baz.quux.cloud.gravitational.io"
         numberOfDocuments={42}
         onConfirm={() => {}}
-        onCancel={() => {}}
+        onDiscard={() => {}}
       />
     </MockAppContextProvider>
   );
@@ -75,7 +75,7 @@ export const LongContinuousClusterName = () => {
           .join('')}`}
         numberOfDocuments={680}
         onConfirm={() => {}}
-        onCancel={() => {}}
+        onDiscard={() => {}}
       />
     </MockAppContextProvider>
   );

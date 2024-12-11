@@ -368,22 +368,32 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return { isAtDesiredWorkspace: true };
     }
 
-    const reopen = await new Promise<boolean>(resolve =>
+    const documentsReopen = await new Promise<
+      'confirmed' | 'discarded' | 'canceled'
+    >(resolve =>
       this.modalsService.openRegularDialog({
         kind: 'documents-reopen',
         rootClusterUri: clusterUri,
         numberOfDocuments: restoredWorkspace.documents.length,
-        onConfirm: () => resolve(true),
-        onCancel: () => resolve(false),
+        onConfirm: () => resolve('confirmed'),
+        onDiscard: () => resolve('discarded'),
+        onCancel: () => resolve('canceled'),
       })
     );
-    if (reopen) {
-      this.reopenPreviousDocuments(clusterUri, {
-        documents: restoredWorkspace.documents,
-        location: restoredWorkspace.location,
-      });
-    } else {
-      this.discardPreviousDocuments(clusterUri);
+    switch (documentsReopen) {
+      case 'confirmed':
+        this.reopenPreviousDocuments(clusterUri, {
+          documents: restoredWorkspace.documents,
+          location: restoredWorkspace.location,
+        });
+        break;
+      case 'discarded':
+        this.discardPreviousDocuments(clusterUri);
+        break;
+      case 'canceled':
+        break;
+      default:
+        documentsReopen satisfies never;
     }
 
     return { isAtDesiredWorkspace: true };

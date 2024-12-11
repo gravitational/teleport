@@ -34,7 +34,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
-  onCancel(): void;
+  onDiscard(): void;
   onConfirm(): void;
   hidden?: boolean;
 }) {
@@ -50,7 +50,7 @@ export function DocumentsReopen(props: {
     <DialogConfirmation
       open={!props.hidden}
       keepInDOMAfterClose
-      onClose={props.onCancel}
+      onClose={props.onDiscard}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
@@ -70,7 +70,7 @@ export function DocumentsReopen(props: {
           <H2 mb={4}>Reopen previous session</H2>
           <ButtonIcon
             type="button"
-            onClick={props.onCancel}
+            onClick={props.onDiscard}
             color="text.slightlyMuted"
           >
             <Cross size="medium" />
@@ -105,7 +105,7 @@ export function DocumentsReopen(props: {
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
-          <ButtonSecondary type="button" onClick={props.onCancel}>
+          <ButtonSecondary type="button" onClick={props.onDiscard}>
             Start New Session
           </ButtonSecondary>
         </DialogFooter>
