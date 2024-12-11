@@ -118,6 +118,12 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		topRequestsCache:    cache,
 		slowRangeLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 12),
 	}
+
+	// metrics that need to be initialized for use later, this makes it easier on the consumer of these metrics (Grafana dashboards, for one)
+	readRequestsFailed.WithLabelValues(r.Component)
+	writeRequestsFailed.WithLabelValues(r.Component)
+	writeRequestsFailedPrecondition.WithLabelValues(r.Component)
+
 	return r, nil
 }
 
