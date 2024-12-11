@@ -38,9 +38,10 @@ import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
+import cfg from 'teleport/config';
+
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';
-import cfg from 'teleport/config';
 
 /**
  * This component is responsible for converting from the `Resource`
