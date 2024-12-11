@@ -22,8 +22,8 @@ import { Text } from 'design';
 export const RequiresResetToStandard = () => (
   <Info>
     <Text>
-      Some fields were not readable by the standard editor. To continue editing,
-      go back to YAML editor.
+      This role is too complex to be edited in the standard editor. To continue
+      editing, go back to YAML editor.
     </Text>
   </Info>
 );
