@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.4.24 (12/11/2024)
+
+* Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50080](https://github.com/gravitational/teleport/pull/50080)
+* Fix tsh ssh -Y when jumping between multiple servers. [#50034](https://github.com/gravitational/teleport/pull/50034)
+* Reduce Auth memory consumption when agents join using the azure join method. [#50000](https://github.com/gravitational/teleport/pull/50000)
+* Tsh correctly respects the --no-allow-passwordless flag. [#49935](https://github.com/gravitational/teleport/pull/49935)
+* Client tools {tctl,tsh} auto-updates controlled by cluster configuration. [#48648](https://github.com/gravitational/teleport/pull/48648)
+
 ## 15.4.23 (12/5/2024)
 
 * Fixed a bug breaking in-cluster joining on some Kubernetes clusters. [#49843](https://github.com/gravitational/teleport/pull/49843)
