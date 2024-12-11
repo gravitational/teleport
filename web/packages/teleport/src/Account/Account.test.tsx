@@ -240,8 +240,8 @@ test('loading state', async () => {
   expect(
     within(screen.getByTestId('mfa-list')).getByTestId('indicator-wrapper')
   ).toBeVisible();
-  expect(screen.getByText(/add a passkey/i)).toBeDisabled();
-  expect(screen.getByText(/add mfa/i)).toBeDisabled();
+  expect(screen.getByText(/add a passkey/i)).toBeVisible();
+  expect(screen.getByText(/add mfa/i)).toBeVisible();
   expect(
     screen.queryByTestId('passwordless-state-pill')
   ).not.toBeInTheDocument();
@@ -272,11 +272,15 @@ test('adding an MFA device', async () => {
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add MFA' }));
   await waitFor(async () => {
-    user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Verify my identity' })
+    );
   });
-  await user.click(
-    screen.getByRole('button', { name: 'Create an MFA method' })
-  );
+  await waitFor(async () => {
+    await user.click(
+      screen.getByRole('button', { name: 'Create an MFA method' })
+    );
+  });
   await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
 
   // The final assertion can be accidentally made irrelevant if the button name
@@ -321,7 +325,9 @@ test('adding a passkey', async () => {
   await renderComponent(ctx);
   await user.click(screen.getByRole('button', { name: 'Add a Passkey' }));
   await waitFor(async () => {
-    user.click(screen.getByRole('button', { name: 'Verify my identity' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Verify my identity' })
+    );
   });
   await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
   await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');

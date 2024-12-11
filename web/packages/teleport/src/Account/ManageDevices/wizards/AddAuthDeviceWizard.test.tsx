@@ -75,6 +75,9 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
 describe('flow without reauthentication', () => {
   beforeEach(() => {
     jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({});
+    jest
+      .spyOn(auth, 'createPrivilegeToken')
+      .mockResolvedValueOnce('privilege-token');
   });
 
   test('adds a passkey', async () => {
