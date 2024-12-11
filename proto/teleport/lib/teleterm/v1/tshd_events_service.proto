@@ -157,7 +157,11 @@ message CertReissueError {
 // InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
 // because its local port did not match any TCP ports in the spec of the app. The port is included
 // in route_to_app as target_port.
-message InvalidLocalPort {}
+message InvalidLocalPort {
+  // tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+  // ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+  repeated PortRange tcp_ports = 1;
+}
 
 // Response for SendNotification.
 message SendNotificationResponse {}

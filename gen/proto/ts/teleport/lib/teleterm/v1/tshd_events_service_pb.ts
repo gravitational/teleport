@@ -31,6 +31,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { PortRange } from "./app_pb";
 import { RouteToApp } from "./app_pb";
 /**
  * Request for Relogin.
@@ -213,6 +214,13 @@ export interface CertReissueError {
  * @generated from protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
  */
 export interface InvalidLocalPort {
+    /**
+     * tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+     * ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1;
+     */
+    tcpPorts: PortRange[];
 }
 /**
  * Response for SendNotification.
@@ -924,18 +932,40 @@ export const CertReissueError = new CertReissueError$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class InvalidLocalPort$Type extends MessageType<InvalidLocalPort> {
     constructor() {
-        super("teleport.lib.teleterm.v1.InvalidLocalPort", []);
+        super("teleport.lib.teleterm.v1.InvalidLocalPort", [
+            { no: 1, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
+        ]);
     }
     create(value?: PartialMessage<InvalidLocalPort>): InvalidLocalPort {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.tcpPorts = [];
         if (value !== undefined)
             reflectionMergePartial<InvalidLocalPort>(this, message, value);
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InvalidLocalPort): InvalidLocalPort {
-        return target ?? this.create();
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 1:
+                    message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
     }
     internalBinaryWrite(message: InvalidLocalPort, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1; */
+        for (let i = 0; i < message.tcpPorts.length; i++)
+            PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -72,7 +72,7 @@ type AppProvider interface {
 
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 	// because the provided port does not match any of the TCP ports in the app spec.
-	OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp)
+	OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges)
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
@@ -397,7 +397,7 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 func (h *tcpAppHandler) HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	if len(h.app.GetTCPPorts()) > 0 {
 		if !h.app.GetTCPPorts().Contains(int(localPort)) {
-			h.appProvider.OnInvalidLocalPort(ctx, h.profileName, h.leafClusterName, h.routeToApp(localPort))
+			h.appProvider.OnInvalidLocalPort(ctx, h.profileName, h.leafClusterName, h.routeToApp(localPort), h.app.GetTCPPorts())
 			return trace.BadParameter("local port %d is not in TCP ports of app %q", localPort, h.app.GetName())
 		}
 	}

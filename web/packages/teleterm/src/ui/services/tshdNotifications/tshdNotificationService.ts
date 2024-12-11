@@ -25,10 +25,14 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { ResourceUri, routing } from 'teleterm/ui/uri';
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
+  cannotProxyVnetConnectionReasonIsInvalidLocalPort,
   notificationRequestOneOfIsCannotProxyGatewayConnection,
   notificationRequestOneOfIsCannotProxyVnetConnection,
 } from 'teleterm/helpers';
-import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
+import {
+  formatPortRange,
+  publicAddrWithTargetPort,
+} from 'teleterm/services/tshd/app';
 
 export class TshdNotificationsService {
   constructor(
@@ -101,11 +105,26 @@ export class TshdNotificationsService {
             };
           }
           case 'invalidLocalPort': {
+            if (!cannotProxyVnetConnectionReasonIsInvalidLocalPort(reason)) {
+              return;
+            }
+
+            // Ports are not present if there's more than 10 port ranges defined on an app.
+            const ports = reason.invalidLocalPort.tcpPorts
+              .map(portRange => formatPortRange(portRange))
+              .join(', ');
+
+            let description =
+              `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
+              `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`;
+
+            if (ports) {
+              description += ` Valid ports: ${ports}.`;
+            }
+
             return {
               title: `Invalid port for ${publicAddrWithTargetPort(routeToApp)}`,
-              description:
-                `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
-                `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`,
+              description,
               // 3rd-party clients can potentially make dozens of attempts to connect to an invalid
               // port within a short time. As all notifications from this service go as errors, we
               // don't want to force the user to manually close each notification.

@@ -146,6 +146,15 @@ export function cannotProxyVnetConnectionReasonIsCertReissueError(
   return reason.oneofKind === 'certReissueError';
 }
 
+export function cannotProxyVnetConnectionReasonIsInvalidLocalPort(
+  reason: api.CannotProxyVnetConnection['reason']
+): reason is {
+  oneofKind: 'invalidLocalPort';
+  invalidLocalPort: api.InvalidLocalPort;
+} {
+  return reason.oneofKind === 'invalidLocalPort';
+}
+
 export function reloginReasonOneOfIsGatewayCertExpired(
   reason: ReloginRequest['reason']
 ): reason is {

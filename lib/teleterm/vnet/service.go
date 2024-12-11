@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -483,7 +484,7 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 // because the provided port does not match any of the TCP ports in the app spec.
-func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) {
+func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
 	// If something is wrong with the Electron app to the point that it stopped accepting RPCs, return
 	// quickly rather than being blocked on sending a notification.
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -498,13 +499,24 @@ func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafC
 		TargetPort:  routeToApp.TargetPort,
 	}
 
+	invalidLocalPort := &apiteleterm.InvalidLocalPort{}
+	// Send ports only if there's less than 10 ranges. A bigger number would be difficult to show in
+	// the UI.
+	if len(tcpPorts) <= 10 {
+		apiTCPPorts := make([]*apiteleterm.PortRange, 0, len(tcpPorts))
+		for _, portRange := range tcpPorts {
+			apiTCPPorts = append(apiTCPPorts, &apiteleterm.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+		}
+		invalidLocalPort.TcpPorts = apiTCPPorts
+	}
+
 	err := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
 		Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
 			CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 				TargetUri:  appURI.String(),
 				RouteToApp: &apiteletermRouteToApp,
 				Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
-					InvalidLocalPort: &apiteleterm.InvalidLocalPort{},
+					InvalidLocalPort: invalidLocalPort,
 				},
 			},
 		},
