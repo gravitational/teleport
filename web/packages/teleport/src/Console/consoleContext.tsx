@@ -23,7 +23,11 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, { UrlDbConnectParams, UrlKubeExecParams, UrlSshParams } from 'teleport/config';
+import cfg, {
+  UrlDbConnectParams,
+  UrlKubeExecParams,
+  UrlSshParams,
+} from 'teleport/config';
 import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';

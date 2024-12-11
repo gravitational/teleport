@@ -35,108 +35,92 @@ export default {
 };
 
 export const Connect = () => {
-  const { ctx, consoleCtx } = getContexts(Promise.resolve({
-    agents: [
-      {
-        kind: 'db',
-        name: 'mydb',
-        description: '',
-        type: '',
-        protocol: 'postgres',
-        labels: [],
-        names: ['users', 'orders'],
-        users: ['alice', 'bob'],
-        roles: ['reader', 'all'],
-        hostname: '',
-        supportsInteractive: true,
-      },
-    ]
-  }));
-
-  return (
-    <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'postgres',
+          labels: [],
+          names: ['users', 'orders'],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
   );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 export const ConnectWithoutRoles = () => {
-  const { ctx, consoleCtx } = getContexts(Promise.resolve({
-    agents: [
-      {
-        kind: 'db',
-        name: 'mydb',
-        description: '',
-        type: '',
-        protocol: 'postgres',
-        labels: [],
-        names: ['users', 'orders'],
-        users: ['alice', 'bob'],
-        hostname: '',
-        supportsInteractive: true,
-      },
-    ]
-  }));
-
-  return (
-    <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'postgres',
+          labels: [],
+          names: ['users', 'orders'],
+          users: ['alice', 'bob'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
   );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 export const ConnectWithoutValues = () => {
-  const { ctx, consoleCtx } = getContexts(Promise.resolve({
-    agents: [
-      {
-        kind: 'db',
-        name: 'mydb',
-        description: '',
-        type: '',
-        protocol: 'postgres',
-        labels: [],
-        hostname: '',
-        supportsInteractive: true,
-      },
-    ]
-  }));
-
-  return (
-    <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'postgres',
+          labels: [],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
   );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 export const NotFound = () => {
-  const { ctx, consoleCtx } = getContexts(Promise.resolve({agents: []}));
+  const { ctx, consoleCtx } = getContexts(Promise.resolve({ agents: [] }));
 
-  return (
-    <DocumentDbWrapper
-      ctx={ctx}
-      consoleCtx={consoleCtx}
-      doc={baseDoc}
-    />
-  );
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 export const Loading = () => {
   // Resources list that never resolves.
   const { ctx, consoleCtx } = getContexts(new Promise(() => {}));
 
-  return (
-    <DocumentDbWrapper
-      ctx={ctx}
-      consoleCtx={consoleCtx}
-      doc={baseDoc}
-    />
-  );
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 export const LoadError = () => {
-  const { ctx, consoleCtx } = getContexts(Promise.reject(new Error('failed to fetch')));
-
-  return (
-    <DocumentDbWrapper
-      ctx={ctx}
-      consoleCtx={consoleCtx}
-      doc={baseDoc}
-    />
+  const { ctx, consoleCtx } = getContexts(
+    Promise.reject(new Error('failed to fetch'))
   );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
 type Props = {
@@ -161,20 +145,20 @@ function getContexts(resources: Promise<ResourcesResponse<UnifiedResource>>) {
 
   const consoleCtx = new ConsoleCtx();
   const tty = consoleCtx.createTty({
-      kind: 'db',
-      login: '123',
-      sid: '456',
-      namespace: '',
-      created: new Date(),
-      durationText: '',
-      serverId: '',
-      resourceName: '',
-      clusterId: '',
-      parties: [],
-      addr: '',
-      participantModes: [],
-      moderated: false,
-      command: '/bin/bash',
+    kind: 'db',
+    login: '123',
+    sid: '456',
+    namespace: '',
+    created: new Date(),
+    durationText: '',
+    serverId: '',
+    resourceName: '',
+    clusterId: '',
+    parties: [],
+    addr: '',
+    participantModes: [],
+    moderated: false,
+    command: '/bin/bash',
   });
   tty.connect = () => null;
   consoleCtx.createTty = () => tty;
@@ -193,4 +177,3 @@ const baseDoc = {
   url: 'fd',
   created: new Date(),
 } as const;
-

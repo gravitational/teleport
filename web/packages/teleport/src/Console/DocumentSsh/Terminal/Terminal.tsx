@@ -81,7 +81,6 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         return false;
       }
 
-
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;

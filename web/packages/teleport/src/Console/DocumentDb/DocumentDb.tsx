@@ -37,8 +37,7 @@ type Props = {
 
 export function DocumentDb({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
-  const { tty, status, closeDocument, sendDbConnectData } =
-    useDbSession(doc);
+  const { tty, status, closeDocument, sendDbConnectData } = useDbSession(doc);
   const mfa = useMfa(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
@@ -56,7 +55,12 @@ export function DocumentDb({ doc, visible }: Props) {
       {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
 
       {status === 'waiting' && (
-        <ConnectDialog clusterId={doc.clusterId} serviceName={doc.name} onConnect={sendDbConnectData} onClose={closeDocument} />
+        <ConnectDialog
+          clusterId={doc.clusterId}
+          serviceName={doc.name}
+          onConnect={sendDbConnectData}
+          onClose={closeDocument}
+        />
       )}
       {status !== 'loading' && (
         <Terminal

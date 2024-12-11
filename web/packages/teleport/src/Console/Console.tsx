@@ -78,7 +78,9 @@ export default function Console() {
     return consoleCtx.refreshParties();
   }
 
-  const disableNewTab = storeDocs.getNodeDocuments().length > 0 || storeDocs.getDbDocuments().length > 0;
+  const disableNewTab =
+    storeDocs.getNodeDocuments().length > 0 ||
+    storeDocs.getDbDocuments().length > 0;
   const $docs = documents.map(doc => (
     <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
   ));

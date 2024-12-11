@@ -27,10 +27,7 @@ import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentDb } from 'teleport/Console/stores';
 
-import type {
-  Session,
-  SessionMetadata,
-} from 'teleport/services/session';
+import type { Session, SessionMetadata } from 'teleport/services/session';
 
 const tracer = trace.getTracer('TTY');
 
@@ -56,11 +53,11 @@ export function useDbSession(doc: DocumentDb) {
 
   React.useEffect(() => {
     const session: Session = {
-        kind: 'db',
-        clusterId,
-        sid,
-        resourceName: doc.name,
-    }
+      kind: 'db',
+      clusterId,
+      sid,
+      resourceName: doc.name,
+    };
 
     tracer.startActiveSpan(
       'initTTY',
@@ -118,7 +115,7 @@ function handleTtyConnect(
   // The server response could not include the session ID. To avoid breaking the
   // redirect, set a value to the session ID.
   if (sid === '') {
-    sid = 'new'
+    sid = 'new';
   }
 
   const url = cfg.getDbSessionRoute({ clusterId, sid });
@@ -135,8 +132,4 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-export type Status =
-  | 'loading'
-  | 'waiting'
-  | 'initialized'
-  | 'disconnected';
+export type Status = 'loading' | 'waiting' | 'initialized' | 'disconnected';

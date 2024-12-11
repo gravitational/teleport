@@ -30,7 +30,7 @@ import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import cfg from 'teleport/config';
-import { NewTab as NewTabIcon } from 'design/Icon'; 
+import { NewTab as NewTabIcon } from 'design/Icon';
 
 export default function ConnectDialog({
   username,
@@ -77,9 +77,9 @@ export default function ConnectDialog({
 
   const onConnect = () => {
     const url = cfg.getDbConnectRoute({ clusterId, serviceName: dbName });
-    openNewTab(url)
-    onClose()
-  }
+    openNewTab(url);
+    onClose();
+  };
 
   return (
     <Dialog
@@ -95,7 +95,7 @@ export default function ConnectDialog({
         <DialogTitle>Connect To Database</DialogTitle>
       </DialogHeader>
       <DialogContent minHeight="240px" flex="0 0 auto">
-        { supportsInteractive && (
+        {supportsInteractive && (
           <Box borderBottom={1} mb={4} pb={4}>
             <Text mb={3} bold>
               Open Teleport-authenticated session in the browser:

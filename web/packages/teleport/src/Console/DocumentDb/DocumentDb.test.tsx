@@ -32,7 +32,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import Tty from 'teleport/lib/term/tty';
 
-import { useDbSession, Status }  from './useDbSession';
+import { useDbSession, Status } from './useDbSession';
 
 import { DocumentDb } from './DocumentDb';
 

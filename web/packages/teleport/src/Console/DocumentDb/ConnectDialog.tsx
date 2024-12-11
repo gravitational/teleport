@@ -23,17 +23,14 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import {
-    Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Indicator,
-} from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 
 import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
-import { FieldSelect, FieldSelectCreatable } from 'shared/components/FieldSelect';
+import {
+  FieldSelect,
+  FieldSelectCreatable,
+} from 'shared/components/FieldSelect';
 import { Database } from 'teleport/services/databases';
 import { useTeleport } from 'teleport';
 import { Danger } from 'design/Alert';
@@ -41,11 +38,11 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import { DbConnectData } from 'teleport/lib/term/tty';
 
-export function ConnectDialog(props: { 
-  clusterId: string; 
-  serviceName: string; 
-  onClose(): void; 
-  onConnect(data: DbConnectData): void; 
+export function ConnectDialog(props: {
+  clusterId: string;
+  serviceName: string;
+  onClose(): void;
+  onConnect(data: DbConnectData): void;
 }) {
   // Fetch database information to pre-fill the connection parameters.
   const ctx = useTeleport();
@@ -91,19 +88,34 @@ export function ConnectDialog(props: {
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && <ConnectForm db={attempt.data} onConnect={props.onConnect} onClose={props.onClose} />}
+      {attempt.status === 'success' && (
+        <ConnectForm
+          db={attempt.data}
+          onConnect={props.onConnect}
+          onClose={props.onClose}
+        />
+      )}
     </Dialog>
   );
 }
 
-function ConnectForm(props: { 
-  db: Database; 
-  onConnect(data: DbConnectData): void; 
-  onClose(): void; 
+function ConnectForm(props: {
+  db: Database;
+  onConnect(data: DbConnectData): void;
+  onClose(): void;
 }) {
-  const dbUserOpts = props.db.users?.map(user => ({value: user, label: user}));
-  const dbNamesOpts = props.db.names?.map(name => ({value: name, label: name}));
-  const dbRolesOpts = props.db.roles?.map(role => ({value: role, label: role}));
+  const dbUserOpts = props.db.users?.map(user => ({
+    value: user,
+    label: user,
+  }));
+  const dbNamesOpts = props.db.names?.map(name => ({
+    value: name,
+    label: name,
+  }));
+  const dbRolesOpts = props.db.roles?.map(role => ({
+    value: role,
+    label: role,
+  }));
 
   const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
   const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
@@ -115,7 +127,7 @@ function ConnectForm(props: {
       protocol: props.db.protocol,
       dbName: selectedName.value,
       dbUser: selectedUser.value,
-      dbRoles: selectedRoles?.map((role) => role.value)
+      dbRoles: selectedRoles?.map(role => role.value),
     });
   };
 
@@ -131,17 +143,21 @@ function ConnectForm(props: {
               value={selectedUser}
               options={dbUserOpts}
               isDisabled={dbUserOpts?.length == 1}
-              formatCreateLabel={userInput => `Use "${userInput}" database user`}
+              formatCreateLabel={userInput =>
+                `Use "${userInput}" database user`
+              }
               rule={requiredField('Database user is required')}
             />
-            {dbRolesOpts?.length > 0 && <FieldSelect
-              label="Database roles"
-              menuPosition="fixed"
-              isMulti={true}
-              onChange={setSelectedRoles}
-              value={selectedRoles}
-              options={dbRolesOpts}
-            /> }
+            {dbRolesOpts?.length > 0 && (
+              <FieldSelect
+                label="Database roles"
+                menuPosition="fixed"
+                isMulti={true}
+                onChange={setSelectedRoles}
+                value={selectedRoles}
+                options={dbRolesOpts}
+              />
+            )}
             <FieldSelectCreatable
               label="Database name"
               menuPosition="fixed"
@@ -149,7 +165,9 @@ function ConnectForm(props: {
               value={selectedName}
               options={dbNamesOpts}
               isDisabled={dbNamesOpts?.length == 1}
-              formatCreateLabel={userInput => `Use "${userInput}" database name`}
+              formatCreateLabel={userInput =>
+                `Use "${userInput}" database name`
+              }
               rule={requiredField('Database name is required')}
             />
           </DialogContent>
