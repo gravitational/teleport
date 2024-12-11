@@ -196,8 +196,7 @@ func (s *Service) processRequests(ctx context.Context) error {
 
 func (s *Service) getNextPageOfAccessRequests(ctx context.Context, startKey string) ([]*types.AccessRequestV3, string, error) {
 	req := &proto.ListAccessRequestsRequest{
-		Sort:       proto.AccessRequestSort_CREATED,
-		Descending: true,
+		Sort:       proto.AccessRequestSort_DEFAULT,
 		Limit:      accessRequestPageLimit,
 		StartKey:   startKey,
 	}
