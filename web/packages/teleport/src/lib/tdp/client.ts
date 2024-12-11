@@ -57,7 +57,6 @@ import type {
   SyncKeys,
   SharedDirectoryTruncateResponse,
 } from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -622,14 +621,6 @@ export default class Client extends EventEmitterMfaSender {
 
   sendClipboardData(clipboardData: ClipboardData) {
     this.send(this.codec.encodeClipboardData(clipboardData));
-  }
-
-  sendWebAuthn(data: WebauthnAssertionResponse) {
-    const msg = this.codec.encodeMfaJson({
-      mfaType: 'n',
-      jsonString: JSON.stringify(data),
-    });
-    this.send(msg);
   }
 
   addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
