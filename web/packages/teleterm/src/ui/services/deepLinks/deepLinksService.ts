@@ -117,6 +117,7 @@ export class DeepLinksService {
       webSessionRequest: {
         id,
         token,
+        username: url.username,
         redirectUri: redirect_uri,
       },
     });

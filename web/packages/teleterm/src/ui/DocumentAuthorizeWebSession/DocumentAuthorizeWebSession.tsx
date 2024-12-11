@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Alert, ButtonPrimary, H1, ButtonText } from 'design';
+import { Text, Alert, ButtonPrimary, H1, ButtonText, Link } from 'design';
 import Flex from 'design/Flex';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 import { processRedirectUri } from 'shared/redirects';
@@ -50,7 +50,10 @@ export function DocumentAuthorizeWebSession(props: {
     return confirmationToken;
   });
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
-  const canAuthorize = rootCluster.loggedInUser?.isDeviceTrusted;
+  const isDeviceTrusted = rootCluster.loggedInUser?.isDeviceTrusted;
+  const isRequestedUserLoggedIn =
+    props.doc.webSessionRequest.username === rootCluster.loggedInUser?.name;
+  const canAuthorize = isDeviceTrusted && isRequestedUserLoggedIn;
 
   async function authorizeAndCloseDocument() {
     const [confirmationToken, error] = await authorize();
@@ -95,7 +98,7 @@ export function DocumentAuthorizeWebSession(props: {
         <H1 mb="4">Authorize Web Session</H1>
         <Flex flexDirection="column" gap={3}>
           {/*It's technically possible to open a deep link to authorize a session on a device that is not enrolled.*/}
-          {!canAuthorize && (
+          {!isDeviceTrusted && (
             <Alert mb={0}>
               <Text>
                 This device is not trusted.
@@ -108,6 +111,32 @@ export function DocumentAuthorizeWebSession(props: {
                   enroll your device
                 </a>
                 . Then log out of Teleport Connect, log back in, and try again.
+              </Text>
+            </Alert>
+          )}
+          {!isRequestedUserLoggedIn && (
+            <Alert mb={0}>
+              <Text>
+                Requested user is not logged in.
+                <br />
+                You are logged in as <b>{rootCluster.loggedInUser?.name}</b>. To
+                authorize this web session request, please{' '}
+                <Link
+                  css={`
+                    cursor: pointer;
+                  `}
+                  onClick={() => {
+                    ctx.commandLauncher.executeCommand('cluster-logout', {
+                      clusterUri: rootCluster.uri,
+                    });
+                  }}
+                >
+                  log out
+                </Link>{' '}
+                in Teleport Connect and log in again as{' '}
+                <b>{props.doc.webSessionRequest.username}</b>.
+                <br />
+                Then click Launch Teleport Connect again in the browser.
               </Text>
             </Alert>
           )}

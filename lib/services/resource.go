@@ -243,6 +243,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessGraphSettings, nil
 	case types.KindSPIFFEFederation, types.KindSPIFFEFederation + "s":
 		return types.KindSPIFFEFederation, nil
+	case types.KindWorkloadIdentity, types.KindWorkloadIdentity + "s", "workload_identities", "workloadidentity", "workloadidentities", "workloadidentitys":
+		return types.KindWorkloadIdentity, nil
 	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
 		return types.KindStaticHostUser, nil
 	case types.KindUserTask, types.KindUserTask + "s":

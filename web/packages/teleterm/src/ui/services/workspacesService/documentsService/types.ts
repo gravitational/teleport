@@ -237,6 +237,7 @@ export interface DocumentAuthorizeWebSession extends DocumentBase {
 export interface WebSessionRequest {
   id: string;
   token: string;
+  username: string;
   redirectUri: string;
 }
 
