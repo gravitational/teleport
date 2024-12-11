@@ -11,7 +11,7 @@ jobs:
       contents: read
       pull-requests: write
     with:
-      base-ref: ${{ github.event.pull_request.base.sha || 'master' }}
+      base-ref: ${{ github.event.pull_request.base.sha || 'branch/v16' }}
       # 'GHSA-6xf3-5hp7-xqqg' is a false positive. That's an old Teleport Vuln,
       # but because of the replace, the dependency cannot find the correct
       # Teleport version.
