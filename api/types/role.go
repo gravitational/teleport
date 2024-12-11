@@ -1281,6 +1281,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
+		r.Spec.Allow.WorkloadIdentityLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
