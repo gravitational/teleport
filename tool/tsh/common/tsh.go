@@ -2905,17 +2905,7 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		return common.FormatLabels(app.GetAllLabels(), config.verbose)
 	}
 	getTargetPorts := func(app types.Application) string {
-		ports := make([]string, 0, len(app.GetTCPPorts()))
-		for _, portRange := range app.GetTCPPorts() {
-			var port string
-			if portRange.EndPort == 0 {
-				port = strconv.Itoa(int(portRange.Port))
-			} else {
-				port = fmt.Sprintf("%d-%d", portRange.Port, portRange.EndPort)
-			}
-			ports = append(ports, port)
-		}
-		return strings.Join(ports, ", ")
+		return app.GetTCPPorts().String()
 	}
 
 	const labelsColumn = "Labels"
