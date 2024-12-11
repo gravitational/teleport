@@ -87,12 +87,30 @@ enum Severity {
   SEVERITY_CRITICAL = 4;
 }
 
+message PolicyUpdate {
+  string policy_name = 1;
+  string previous_policy = 2;
+  string new_policy = 3;
+  bool detach = 4;
+}
+
+message UnusedRoleRiskFactor {
+  string last_used = 1;
+}
+
+message PolicyRiskFactor {
+  repeated PolicyUpdate updates = 1;
+}
+
 // RiskFactor sdasd
 message RiskFactor {
   string name = 1;
   Severity severity = 2;
-  string reason = 3;
-  RiskFactorKind kind = 4;
+
+  oneof risk {
+    PolicyRiskFactor policy = 3;
+    UnusedRoleRiskFactor unused_role = 4;
+  }
 }
 
 // RiskFactorKind asdasd
