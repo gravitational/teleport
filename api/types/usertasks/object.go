@@ -45,10 +45,12 @@ func WithExpiration(t time.Time) func(ut *usertasksv1.UserTask) {
 // NewDiscoverEC2UserTask creates a new DiscoverEC2 User Task Type.
 func NewDiscoverEC2UserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOption) (*usertasksv1.UserTask, error) {
 	taskName := TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
-		Integration: spec.GetIntegration(),
-		IssueType:   spec.GetIssueType(),
-		AccountID:   spec.GetDiscoverEc2().GetAccountId(),
-		Region:      spec.GetDiscoverEc2().GetRegion(),
+		Integration:     spec.GetIntegration(),
+		IssueType:       spec.GetIssueType(),
+		AccountID:       spec.GetDiscoverEc2().GetAccountId(),
+		Region:          spec.GetDiscoverEc2().GetRegion(),
+		SSMDocument:     spec.GetDiscoverEc2().GetSsmDocument(),
+		InstallerScript: spec.GetDiscoverEc2().GetInstallerScript(),
 	})
 
 	ut := &usertasksv1.UserTask{
@@ -172,10 +174,12 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 	}
 
 	expectedTaskName := TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
-		Integration: ut.Spec.Integration,
-		IssueType:   ut.Spec.IssueType,
-		AccountID:   ut.Spec.DiscoverEc2.AccountId,
-		Region:      ut.Spec.DiscoverEc2.Region,
+		Integration:     ut.Spec.Integration,
+		IssueType:       ut.Spec.IssueType,
+		AccountID:       ut.Spec.DiscoverEc2.AccountId,
+		Region:          ut.Spec.DiscoverEc2.Region,
+		SSMDocument:     ut.Spec.DiscoverEc2.SsmDocument,
+		InstallerScript: ut.Spec.DiscoverEc2.InstallerScript,
 	})
 	if ut.Metadata.GetName() != expectedTaskName {
 		return trace.BadParameter("task name is pre-defined for discover-ec2 types, expected %q, got %q",
