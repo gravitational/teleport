@@ -102,7 +102,6 @@ func NewDatabaseConnectionTester(cfg DatabaseConnectionTesterConfig) (*DatabaseC
 // - the database is accessible and accepting connections from the database server
 // - the database has the database user and database name that was requested
 func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
-	fmt.Printf("HERE TESTCONNECTION *******************************")
 	if req.ResourceKind != types.KindDatabase {
 		return nil, trace.BadParameter("invalid value for ResourceKind, expected %q got %q", types.KindDatabase, req.ResourceKind)
 	}
@@ -127,7 +126,6 @@ func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestC
 		return nil, trace.Wrap(err)
 	}
 
-	return s.handlePingSuccess(ctx, connectionDiagnosticID)
 	databaseServers, err := s.getDatabaseServers(ctx, req.ResourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
