@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -547,4 +548,25 @@ func (p PortRanges) Contains(targetPort int) bool {
 	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
 		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
 	})
+}
+
+// String returns a string representation of port ranges.
+func (p PortRanges) String() string {
+	var builder strings.Builder
+	for i, portRange := range p {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(portRange.String())
+	}
+	return builder.String()
+}
+
+// String returns a string representation of a port range.
+func (p *PortRange) String() string {
+	if p.EndPort == 0 {
+		return strconv.Itoa(int(p.Port))
+	} else {
+		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
 }
