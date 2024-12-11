@@ -27,6 +27,7 @@ import "accessgraph/v1alpha/events.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/resources.proto";
+import "teleport/usertasks/v1/user_tasks.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
@@ -183,6 +184,7 @@ message EventsStreamV2Response {
   oneof action {
     // event is a audit event that should be logged by Teleport.
     AuditEvent event = 1;
+    teleport.usertasks.v1.UserTask user_task = 2;
   }
 }
 
