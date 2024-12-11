@@ -1,5 +1,24 @@
 # Changelog
 
+## 16.4.11 (12/11/2024)
+
+* Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50079](https://github.com/gravitational/teleport/pull/50079)
+* Fix tsh ssh -Y when jumping between multiple servers. [#50032](https://github.com/gravitational/teleport/pull/50032)
+* Fixed an issue preventing default shell assignment for host users. [#50003](https://github.com/gravitational/teleport/pull/50003)
+* Reduce Auth memory consumption when agents join using the azure join method. [#49999](https://github.com/gravitational/teleport/pull/49999)
+* Our OSS OS packages (rpm, deb, etc) now have up-to-date metadata. [#49963](https://github.com/gravitational/teleport/pull/49963)
+* Tsh correctly respects the --no-allow-passwordless flag. [#49934](https://github.com/gravitational/teleport/pull/49934)
+* The web session authorization dialog in Teleport Connect is now a dedicated tab, which properly shows a re-login dialog when the local session is expired. [#49932](https://github.com/gravitational/teleport/pull/49932)
+* Prevent a panic if the Auth Service does not provide a license expiry. [#49877](https://github.com/gravitational/teleport/pull/49877)
+
+Enterprise:
+* Improved "IP mismatch" audit entries for device trust web.
+* Fixed assigning suggested reviewers in the edge case when the user already has access to the requested resources.
+* Users can now see a list of their enrolled devices on their Account page.
+* Jamf Service sync audit events are attributed to "Jamf Service".
+* Added license updater service.
+* Fixed a bug where Access Lists imported from Microsoft Entra ID fail to be created if their display names include special characters.
+
 ## 16.4.10 (12/5/2024)
 
 * Fixed a bug introduced in v16.4.9 breaking in-cluster joining on some Kubernetes clusters. [#49842](https://github.com/gravitational/teleport/pull/49842)
