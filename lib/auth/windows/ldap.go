@@ -148,8 +148,16 @@ type LDAPClient struct {
 	// Cfg is the LDAPConfig
 	Cfg LDAPConfig
 
-	mu     sync.Mutex
-	client ldap.Client
+	mu                sync.Mutex
+	client            ldap.Client
+	connectionCreator func(addr string) (*ldap.Conn, error)
+}
+
+// SetConnectionCreator sets the function used for creating connections during referrals traversal
+func (c *LDAPClient) SetConnectionCreator(creator func(addr string) (*ldap.Conn, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.connectionCreator = creator
 }
 
 // SetClient sets the underlying ldap.Client
@@ -169,6 +177,44 @@ func (c *LDAPClient) Close() {
 		c.client.Close()
 	}
 	c.mu.Unlock()
+}
+
+func extractReferrals(err error) []string {
+	if err == nil {
+		return nil
+	}
+
+	var ldapErr *ldap.Error
+	if !errors.As(err, &ldapErr) {
+		return nil
+	}
+	if ldapErr.ResultCode != ldap.LDAPResultReferral {
+		return nil
+	}
+
+	for _, child := range ldapErr.Packet.Children {
+		if child.Description != "Search Result Done" {
+			continue
+		}
+		for _, innerChild := range child.Children {
+			if innerChild.Description != "Referral" {
+				continue
+			}
+			var referrals []string
+			referrals = make([]string, len(innerChild.Children))
+			for i, referral := range innerChild.Children {
+				ref := referral.Value.(string)
+				last := strings.LastIndex(ref, "/")
+				if last >= 0 {
+					ref = ref[:last]
+				}
+				referrals[i] = ref
+			}
+			return referrals
+		}
+	}
+
+	return nil
 }
 
 // convertLDAPError attempts to convert LDAP error codes to their
@@ -222,7 +268,20 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	defer c.mu.Unlock()
 
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
-	if err != nil {
+	referrals := extractReferrals(err)
+	if len(referrals) > 0 {
+		for i := 0; i < len(referrals); i++ {
+			if conn, err2 := c.connectionCreator(referrals[i]); err2 == nil {
+				res, err3 := conn.SearchWithPaging(req, searchPageSize)
+				if err3 == nil {
+					return res.Entries, nil
+				}
+				newReferrals := extractReferrals(err3)
+				referrals = append(referrals, newReferrals...)
+			}
+		}
+		return nil, trace.Wrap(errors.New("no referral provided can execute the query"))
+	} else if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
 

@@ -513,11 +513,14 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL(
-		"ldaps://"+s.cfg.Addr,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
+	createLDAPConnection := func(addr string) (*ldap.Conn, error) {
+		return ldap.DialURL(
+			addr,
+			ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
+			ldap.DialWithTLSConfig(tc),
+		)
+	}
+	conn, err := createLDAPConnection("ldaps://" + s.cfg.Addr)
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
@@ -534,6 +537,7 @@ func (s *WindowsService) initializeLDAP() error {
 	}
 
 	conn.SetTimeout(ldapRequestTimeout)
+	s.lc.SetConnectionCreator(createLDAPConnection)
 	s.lc.SetClient(conn)
 
 	if err := s.ca.Update(s.closeCtx); err != nil {
