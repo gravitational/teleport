@@ -45,6 +45,20 @@ type UserTaskDetail struct {
 	UserTask
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
 	DiscoverEC2 *usertasksv1.DiscoverEC2 `json:"discoverEc2,omitempty"`
+	AccessGraph *AccessGraph             `json:"accessGraph,omitempty"`
+}
+
+// AccessGraph contains the instances that failed to auto-enroll into the cluster.
+type AccessGraph struct {
+	Severity    string        `json:"severity,omitempty"`
+	RiskFactors []*RiskFactor `json:"risk_factors,omitempty"`
+	AccountId   string        `json:"account_id,omitempty"`
+}
+
+type RiskFactor struct {
+	Name     string `json:"name,omitempty"`
+	Severity string `json:"severity,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -93,11 +107,42 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 	return uiList
 }
 
+func severityToString(severity usertasksv1.Severity) string {
+	switch severity {
+	case usertasksv1.Severity_SEVERITY_LOW:
+		return "low"
+	case usertasksv1.Severity_SEVERITY_MEDIUM:
+		return "medium"
+	case usertasksv1.Severity_SEVERITY_HIGH:
+		return "high"
+	case usertasksv1.Severity_SEVERITY_CRITICAL:
+		return "critical"
+	default:
+		return "unknown"
+	}
+}
+
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
+	var accessGraph *AccessGraph
+	if ut.GetSpec().GetAccessGraph() != nil {
+		accessGraph = &AccessGraph{
+			Severity:    severityToString(ut.GetSpec().GetAccessGraph().GetSeverity()),
+			RiskFactors: make([]*RiskFactor, 0, len(ut.GetSpec().GetAccessGraph().GetRiskFactors())),
+			AccountId:   ut.GetSpec().GetAccessGraph().GetAccountId(),
+		}
+		for _, rf := range ut.GetSpec().GetAccessGraph().GetRiskFactors() {
+			accessGraph.RiskFactors = append(accessGraph.RiskFactors, &RiskFactor{
+				Name:     rf.GetName(),
+				Severity: severityToString(rf.GetSeverity()),
+				Reason:   rf.GetReason(),
+			})
+		}
+	}
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
 		DiscoverEC2: ut.GetSpec().GetDiscoverEc2(),
+		AccessGraph: accessGraph,
 	}
 }
 
