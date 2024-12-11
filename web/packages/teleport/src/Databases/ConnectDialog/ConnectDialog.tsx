@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Text, Box, ButtonSecondary, Link, Flex, ButtonPrimary } from 'design';
+import { Text, Box, ButtonSecondary, Link, ButtonPrimary } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -26,11 +26,12 @@ import Dialog, {
 } from 'design/Dialog';
 import { DbProtocol } from 'shared/services/databases';
 
+import { NewTab as NewTabIcon } from 'design/Icon';
+
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import cfg from 'teleport/config';
-import { NewTab as NewTabIcon } from 'design/Icon';
 
 export default function ConnectDialog({
   username,

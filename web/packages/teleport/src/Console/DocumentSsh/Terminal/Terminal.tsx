@@ -32,8 +32,9 @@ import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
-import StyledXterm from '../../StyledXterm';
 import { Document } from 'teleport/Console/stores';
+
+import StyledXterm from '../../StyledXterm';
 
 export interface TerminalProps {
   tty: Tty;

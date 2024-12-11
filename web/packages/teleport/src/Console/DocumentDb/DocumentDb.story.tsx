@@ -26,9 +26,9 @@ import { TestLayout } from 'teleport/Console/Console.story';
 import TeleportContext from 'teleport/teleportContext';
 import * as stores from 'teleport/Console/stores/types';
 
-import { DocumentDb } from './DocumentDb';
-
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
+
+import { DocumentDb } from './DocumentDb';
 
 export default {
   title: 'Teleport/Console/DocumentDb',

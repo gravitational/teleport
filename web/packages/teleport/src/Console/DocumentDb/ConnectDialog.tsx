@@ -31,11 +31,13 @@ import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
-import { Database } from 'teleport/services/databases';
-import { useTeleport } from 'teleport';
+
 import { Danger } from 'design/Alert';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
+
+import { useTeleport } from 'teleport';
+import { Database } from 'teleport/services/databases';
 import { DbConnectData } from 'teleport/lib/term/tty';
 
 export function ConnectDialog(props: {
