@@ -534,12 +534,18 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	extraLabels := make(map[string]string, len(req.ExtraLabels))
+	for _, label := range req.ExtraLabels {
+		extraLabels[label.Name] = label.Value
+	}
+
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
 		Integration:        integrationName,
 		Region:             req.Region,
 		EksClusterNames:    req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		AgentVersion:       agentVersion,
+		ExtraLabels:        extraLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

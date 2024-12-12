@@ -5250,6 +5250,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 					},
 				},
 			},
+			// Prevent the requester from seeing the notification for their own access request.
+			ExcludeUsers: []string{req.GetUser()},
 			Notification: &notificationsv1.Notification{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,

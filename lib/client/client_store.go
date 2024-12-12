@@ -127,11 +127,11 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCertExpiration, err := keyRing.TeleportTLSCertValidBefore()
+	// verify that the key ring has a TLS certificate
+	_, err = keyRing.TeleportTLSCertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Teleport TLS certificate valid until %q.", tlsCertExpiration)
 
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
