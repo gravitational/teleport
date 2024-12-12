@@ -1476,6 +1476,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
+				// Apps representing an Identity Center Account have a collection of Permission Sets
+				// that can be thought of as individually-addressable sub-resources. To present a consitent
+				// view of the account we check access for each Permission Set, filter out those that have
+				// no access and treat the whole app as requiring an access request if _any_ of the contained
+				// permission sets require one.
 				if err := a.filterICPermissionSets(r, d.GetApp(), resourceAccess); err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
 					continue
