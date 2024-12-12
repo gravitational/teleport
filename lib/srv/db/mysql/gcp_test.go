@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
@@ -56,7 +55,7 @@ func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Databa
 	return "one-time-password", nil
 }
 
-func (a fakeAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
+func (a fakeAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
 	if a.Auth != nil {
 		return a.Auth.WithLogger(getUpdatedLogger)
 	}

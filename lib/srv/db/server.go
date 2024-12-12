@@ -717,21 +717,21 @@ func (s *Server) getServerInfoFunc(database types.Database) func(context.Context
 	if s.cfg.GetServerInfoFn != nil {
 		return s.cfg.GetServerInfoFn(database)
 	}
-	return func(context.Context) (*types.DatabaseServerV3, error) {
-		return s.getServerInfo(database)
+	return func(ctx context.Context) (*types.DatabaseServerV3, error) {
+		return s.getServerInfo(ctx, database)
 	}
 }
 
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
-func (s *Server) getServerInfo(database types.Database) (*types.DatabaseServerV3, error) {
+func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*types.DatabaseServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
 	if s.cfg.CloudIAM != nil {
-		s.cfg.CloudIAM.UpdateIAMStatus(copy)
+		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 

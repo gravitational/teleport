@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,13 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestURLChecker_AWS(t *testing.T) {
 	t.Parallel()
 
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
 	ctx := context.Background()
 	region := "us-west-2"
 	var testCases types.Databases
@@ -177,7 +175,7 @@ func TestURLChecker_AWS(t *testing.T) {
 		t.Run(method.name, func(t *testing.T) {
 			c := newURLChecker(DiscoveryResourceCheckerConfig{
 				Clients: method.clients,
-				Log:     log,
+				Logger:  utils.NewSlogLoggerForTests(),
 			})
 
 			for _, database := range testCases {

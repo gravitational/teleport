@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -126,7 +126,7 @@ func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
 		certGetter:         config.CertGetter,
 		ldapCertificate:    config.LDAPCA,
 		ldapCertificatePEM: config.LDAPCAPEM,
-		log:                logrus.StandardLogger(),
+		logger:             slog.Default(),
 	}
 	if cmd.command == nil {
 		cmd.command = &execCmd{}
@@ -173,7 +173,7 @@ type CommandLineInitializer struct {
 
 	ldapCertificate    *x509.Certificate
 	ldapCertificatePEM string
-	log                logrus.FieldLogger
+	logger             *slog.Logger
 }
 
 // CertGetter is an interface for getting a new cert/key pair along with a CA cert
@@ -246,7 +246,7 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	defer func() {
 		err = os.RemoveAll(tmp)
 		if err != nil {
-			k.log.Errorf("failed removing temporary kinit directory: %s", err)
+			k.logger.ErrorContext(ctx, "failed removing temporary kinit directory", "error", err)
 		}
 	}()
 
@@ -308,7 +308,7 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	cmd.Env = append(cmd.Env, []string{fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath)}...)
 	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
-		k.log.Errorf("Failed to authenticate with KDC: %s", kinitOutput)
+		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput))
 		return nil, nil, trace.AccessDenied("authentication failed")
 	}
 	ccache, err := credentials.LoadCCache(cachePath)

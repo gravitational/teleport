@@ -262,7 +262,7 @@ func TestAWSIAM(t *testing.T) {
 				require.True(t, tt.getIAMAuthEnabled())
 				require.Contains(t, aws.StringValue(output.PolicyDocument), tt.wantPolicyContains)
 
-				err = configurator.UpdateIAMStatus(database)
+				err = configurator.UpdateIAMStatus(ctx, database)
 				require.NoError(t, err)
 				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS, database.GetAWS().IAMPolicyStatus, "must be success because iam policy was set up")
 
@@ -279,7 +279,7 @@ func TestAWSIAM(t *testing.T) {
 					stsClient.ResetAssumeRoleHistory()
 				}
 
-				err = configurator.UpdateIAMStatus(database)
+				err = configurator.UpdateIAMStatus(ctx, database)
 				require.NoError(t, err)
 				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified because task is tearing down")
 			})
@@ -401,7 +401,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = configurator.UpdateIAMStatus(database)
+			err = configurator.UpdateIAMStatus(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
 
@@ -411,7 +411,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = configurator.UpdateIAMStatus(database)
+			err = configurator.UpdateIAMStatus(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified, task is tearing down")
 		})

@@ -32,10 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -75,7 +72,6 @@ type TestServerOption func(*TestServer)
 // TestServer is a DynamoDB test server that mocks AWS signature checking and API.
 type TestServer struct {
 	cfg    common.TestServerConfig
-	log    logrus.FieldLogger
 	port   string
 	server *httptest.Server
 
@@ -90,10 +86,6 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolDynamoDB,
-		"name":                config.Name,
-	})
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,7 +116,6 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 
 	server := &TestServer{
 		cfg:  config,
-		log:  log,
 		port: port,
 		server: &httptest.Server{
 			Listener: config.Listener,

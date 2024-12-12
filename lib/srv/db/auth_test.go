@@ -29,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -411,8 +410,7 @@ func (a *testAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.Private
 	return key, trace.Wrap(err)
 }
 
-func (a *testAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
-	// TODO(greedy52) update WithLogger to use slog.
+func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
 	return &testAuth{
 		realAuth: a.realAuth,
 		Logger:   a.Logger,
