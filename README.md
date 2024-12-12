@@ -32,6 +32,9 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
       <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
       <img src="https://img.shields.io/badge/AGPL-3.0-red.svg" />
       </a>
+      <a href="https://gurubase.io/g/teleport">
+      <img src="https://img.shields.io/badge/Gurubase-Ask%20Teleport%20Guru-006BFF" />
+      </a>
    </div>
 </div>
 </br>
