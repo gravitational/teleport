@@ -150,7 +150,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
 		Responders:  og.getResponders(reqData),
-		Priority:    og.Priority,
+		Priority:    og.getPriority(reqData),
 	}
 
 	var result CreateAlertResult
@@ -229,6 +229,13 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 		responders = append(responders, createResponder(ResponderTypeTeam, t))
 	}
 	return responders
+}
+
+func (og Client) getPriority(reqData RequestData) string {
+	if priority, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationPriority]; ok {
+		return strings.Join(priority, "")
+	}
+	return og.Priority
 }
 
 // Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.

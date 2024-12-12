@@ -61,6 +61,7 @@ func TestCreateAlert(t *testing.T) {
 		SystemAnnotations: types.Labels{
 			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@example.com", "bb4d9938-c3c2-455d-aaab-727aa701c0d8"},
 			types.TeleportNamespace + types.ReqAnnotationTeamsLabel:           {"MyOpsGenieTeam", "aee8a0de-c80f-4515-a232-501c0bc9d715"},
+			types.TeleportNamespace + types.ReqAnnotationPriority:             {"P2"},
 		},
 	})
 	assert.NoError(t, err)
@@ -75,7 +76,7 @@ func TestCreateAlert(t *testing.T) {
 			{Type: "team", Name: "MyOpsGenieTeam"},
 			{Type: "team", ID: "aee8a0de-c80f-4515-a232-501c0bc9d715"},
 		},
-		Priority: "somePriority",
+		Priority: "P2",
 	}
 	var got AlertBody
 	err = json.Unmarshal([]byte(recievedReq), &got)
