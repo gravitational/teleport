@@ -19,6 +19,8 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -37,6 +39,8 @@ type UserTask struct {
 	IssueType string `json:"issueType,omitempty"`
 	// Integration is the Integration Name this User Task refers to.
 	Integration string `json:"integration,omitempty"`
+	// LastStateChange indicates when the current's user task state was last changed.
+	LastStateChange time.Time `json:"lastStateChange,omitempty"`
 }
 
 // UserTaskDetail contains all the details for a User Task.
@@ -94,10 +98,11 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 // MakeUserTask creates a UI UserTask representation.
 func MakeUserTask(ut *usertasksv1.UserTask) UserTask {
 	return UserTask{
-		Name:        ut.GetMetadata().GetName(),
-		TaskType:    ut.GetSpec().GetTaskType(),
-		State:       ut.GetSpec().GetState(),
-		IssueType:   ut.GetSpec().GetIssueType(),
-		Integration: ut.GetSpec().GetIntegration(),
+		Name:            ut.GetMetadata().GetName(),
+		TaskType:        ut.GetSpec().GetTaskType(),
+		State:           ut.GetSpec().GetState(),
+		IssueType:       ut.GetSpec().GetIssueType(),
+		Integration:     ut.GetSpec().GetIntegration(),
+		LastStateChange: ut.GetStatus().GetLastStateChange().AsTime(),
 	}
 }
