@@ -3,21 +3,40 @@ run-name: Build on Windows
 
 on:
   merge_group:
-    # We only build tsh and tctl on Windows so only consider Go code
-    # (tsh and tctl don't run any Rust)
-    paths:
-      - '.github/workflows/build-windows.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          # We only build tsh, tctl, and tbot on Windows so only consider Go code
+          # (these binaries don't run any Rust)
+          filters: |
+            changed:
+              - '.github/workflows/build-windows.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   build:
     name: Build on Windows
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: windows-2022-16core
 
     permissions:
