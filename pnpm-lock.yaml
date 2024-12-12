@@ -1568,10 +1568,6 @@ packages:
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
 
-  '@eslint-community/regexpp@4.10.1':
-    resolution: {integrity: sha512-Zm2NGpWELsQAD1xsJzGQpYfvICSsFkEpU0jxBjfdC6uNEWXcHnfs9hScFWtXVDVl+rBQJGrl4g1vcKIejpH9dA==}
-    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
-
   '@eslint-community/regexpp@4.12.1':
     resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
@@ -2535,9 +2531,6 @@ packages:
 
   '@types/jsdom@21.1.7':
     resolution: {integrity: sha512-yOriVnggzrnQ3a9OKOCxaVuSug3w3/SbOj5i7VwXWZEyUNl3bLF9V3MfxGbZKuwqJOQyRfqXyROBB1CoZLFWzA==}
-
-  '@types/json-schema@7.0.13':
-    resolution: {integrity: sha512-RbSSoHliUbnXj3ny0CNFOoxrIDV6SUGyStHsvDqosw6CkdPV8TtWGlfecuK4ToyMEAql6pzNxgCFKanovUzlgQ==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -4937,9 +4930,6 @@ packages:
   jsx-ast-utils@3.2.1:
     resolution: {integrity: sha512-uP5vu8xfy2F9A6LGC22KO7e2/vGTS1MhP+18f++ZNlf0Ohaxbc9nIEwHAsejlJKyzfZzU5UIhe5ItYkitcZnZA==}
     engines: {node: '>=4.0'}
-
-  keyv@4.5.0:
-    resolution: {integrity: sha512-2YvuMsA+jnFGtBareKqgANOEKe1mk3HKiXu2fRmAfyxG0MJAywNhi5ttWA3PMjl4NmpyjZNbFifR2vNjW1znfA==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -7869,8 +7859,6 @@ snapshots:
       eslint: 9.16.0
       eslint-visitor-keys: 3.4.3
 
-  '@eslint-community/regexpp@4.10.1': {}
-
   '@eslint-community/regexpp@4.12.1': {}
 
   '@eslint/config-array@0.19.1':
@@ -9066,15 +9054,13 @@ snapshots:
       '@types/tough-cookie': 4.0.5
       parse5: 7.1.2
 
-  '@types/json-schema@7.0.13': {}
-
   '@types/json-schema@7.0.15': {}
 
   '@types/json5@0.0.29': {}
 
   '@types/keyv@4.2.0':
     dependencies:
-      keyv: 4.5.0
+      keyv: 4.5.4
 
   '@types/ms@0.7.34': {}
 
@@ -9189,7 +9175,7 @@ snapshots:
 
   '@typescript-eslint/eslint-plugin@8.16.0(@typescript-eslint/parser@8.16.0(eslint@9.16.0)(typescript@5.7.2))(eslint@9.16.0)(typescript@5.7.2)':
     dependencies:
-      '@eslint-community/regexpp': 4.10.1
+      '@eslint-community/regexpp': 4.12.1
       '@typescript-eslint/parser': 8.16.0(eslint@9.16.0)(typescript@5.7.2)
       '@typescript-eslint/scope-manager': 8.16.0
       '@typescript-eslint/type-utils': 8.16.0(eslint@9.16.0)(typescript@5.7.2)
@@ -9276,7 +9262,7 @@ snapshots:
   '@typescript-eslint/utils@5.62.0(eslint@9.16.0)(typescript@5.7.2)':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@9.16.0)
-      '@types/json-schema': 7.0.13
+      '@types/json-schema': 7.0.15
       '@types/semver': 7.5.8
       '@typescript-eslint/scope-manager': 5.62.0
       '@typescript-eslint/types': 5.62.0
@@ -9915,7 +9901,7 @@ snapshots:
       clone-response: 1.0.2
       get-stream: 5.2.0
       http-cache-semantics: 4.1.1
-      keyv: 4.5.0
+      keyv: 4.5.4
       lowercase-keys: 2.0.0
       normalize-url: 6.1.0
       responselike: 2.0.1
@@ -12183,10 +12169,6 @@ snapshots:
     dependencies:
       array-includes: 3.1.8
       object.assign: 4.1.5
-
-  keyv@4.5.0:
-    dependencies:
-      json-buffer: 3.0.1
 
   keyv@4.5.4:
     dependencies:
