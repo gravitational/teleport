@@ -1,4 +1,4 @@
-.version: &version "17.0.5-dev.fred-release-2-test8"
+.version: &version "17.0.5-dev.fred-release-2-test9"
 
 name: teleport-cluster
 apiVersion: v2

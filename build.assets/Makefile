@@ -37,13 +37,13 @@ endif
 
 # conditionally force the use of UID/GID 1000:1000 if we're running in Github Actions (in which case CI env var will be set)
 ifeq ("$(CI)","true")
-# The UID/GID of the runner user on ARC runners is 1001, not 1000
-# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
-# GH broke this with zero notice and we need to get a release out today (https://support.github.com/ticket/enterprise/9266/3138266).
-# Set this to GH's new values while inevitably they take six months to fix the problem.
-UID := 1001
-GID := 1001
-NOROOT := -u 1001:1001
+# # The UID/GID of the runner user on ARC runners is 1001, not 1000
+# # This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
+# # GH broke this with zero notice and we need to get a release out today (https://support.github.com/ticket/enterprise/9266/3138266).
+# # Set this to GH's new values while inevitably  they take six months to fix the problem.
+# UID := 1001
+# GID := 1001
+# NOROOT := -u 1001:1001
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
