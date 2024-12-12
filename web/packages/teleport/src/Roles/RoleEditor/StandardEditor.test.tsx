@@ -244,6 +244,10 @@ describe('ServerAccessSpecSection', () => {
       kind: 'node',
       labels: [{ name: 'some-key', value: 'some-value' }],
       logins: [
+        expect.objectContaining({
+          label: '{{internal.logins}}',
+          value: '{{internal.logins}}',
+        }),
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
@@ -317,6 +321,7 @@ describe('KubernetesAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'kube_cluster',
       groups: [
+        expect.objectContaining({ value: '{{internal.kubernetes_groups}}' }),
         expect.objectContaining({ value: 'group1' }),
         expect.objectContaining({ value: 'group2' }),
       ],
@@ -426,61 +431,89 @@ describe('AppAccessSpecSection', () => {
     return { user: userEvent.setup(), onChange, validator };
   };
 
-  const awsRoleArn = () =>
-    within(screen.getByRole('group', { name: 'AWS Role ARNs' })).getByRole(
-      'textbox'
-    );
-  const azureIdentity = () =>
-    within(screen.getByRole('group', { name: 'Azure Identities' })).getByRole(
-      'textbox'
-    );
-  const gcpServiceAccount = () =>
-    within(
-      screen.getByRole('group', { name: 'GCP Service Accounts' })
-    ).getByRole('textbox');
+  const awsRoleArns = () =>
+    screen.getByRole('group', { name: 'AWS Role ARNs' });
+  const awsRoleArnTextBoxes = () =>
+    within(awsRoleArns()).getAllByRole('textbox');
+  const azureIdentities = () =>
+    screen.getByRole('group', { name: 'Azure Identities' });
+  const azureIdentityTextBoxes = () =>
+    within(azureIdentities()).getAllByRole('textbox');
+  const gcpServiceAccounts = () =>
+    screen.getByRole('group', { name: 'GCP Service Accounts' });
+  const gcpServiceAccountTextBoxes = () =>
+    within(gcpServiceAccounts()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
-    await user.type(awsRoleArn(), 'arn:aws:iam::123456789012:role/admin');
-    await user.type(
-      azureIdentity(),
-      '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
+    await user.click(
+      within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
     await user.type(
-      gcpServiceAccount(),
+      awsRoleArnTextBoxes()[1],
+      'arn:aws:iam::123456789012:role/admin'
+    );
+    await user.click(
+      within(azureIdentities()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(
+      azureIdentityTextBoxes()[1],
+      '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
+    );
+    await user.click(
+      within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(
+      gcpServiceAccountTextBoxes()[1],
       'admin@some-project.iam.gserviceaccount.com'
     );
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
       labels: [{ name: 'env', value: 'prod' }],
-      awsRoleARNs: ['arn:aws:iam::123456789012:role/admin'],
+      awsRoleARNs: [
+        '{{internal.aws_role_arns}}',
+        'arn:aws:iam::123456789012:role/admin',
+      ],
       azureIdentities: [
+        '{{internal.azure_identities}}',
         '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin',
       ],
-      gcpServiceAccounts: ['admin@some-project.iam.gserviceaccount.com'],
+      gcpServiceAccounts: [
+        '{{internal.gcp_service_accounts}}',
+        'admin@some-project.iam.gserviceaccount.com',
+      ],
     } as AppAccessSpec);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.type(awsRoleArn(), '*');
-    await user.type(azureIdentity(), '*');
-    await user.type(gcpServiceAccount(), '*');
+    await user.click(
+      within(awsRoleArns()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(awsRoleArnTextBoxes()[1], '*');
+    await user.click(
+      within(azureIdentities()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(azureIdentityTextBoxes()[1], '*');
+    await user.click(
+      within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(gcpServiceAccountTextBoxes()[1], '*');
     act(() => validator.validate());
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-    expect(awsRoleArn()).toHaveAccessibleDescription(
+    expect(awsRoleArnTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in AWS role ARNs'
     );
-    expect(azureIdentity()).toHaveAccessibleDescription(
+    expect(azureIdentityTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in Azure identities'
     );
-    expect(gcpServiceAccount()).toHaveAccessibleDescription(
+    expect(gcpServiceAccountTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in GCP service accounts'
     );
   });
@@ -521,9 +554,18 @@ describe('DatabaseAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'db',
       labels: [{ name: 'env', value: 'prod' }],
-      names: [expect.objectContaining({ label: 'stuff', value: 'stuff' })],
-      roles: [expect.objectContaining({ label: 'admin', value: 'admin' })],
-      users: [expect.objectContaining({ label: 'mary', value: 'mary' })],
+      names: [
+        expect.objectContaining({ value: '{{internal.db_names}}' }),
+        expect.objectContaining({ label: 'stuff', value: 'stuff' }),
+      ],
+      roles: [
+        expect.objectContaining({ value: '{{internal.db_roles}}' }),
+        expect.objectContaining({ label: 'admin', value: 'admin' }),
+      ],
+      users: [
+        expect.objectContaining({ value: '{{internal.db_users}}' }),
+        expect.objectContaining({ label: 'mary', value: 'mary' }),
+      ],
     } as DatabaseAccessSpec);
   });
 
@@ -572,7 +614,10 @@ describe('WindowsDesktopAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'windows_desktop',
       labels: [{ name: 'os', value: 'win-xp' }],
-      logins: [expect.objectContaining({ label: 'julio', value: 'julio' })],
+      logins: [
+        expect.objectContaining({ value: '{{internal.windows_logins}}' }),
+        expect.objectContaining({ label: 'julio', value: 'julio' }),
+      ],
     } as WindowsDesktopAccessSpec);
   });
 

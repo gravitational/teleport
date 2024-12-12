@@ -286,7 +286,6 @@ export const Dialog: StoryObj = {
           open={open}
           onClose={() => setOpen(false)}
           onSave={async () => setOpen(false)}
-          onDelete={async () => setOpen(false)}
         />
       </>
     );
