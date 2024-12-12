@@ -24,17 +24,17 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/tlsca"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 )
 
 // NewREPLConfig represents the database REPL constructor config.
 type NewREPLConfig struct {
 	// Client is the user terminal client.
-	Client io.ReadWriter
+	Client io.ReadWriteCloser
 	// ServerConn is the database server connection.
 	ServerConn net.Conn
 	// Route is the session routing information.
-	Route tlsca.RouteToDatabase
+	Route clientproto.RouteToDatabase
 }
 
 // REPLNewFunc defines the constructor function for database REPL

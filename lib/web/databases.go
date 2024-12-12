@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/listener"
@@ -600,13 +599,7 @@ func (s *databaseInteractiveSession) Run() error {
 	repl, err := s.replNewFunc(s.ctx, &dbrepl.NewREPLConfig{
 		Client:     s.stream,
 		ServerConn: s.replConn,
-		Route: tlsca.RouteToDatabase{
-			Protocol:    s.req.Protocol,
-			ServiceName: s.req.ServiceName,
-			Username:    s.req.DatabaseUser,
-			Database:    s.req.DatabaseName,
-			Roles:       s.req.DatabaseRoles,
-		},
+		Route:      *route,
 	})
 	if err != nil {
 		return trace.Wrap(err)
