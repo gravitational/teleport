@@ -77,7 +77,19 @@ message AWSResource {
     AWSSAMLProviderV1 saml_provider = 19;
     // oidc_provider is an AWS IAM OpenID Connect Identity Provider
     AWSOIDCProviderV1 oidc_provider = 20;
+    AWSPolicyChange aws_policy_change = 21;
   }
+}
+
+// sdasd
+message AWSPolicyChange {
+  string resource_arn = 1;
+}
+
+// PolicyChange asdasd
+message PolicyChange {
+  string existing_policy = 1;
+  string new_document = 2;
 }
 
 // AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
