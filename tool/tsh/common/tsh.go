@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
@@ -101,9 +102,10 @@ import (
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTSH,
-})
+var (
+	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentTSH)
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+)
 
 const (
 	// mfaModeAuto automatically chooses the best MFA device(s), without any

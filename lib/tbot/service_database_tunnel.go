@@ -130,7 +130,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCert(tlsca.RouteToDatabase{
+			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,
