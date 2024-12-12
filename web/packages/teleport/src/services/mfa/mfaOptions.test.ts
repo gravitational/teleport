@@ -94,7 +94,7 @@ describe('test retrieving mfa options from MFA Challenge', () => {
         webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
         ssoChallenge: Object.create(SSOChallenge),
       },
-      expect: ['webauthn', 'totp', 'sso'],
+      expect: ['webauthn', 'sso', 'totp'],
     },
   ];
 
