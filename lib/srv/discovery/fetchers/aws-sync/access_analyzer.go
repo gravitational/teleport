@@ -80,25 +80,45 @@ func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) e
 	for _, policy := range result.Policies {
 		policies[policy.Arn] = policy
 	}
+	var policyUpdates []*usertasksv1.PolicyUpdate
 	for _, rec := range findingRecs {
 		for _, step := range rec.RecommendedSteps {
 			unused := step.UnusedPermissionsRecommendedStep
 			existingPolicy, ok := policies[*unused.ExistingPolicyId]
+			// TODO (mbrock): Assuming CREATE_POLICY implies an actual modification, but we need to differentiate
+			// between a modification and a removal
 			if *unused.RecommendedAction == "CREATE_POLICY" && ok {
 				existingDoc := string(existingPolicy.PolicyDocument)
 				newDoc := *unused.RecommendedPolicy
 				fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
-				task := usertasksv1.UserTask{
-					Spec: &usertasksv1.UserTaskSpec{
-						AccessGraph: &usertasksv1.AccessGraph{},
-					},
-				}
-				_, err := a.AccessPoint.UpsertUserTask(ctx, &task)
+				policyUpdates = append(policyUpdates, &usertasksv1.PolicyUpdate{
+					PolicyName:     *rec.ResourceArn,
+					PreviousPolicy: existingDoc,
+					NewPolicy:      newDoc,
+				})
 				if err != nil {
 					fmt.Printf("Error updating usertask for recommendation: %v\n", err)
 				}
 			}
 		}
 	}
+
+	// Upsert the policy updates as a user task
+	task := usertasksv1.UserTask{
+		Spec: &usertasksv1.UserTaskSpec{
+			AccessGraph: &usertasksv1.AccessGraph{
+				RiskFactors: []*usertasksv1.RiskFactor{
+					{
+						Risk: &usertasksv1.RiskFactor_Policy{
+							Policy: &usertasksv1.PolicyRiskFactor{
+								Updates: policyUpdates,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err = a.AccessPoint.UpsertUserTask(ctx, &task)
 	return nil
 }
