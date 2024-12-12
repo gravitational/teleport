@@ -3742,6 +3742,41 @@ export const events = [
     user: '30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix',
     user_kind: 1,
   },
+  {
+    code: 'TGIT001E',
+    event: 'git.command',
+    time: '2024-12-07T11:11:11.111Z',
+    uid: '7699b806-e717-4821-85a5-d2f41acbe373',
+    user: 'Linus.Torvalds',
+    service: 'git-upload-pack',
+    exitError: 'some-error',
+    path: 'my-org/my-repo',
+  },
+  {
+    code: 'TGIT001I',
+    event: 'git.command',
+    time: '2024-12-07T11:11:11.112Z',
+    uid: '7699b806-e717-4821-85a5-d2f41acbe373',
+    user: 'Linus.Torvalds',
+    service: 'git-upload-pack',
+    path: 'my-org/my-repo',
+  },
+  {
+    code: 'TGIT001I',
+    event: 'git.command',
+    time: '2024-12-07T11:11:11.112Z',
+    uid: '7699b806-e717-4821-85a5-d2f41acbe373',
+    user: 'Linus.Torvalds',
+    service: 'git-receive-pack',
+    path: 'my-org/my-repo',
+    actions: [
+      {
+        action: 'update',
+        reference: 'refs/heads/my-branch',
+        new: 'd3adb33f1234567890abcdef1234567890abcdef',
+      },
+    ],
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

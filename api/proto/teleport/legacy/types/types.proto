@@ -1108,6 +1108,8 @@ message Header {
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 message PortRange {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
   // Port describes the start of the range. It must be between 1 and 65535.
   uint32 Port = 1 [(gogoproto.jsontag) = "port"];
   // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and

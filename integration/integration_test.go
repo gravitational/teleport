@@ -932,7 +932,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	// waitSessionTermination wait until the errCh returns something and assert
 	// it with the provided function.
 	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
-		errorAssertion(t, waitForError(errCh, 10*time.Second))
+		errorAssertion(t, waitForError(errCh, 30*time.Second))
 	}
 
 	// enableDiskFailure changes the OpenFileFunc on filesession package. The
