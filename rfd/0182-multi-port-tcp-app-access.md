@@ -186,7 +186,7 @@ ports.
 
 ##### Embedding the port within SNI or an ALPN protocol
 
-The port number could be included within TLS config on the client side, either as a special sudomain
+The port number could be included within TLS config on the client side, either as a special subdomain
 in the SNI, e.g. `app-teleport-proxy-target-port-1337.teleport.cluster.local`, or a new ALPN
 protocol, say `teleport-tcp@1337`.
 

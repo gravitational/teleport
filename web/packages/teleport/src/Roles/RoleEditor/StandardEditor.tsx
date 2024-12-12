@@ -24,6 +24,8 @@ import {
   Flex,
   H3,
   H4,
+  Input,
+  LabelInput,
   Mark,
   Text,
 } from 'design';
@@ -42,6 +44,10 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { SlideTabs } from 'design/SlideTabs';
+
+import { RadioGroup } from 'design/RadioGroup';
+
+import Select from 'shared/components/Select';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { LabelsInput } from 'teleport/components/LabelsInput';
@@ -70,6 +76,9 @@ import {
   resourceKindOptions,
   verbOptions,
   newRuleModel,
+  OptionsModel,
+  requireMFATypeOptions,
+  createHostUserModeOptions,
 } from './standardmodel';
 import {
   validateRoleEditorModel,
@@ -152,18 +161,6 @@ export const StandardEditor = ({
     });
   }
 
-  /**
-   * Resets the standard editor back into viewable state. The existing model
-   * has been already stripped from unsupported features by the parsing
-   * attempt, the only thing left to do is to set the `requiresReset` flag.
-   */
-  function resetForStandardEditor() {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      requiresReset: false,
-    });
-  }
-
   function addAccessSpec(kind: AccessSpecKind) {
     handleChange({
       ...standardEditorModel.roleModel,
@@ -199,16 +196,25 @@ export const StandardEditor = ({
     });
   }
 
+  function setOptions(options: OptionsModel) {
+    handleChange({
+      ...standardEditorModel,
+      options,
+    });
+  }
+
   return (
     <>
       {roleModel.requiresReset && (
-        <RequiresResetToStandard reset={resetForStandardEditor} />
+        <Box mx={3}>
+          <RequiresResetToStandard />
+        </Box>
       )}
       <EditorWrapper
         mute={standardEditorModel.roleModel.requiresReset}
         data-testid="standard-editor"
       >
-        <Box mb={3}>
+        <Box mb={3} mx={3}>
           <SlideTabs
             appearance="round"
             hideStatusIconOnActiveTab
@@ -252,85 +258,108 @@ export const StandardEditor = ({
             onChange={setCurrentTab}
           />
         </Box>
-        <div
-          id={overviewTabId}
-          style={{
-            display: currentTab === StandardEditorTab.Overview ? '' : 'none',
-          }}
+        <Flex
+          flex="1 1 0"
+          flexDirection="column"
+          px={3}
+          pb={3}
+          css={`
+            overflow-y: auto;
+          `}
         >
-          <MetadataSection
-            value={roleModel.metadata}
-            isProcessing={isProcessing}
-            validation={validation.metadata}
-            onChange={metadata => handleChange({ ...roleModel, metadata })}
-          />
-        </div>
-        <div
-          id={resourcesTabId}
-          style={{
-            display: currentTab === StandardEditorTab.Resources ? '' : 'none',
-          }}
-        >
-          <Flex flexDirection="column" gap={3} my={2}>
-            {roleModel.accessSpecs.map((spec, i) => {
-              const validationResult = validation.accessSpecs[i];
-              return (
-                <AccessSpecSection
-                  key={spec.kind}
-                  value={spec}
-                  isProcessing={isProcessing}
-                  validation={validationResult}
-                  onChange={value => setAccessSpec(value)}
-                  onRemove={() => removeAccessSpec(spec.kind)}
-                />
-              );
-            })}
-            <Box>
-              <MenuButton
-                menuProps={{
-                  transformOrigin: {
-                    vertical: 'bottom',
-                    horizontal: 'right',
-                  },
-                  anchorOrigin: {
-                    vertical: 'top',
-                    horizontal: 'right',
-                  },
-                }}
-                buttonText={
-                  <>
-                    <Icon.Plus size="small" mr={2} />
-                    Add New Specifications
-                  </>
-                }
-                buttonProps={{
-                  size: 'medium',
-                  fill: 'filled',
-                  disabled: isProcessing || allowedSpecKinds.length === 0,
-                }}
-              >
-                {allowedSpecKinds.map(kind => (
-                  <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                    {specSections[kind].title}
-                  </MenuItem>
-                ))}
-              </MenuButton>
-            </Box>
-          </Flex>
-        </div>
-        <div
-          id={accessRulesTabId}
-          style={{
-            display: currentTab === StandardEditorTab.AccessRules ? '' : 'none',
-          }}
-        >
-          <AccessRules
-            isProcessing={isProcessing}
-            value={roleModel.rules}
-            onChange={setRules}
-            validation={validation.rules}
-          />
-        </div>
+          <Box
+            id={overviewTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Overview ? '' : 'none',
+            }}
+          >
+            <MetadataSection
+              value={roleModel.metadata}
+              isProcessing={isProcessing}
+              validation={validation.metadata}
+              onChange={metadata => handleChange({ ...roleModel, metadata })}
+            />
+          </Box>
+          <Box
+            id={resourcesTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Resources ? '' : 'none',
+            }}
+          >
+            <Flex flexDirection="column" gap={3} my={2}>
+              {roleModel.accessSpecs.map((spec, i) => {
+                const validationResult = validation.accessSpecs[i];
+                return (
+                  <AccessSpecSection
+                    key={spec.kind}
+                    value={spec}
+                    isProcessing={isProcessing}
+                    validation={validationResult}
+                    onChange={value => setAccessSpec(value)}
+                    onRemove={() => removeAccessSpec(spec.kind)}
+                  />
+                );
+              })}
+              <Box>
+                <MenuButton
+                  menuProps={{
+                    transformOrigin: {
+                      vertical: 'bottom',
+                      horizontal: 'right',
+                    },
+                    anchorOrigin: {
+                      vertical: 'top',
+                      horizontal: 'right',
+                    },
+                  }}
+                  buttonText={
+                    <>
+                      <Icon.Plus size="small" mr={2} />
+                      Add New Specifications
+                    </>
+                  }
+                  buttonProps={{
+                    size: 'medium',
+                    fill: 'filled',
+                    disabled: isProcessing || allowedSpecKinds.length === 0,
+                  }}
+                >
+                  {allowedSpecKinds.map(kind => (
+                    <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
+                      {specSections[kind].title}
+                    </MenuItem>
+                  ))}
+                </MenuButton>
+              </Box>
+            </Flex>
+          </Box>
+          <Box
+            id={accessRulesTabId}
+            style={{
+              display:
+                currentTab === StandardEditorTab.AccessRules ? '' : 'none',
+            }}
+          >
+            <AccessRules
+              isProcessing={isProcessing}
+              value={roleModel.rules}
+              onChange={setRules}
+              validation={validation.rules}
+            />
+          </Box>
+          <Box
+            id={optionsTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Options ? '' : 'none',
+            }}
+          >
+            <Options
+              isProcessing={isProcessing}
+              value={roleModel.options}
+              onChange={setOptions}
+            />
+          </Box>
+        </Flex>
       </EditorWrapper>
       <EditorSaveCancelButton
         onSave={() => handleSave()}
@@ -996,7 +1025,160 @@ function AccessRule({
   );
 }
 
-export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
+function Options({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<OptionsModel, never>) {
+  const theme = useTheme();
+  const id = useId();
+  const maxSessionTTLId = `${id}-max-session-ttl`;
+  const clientIdleTimeoutId = `${id}-client-idle-timeout`;
+  const requireMFATypeId = `${id}-require-mfa-type`;
+  const createHostUserModeId = `${id}-create-host-user-mode`;
+  return (
+    <OptionsGridContainer
+      border={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderRadius={3}
+      p={3}
+    >
+      <OptionsHeader>Global Settings</OptionsHeader>
+
+      <OptionLabel htmlFor={maxSessionTTLId}>Max Session TTL</OptionLabel>
+      <Input
+        id={maxSessionTTLId}
+        value={value.maxSessionTTL}
+        disabled={isProcessing}
+        onChange={e => onChange({ ...value, maxSessionTTL: e.target.value })}
+      />
+
+      <OptionLabel htmlFor={clientIdleTimeoutId}>
+        Client Idle Timeout
+      </OptionLabel>
+      <Input
+        id={clientIdleTimeoutId}
+        value={value.clientIdleTimeout}
+        disabled={isProcessing}
+        onChange={e =>
+          onChange({ ...value, clientIdleTimeout: e.target.value })
+        }
+      />
+
+      <Box>Disconnect When Certificate Expires</Box>
+      <BoolRadioGroup
+        name="disconnect-expired-cert"
+        value={value.disconnectExpiredCert}
+        onChange={d => onChange({ ...value, disconnectExpiredCert: d })}
+      />
+
+      <OptionLabel htmlFor={requireMFATypeId}>Require Session MFA</OptionLabel>
+      <Select
+        inputId={requireMFATypeId}
+        isDisabled={isProcessing}
+        options={requireMFATypeOptions}
+        value={value.requireMFAType}
+        onChange={t => onChange?.({ ...value, requireMFAType: t })}
+      />
+
+      <OptionsHeader separator>SSH</OptionsHeader>
+
+      <OptionLabel htmlFor={createHostUserModeId}>
+        Create Host User Mode
+      </OptionLabel>
+      <Select
+        inputId={createHostUserModeId}
+        isDisabled={isProcessing}
+        options={createHostUserModeOptions}
+        value={value.createHostUserMode}
+        onChange={m => onChange?.({ ...value, createHostUserMode: m })}
+      />
+
+      <OptionsHeader separator>Database</OptionsHeader>
+
+      <Box>Create Database User</Box>
+      <BoolRadioGroup
+        name="create-db-user"
+        value={value.createDBUser}
+        onChange={c => onChange({ ...value, createDBUser: c })}
+      />
+
+      {/* TODO(bl-nero): a bug in YAML unmarshalling backend breaks the
+          createDBUserMode field. Fix it and add the field here. */}
+
+      <OptionsHeader separator>Desktop</OptionsHeader>
+
+      <Box>Create Desktop User</Box>
+      <BoolRadioGroup
+        name="create-desktop-user"
+        value={value.createDesktopUser}
+        onChange={c => onChange({ ...value, createDesktopUser: c })}
+      />
+
+      <Box>Allow Clipboard Sharing</Box>
+      <BoolRadioGroup
+        name="desktop-clipboard"
+        value={value.desktopClipboard}
+        onChange={c => onChange({ ...value, desktopClipboard: c })}
+      />
+
+      <Box>Allow Directory Sharing</Box>
+      <BoolRadioGroup
+        name="desktop-directory-sharing"
+        value={value.desktopDirectorySharing}
+        onChange={s => onChange({ ...value, desktopDirectorySharing: s })}
+      />
+    </OptionsGridContainer>
+  );
+}
+
+const OptionsGridContainer = styled(Box)`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: baseline;
+  row-gap: ${props => props.theme.space[3]}px;
+`;
+
+const OptionsHeader = styled(H4)<{ separator?: boolean }>`
+  grid-column: 1/3;
+  border-top: ${props =>
+    props.separator
+      ? `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[0]}`
+      : 'none'};
+  padding-top: ${props =>
+    props.separator ? `${props.theme.space[3]}px` : '0'};
+`;
+
+function BoolRadioGroup({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: boolean;
+  onChange(b: boolean): void;
+}) {
+  return (
+    <RadioGroup
+      name={name}
+      flexDirection="row"
+      options={[
+        { label: 'True', value: 'true' },
+        { label: 'False', value: 'false' },
+      ]}
+      value={String(value)}
+      onChange={d => onChange(d === 'true')}
+    />
+  );
+}
+
+const OptionLabel = styled(LabelInput)`
+  ${props => props.theme.typography.body2}
+`;
+
+export const EditorWrapper = styled(Flex)<{ mute?: boolean }>`
+  flex-direction: column;
+  flex: 1;
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
 `;

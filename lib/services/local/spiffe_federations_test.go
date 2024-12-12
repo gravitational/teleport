@@ -246,7 +246,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 		require.True(t, trace.IsNotFound(err))
 	})
 	t.Run("not found", func(t *testing.T) {
-		_, err := service.GetSPIFFEFederation(ctx, "foo.example.com")
+		err := service.DeleteSPIFFEFederation(ctx, "foo.example.com")
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})

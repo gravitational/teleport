@@ -38,7 +38,7 @@ type appMiddleware struct {
 // Other middlewares typically also handle MFA here. App access doesn't support per-session MFA yet,
 // so detecting expired certs is all this middleware can do.
 func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy) error {
-	err := lp.CheckCertExpiry()
+	err := lp.CheckCertExpiry(ctx)
 	if err == nil {
 		return nil
 	}
