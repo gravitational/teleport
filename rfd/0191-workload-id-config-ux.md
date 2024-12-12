@@ -737,6 +737,8 @@ message UserAttributes {
   // The traits of the user configured within Teleport or determined during
   // SSO.
   Traits traits = 4;
+  // The ID of the Bot Instance, should this user be a bot. Otherwise empty.
+  string bot_instance_id = 5;
 }
 ```
 
