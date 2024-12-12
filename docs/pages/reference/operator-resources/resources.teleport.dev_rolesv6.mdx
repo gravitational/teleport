@@ -75,6 +75,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
 |workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.allow.account_assignments items
 
@@ -255,6 +256,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
 |workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.deny.account_assignments items
 
