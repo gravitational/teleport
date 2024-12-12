@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -46,6 +47,57 @@ import (
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
 func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	const validateNameFalse = false
+	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameFalse)
+	return upserted, trace.Wrap(err)
+}
+
+// UpsertTrustedClusterV2 creates or toggles a Trusted Cluster relationship.
+// The trusted cluster resource name must match the cluster name.
+func (a *Server) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	const validateNameTrue = true
+	upserted, err := a.upsertTrustedCluster(ctx, tc, validateNameTrue)
+	return upserted, trace.Wrap(err)
+}
+
+// CreateTrustedClusterV2 creates a Trusted Cluster relationship.
+func (a *Server) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	// verify that trusted cluster role map does not reference non-existent roles
+	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err := a.GetTrustedCluster(ctx, tc.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if err == nil {
+		return nil, trace.AlreadyExists("trusted cluster with name %s already exists", tc.GetName())
+	}
+
+	const validateNameTrue = true
+	created, err := a.createTrustedCluster(ctx, tc, validateNameTrue)
+	return created, trace.Wrap(err)
+}
+
+// UpdateTrustedClusterV2 updates a Trusted Cluster relationship.
+func (a *Server) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
+	// verify that trusted cluster role map does not reference non-existent roles
+	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingCluster, err := a.GetTrustedCluster(ctx, tc.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
+	return updated, trace.Wrap(err)
+}
+
+// upsertTrustedCluster creates or toggles a Trusted Cluster relationship.
+func (a *Server) upsertTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// verify that trusted cluster role map does not reference non-existent roles
 	if err := a.checkLocalRoles(ctx, tc.GetRoleMap()); err != nil {
 		return nil, trace.Wrap(err)
@@ -67,9 +119,42 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 
 	// if there is no existing cluster, switch to the create case
 	if existingCluster == nil {
-		return a.createTrustedCluster(ctx, tc)
+		return a.createTrustedCluster(ctx, tc, validateName)
 	}
 
+	updated, err := a.updateTrustedCluster(ctx, tc, existingCluster)
+	return updated, trace.Wrap(err)
+}
+
+func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster, validateName bool) (types.TrustedCluster, error) {
+	remoteCAs, err := a.establishTrust(ctx, tc, validateName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Force name to the name of the trusted cluster.
+	tc.SetName(remoteCAs[0].GetClusterName())
+
+	// perform some configuration on the remote CAs
+	configureCAsForTrustedCluster(tc, remoteCAs)
+
+	// atomically create trusted cluster and cert authorities
+	revision, err := a.Services.CreateTrustedCluster(ctx, tc, remoteCAs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc.SetRevision(revision)
+
+	if err := a.onTrustedClusterWrite(ctx, tc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc, nil
+}
+
+// updateTrustedCluster updates the Trusted Cluster.
+func (a *Server) updateTrustedCluster(ctx context.Context, tc, existingCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if err := existingCluster.CanChangeStateTo(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,33 +175,6 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 	tc.SetRevision(existingCluster.GetRevision())
 
 	revision, err := a.Services.UpdateTrustedCluster(ctx, tc, cas)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tc.SetRevision(revision)
-
-	if err := a.onTrustedClusterWrite(ctx, tc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return tc, nil
-}
-
-func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	remoteCAs, err := a.establishTrust(ctx, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Force name to the name of the trusted cluster.
-	tc.SetName(remoteCAs[0].GetClusterName())
-
-	// perform some configuration on the remote CAs
-	configureCAsForTrustedCluster(tc, remoteCAs)
-
-	// atomically create trusted cluster and cert authorities
-	revision, err := a.Services.CreateTrustedCluster(ctx, tc, remoteCAs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,7 +325,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return nil
 }
 
-func (a *Server) establishTrust(ctx context.Context, trustedCluster types.TrustedCluster) ([]types.CertAuthority, error) {
+func (a *Server) establishTrust(ctx context.Context, trustedCluster types.TrustedCluster, validateName bool) ([]types.CertAuthority, error) {
 	var localCertAuthorities []types.CertAuthority
 
 	domainName, err := a.GetDomainName()
@@ -283,6 +341,14 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	for _, lca := range allLocalCAs {
 		if lca.GetClusterName() == domainName {
 			localCertAuthorities = append(localCertAuthorities, lca)
+		}
+	}
+
+	// Validate cluster names before establishing trust to avoid unnecessarily
+	// creating a remote_cluster resource on the root cluster.
+	if validateName {
+		if err := a.validateTrustedClusterName(ctx, trustedCluster); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -322,9 +388,10 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 			if remoteClusterName == domainName {
 				return nil, trace.BadParameter("remote cluster name can not be the same as local cluster name")
 			}
-			// TODO(klizhentas) in 2.5.0 prohibit adding trusted cluster resource name
-			// different from cluster name (we had no way of checking this before x509,
-			// because SSH CA was a public key, not a cert with metadata)
+			if validateName && trustedCluster.GetName() != remoteClusterName {
+				return nil, trace.BadParameter("trusted cluster resource name must be the same as the remote cluster name. got: %q",
+					trustedCluster.GetName())
+			}
 		}
 	}
 
@@ -586,7 +653,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -609,6 +675,24 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authcl
 	}
 
 	return validateResponse, nil
+}
+
+// validateTrustedClusterName validates that the trusted cluster resource name
+// matches the cluster name.
+func (a *Server) validateTrustedClusterName(ctx context.Context, trustedCluster types.TrustedCluster) error {
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: trustedCluster.GetProxyAddress(),
+		Insecure:  lib.IsInsecureDevMode(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if trustedCluster.GetName() != resp.ClusterName {
+		return trace.BadParameter("trusted cluster resource name must be the same as the remote cluster name. got: %q",
+			trustedCluster.GetName())
+	}
+	return nil
 }
 
 // createReverseTunnel will create a services.ReverseTunnel givenin the
