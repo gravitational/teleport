@@ -213,7 +213,7 @@ type TerminalHandlerConfig struct {
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	if t.Logger == nil {
-		t.Logger = slog.Default()
+		t.Logger = slog.Default().With(teleport.ComponentKey, teleport.ComponentWebsocket)
 	}
 
 	// Make sure whatever session is requested is a valid session id.

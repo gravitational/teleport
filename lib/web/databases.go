@@ -435,14 +435,15 @@ func (h *Handler) dbConnect(
 
 		return nil, trace.Wrap(err)
 	}
-	h.logger.DebugContext(
-		ctx,
-		"Received database interactive session request",
+
+	log := h.logger.With(
+		"protocol", req.Protocol,
 		"service_name", req.ServiceName,
 		"database_name", req.DatabaseName,
 		"database_user", req.DatabaseUser,
 		"database_roles", req.DatabaseRoles,
 	)
+	log.DebugContext(ctx, "Received database interactive session request")
 
 	accessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -459,22 +460,10 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := retrieveDatabase(ctx, clt, req.ServiceName, false)
+	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(ctx, req.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	log := h.logger.With("protocol", db.GetProtocol())
-
-	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(ctx, db.GetProtocol())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// localAddr, err := h.getDatabaseProxyServerAddr(netConfig, db.GetProtocol())
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
 
 	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
 	defer stream.Close()
@@ -484,7 +473,6 @@ func (h *Handler) dbConnect(
 		ctx:               ctx,
 		log:               log,
 		req:               req,
-		db:                db,
 		stream:            stream,
 		ws:                ws,
 		sctx:              sctx,
@@ -494,7 +482,7 @@ func (h *Handler) dbConnect(
 		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		replNewFunc:       replStartFunc,
-		localAddr:         h.cfg.ProxyWebAddr,
+		proxyAddr:         h.PublicProxyAddr(),
 	}
 	defer sess.Close()
 
@@ -511,6 +499,8 @@ func (h *Handler) dbConnect(
 type DatabaseSessionRequest struct {
 	// ServiceName is the database resource ID the user will be connected.
 	ServiceName string `json:"serviceName"`
+	// Protocol is the database protocol.
+	Protocol string `json:"protocol"`
 	// DatabaseName is the database name the session will use.
 	DatabaseName string `json:"dbName"`
 	// DatabaseUser is the database user used on the session.
@@ -574,9 +564,8 @@ type databaseInteractiveSession struct {
 	replConn          net.Conn
 	alpnConn          net.Conn
 	keepAliveInterval time.Duration
-	db                types.Database
 	replNewFunc       dbrepl.REPLNewFunc
-	localAddr         utils.NetAddr
+	proxyAddr         string
 }
 
 func (s *databaseInteractiveSession) Run() error {
@@ -600,7 +589,7 @@ func (s *databaseInteractiveSession) Run() error {
 		AuthClient:      s.clt,
 		Listener:        listener.NewSingleUseListener(s.alpnConn),
 		Protocol:        alpnProtocol,
-		PublicProxyAddr: s.localAddr.String(),
+		PublicProxyAddr: s.proxyAddr,
 		RouteToDatabase: *route,
 		TLSCert:         tlsCert,
 	})
@@ -612,7 +601,7 @@ func (s *databaseInteractiveSession) Run() error {
 		Client:     s.stream,
 		ServerConn: s.replConn,
 		Route: tlsca.RouteToDatabase{
-			Protocol:    s.db.GetProtocol(),
+			Protocol:    s.req.Protocol,
 			ServiceName: s.req.ServiceName,
 			Username:    s.req.DatabaseUser,
 			Database:    s.req.DatabaseName,
@@ -651,7 +640,7 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, *clientprot
 	}
 
 	routeToDatabase := clientproto.RouteToDatabase{
-		Protocol:    s.db.GetProtocol(),
+		Protocol:    s.req.Protocol,
 		ServiceName: s.req.ServiceName,
 		Username:    s.req.DatabaseUser,
 		Database:    s.req.DatabaseName,
@@ -702,7 +691,6 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 		// TODO(gabrielcorado): Have a consistent Session ID. Right now, the
 		// initial session ID returned won't be correct as the session is only
 		// initialized by the database server after the REPL starts.
-		ID:          session.NewID(),
 		ClusterName: s.site.GetName(),
 	}})
 	if err != nil {
@@ -730,15 +718,11 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
-	return retrieveDatabase(ctx, clt, databaseName, r.URL.Query().Get("searchAsRoles") == "yes")
-}
-
-func retrieveDatabase(ctx context.Context, clt resourcesAPIGetter, databaseName string, searchAsRoles bool) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
-		UseSearchAsRoles:    searchAsRoles,
+		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -540,9 +539,6 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	defer cancel()
 
 	databaseProtocol := defaults.ProtocolPostgres
-	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer proxyListener.Close()
 
 	// Use a mock REPL and modify it adding the additiona configuration when
 	// it is set.
@@ -567,6 +563,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 		},
 		databaseREPLGetter: getter,
 	})
+	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 
 	accessRole, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -613,6 +610,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	require.NoError(t, makeAuthReqOverWS(ws, pack.session.Token))
 
 	req := DatabaseSessionRequest{
+		Protocol:      databaseProtocol,
 		ServiceName:   databaseName,
 		DatabaseName:  "postgres",
 		DatabaseUser:  "postgres",
