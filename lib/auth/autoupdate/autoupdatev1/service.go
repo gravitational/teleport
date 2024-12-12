@@ -30,6 +30,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -289,6 +290,10 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,6 +332,10 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.UpdateAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -371,6 +380,10 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -409,6 +422,10 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -452,4 +469,15 @@ func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 			"error", err,
 		)
 	}
+}
+
+// checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
+			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
+			"opt-out or configure update schedules.",
+			types.KindAutoUpdateVersion, types.KindAutoUpdateConfig)
+	}
+	return nil
 }
