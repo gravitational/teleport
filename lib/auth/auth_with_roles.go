@@ -1648,22 +1648,23 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		return nil, trace.Wrap(err)
 	}
 
-	lreq := proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
+	lreq := &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindNode},
+		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
 		UseSearchAsRoles: true,
 	}
 	var servers []*types.ServerV2
 	for {
-		// note that we're calling ServerWithRoles.ListResources here rather than some internal method. This method
+		// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
 		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-		lrsp, err := a.ListResources(ctx, lreq)
+		lrsp, err := a.ListUnifiedResources(ctx, lreq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, rsc := range lrsp.Resources {
-			srv, ok := rsc.(*types.ServerV2)
-			if !ok {
+			srv := rsc.GetNode()
+			if srv == nil {
 				log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
 				continue
 			}
@@ -1685,6 +1686,92 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	return &proto.GetSSHTargetsResponse{
 		Servers: servers,
 	}, nil
+}
+
+// ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
+func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	// try to detect case-insensitive routing setting, but default to false if we can't load
+	// networking config (equivalent to proxy routing behavior).
+	var routeToMostRecent bool
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
+		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
+	}
+
+	var servers []*types.ServerV2
+	switch {
+	case req.Host != "":
+		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
+			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
+		}
+
+		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+			Host: req.Host,
+			Port: req.Port,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers = resp.Servers
+	case len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0:
+		lreq := &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}
+		for {
+			// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
+			// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
+			lrsp, err := a.ListUnifiedResources(ctx, lreq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, rsc := range lrsp.Resources {
+				srv := rsc.GetNode()
+				if srv == nil {
+					log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
+					continue
+				}
+
+				servers = append(servers, srv)
+			}
+
+			// If the routing strategy doesn't permit ambiguous matches, then abort
+			// early if more than one server has been found already
+			if !routeToMostRecent && len(servers) > 1 {
+				break
+			}
+
+			if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
+				break
+			}
+
+			lreq.StartKey = lrsp.NextKey
+
+		}
+	default:
+		return nil, trace.BadParameter("request did not contain any host information or resource matcher")
+	}
+
+	switch len(servers) {
+	case 1:
+		return &proto.ResolveSSHTargetResponse{Server: servers[0]}, nil
+	case 0:
+		return nil, trace.NotFound("no matching hosts")
+	default:
+		if !routeToMostRecent {
+			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
+		}
+
+		// Return the most recent version of the resource.
+		server := slices.MaxFunc(servers, func(a, b *types.ServerV2) int {
+			return a.Expiry().Compare(b.Expiry())
+		})
+		return &proto.ResolveSSHTargetResponse{Server: server}, nil
+	}
 }
 
 // ListResources returns a paginated list of resources filtered by user access.

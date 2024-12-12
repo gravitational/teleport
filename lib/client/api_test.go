@@ -27,6 +27,7 @@ import (
 	"math"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1301,6 +1303,192 @@ func TestGetTargetNodes(t *testing.T) {
 			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
+		})
+	}
+}
+
+type fakeGetTargetNodeClient struct {
+	authclient.ClientI
+
+	nodes             []*types.ServerV2
+	resolved          *types.ServerV2
+	resolveErr        error
+	routeToMostRecent bool
+}
+
+func (f fakeGetTargetNodeClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeGetTargetNodeClient) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	if f.resolveErr != nil {
+		return nil, f.resolveErr
+	}
+
+	return &proto.ResolveSSHTargetResponse{Server: f.resolved}, nil
+}
+
+func (f fakeGetTargetNodeClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	cfg := types.DefaultClusterNetworkingConfig()
+	if f.routeToMostRecent {
+		cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+	}
+
+	return cfg, nil
+}
+
+func TestGetTargetNode(t *testing.T) {
+	now := time.Now()
+	then := now.Add(-5 * time.Hour)
+
+	tests := []struct {
+		name         string
+		options      *SSHOptions
+		labels       map[string]string
+		search       []string
+		predicate    string
+		host         string
+		port         int
+		clt          fakeGetTargetNodeClient
+		errAssertion require.ErrorAssertionFunc
+		expected     TargetNode
+	}{
+		{
+			name: "options override",
+			options: &SSHOptions{
+				HostAddress: "test:1234",
+			},
+			host:         "llama",
+			port:         56789,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test:1234", Addr: "test:1234"},
+		},
+		{
+			name:         "explicit target",
+			host:         "test",
+			port:         1234,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test", Addr: "test:1234"},
+		},
+		{
+			name:         "resolved labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+			},
+		},
+		{
+			name:         "fallback labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+				resolveErr: trace.NotImplemented(""),
+			},
+		},
+		{
+			name:         "resolved search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+
+		{
+			name:         "fallback search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+		{
+			name:         "resolved predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback ambiguous hosts",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.Error,
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-1"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+					{Metadata: types.Metadata{Name: "abcd-2"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+				},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback and route to recent",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate-now", Addr: "abcd-1:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-0", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then"}},
+					{Metadata: types.Metadata{Name: "abcd-1", Expires: &now}, Spec: types.ServerSpecV2{Hostname: "predicate-now"}},
+					{Metadata: types.Metadata{Name: "abcd-2", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then-again"}},
+				},
+				resolveErr:        trace.NotImplemented(""),
+				routeToMostRecent: true,
+				resolved:          &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clt := TeleportClient{
+				Config: Config{
+					Tracer:              tracing.NoopTracer(""),
+					Labels:              test.labels,
+					SearchKeywords:      test.search,
+					PredicateExpression: test.predicate,
+					Host:                test.host,
+					HostPort:            test.port,
+				},
+			}
+
+			match, err := clt.GetTargetNode(context.Background(), test.clt, test.options)
+			test.errAssertion(t, err)
+			if match == nil {
+				match = &TargetNode{}
+			}
+			require.EqualValues(t, test.expected, *match)
 		})
 	}
 }
