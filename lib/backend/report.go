@@ -93,6 +93,31 @@ type Reporter struct {
 	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
 
 	slowRangeLogLimiter *rate.Limiter
+
+	requests                        *prometheus.CounterVec
+	watchers                        prometheus.Gauge
+	watcherQueues                   prometheus.Gauge
+	writeRequests                   prometheus.Counter
+	writes                          prometheus.Counter
+	writeRequestsFailed             prometheus.Counter
+	writeRequestsFailedPrecondition prometheus.Counter
+	atomicWriteRequests             prometheus.Counter
+	atomicWriteRequestsFailed       prometheus.Counter
+	atomicWriteConditionFailed      prometheus.Counter
+	atomicWriteLatencies            prometheus.Observer
+	atomicWriteSize                 prometheus.Observer
+	atomicWriteContention           prometheus.Counter
+	batchWriteRequests              prometheus.Counter
+	batchWriteRequestsFailed        prometheus.Counter
+	readRequests                    prometheus.Counter
+	reads                           prometheus.Counter
+	readRequestsFailed              prometheus.Counter
+	batchReadRequests               prometheus.Counter
+	batchReadRequestsFailed         prometheus.Counter
+	writeLatencies                  prometheus.Observer
+	batchWriteLatencies             prometheus.Observer
+	batchReadLatencies              prometheus.Observer
+	readLatencies                   prometheus.Observer
 }
 
 // NewReporter returns a new Reporter.
@@ -117,12 +142,33 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		ReporterConfig:      cfg,
 		topRequestsCache:    cache,
 		slowRangeLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 12),
-	}
 
-	// metrics that need to be initialized for use later, this makes it easier on the consumer of these metrics (Grafana dashboards, for one)
-	readRequestsFailed.WithLabelValues(r.Component)
-	writeRequestsFailed.WithLabelValues(r.Component)
-	writeRequestsFailedPrecondition.WithLabelValues(r.Component)
+		// metrics that need to be initialized for use later, this makes it easier on the consumer of these metrics (Grafana dashboards, for one)
+		requests:                        requests.MustCurryWith(prometheus.Labels{teleport.ComponentLabel: cfg.Component}),
+		watchers:                        watchers.WithLabelValues(cfg.Component),
+		watcherQueues:                   watchers.WithLabelValues(cfg.Component),
+		writeRequests:                   writeRequests.WithLabelValues(cfg.Component),
+		writes:                          writes.WithLabelValues(cfg.Component),
+		writeRequestsFailed:             writeRequestsFailed.WithLabelValues(cfg.Component),
+		writeRequestsFailedPrecondition: writeRequestsFailedPrecondition.WithLabelValues(cfg.Component),
+		atomicWriteRequests:             atomicWriteRequests.WithLabelValues(cfg.Component),
+		atomicWriteRequestsFailed:       atomicWriteRequestsFailed.WithLabelValues(cfg.Component),
+		atomicWriteConditionFailed:      atomicWriteConditionFailed.WithLabelValues(cfg.Component),
+		atomicWriteLatencies:            atomicWriteLatencies.WithLabelValues(cfg.Component),
+		atomicWriteSize:                 atomicWriteSize.WithLabelValues(cfg.Component),
+		atomicWriteContention:           AtomicWriteContention.WithLabelValues(cfg.Component),
+		batchWriteRequests:              batchWriteRequests.WithLabelValues(cfg.Component),
+		batchWriteRequestsFailed:        batchWriteRequestsFailed.WithLabelValues(cfg.Component),
+		readRequests:                    readRequests.WithLabelValues(cfg.Component),
+		reads:                           reads.WithLabelValues(cfg.Component),
+		readRequestsFailed:              readRequestsFailed.WithLabelValues(cfg.Component),
+		batchReadRequests:               batchReadRequests.WithLabelValues(cfg.Component),
+		batchReadRequestsFailed:         batchReadRequestsFailed.WithLabelValues(cfg.Component),
+		writeLatencies:                  writeLatencies.WithLabelValues(cfg.Component),
+		batchWriteLatencies:             batchWriteLatencies.WithLabelValues(cfg.Component),
+		batchReadLatencies:              batchReadLatencies.WithLabelValues(cfg.Component),
+		readLatencies:                   readLatencies.WithLabelValues(cfg.Component),
+	}
 
 	return r, nil
 }
