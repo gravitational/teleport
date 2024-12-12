@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,46 +18,43 @@
 
 import React from 'react';
 
-import { State as ResourceState } from 'teleport/components/useResources';
-
-import { State as AuthConnectorState } from '../useAuthConnectors';
-import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
+import { AuthConnectorTile } from '../AuthConnectorTile';
 import getSsoIcon from '../ssoIcons/getSsoIcon';
 import { AuthConnectorsGrid } from '../styles/ConnectorBox.styles';
 
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
-  items = items || [];
-  const $items = items.map(item => {
-    const { id, name, kind } = item;
-
-    const Icon = getSsoIcon(kind, name);
-
-    return (
-      <AuthConnectorTile
-        key={id}
-        kind={kind}
-        id={id}
-        Icon={Icon}
-        isDefault={false}
-        isPlaceholder={false}
-        isEnabled={true}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        name={name}
-      />
-    );
-  });
-
+export default function CTAConnectors() {
   return (
     <AuthConnectorsGrid>
-      <LocalConnectorTile />
-      {$items}
+      <AuthConnectorTile
+        key={'oidc-cta'}
+        kind="oidc"
+        id={'oidc-cta'}
+        name={'OIDC Connector'}
+        Icon={getSsoIcon('oidc')}
+        isDefault={false}
+        isPlaceholder={false}
+        onSetup={() => {}}
+        isEnabled={false}
+        isCTA={true}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        customDesc="Google, GitLab, Amazon and more"
+      />
+      <AuthConnectorTile
+        key={'saml-cta'}
+        kind="saml"
+        id={'saml-cta'}
+        name={'SAML Connector'}
+        Icon={getSsoIcon('saml')}
+        isDefault={false}
+        isPlaceholder={false}
+        onSetup={() => {}}
+        isEnabled={false}
+        isCTA={true}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        customDesc="Okta, OneLogin, Azure Active Directory, etc."
+      />
     </AuthConnectorsGrid>
   );
 }
-
-type Props = {
-  items: AuthConnectorState['items'];
-  onEdit: ResourceState['edit'];
-  onDelete: ResourceState['remove'];
-};
