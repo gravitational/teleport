@@ -2965,7 +2965,7 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *emptypb.Empty) (
 
 // UpsertTrustedCluster upserts a Trusted Cluster.
 //
-// Deprecated: Use [GRPCServer.UpsertTrustedClusterV2] instead.
+// Deprecated: Use UpsertTrustedClusterV2 instead.
 func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
