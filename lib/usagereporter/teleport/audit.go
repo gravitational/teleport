@@ -122,6 +122,9 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			SessionType: sessionType,
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			App: &prehogv1a.SessionStartAppMetadata{
+				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
+			},
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
