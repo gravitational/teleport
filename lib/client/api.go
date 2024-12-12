@@ -1489,7 +1489,7 @@ type TargetNode struct {
 func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]TargetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/getTargetNodes",
+		"teleportClient/GetTargetNodes",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -1551,6 +1551,112 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 			Addr:     addr,
 		},
 	}, nil
+}
+
+// GetTargetNode returns a single host matching the target host provided by users. Host resolution
+// honors an explicit host, i.e. tsh ssh user@hostname, label based hosts, i.e. tsh ssh user@foo=bar,
+// as well as respecting any proxy templates that are specified.
+func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.ClientI, options *SSHOptions) (*TargetNode, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetTargetNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if options != nil && options.HostAddress != "" {
+		return &TargetNode{
+			Hostname: options.HostAddress,
+			Addr:     options.HostAddress,
+		}, nil
+	}
+
+	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
+		log.Debugf("Using provided host %s", tc.Host)
+
+		// detect the common error when users use host:port address format
+		_, port, err := net.SplitHostPort(tc.Host)
+		// client has used host:port notation
+		if err == nil {
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+		}
+
+		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+		return &TargetNode{
+			Hostname: tc.Host,
+			Addr:     addr,
+		}, nil
+	}
+
+	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
+	log.Debugf("Attempting to resolve matching host from labels=%v|search=%v|predicate=%v", tc.Labels, tc.SearchKeywords, tc.PredicateExpression)
+	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		PredicateExpression: tc.PredicateExpression,
+		SearchKeywords:      tc.SearchKeywords,
+		Labels:              tc.Labels,
+	})
+	switch {
+	//TODO(tross): DELETE IN v20.0.0
+	case trace.IsNotImplemented(err):
+		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(resources) == 0 {
+			return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
+		}
+
+		if len(resources) > 1 {
+			// If routing does not allow choosing the most recent host, then abort with
+			// an ambiguous host error.
+			cnc, err := clt.GetClusterNetworkingConfig(ctx)
+			if err != nil || cnc.GetRoutingStrategy() != types.RoutingStrategy_MOST_RECENT {
+				return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
+			}
+
+			// Sort the resource by expiry so we can identify the most "recent".
+			slices.SortFunc(resources, func(a, b *types.EnrichedResource) int {
+				return a.Expiry().Compare(b.Expiry())
+			})
+
+		}
+
+		// Sorting above is oldest expiry to newest expiry, so proceed
+		// with the last item server in the slice.
+		server, ok := resources[len(resources)-1].ResourceWithLabels.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+		}
+
+		// Dialing is happening by UUID but a port is still required by
+		// the Proxy dial request. Zero is an indicator to the Proxy that
+		// it may chose the appropriate port based on the target server.
+		return &TargetNode{
+			Hostname: server.GetHostname(),
+			Addr:     server.GetName() + ":0",
+		}, nil
+	case err == nil:
+		if resp.GetServer() == nil {
+			return nil, trace.NotFound("no matching SSH hosts found")
+		}
+
+		// Dialing is happening by UUID but a port is still required by
+		// the Proxy dial request. Zero is an indicator to the Proxy that
+		// it may chose the appropriate port based on the target server.
+		return &TargetNode{
+			Hostname: resp.GetServer().GetHostname(),
+			Addr:     resp.GetServer().GetName() + ":0",
+		}, nil
+	default:
+		return nil, trace.Wrap(err)
+	}
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
@@ -2434,17 +2540,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	defer clt.Close()
 
 	// Respect any proxy templates and attempt host resolution.
-	resolvedNodes, err := tc.GetTargetNodes(ctx, clt.AuthClient, SSHOptions{})
+	target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	switch len(resolvedNodes) {
-	case 1:
-	case 0:
-		return trace.NotFound("no matching hosts found")
-	default:
-		return trace.BadParameter("multiple matching hosts found")
 	}
 
 	var cfg *sftp.Config
@@ -2469,7 +2567,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 		}
 	}
 
-	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, resolvedNodes[0].Addr, cfg))
+	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, target.Addr, cfg))
 }
 
 // TransferFiles copies files between the current machine and the
