@@ -3448,6 +3448,9 @@ message RoleConditions {
     (gogoproto.jsontag) = "workload_identity_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
