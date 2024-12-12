@@ -84,6 +84,7 @@ message AWSResource {
 // sdasd
 message AWSPolicyChange {
   string resource_arn = 1;
+  repeated PolicyChange changes = 2;
 }
 
 // PolicyChange asdasd
