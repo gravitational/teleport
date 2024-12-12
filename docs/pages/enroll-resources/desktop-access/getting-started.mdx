@@ -62,6 +62,10 @@ interactively and select the Teleport certificate that you exported when prompte
    - Disables Network Level Authentication (NLA) for remote desktop services.
    - Enables RemoteFX compression, if using Teleport version 15 or newer.
 
+  Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
+  [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
+  must be disabled.
+
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
 
