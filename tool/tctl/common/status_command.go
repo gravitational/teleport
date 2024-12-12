@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -60,13 +61,21 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(ctx, client)
+		commandFunc = c.Status
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 

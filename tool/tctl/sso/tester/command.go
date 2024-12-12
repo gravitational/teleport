@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // SSOTestCommand implements common.CLICommand interface
@@ -157,9 +158,15 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Cli
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
+func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
-		return true, cmd.ssoTestCommand(ctx, c)
+		client, closeFn, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		err = cmd.ssoTestCommand(ctx, client)
+		closeFn(ctx)
+		return true, trace.Wrap(err)
 	}
 	return false, nil
 }
