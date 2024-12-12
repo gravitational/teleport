@@ -175,7 +175,7 @@ export function Report() {
       <Header
         title={config.name}
         disabled={false}
-        lastUpdated={data.lastUpdated}
+        lastUpdated={data?.lastUpdated}
         onRefresh={handleRefresh}
         days={daysInt}
       />
