@@ -416,7 +416,7 @@ func TestCheckDBCerts(t *testing.T) {
 				withClock(tt.clock),
 			)
 			lp.SetCert(tlsCert)
-			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
+			tt.errAssertFn(t, lp.CheckDBCert(context.Background(), tt.dbRoute))
 		})
 	}
 }
