@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -245,6 +246,9 @@ type EnrollEKSClustersRequest struct {
 
 	// AgentVersion specifies version of the Helm chart that will be installed during enrollment.
 	AgentVersion string
+
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels map[string]string
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -674,13 +678,20 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	common.ApplyEKSNameSuffix(kubeCluster)
 	vals["kubeClusterName"] = kubeCluster.GetName()
 
-	labels := kubeCluster.GetStaticLabels()
-	labels[types.InternalResourceIDLabel] = cfg.resourceID
-	vals["labels"] = labels
+	vals["labels"] = kubeAgentLabels(kubeCluster, cfg.resourceID, cfg.req.ExtraLabels)
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
 		return trace.Wrap(err, "could not install Helm chart.")
 	}
 
 	return nil
+}
+
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
+	labels := make(map[string]string)
+	maps.Copy(labels, extraLabels)
+	maps.Copy(labels, kubeCluster.GetStaticLabels())
+	labels[types.InternalResourceIDLabel] = resourceID
+
+	return labels
 }
