@@ -97,6 +97,7 @@ export { Cross } from './Icons/Cross';
 export { Crown } from './Icons/Crown';
 export { Database } from './Icons/Database';
 export { Desktop } from './Icons/Desktop';
+export { Detective } from './Icons/Detective';
 export { DeviceMobileCamera } from './Icons/DeviceMobileCamera';
 export { Devices } from './Icons/Devices';
 export { Download } from './Icons/Download';
