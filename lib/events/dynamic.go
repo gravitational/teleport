@@ -282,6 +282,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case AccessRequestExpireEvent:
+		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:

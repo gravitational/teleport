@@ -448,7 +448,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
-		Expires:  req.Expiry(),
 		Revision: rev,
 	}, nil
 }
@@ -469,7 +468,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(

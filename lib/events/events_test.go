@@ -247,6 +247,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	WorkloadIdentityCreateEvent:                 &apievents.WorkloadIdentityCreate{},
 	WorkloadIdentityUpdateEvent:                 &apievents.WorkloadIdentityUpdate{},
 	WorkloadIdentityDeleteEvent:                 &apievents.WorkloadIdentityDelete{},
+	AccessRequestExpireEvent:                    &apievents.AccessRequestExpire{},
 }
 
 // TestJSON tests JSON marshal events
