@@ -16,99 +16,81 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
-  getMfaChallengeOptions as getChallengeOptions,
   DeviceType,
+  DeviceUsage,
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
-  MfaOption,
 } from 'teleport/services/mfa';
 
 export default function useReAuthenticate(props: ReauthProps): ReauthState {
-  // Note that attempt state "success" is not used or required.
-  // After the user submits, the control is passed back
-  // to the caller who is responsible for rendering the `ReAuthenticate`
-  // component.
-  const { attempt, setAttempt } = useAttempt('');
-
-  const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>(null);
-
-  // Provide a custom error handler to catch a webauthn frontend error that occurs
-  // on Firefox and replace it with a more helpful error message.
-  const handleError = (err: Error) => {
-    if (err.message.includes('attempt was made to use an object that is not')) {
-      setAttempt({
-        status: 'failed',
-        statusText:
-          'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.',
-      });
-      return;
-    } else {
-      setAttempt({ status: 'failed', statusText: err.message });
-      return;
-    }
-  };
-
   async function getMfaChallenge() {
-    if (challenge) {
-      return challenge;
-    }
-
-    return auth.getMfaChallenge({ scope: props.challengeScope }).then(chal => {
-      setMfaChallenge(chal);
-      return chal;
-    });
+    const [[challenge], error] = await getChallenge();
+    if (error) throw error;
+    return challenge;
   }
 
-  function clearMfaChallenge() {
-    setMfaChallenge(null);
-  }
+  const [getChallengeAttempt, getChallenge, setGetChallengeAttempt] = useAsync(
+    async (deviceUsage: DeviceUsage = 'mfa') => {
+      // On successive runs with equivalent args, return the previously retrieved mfa challenge.
+      const [prevChallenge, prevDeviceUsage] = getChallengeAttempt.data as [
+        MfaAuthenticateChallenge,
+        DeviceUsage,
+      ];
+      if (prevChallenge && deviceUsage == prevDeviceUsage) {
+        return [prevChallenge, prevDeviceUsage] as const;
+      }
 
-  function getMfaChallengeOptions() {
-    return getMfaChallenge().then(getChallengeOptions);
-  }
-
-  function submitWithMfa(mfaType?: DeviceType, totp_code?: string) {
-    setAttempt({ status: 'processing' });
-    return getMfaChallenge()
-      .then(chal => auth.getMfaChallengeResponse(chal, mfaType, totp_code))
-      .then(props.onMfaResponse)
-      .finally(clearMfaChallenge)
-      .catch(handleError);
-  }
-
-  function submitWithPasswordless() {
-    setAttempt({ status: 'processing' });
-    // Always get a new passwordless challenge, the challenge stored in state is for mfa
-    // and will also be overwritten in the backend by the passwordless challenge.
-    return auth
-      .getMfaChallenge({
+      const challenge = await auth.getMfaChallenge({
         scope: props.challengeScope,
-        userVerificationRequirement: 'required',
-      })
-      .then(chal => auth.getMfaChallengeResponse(chal, 'webauthn'))
-      .then(props.onMfaResponse)
-      .finally(clearMfaChallenge)
-      .catch(handleError);
+      });
+      return [challenge, deviceUsage] as const;
+    }
+  );
+
+  const [submitAttempt, submitWithMfa, setSubmitAttempt] = useAsync(
+    async (
+      mfaType?: DeviceType,
+      deviceUsage?: DeviceUsage,
+      totpCode?: string
+    ) => {
+      if (deviceUsage === 'passwordless') {
+      }
+
+      getChallenge(deviceUsage)
+        .then(([[challenge], error]) => {
+          // propagate getMfaChallenge errors to the mfaAttempt state
+          if (error) throw error;
+          return auth.getMfaChallengeResponse(challenge, mfaType, totpCode);
+        })
+        .then(props.onMfaResponse)
+        .catch(err => {
+          // make error user friendly.
+          throw getReAuthenticationErrorMessage(err);
+        })
+        .finally(clearChallenge);
+    }
+  );
+
+  function clearChallenge() {
+    setGetChallengeAttempt(makeEmptyAttempt());
   }
 
-  function clearAttempt() {
-    setAttempt({ status: '' });
+  function clearSubmitAttempt() {
+    setSubmitAttempt(makeEmptyAttempt());
   }
 
   return {
-    attempt,
-    clearAttempt,
     getMfaChallenge,
-    getMfaChallengeOptions,
+    getChallengeAttempt,
     submitWithMfa,
-    submitWithPasswordless,
+    submitAttempt,
+    clearSubmitAttempt,
   };
 }
 
@@ -118,10 +100,28 @@ export type ReauthProps = {
 };
 
 export type ReauthState = {
-  attempt: Attempt;
-  clearAttempt: () => void;
   getMfaChallenge: () => Promise<MfaAuthenticateChallenge>;
-  getMfaChallengeOptions: () => Promise<MfaOption[]>;
-  submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => Promise<void>;
-  submitWithPasswordless: () => Promise<void>;
+  getChallengeAttempt: Attempt<any>;
+  submitWithMfa: (
+    mfaType?: DeviceType,
+    deviceUsage?: DeviceUsage,
+    totpCode?: string
+  ) => Promise<any>;
+  submitAttempt: Attempt<void>;
+  clearSubmitAttempt: () => void;
 };
+
+function getReAuthenticationErrorMessage(err) {
+  if (err.message?.includes('attempt was made to use an object that is not')) {
+    // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
+    return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
+  }
+
+  if (err.message === 'invalid totp token') {
+    // This message relies on the status message produced by the auth server in
+    // lib/auth/Server.checkOTP function. Please keep these in sync.
+    return 'Invalid authenticator code';
+  }
+
+  return err;
+}

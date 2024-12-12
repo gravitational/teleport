@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, OutlineDanger } from 'design/Alert/Alert';
+import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
@@ -24,7 +24,7 @@ import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -38,7 +38,7 @@ import { StepHeader } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import useTeleport from 'teleport/useTeleport';
 
 import {
@@ -47,8 +47,6 @@ import {
   getMfaRegisterOptions,
   MfaOption,
 } from 'teleport/services/mfa';
-
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
 
@@ -73,63 +71,15 @@ export function AddAuthDeviceWizard({
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
-  const [privilegeToken, setPrivilegeToken] = useState();
+  const [privilegeToken, setPrivilegeToken] = useState('');
   const [credential, setCredential] = useState<Credential>(null);
-
-  const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
-    useReAuthenticate({
-      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
-      onMfaResponse: mfaResponse => {
-        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
-      },
-    });
 
   // Choose a new device type from the options available for the given 2fa type.
   // irrelevant if usage === 'passkey'.
-  const registerMfaOptions = getMfaRegisterOptions(auth2faType);
+  const mfaRegisterOptions = getMfaRegisterOptions(auth2faType);
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(
-    registerMfaOptions[0].value
+    mfaRegisterOptions[0].value
   );
-
-  // Attempt to get an MFA challenge for an existing device. If the challenge is
-  // empty, the user has no existing device (e.g. SSO user) and can register their
-  // first device without re-authentication.
-  const [reauthMfaOptions, getMfaOptions] = useAsync(async () => {
-    const reauthMfaOptions = await getMfaChallengeOptions();
-
-    // registering first device does not require reauth, just get a privilege token.
-    //
-    // TODO(Joerger): v19.0.0
-    // Registering first device does not require a privilege token anymore,
-    // but the existing web register endpoint requires privilege token.
-    // We have a new endpoint "/v1/webapi/users/privilege" which does not
-    // require token, but can't be used until v19 for backwards compatibility.
-    if (reauthMfaOptions.length === 0) {
-      await auth.createPrivilegeToken().then(setPrivilegeToken);
-    }
-
-    return reauthMfaOptions;
-  });
-
-  useEffect(() => {
-    getMfaOptions();
-  }, []);
-
-  // Handle potential error states first.
-  switch (reauthMfaOptions.status) {
-    case 'processing':
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    case 'error':
-      return <Alert children={reauthMfaOptions.statusText} />;
-    case 'success':
-      break;
-    default:
-      return null;
-  }
 
   return (
     <Dialog
@@ -140,33 +90,27 @@ export function AddAuthDeviceWizard({
     >
       <StepSlider
         flows={wizardFlows}
-        currFlow={
-          reauthMfaOptions.data.length > 0
-            ? 'withReauthentication'
-            : 'withoutReauthentication'
-        }
+        currFlow="default"
         // Step properties
-        mfaRegisterOptions={registerMfaOptions}
-        mfaChallengeOptions={reauthMfaOptions.data}
-        reauthAttempt={attempt}
-        clearReauthAttempt={clearAttempt}
-        submitWithMfa={submitWithMfa}
+        setPrivilegeToken={setPrivilegeToken}
         usage={usage}
+        mfaRegisterOptions={mfaRegisterOptions}
         privilegeToken={privilegeToken}
-        credential={credential}
         newMfaDeviceType={newMfaDeviceType}
-        onClose={onClose}
+        credential={credential}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
         onDeviceCreated={setCredential}
         onSuccess={onSuccess}
+        onClose={onClose}
       />
     </Dialog>
   );
 }
 
 const wizardFlows = {
-  withReauthentication: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
-  withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
+  default: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
+  // TODO(Joerger): Deleting this unused wizard flow gives me errors.
+  unused: [CreateDeviceStep, SaveDeviceStep],
 };
 
 export type AddAuthDeviceWizardStepProps = StepComponentProps &

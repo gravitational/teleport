@@ -16,29 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, OutlineDanger } from 'design/Alert/Alert';
+import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import Box from 'design/Box';
 
 import { StepHeader } from 'design/StepSlider';
 
-import { useAsync } from 'shared/hooks/useAsync';
-
-import Indicator from 'design/Indicator';
-
 import useTeleport from 'teleport/useTeleport';
 
 import { MfaDevice } from 'teleport/services/mfa';
-
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
   ReauthenticateStep,
@@ -60,43 +52,6 @@ export function DeleteAuthDeviceWizard({
 }: DeleteAuthDeviceWizardProps) {
   const [privilegeToken, setPrivilegeToken] = useState('');
 
-  const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
-    useReAuthenticate({
-      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
-      onMfaResponse: mfaResponse => {
-        // TODO(Joerger): v19.0.0
-        // Devices can be deleted with an MFA response, so exchanging it for a
-        // privilege token adds an unnecessary API call. The device deletion
-        // endpoint requires a token, but the new endpoint "DELETE: /webapi/mfa/devices"
-        // can be used after v19 backwards compatibly.
-        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
-      },
-    });
-
-  const [challengeOptions, getChallengeOptions] = useAsync(async () => {
-    return getMfaChallengeOptions();
-  });
-
-  useEffect(() => {
-    getChallengeOptions();
-  }, []);
-
-  // Handle potential error states first.
-  switch (challengeOptions.status) {
-    case 'processing':
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    case 'error':
-      return <Alert children={challengeOptions.statusText} />;
-    case 'success':
-      break;
-    default:
-      return null;
-  }
-
   return (
     <Dialog
       open={true}
@@ -108,10 +63,7 @@ export function DeleteAuthDeviceWizard({
         flows={wizardFlows}
         currFlow="default"
         // Step properties
-        reauthAttempt={attempt}
-        clearReauthAttempt={clearAttempt}
-        mfaChallengeOptions={challengeOptions.data}
-        submitWithMfa={submitWithMfa}
+        setPrivilegeToken={setPrivilegeToken}
         deviceToDelete={deviceToDelete}
         privilegeToken={privilegeToken}
         onClose={onClose}
