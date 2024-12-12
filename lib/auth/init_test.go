@@ -493,6 +493,40 @@ func keysIn[K comparable, V any](m map[K]V) []K {
 	return result
 }
 
+type failingTrustInternal struct {
+	services.TrustInternal
+}
+
+func (t *failingTrustInternal) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	return trace.Errorf("error")
+}
+
+// TestInitCertFailureRecovery ensures the auth server is able to recover from
+// a failure in the cert creation process.
+func TestInitCertFailureRecovery(t *testing.T) {
+	ctx := context.Background()
+	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.SAML,
+	})
+	require.NoError(t, err)
+
+	conf := setupConfig(t)
+
+	// BootstrapResources have lead to an unrecoverable state in the past.
+	// See https://github.com/gravitational/teleport/pull/49638.
+	conf.BootstrapResources = []types.Resource{cap}
+	_, err = Init(ctx, conf, func(s *Server) error {
+		s.TrustInternal = &failingTrustInternal{
+			TrustInternal: s.TrustInternal,
+		}
+		return nil
+	})
+	require.Error(t, err)
+
+	_, err = Init(ctx, conf)
+	require.NoError(t, err)
+}
+
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()

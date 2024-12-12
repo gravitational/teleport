@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ResourceMetadata is the smallest interface that defines a Teleport resource.
@@ -211,4 +212,84 @@ func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
 
 func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
+}
+
+// Resource153ToResourceWithLabels wraps a [Resource153]-style resource in
+// the legacy [Resource] and [ResourceWithLabels] interfaces.
+//
+// The same caveats that apply to [Resource153ToLegacy] apply.
+func Resource153ToResourceWithLabels(r Resource153) ResourceWithLabels {
+	return &resource153ToResourceWithLabelsAdapter{
+		resource153ToLegacyAdapter{
+			inner: r,
+		},
+	}
+}
+
+// resource153ToResourceWithLabelsAdapter wraps a new-style resource in a
+// type implementing the legacy resource interfaces
+type resource153ToResourceWithLabelsAdapter struct {
+	resource153ToLegacyAdapter
+}
+
+// Origin implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) Origin() string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return ""
+	}
+	return m.Labels[OriginLabel]
+}
+
+// SetOrigin implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) SetOrigin(origin string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels[OriginLabel] = origin
+}
+
+// GetLabel implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetLabel(key string) (value string, ok bool) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return "", false
+	}
+	value, ok = m.Labels[key]
+	return
+}
+
+// GetAllLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetAllLabels() map[string]string {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return nil
+	}
+	return m.Labels
+}
+
+// GetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) GetStaticLabels() map[string]string {
+	return r.GetAllLabels()
+}
+
+// SetStaticLabels implements ResourceWithLabels for the adapter.
+func (r *resource153ToResourceWithLabelsAdapter) SetStaticLabels(labels map[string]string) {
+	m := r.inner.GetMetadata()
+	if m == nil {
+		return
+	}
+	m.Labels = labels
+}
+
+// MatchSearch implements ResourceWithLabels for the adapter. If the underlying
+// type exposes a MatchSearch method, this method will defer to that, otherwise
+// it will match against the resource label values and name.
+func (r *resource153ToResourceWithLabelsAdapter) MatchSearch(searchValues []string) bool {
+	if matcher, ok := r.inner.(interface{ MatchSearch([]string) bool }); ok {
+		return matcher.MatchSearch(searchValues)
+	}
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, searchValues, nil)
 }
