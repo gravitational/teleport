@@ -129,9 +129,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
 
   await user.click(getStandardEditorTab());
-  expect(
-    screen.getByRole('button', { name: 'Reset to Standard Settings' })
-  ).toBeVisible();
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
   expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
@@ -139,21 +137,6 @@ test('rendering and switching tabs for a non-standard role', async () => {
   await user.click(getYamlEditorTab());
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
   expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
-
-  // Switch once again, reset to standard
-  await user.click(getStandardEditorTab());
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
-  await user.click(
-    screen.getByRole('button', { name: 'Reset to Standard Settings' })
-  );
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
-  await user.type(screen.getByLabelText('Description'), 'some description');
-
-  await user.click(getYamlEditorTab());
-  const editorContents = fromFauxYaml(await getTextEditorContents());
-  expect(editorContents.metadata.description).toBe('some description');
-  expect(editorContents.spec.deny).toEqual({});
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
 });
 
 test('switching tabs triggers validation', async () => {
@@ -192,9 +175,7 @@ test('switching tabs ignores standard model validation for a non-standard role',
   );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   await user.click(getStandardEditorTab());
-  expect(
-    screen.getByText(/Some fields were not readable by the standard editor/)
-  ).toBeVisible();
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
   await user.click(getYamlEditorTab());
   // Proceed, even though our validation would consider the data invalid.
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');

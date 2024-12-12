@@ -161,18 +161,6 @@ export const StandardEditor = ({
     });
   }
 
-  /**
-   * Resets the standard editor back into viewable state. The existing model
-   * has been already stripped from unsupported features by the parsing
-   * attempt, the only thing left to do is to set the `requiresReset` flag.
-   */
-  function resetForStandardEditor() {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      requiresReset: false,
-    });
-  }
-
   function addAccessSpec(kind: AccessSpecKind) {
     handleChange({
       ...standardEditorModel.roleModel,
@@ -217,9 +205,7 @@ export const StandardEditor = ({
 
   return (
     <>
-      {roleModel.requiresReset && (
-        <RequiresResetToStandard reset={resetForStandardEditor} />
-      )}
+      {roleModel.requiresReset && <RequiresResetToStandard />}
       <EditorWrapper
         mute={standardEditorModel.roleModel.requiresReset}
         data-testid="standard-editor"
