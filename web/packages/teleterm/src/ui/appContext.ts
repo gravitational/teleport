@@ -176,8 +176,9 @@ export default class AppContext implements IAppContext {
 
     this.subscribeToDeepLinkLaunch();
     this.notifyMainProcessAboutClusterListChanges();
-    this.clustersService.syncGatewaysAndCatchErrors();
+    void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+    this.workspacesService.restorePersistedState();
   }
 
   /**

@@ -56,6 +56,7 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   rootClusterUri: '/clusters/foo',
   numberOfDocuments: 1,
   onConfirm: () => {},
+  onDiscard: () => {},
   onCancel: () => {},
 };
 

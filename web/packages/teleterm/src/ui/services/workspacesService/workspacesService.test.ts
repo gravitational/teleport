@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe('restoring workspace', () => {
-  it('restores the workspace if there is a persisted state for given clusterUri', async () => {
+  it('restores the workspace if there is a persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
     const testWorkspace: Workspace = {
       accessRequests: {
@@ -69,14 +69,16 @@ describe('restoring workspace', () => {
       location: '/docs/some_uri',
     };
 
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const persistedWorkspace = { [cluster.uri]: testWorkspace };
+
+    const { workspacesService } = getTestSetup({
       cluster,
-      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+      persistedWorkspaces: persistedWorkspace,
     });
 
     expect(workspacesService.state.isInitialized).toEqual(false);
 
-    await workspacesService.restorePersistedState();
+    workspacesService.restorePersistedState();
 
     expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
@@ -89,12 +91,9 @@ describe('restoring workspace', () => {
           isBarCollapsed: false,
         },
         localClusterUri: testWorkspace.localClusterUri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
-        previous: {
-          documents: testWorkspace.documents,
-          location: testWorkspace.location,
-        },
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
+        documentsRestoredOrDiscarded: false,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
@@ -104,18 +103,21 @@ describe('restoring workspace', () => {
         },
       },
     });
+    expect(workspacesService.getRestoredState().workspaces).toStrictEqual(
+      persistedWorkspace
+    );
   });
 
-  it('creates empty workspace if there is no persisted state for given clusterUri', async () => {
+  it('creates empty workspace if there is no persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const { workspacesService } = getTestSetup({
       cluster,
       persistedWorkspaces: {},
     });
 
     expect(workspacesService.state.isInitialized).toEqual(false);
 
-    await workspacesService.restorePersistedState();
+    workspacesService.restorePersistedState();
 
     expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
@@ -128,9 +130,9 @@ describe('restoring workspace', () => {
           },
         },
         localClusterUri: cluster.uri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
-        previous: undefined,
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
+        documentsRestoredOrDiscarded: false,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
@@ -140,53 +142,7 @@ describe('restoring workspace', () => {
         },
       },
     });
-  });
-
-  it('location is set to first document if it points to non-existing document', async () => {
-    const cluster = makeRootCluster();
-    const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
-      localClusterUri: cluster.uri,
-      documents: [
-        {
-          kind: 'doc.terminal_shell',
-          uri: '/docs/terminal_shell_uri_1',
-          title: '/Users/alice/Documents',
-        },
-        {
-          kind: 'doc.terminal_shell',
-          uri: '/docs/terminal_shell_uri_2',
-          title: '/Users/alice/Documents',
-        },
-      ],
-      location: '/docs/non-existing-doc',
-    };
-
-    const { workspacesService } = getTestSetup({
-      cluster,
-      persistedWorkspaces: { [cluster.uri]: testWorkspace },
-    });
-
-    await workspacesService.restorePersistedState();
-
-    expect(workspacesService.getWorkspace(cluster.uri).previous).toStrictEqual({
-      documents: [
-        {
-          kind: 'doc.terminal_shell',
-          uri: '/docs/terminal_shell_uri_1',
-          title: '/Users/alice/Documents',
-        },
-        {
-          kind: 'doc.terminal_shell',
-          uri: '/docs/terminal_shell_uri_2',
-          title: '/Users/alice/Documents',
-        },
-      ],
-      location: '/docs/terminal_shell_uri_1',
-    });
+    expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
   });
 });
 
@@ -356,6 +312,70 @@ describe('setActiveWorkspace', () => {
     );
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
+
+  it('location is set to first document if it points to non-existing document when reopening documents', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_2',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/non-existing-doc',
+    };
+
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'documents-reopen') {
+          dialog.onConfirm();
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
+
+        return {
+          closeDialog: () => {},
+        };
+      });
+
+    workspacesService.restorePersistedState();
+    await workspacesService.setActiveWorkspace(cluster.uri);
+
+    expect(workspacesService.getWorkspace(cluster.uri)).toStrictEqual(
+      expect.objectContaining({
+        documents: [
+          {
+            kind: 'doc.terminal_shell',
+            uri: '/docs/terminal_shell_uri_1',
+            title: '/Users/alice/Documents',
+          },
+          {
+            kind: 'doc.terminal_shell',
+            uri: '/docs/terminal_shell_uri_2',
+            title: '/Users/alice/Documents',
+          },
+        ],
+        location: '/docs/terminal_shell_uri_1',
+      })
+    );
+  });
 });
 
 function getTestSetup(options: {
@@ -413,7 +433,6 @@ function getTestSetup(options: {
 
   return {
     workspacesService,
-    clusterDocument,
     modalsService,
     notificationsService,
     statePersistenceService,
