@@ -1,5 +1,10 @@
 # Changelog
 
+## 17.0.6 (12/12/24)
+
+* Fixed bug causing users to see notifications for their own access requests in some cases. [#50076](https://github.com/gravitational/teleport/pull/50076)
+* Improved the cluster initialization process's ability to recovery from errors. [#49966](https://github.com/gravitational/teleport/pull/49966)
+
 ## 17.0.5 (12/11/24)
 
 * Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50078](https://github.com/gravitational/teleport/pull/50078)
