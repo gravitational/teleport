@@ -1656,7 +1656,7 @@ $ ls -l /usr/local/bin/teleport
 $ ls -l /usr/local/bin/teleport-update
 /usr/local/teleport/clusterA/bin/teleport-update -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/teleport-update
 $ ls -l /usr/local/lib/systemd/system/teleport-clusterA.service
-/usr/local/lib/systemd/system/teleport-clutserA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
+/usr/local/lib/systemd/system/teleport-clusterA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
 ```
 
 ##### update.yaml
