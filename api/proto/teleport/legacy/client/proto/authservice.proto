@@ -2145,6 +2145,28 @@ message ListResourcesRequest {
   bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
+// ResolveSSHTargetRequest provides details about a server to be resolved in
+//  an equivalent manner to a ssh dial request.
+message ResolveSSHTargetRequest {
+  // Host is the target host as would be sent to the proxy during a dial request.
+  string Host = 1;
+  // Port is the ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string Port = 2;
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> Labels = 3 [(gogoproto.jsontag) = "labels,omitempty"];
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string PredicateExpression = 4 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 5 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message ResolveSSHTargetResponse {
+  // Server is the target matching the supplied request.
+  types.ServerV2 Server = 1;
+}
+
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
 message GetSSHTargetsRequest {
   // Host is the target host as would be sent to the proxy during a dial request.
@@ -3552,6 +3574,9 @@ service AuthService {
   // which is what we want when handling things like ambiguous host errors and resource-based access requests,
   // but may result in confusing behavior if it is used outside of those contexts.
   rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
+
+  // ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+  rpc ResolveSSHTarget(ResolveSSHTargetRequest) returns (ResolveSSHTargetResponse);
 
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
