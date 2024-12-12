@@ -434,8 +434,8 @@ export class FeatureIntegrations implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
 
-  hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+  hasAccess() {
+    return true;
   }
 
   route = {
