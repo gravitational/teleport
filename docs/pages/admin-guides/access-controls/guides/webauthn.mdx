@@ -62,8 +62,8 @@ Teleport configuration as below:
     name: cluster-auth-preference
   spec:
     type: local
-    # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-    second_factor: "on"
+    # To enable WebAuthn support, include "webauthn" as a second factor method.
+    second_factors: ["webauthn"]
     webauthn:
       # Required, replace with proxy web address (example.com, example.teleport.sh).
       # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
@@ -469,8 +469,7 @@ Update the `cluster_auth_preference` definition to include the following content
     name: cluster-auth-preference
   spec:
     type: local
-    # To make webauthn the only form of multi-factor allowed, set this field to 'webauthn'.
-    second_factor: "webauthn"
+    second_factors: ["webauthn"]
     webauthn:
       rp_id: example.com
   ```
