@@ -143,7 +143,9 @@ $ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
 CA key parameters are statically configured in the `teleport.yaml` configuration
 file of the Teleport Auth Service instances in your cluster.
 
-Include the following `ca_key_params` configuration in the `auth_service` section.
+Include the following `ca_key_params` configuration in the `auth_service` section, assigning 
+<Var name="AWS account" /> to your AWS account and <Var name="AWS region" /> to
+your AWS region:
 
 ```yaml
 # /etc/teleport.yaml

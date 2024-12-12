@@ -546,7 +546,7 @@ Teleport users can request access to a Kubernetes resources by running the follo
 command:
 
 ```code
-$ tsh request create <Var name="resource-id" />
+$ tsh request create RESOURCE_ID
 ```
 
 #### Namespace-scoped resources
@@ -629,8 +629,8 @@ If a user has no access to a Kubernetes cluster, they can search the list of res
 in the cluster by running the following command:
 
 ```code
-$ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \
-[--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
+$ tsh request search --kind=KIND --kube-cluster=CLUSTER_NAME \
+[--kube-namespace=NAMESPACE|--all-kube-namespaces]
 Name               Namespace Labels    Resource ID
 -----------------  --------- --------- ----------------------------------------------------------
 nginx-deployment-0 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-0

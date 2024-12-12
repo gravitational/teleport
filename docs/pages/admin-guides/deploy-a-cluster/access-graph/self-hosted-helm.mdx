@@ -191,8 +191,10 @@ If not using the `teleport-cluster` Helm chart, you will need to do the equivale
 - Add the `access_graph:` section at the top-level of the YAML config file for the Teleport Auth Service.
 - Mount the created ConfigMap as a volume so that the Auth Service can read the CA certificate.
 
-Finally, redeploy the Helm chart (assuming the values are stored in `values-teleport.yaml`).
-Once the Auth Service changes succeed, restart the Proxy Service.
+Finally, redeploy the Helm chart (assuming the values are stored in
+`values-teleport.yaml`), assigning <Var name="teleport-cluster-deployment-name"
+/> to the name of your `teleport-cluster` deployment. Once the Auth Service
+changes succeed, restart the Proxy Service.
 
 ```code
 $ helm upgrade -n <Var name="teleport-cluster-namespace" /> -f values-teleport.yaml \

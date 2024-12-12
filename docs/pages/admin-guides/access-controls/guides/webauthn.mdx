@@ -290,8 +290,9 @@ $ tsh device asset-tag
 </Details>
 
 Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
-be registered"/> with the serial number of the device you wish to enroll and run
-the `tctl devices add` command:
+be registered"/> with the serial number of the device you wish to enroll and
+<Var name="macos" /> with the device's operating system (`linux`, `macos`, or
+`windows`). Run the `tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'

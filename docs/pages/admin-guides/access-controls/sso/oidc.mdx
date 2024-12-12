@@ -71,7 +71,7 @@ connector resource file in YAML format named `oidc-connector.yaml`:
 ```code
 $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
-  --id <CLIENT-ID> \
+  --id <Var name="<CLIENT-ID>" /> \
   --secret $(cat client-secret.txt) \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
