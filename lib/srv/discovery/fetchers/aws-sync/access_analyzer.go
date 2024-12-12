@@ -5,6 +5,7 @@ import (
 	"fmt"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -88,7 +89,11 @@ func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) e
 			// TODO (mbrock): Assuming CREATE_POLICY implies an actual modification, but we need to differentiate
 			// between a modification and a removal
 			if *unused.RecommendedAction == "CREATE_POLICY" && ok {
-				existingDoc := string(existingPolicy.PolicyDocument)
+				existingDoc, err := url.QueryUnescape(string(existingPolicy.PolicyDocument))
+				if err != nil {
+					fmt.Printf("Could not decode URL-encoded policy document: %v\n", err)
+					continue
+				}
 				newDoc := *unused.RecommendedPolicy
 				fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
 				policyUpdates = append(policyUpdates, &usertasksv1.PolicyUpdate{
@@ -96,29 +101,9 @@ func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) e
 					PreviousPolicy: existingDoc,
 					NewPolicy:      newDoc,
 				})
-				if err != nil {
-					fmt.Printf("Error updating usertask for recommendation: %v\n", err)
-				}
 			}
 		}
 	}
 
-	// Upsert the policy updates as a user task
-	task := usertasksv1.UserTask{
-		Spec: &usertasksv1.UserTaskSpec{
-			AccessGraph: &usertasksv1.AccessGraph{
-				RiskFactors: []*usertasksv1.RiskFactor{
-					{
-						Risk: &usertasksv1.RiskFactor_Policy{
-							Policy: &usertasksv1.PolicyRiskFactor{
-								Updates: policyUpdates,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	_, err = a.AccessPoint.UpsertUserTask(ctx, &task)
 	return nil
 }
