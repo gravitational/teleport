@@ -3439,6 +3439,18 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "github_permissions,omitempty"
   ];
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
