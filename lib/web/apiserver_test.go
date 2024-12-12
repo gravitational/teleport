@@ -8253,7 +8253,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			mux.Entry.WithError(err).Error("Mux encountered err serving")
+			log.WithError(err).Error("Mux encountered err serving")
 		}
 	}()
 

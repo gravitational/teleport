@@ -3116,7 +3116,7 @@ func (process *TeleportProcess) initSSH() error {
 
 			go func() {
 				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-					mux.Entry.WithError(err).Error("node ssh multiplexer terminated unexpectedly")
+					process.logger.ErrorContext(process.ExitContext(), "node ssh multiplexer terminated unexpectedly", "error", err, "mux_id", mux.ID)
 				}
 			}()
 			defer mux.Close()
@@ -3604,7 +3604,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		listenerHTTP := muxListener.HTTP()
 		go func() {
 			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", muxListener.ID)
 			}
 		}()
 
@@ -4021,7 +4021,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.sshGRPC = mux.TLS()
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", mux.ID)
 			}
 		}()
 	}
@@ -4117,7 +4117,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 		go func() {
 			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
 		return &listeners, nil
@@ -4149,7 +4149,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 		go func() {
 			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
 		return &listeners, nil
@@ -4196,7 +4196,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				process.muxPostgresOnWebPort(cfg, &listeners)
 				go func() {
 					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-						listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+						process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 					}
 				}()
 			} else {
