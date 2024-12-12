@@ -295,6 +295,9 @@ type Role interface {
 	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
 	// Assignments for the role
 	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
+	// GetIdentityCenterAccountAssignments sets the allow or deny Account
+	// Assignments for the role
+	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 }
 
 // NewRole constructs new standard V7 role.
@@ -2125,6 +2128,16 @@ func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []Id
 		return r.Spec.Allow.AccountAssignments
 	}
 	return r.Spec.Deny.AccountAssignments
+}
+
+// SetIdentityCenterAccountAssignments sets the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assignments []IdentityCenterAccountAssignment) {
+	cond := &r.Spec.Deny
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	}
+	cond.AccountAssignments = assignments
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label
