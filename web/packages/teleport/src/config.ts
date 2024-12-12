@@ -24,6 +24,13 @@ import generateResourcePath from './generateResourcePath';
 
 import { defaultEntitlements } from './entitlement';
 
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
+  PluginKind,
+  Regions,
+} from './services/integrations';
+
 import type {
   Auth2faType,
   AuthProvider,
@@ -35,11 +42,6 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/mfa';
-import type {
-  PluginKind,
-  Regions,
-  AwsOidcPolicyPreset,
-} from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 import type { KubeResourceKind } from './services/kube/types';
@@ -532,7 +534,7 @@ const cfg = {
     return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
-  getIntegrationStatusRoute(type: PluginKind, name: string) {
+  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
   },
 
