@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.5-dev.fred-release-2-test3
+VERSION=17.0.5-dev.fred-release-2-test4
 
 DOCKER_IMAGE ?= teleport
 
@@ -1739,10 +1739,11 @@ ensure-webassets-e:
 # by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
+	corepack enable pnpm@9.15
 	if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
 		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
-			corepack enable pnpm; \
+			corepack enable pnpm@9.15; \
 			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
 		else \
 			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
