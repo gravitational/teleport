@@ -101,15 +101,15 @@ func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.Rota
 }
 
 func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("UpsertTrustedClusterV2")
+	return tc, nil
 }
 
 func (f *fakeAuthServer) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("CreateTrustedClusterV2")
+	return tc, nil
 }
 
 func (f *fakeAuthServer) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return nil, trace.NotImplemented("UpdateTrustedClusterV2")
+	return tc, nil
 }
 
 type fakeChecker struct {

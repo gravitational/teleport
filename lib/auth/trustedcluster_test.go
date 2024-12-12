@@ -562,22 +562,6 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		_, err = a.UpsertTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
 	})
-	t.Run("Cloud prohibits being a leaf cluster", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestFeatures: modules.Features{Cloud: true},
-		})
-
-		tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
-			RoleMap: []types.RoleMapping{
-				{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName}},
-			},
-		})
-		require.NoError(t, err, "creating trusted cluster resource")
-
-		server := ServerWithRoles{authServer: a}
-		_, err = server.UpsertTrustedClusterV2(ctx, tc)
-		require.True(t, trace.IsNotImplemented(err), "UpsertTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
-	})
 	t.Run("Upsert unmodified trusted cluster", func(t *testing.T) {
 		trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
 		require.NoError(t, err)
@@ -715,22 +699,6 @@ func TestUpdateTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		_, err = a.UpdateTrustedClusterV2(ctx, trustedCluster)
 		require.NoError(t, err)
-	})
-	t.Run("Cloud prohibits being a leaf cluster", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestFeatures: modules.Features{Cloud: true},
-		})
-
-		tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
-			RoleMap: []types.RoleMapping{
-				{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName}},
-			},
-		})
-		require.NoError(t, err, "updating trusted cluster resource")
-
-		server := ServerWithRoles{authServer: a}
-		_, err = server.UpdateTrustedClusterV2(ctx, tc)
-		require.True(t, trace.IsNotImplemented(err), "UpdateTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 	t.Run("Upsert unmodified trusted cluster", func(t *testing.T) {
 		trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)

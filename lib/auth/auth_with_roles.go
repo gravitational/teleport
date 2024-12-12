@@ -4962,64 +4962,6 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
-// UpsertTrustedClusterV2 creates or updates a trusted cluster while also ensuring that the
-// resource name and cluster name match.
-func (a *ServerWithRoles) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
-	}
-
-	if err := a.action(types.KindTrustedCluster, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upserted, err := a.authServer.UpsertTrustedClusterV2(ctx, tc)
-	return upserted, trace.Wrap(err)
-}
-
-// CreateTrustedClusterV2 creates a Trusted Cluster.
-func (a *ServerWithRoles) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
-	}
-
-	if err := a.action(types.KindTrustedCluster, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	created, err := a.authServer.CreateTrustedClusterV2(ctx, tc)
-	return created, trace.Wrap(err)
-}
-
-// UpdateTrustedClusterV2 updates a Trusted Cluster.
-func (a *ServerWithRoles) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	// Don't allow a Cloud tenant to be a leaf cluster.
-	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
-	}
-
-	if err := a.action(types.KindTrustedCluster, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := a.authServer.UpdateTrustedClusterV2(ctx, tc)
-	return updated, trace.Wrap(err)
-}
-
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {
