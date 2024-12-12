@@ -142,15 +142,14 @@ func (s *Service) Run(ctx context.Context) error {
 		lease, err := services.AcquireSemaphoreLockWithRetry(ctx, semCfg)
 		if err != nil {
 			s.Log.WarnContext(ctx, "error acquiring semaphore", "error", err)
-			continue
-		}
-
-		if err := s.processRequests(ctx); err != nil {
-			s.Log.WarnContext(ctx, "error processing access requests", "error", err)
-		}
-		lease.Stop()
-		if err := lease.Wait(); err != nil {
-			s.Log.WarnContext(ctx, "error cleaning up semaphore", "error", err)
+		} else {
+			if err := s.processRequests(ctx); err != nil {
+				s.Log.WarnContext(ctx, "error processing access requests", "error", err)
+			}
+			lease.Stop()
+			if err := lease.Wait(); err != nil {
+				s.Log.WarnContext(ctx, "error cleaning up semaphore", "error", err)
+			}
 		}
 		select {
 		case <-ctx.Done():
