@@ -5871,11 +5871,11 @@ func TestLogout(t *testing.T) {
 			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
 			require.NoError(t, err, trace.DebugReport(err))
 
-			// direcory should be empty.
+			// directory should be empty.
 			f, err := os.Open(tmpHomePath)
 			require.NoError(t, err)
-			_, err = f.Readdir(1)
-			require.ErrorIs(t, err, io.EOF)
+			entries, err := f.ReadDir(1)
+			require.ErrorIs(t, err, io.EOF, "expected empty directory, but found %v", entries)
 		})
 	}
 }

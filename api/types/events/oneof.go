@@ -811,6 +811,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityDelete{
 			WorkloadIdentityDelete: e,
 		}
+	case *GitCommand:
+		out.Event = &OneOf_GitCommand{
+			GitCommand: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
