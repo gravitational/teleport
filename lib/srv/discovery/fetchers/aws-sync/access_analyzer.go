@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"golang.org/x/sync/errgroup"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -46,33 +49,40 @@ func (a *awsFetcher) fetchPolicyChanges(ctx context.Context, result *Resources) 
 	}
 
 	// Poll the recommendations until they've been successfully generated or max time is reached
-	findingRecs := make(map[string]*accessanalyzer.GetFindingRecommendationOutput)
+	var findingRecs sync.Map
+	var findingRecsCount atomic.Int64
 	timeStart := time.Now()
 	for {
+		eg, _ := errgroup.WithContext(ctx)
 		for _, finding := range findingsWithRecs {
-			if _, ok := findingRecs[*finding.Id]; ok {
+			if _, ok := findingRecs.Load(*finding.Id); ok {
 				continue
 			}
-			rec, err := client.GetFindingRecommendation(&accessanalyzer.GetFindingRecommendationInput{
-				AnalyzerArn: aws.String(analyzerArn),
-				Id:          finding.Id,
+			eg.Go(func() error {
+				rec, _ := client.GetFindingRecommendation(&accessanalyzer.GetFindingRecommendationInput{
+					AnalyzerArn: aws.String(analyzerArn),
+					Id:          finding.Id,
+				})
+				if err != nil {
+					return nil
+				}
+				fmt.Printf("Get recommendation for finding %s: %s", *finding.Id, *rec.Status)
+				if *rec.Status == "SUCCEEDED" {
+					findingRecs.Store(*finding.Id, rec)
+					findingRecsCount.Add(1)
+				}
+				return nil
 			})
-			if err != nil {
-				time.Sleep(pollInterval)
-				continue
-			}
-			if *rec.Status == "SUCCEEDED" {
-				findingRecs[*finding.Id] = rec
-			} else {
-				time.Sleep(pollInterval)
-			}
 		}
+		_ = eg.Wait()
 		if time.Since(timeStart) > maxPollTime {
 			break
 		}
-		if len(findingRecs) == len(findingsWithRecs) {
+		if findingRecsCount.Load() == int64(len(findingsWithRecs)) {
 			break
 		}
+		// Sleep before retrying the poll
+		time.Sleep(pollInterval)
 	}
 
 	// Get the fetched policies and associate them with the recommendations
@@ -81,7 +91,8 @@ func (a *awsFetcher) fetchPolicyChanges(ctx context.Context, result *Resources) 
 		policies[policy.Arn] = policy
 	}
 	var policyChanges []*accessgraphv1alpha.AWSPolicyChange
-	for _, rec := range findingRecs {
+	findingRecs.Range(func(k, v interface{}) bool {
+		rec := v.(*accessanalyzer.GetFindingRecommendationOutput)
 		policyChange := &accessgraphv1alpha.AWSPolicyChange{
 			ResourceArn: *rec.ResourceArn,
 		}
@@ -103,22 +114,24 @@ func (a *awsFetcher) fetchPolicyChanges(ctx context.Context, result *Resources) 
 			}
 			fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
 			change := accessgraphv1alpha.PolicyChange{
-				PolicyName:     *unused.ExistingPolicyId,
+				PolicyName:     existingPolicy.PolicyName,
+				PolicyArn:      *unused.ExistingPolicyId,
 				ExistingPolicy: existingDoc,
 				NewDocument:    newDoc,
 				Detach:         false,
 			}
-			if *unused.RecommendedAction == "DETACH_POLICY" {
-				change.Detach = true
+			// TODO (mbrock): Filtering out detach recommendations for now
+			if *unused.RecommendedAction != "DETACH_POLICY" {
+				policyChange.Changes = append(policyChange.Changes, &change)
 			}
-			policyChange.Changes = append(policyChange.Changes, &change)
 		}
 		if len(policyChange.Changes) > 0 {
 			policyChanges = append(policyChanges, policyChange)
 		} else {
 			fmt.Printf("Not appending an empty set of policy changes for %s\n", policyChange.ResourceArn)
 		}
-	}
+		return true
+	})
 	fmt.Printf("Returning %d policy changes\n", len(policyChanges))
 	return policyChanges, nil
 }
