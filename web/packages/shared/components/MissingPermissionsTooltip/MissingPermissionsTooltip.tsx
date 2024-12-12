@@ -20,14 +20,22 @@ import { Box, Text, Flex } from 'design';
 
 export const MissingPermissionsTooltip = ({
   missingPermissions,
+  requiresAll = true,
 }: {
   missingPermissions: string[];
+  requiresAll?: boolean;
 }) => {
   return (
     <Box>
       <Text mb={1}>You do not have all of the required permissions.</Text>
       <Box mb={1}>
-        <Text bold>Missing permissions:</Text>
+        {requiresAll ? (
+          <Text bold>Missing permissions:</Text>
+        ) : (
+          <Text bold>
+            You must have at least one of these role permissions:
+          </Text>
+        )}
         <Flex gap={2}>
           {missingPermissions.map(perm => (
             <Text key={perm}>{perm}</Text>
