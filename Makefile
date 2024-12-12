@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.5-dev.fred-release-2-test2
+VERSION=17.0.5-dev.fred-release-2-test3
 
 DOCKER_IMAGE ?= teleport
 
@@ -1739,7 +1739,7 @@ ensure-webassets-e:
 # by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
-	@if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
+	if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
 		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
 			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
 			corepack enable pnpm; \
@@ -1763,8 +1763,8 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else $(MAKE) ensure-js-package-manager && sudo pnpm install --frozen-lockfile; fi
+	if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
