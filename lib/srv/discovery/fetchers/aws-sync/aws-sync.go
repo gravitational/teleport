@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"reflect"
 	"sync"
 	"time"
@@ -59,6 +60,8 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
+	// The AccessPoint for sending auth commands
+	AccessPoint authclient.DiscoveryAccessPoint
 }
 
 // AssumeRole is the configuration for assuming an AWS role.

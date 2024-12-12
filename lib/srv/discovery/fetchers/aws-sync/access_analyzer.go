@@ -2,54 +2,103 @@ package aws_sync
 
 import (
 	"context"
+	"fmt"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/accessanalyzer"
 )
 
+const pollInterval = 100 * time.Millisecond
+const maxPollTime = 1 * time.Minute
+
 func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) error {
-	/*
-		cfg, err := config.LoadDefaultConfig(ctx)
-		cfg.Region = "us-east-2"
-		if err != nil {
-			panic("Unable to load SDK config, " + err.Error())
+	// Initialize the client
+	client, err := a.CloudClients.GetAWSIAMAccessAnalyzerClient(ctx, "us-east-2", a.getAWSOptions()...)
+	if err != nil {
+		return err
+	}
+	analyzerArn := "arn:aws:access-analyzer:us-east-2:278576220453:analyzer/mbrock-test"
+	input := &accessanalyzer.ListFindingsV2Input{
+		AnalyzerArn: &analyzerArn,
+	}
+	findings, err := client.ListFindingsV2(input)
+	if err != nil {
+		return err
+	}
+
+	// Generate the finding recommendations
+	var findingsWithRecs []*accessanalyzer.FindingSummaryV2
+	for _, finding := range findings.Findings {
+		if *finding.FindingType != "UnusedPermission" || *finding.Status == "RESOLVED" {
+			continue
 		}
-		client := accessanalyzer.NewFromConfig(cfg)
-		analyzerArn := "arn:aws:access-analyzer:us-east-2:278576220453:analyzer/mbrock-test"
-		input := &accessanalyzer.ListFindingsV2Input{
+		_, err = client.GenerateFindingRecommendation(&accessanalyzer.GenerateFindingRecommendationInput{
 			AnalyzerArn: aws.String(analyzerArn),
-		}
-		findings, err := client.ListFindingsV2(ctx, input)
+			Id:          finding.Id,
+		})
 		if err != nil {
-			return err
+			continue
 		}
+		findingsWithRecs = append(findingsWithRecs, finding)
+	}
 
-		for _, finding := range result.Findings {
-			if finding.FindingType != "UnusedPermission" {
+	// Poll the recommendations until they've been successfully generated or max time is reached
+	findingRecs := make(map[string]*accessanalyzer.GetFindingRecommendationOutput)
+	timeStart := time.Now()
+	for {
+		for _, finding := range findingsWithRecs {
+			if _, ok := findingRecs[*finding.Id]; ok {
 				continue
 			}
-			findingJson, err := json.Marshal(finding)
-			fmt.Printf("Finding: %s\n", findingJson)
-
-			_, err = client.GenerateFindingRecommendation(ctx, &accessanalyzer.GenerateFindingRecommendationInput{
+			rec, err := client.GetFindingRecommendation(&accessanalyzer.GetFindingRecommendationInput{
 				AnalyzerArn: aws.String(analyzerArn),
 				Id:          finding.Id,
 			})
 			if err != nil {
-				fmt.Printf("Error generating finding recommendation: %v\n", err)
+				time.Sleep(pollInterval)
 				continue
 			}
-
-			findingRec, err := client.GetFindingRecommendation(ctx, &accessanalyzer.GetFindingRecommendationInput{
-				AnalyzerArn: aws.String(analyzerArn),
-				Id:          finding.Id,
-			})
-			if err != nil {
-				fmt.Printf("Error getting finding recommendation: %v\n", err)
-				continue
+			if *rec.Status == "SUCCEEDED" {
+				findingRecs[*finding.Id] = rec
+			} else {
+				time.Sleep(pollInterval)
 			}
-			findingRecJson, err := json.Marshal(findingRec)
-			fmt.Printf("%s\n", findingRecJson)
 		}
-	*/
-	// TODO: Fetch access analyzer recommendations (sample code above)
-	// TODO: Create the user task from AWS policies and access analyzer recommendations
+		if time.Since(timeStart) > maxPollTime {
+			break
+		}
+		if len(findingRecs) == len(findingsWithRecs) {
+			break
+		}
+	}
+
+	// Get the fetched policies and associate them with the recommendations
+	policies := make(map[string]*accessgraphv1alpha.AWSPolicyV1)
+	for _, policy := range result.Policies {
+		policies[policy.Arn] = policy
+	}
+	for _, rec := range findingRecs {
+		for _, step := range rec.RecommendedSteps {
+			unused := step.UnusedPermissionsRecommendedStep
+			existingPolicy, ok := policies[*unused.ExistingPolicyId]
+			if *unused.RecommendedAction == "CREATE_POLICY" && ok {
+				existingDoc := string(existingPolicy.PolicyDocument)
+				newDoc := *unused.RecommendedPolicy
+				fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
+				task := usertasksv1.UserTask{
+					Spec: &usertasksv1.UserTaskSpec{
+						AccessGraph: &usertasksv1.AccessGraph{},
+					},
+				}
+				_, err := a.AccessPoint.UpsertUserTask(ctx, &task)
+				if err != nil {
+					fmt.Printf("Error updating usertask for recommendation: %v\n", err)
+				}
+			}
+		}
+	}
 	return nil
 }
