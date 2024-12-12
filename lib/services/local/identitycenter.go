@@ -169,6 +169,40 @@ func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context
 	return result, pagination.NextPageToken(nextPage), nil
 }
 
+// ListIdentityCenterAccountsWithFilter returns a paginated list of all
+// Identity Center Accounts in the service backend that match the supplied
+// predicate
+func (svc *IdentityCenterService) ListIdentityCenterAccountsWithFilter(
+	ctx context.Context,
+	pageSize int,
+	page *pagination.PageRequestToken,
+	matcher func(services.IdentityCenterAccount) bool,
+) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	if pageSize == 0 {
+		pageSize = identityCenterPageSize
+	}
+
+	pageToken, err := page.Consume()
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing identity center assignment records")
+	}
+
+	wrappedMatcher := func(a *identitycenterv1.Account) bool {
+		return matcher(services.IdentityCenterAccount{Account: a})
+	}
+
+	accounts, nextPage, err := svc.accounts.ListResourcesWithFilter(ctx, pageSize, pageToken, wrappedMatcher)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	result := make([]services.IdentityCenterAccount, len(accounts))
+	for i, acct := range accounts {
+		result[i] = services.IdentityCenterAccount{Account: acct}
+	}
+	return result, pagination.NextPageToken(nextPage), nil
+}
+
 // CreateIdentityCenterAccount creates a new Identity Center Account record
 func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct services.IdentityCenterAccount) (services.IdentityCenterAccount, error) {
 	created, err := svc.accounts.CreateResource(ctx, acct.Account)

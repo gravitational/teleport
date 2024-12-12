@@ -95,6 +95,11 @@ type PageRequestToken struct {
 	stale bool
 }
 
+// NewRequestToken wraps the supplied string in a PageRequestToken
+func NewRequestToken(key string) PageRequestToken {
+	return PageRequestToken{token: key}
+}
+
 // Consume moves the token value out of the PageRequestToken and marks the token
 // as stale. If the token is already stale, this method will fail with
 // BadParameter.

@@ -30,6 +30,7 @@ import (
 type identityCenterAccountGetter interface {
 	GetIdentityCenterAccount(context.Context, services.IdentityCenterAccountID) (services.IdentityCenterAccount, error)
 	ListIdentityCenterAccounts(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error)
+	ListIdentityCenterAccountsWithFilter(context.Context, int, *pagination.PageRequestToken, func(services.IdentityCenterAccount) bool) ([]services.IdentityCenterAccount, pagination.NextPageToken, error)
 }
 
 type identityCenterAccountExecutor struct{}

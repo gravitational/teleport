@@ -123,6 +123,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -6372,7 +6373,52 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 			NextKey:   wResp.NextKey,
 		}, nil
 	}
+	if req.ResourceType == types.KindIdentityCenterAccount {
+		return a.listIdentityCenterAccounts(ctx, req)
+	}
 	return a.Cache.ListResources(ctx, req)
+}
+
+func (a *Server) listIdentityCenterAccounts(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   types.KindIdentityCenterAccount,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	startKey := pagination.NewRequestToken(req.StartKey)
+
+	accounts, nextPage, err := a.Cache.ListIdentityCenterAccountsWithFilter(ctx, int(req.Limit), &startKey,
+		func(acct services.IdentityCenterAccount) bool {
+			match, err := services.MatchResourceByFilters(
+				types.Resource153ToResourceWithLabels(acct), filter, nil)
+			if err != nil {
+				a.logger.ErrorContext(ctx, "failed running matcher", "error", err)
+				return false
+			}
+			return match
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources := make([]types.ResourceWithLabels, len(accounts))
+	for i, acct := range accounts {
+		resources[i] = types.Resource153ToResourceWithLabels(acct)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources: resources,
+		NextKey:   string(nextPage),
+	}, nil
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.

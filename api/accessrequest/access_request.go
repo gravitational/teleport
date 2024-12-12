@@ -60,7 +60,7 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 		// We're interested in hostname or friendly name details. These apply to
 		// nodes, app servers, user groups and Identity Center resources.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount:
+		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
@@ -89,6 +89,26 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		}
+
+		// We pretend that AWS accounts are Apps for display, so we have to rewrite
+		// the `id` of the App resource returned by GetResourcesByResourceIDs()
+		// to that of the corresponding `IdentityCenterAccount` that the caller
+		// was asking for.
+		if resource.GetKind() == types.KindApp && resource.GetSubKind() == types.KindIdentityCenterAccount {
+			appResource, ok := resource.(*types.AppV3)
+			if !ok {
+				return nil, trace.BadParameter("invalid type for kind App: %T", resource)
+			}
+
+			icInfo := appResource.GetIdentityCenter()
+			if icInfo == nil {
+				return nil, trace.BadParameter("malformed Identity Center App: identity center info is missing")
+			}
+
+			id.Kind = types.KindIdentityCenterAccount
+			id.Name = icInfo.AccountID
+		}
+
 		result[types.ResourceIDToString(id)] = types.ResourceDetails{
 			FriendlyName: friendlyName,
 		}
