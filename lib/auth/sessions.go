@@ -415,6 +415,8 @@ type NewAppSessionRequest struct {
 	AppName string
 	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	AppURI string
+	// AppTargetPort signifies that the session is made to a specific port of a multi-port TCP app.
+	AppTargetPort int
 	// Identity is the identity of the user.
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
@@ -565,6 +567,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		usage:             []string{teleport.UsageAppsOnly},
 		appPublicAddr:     req.PublicAddr,
 		appClusterName:    req.ClusterName,
+		appTargetPort:     req.AppTargetPort,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
@@ -636,6 +639,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 			AppURI:        req.AppURI,
 			AppPublicAddr: req.PublicAddr,
 			AppName:       req.AppName,
+			AppTargetPort: uint32(req.AppTargetPort),
 		},
 	})
 	if err != nil {

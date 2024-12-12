@@ -231,7 +231,14 @@ type RouteToApp struct {
 	GCPServiceAccount string
 
 	// URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	// Used merely for audit events and mirrors the URI from the app spec. Not used as a source of
+	// truth when routing connections.
 	URI string
+
+	// TargetPort is the port to which connections should be routed to. Used only for multi-port TCP
+	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
+	// RouteToApp is not used as the source of truth for routing.
+	TargetPort int
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -309,6 +316,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			AzureIdentity:     id.RouteToApp.AzureIdentity,
 			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 			URI:               id.RouteToApp.URI,
+			TargetPort:        uint32(id.RouteToApp.TargetPort),
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -461,6 +469,10 @@ var (
 	// UserTypeASN1ExtensionOID is an extension that encodes the user type.
 	// Its value is either local or sso.
 	UserTypeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 20}
+
+	// AppTargetPortASN1ExtensionOID is an extension ID used to encode the application
+	// target port into a certificate.
+	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -629,6 +641,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Type:  AppPublicAddrASN1ExtensionOID,
 				Value: id.RouteToApp.PublicAddr,
 			})
+	}
+	if id.RouteToApp.TargetPort != 0 {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type: AppTargetPortASN1ExtensionOID,
+				// asn1 doesn't seem to handle uint16, hence the string.
+				Value: strconv.Itoa(id.RouteToApp.TargetPort),
+			},
+		)
 	}
 	if id.RouteToApp.ClusterName != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
@@ -946,6 +967,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.PublicAddr = val
+			}
+		case attr.Type.Equal(AppTargetPortASN1ExtensionOID):
+			// Similar to GenerationASN1ExtensionOID, it has to be cast to a string first and then parsed.
+			val, ok := attr.Value.(string)
+			if ok {
+				targetPort, err := strconv.ParseUint(val, 10, 16)
+				if err != nil {
+					return nil, trace.Wrap(err, "parsing target port")
+				}
+				id.RouteToApp.TargetPort = int(targetPort)
 			}
 		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)
