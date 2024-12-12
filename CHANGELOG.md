@@ -48,6 +48,7 @@ Enterprise:
 * Jamf Service sync audit events are attributed to "Jamf Service".
 * Users can now see a list of their enrolled devices on their Account page.
 * Add support for Entra ID groups being members of other groups using Nested Access Lists.
+* Added support for requiring reason for Access Requests (with a new role.spec.allow.request.reason.mode setting).
 
 ## 17.0.2 (11/25/2024)
 
