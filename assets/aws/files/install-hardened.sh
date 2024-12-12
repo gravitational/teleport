@@ -8,7 +8,7 @@ dnf -y update
 #  - python for certbot
 #  - certbot
 dnf install -y uuid python3 python3-certbot python3-certbot-dns-route53
-ln -s /opt/certbot/bin/certbot-3 /usr/local/bin/certbot
+ln -s /usr/bin/certbot-3 /usr/local/bin/certbot
 
 # Create teleport user. It is helpful to share the same UID
 # to have the same permissions on shared NFS volumes across auth servers and for consistency.
