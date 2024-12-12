@@ -61,7 +61,8 @@ func (a Account) Build() services.IdentityCenterAccount {
 			Kind:    types.KindIdentityCenterAccount,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: string(a.ID),
+				Name:        string(a.ID),
+				Description: a.Name,
 				Labels: map[string]string{
 					common.OriginLabel: common.OriginAWSIdentityCenter,
 				},

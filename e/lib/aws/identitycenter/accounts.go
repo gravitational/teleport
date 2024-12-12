@@ -94,7 +94,8 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 			Kind:    types.KindIdentityCenterAccount,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: string(id),
+				Name:        string(id),
+				Description: name,
 				Labels: map[string]string{
 					types.OriginLabel: common.OriginAWSIdentityCenter,
 				},
