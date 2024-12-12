@@ -28,13 +28,13 @@
     "eslint-plugin-jest-dom": "^5.5.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-testing-library": "^6.3.0",
+    "eslint-plugin-testing-library": "^7.1.1",
     "globals": "^15.13.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-fail-on-console": "^3.3.1",
     "jsdom": "^25.0.1",
     "rollup-plugin-visualizer": "^5.12.0",
-    "typescript-eslint": "^8.16.0",
+    "typescript-eslint": "^8.18.0",
     "vite-plugin-wasm": "^3.3.0",
     "vite-tsconfig-paths": "^5.1.3"
   }
