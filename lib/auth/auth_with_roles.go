@@ -1498,8 +1498,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 }
 
 func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
-	appV3, isApp := app.(*types.AppV3)
-	if !isApp {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
 		return trace.BadParameter("resource must be an app")
 	}
 
