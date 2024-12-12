@@ -66,8 +66,10 @@ func (m *tlsMuxListener) Accept() (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	const tlsFirstByte = 0x16
+
 	switch buf[0] {
-	case 0x16:
+	case tlsFirstByte:
 		log.Debugf("Read 0x%x as first byte, assuming TLS connection.", buf[0])
 		return tls.Server(bufConn, m.tlsConfig), nil
 	default:
