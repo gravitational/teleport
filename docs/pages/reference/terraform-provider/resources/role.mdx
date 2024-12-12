@@ -144,6 +144,7 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 - `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.allow.account_assignments`
 
@@ -341,6 +342,7 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 - `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.deny.account_assignments`
 
