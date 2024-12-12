@@ -21,6 +21,7 @@ package testlib
 import (
 	"context"
 	"math/rand/v2"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -58,6 +59,8 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -127,7 +130,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			// the operator has wildcard noe labs to be able to see them
+			// the operator has wildcard node labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
 			NodeLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
@@ -139,6 +142,11 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindOktaImportRule, unrestricted),
 				types.NewRule(types.KindAccessList, unrestricted),
 				types.NewRule(types.KindNode, unrestricted),
+				types.NewRule(types.KindDatabase, unrestricted),
+			},
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{"Db"},
+				Roles: []string{"Db"},
 			},
 		},
 	})
@@ -184,6 +192,7 @@ type TestSetup struct {
 	Operator                 manager.Manager
 	OperatorCancel           context.CancelFunc
 	OperatorName             string
+	DatabaseConfig           types.DatabaseSpecV3
 	stepByStepReconciliation bool
 }
 
@@ -227,6 +236,28 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 
 func (s *TestSetup) StopKubernetesOperator() {
 	s.OperatorCancel()
+}
+
+// Spec matches https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/
+func setupMockPostgresServer(t *testing.T, setup *TestSetup) {
+	postgresTestServer, err := postgres.NewTestServer(common.TestServerConfig{
+		AuthClient:   setup.TeleportClient,
+		AllowAnyUser: true,
+	})
+	require.NoError(t, err)
+
+	go func() {
+		require.NoError(t, postgresTestServer.Serve())
+		t.Logf("Postgres Fake server running at %s port", postgresTestServer.Port())
+	}()
+	t.Cleanup(func() {
+		postgresTestServer.Close()
+	})
+
+	setup.DatabaseConfig = types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
+	}
 }
 
 func setupTeleportClient(t *testing.T, setup *TestSetup) {
@@ -310,6 +341,7 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	}
 
 	setupTeleportClient(t, setup)
+	setupMockPostgresServer(t, setup)
 
 	// If the test wants to do step by step reconciliation, we don't start
 	// an operator in the background.
