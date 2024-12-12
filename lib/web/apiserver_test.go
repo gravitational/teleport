@@ -385,6 +385,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(s.ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+		GitServerGetter: s.proxyClient,
+	})
+	require.NoError(t, err)
+
 	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -410,6 +419,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -8177,6 +8187,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
+	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+		GitServerGetter: client,
+	})
+	require.NoError(t, err)
+
 	proxyNodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -8202,6 +8221,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
+		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},

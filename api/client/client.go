@@ -4891,9 +4891,25 @@ func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
 }
 
-// GitServerClient returns a client for managing git servers
+// GitServerClient returns a client for managing Git servers
 func (c *Client) GitServerClient() *gitserverclient.Client {
 	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
+}
+
+// ListGitServers returns all Git servers matching filter.
+// This method is available from GitServerClient but also defined here for
+// Client to satisfy some read only interfaces like
+// authclient.ReadProxyAccessPoint.
+func (c *Client) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return c.GitServerClient().ListGitServers(ctx, pageSize, pageToken)
+}
+
+// GetGitServer returns Git servers by name.
+// This method is available from GitServerClient but also defined here for
+// Client to satisfy some read only interfaces like
+// authclient.ReadProxyAccessPoint.
+func (c *Client) GetGitServer(ctx context.Context, name string) (types.Server, error) {
+	return c.GitServerClient().GetGitServer(ctx, name)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
