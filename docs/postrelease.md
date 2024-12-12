@@ -22,3 +22,6 @@ The AWS AMI ID PR can be merged right away.
 - [ ] Update `e/.github/workflows/build-buildboxes-cron.yaml` to bump the
   branches on each job (two per job) and to comment out the final job that only
   exists for the pre-release, and bump the versions for the next release.
+- [ ] Update `e/.github/workflows/nightly-releases.yaml` on master to bump the 
+  branches in the strategy matrix, comment out the final branch that only 
+  exists for the pre-release, and bump the version for the next release.
