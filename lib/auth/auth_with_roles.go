@@ -1301,7 +1301,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return true, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
