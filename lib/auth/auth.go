@@ -5132,7 +5132,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	// Look for user groups and associated applications to the request.
 	requestedResourceIDs, err := a.appendAdditionalResources(ctx, req.GetRequestedResourceIDs())
 	if err != nil {
-		return nil, trace.Wrap(err, "adding additional required resources")
+		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
 
@@ -5246,9 +5246,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	return req, nil
 }
 
-// appendAdditionalResources examines the set of requested resources and adds
+// appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
-func (a *Server) appendAdditionalResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
 	addedApps := utils.NewSet[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
@@ -5291,16 +5291,17 @@ func (a *Server) appendAdditionalResources(ctx context.Context, resources []type
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
 
-		if icAccounts.Contains(asmt.Spec.AccountId) {
+		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {
 			continue
 		}
 
 		resources = append(resources, types.ResourceID{
 			ClusterName: resource.ClusterName,
 			Kind:        types.KindIdentityCenterAccount,
-			Name:        asmt.Spec.AccountId,
+			Name:        asmt.GetSpec().GetAccountId(),
+		}),
 		})
-		icAccounts.Add(asmt.Spec.AccountId)
+		icAccounts.Add(asmt.GetSpec().GetAccountId())
 	}
 
 	return resources, nil
