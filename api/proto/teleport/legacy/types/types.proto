@@ -1108,6 +1108,8 @@ message Header {
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 message PortRange {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
   // Port describes the start of the range. It must be between 1 and 65535.
   uint32 Port = 1 [(gogoproto.jsontag) = "port"];
   // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
@@ -3437,6 +3439,18 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "github_permissions,omitempty"
   ];
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

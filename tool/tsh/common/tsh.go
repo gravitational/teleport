@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
@@ -101,9 +102,10 @@ import (
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentTSH,
-})
+var (
+	log    = logrus.WithField(teleport.ComponentKey, teleport.ComponentTSH)
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTSH)
+)
 
 const (
 	// mfaModeAuto automatically chooses the best MFA device(s), without any
@@ -2905,17 +2907,7 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		return common.FormatLabels(app.GetAllLabels(), config.verbose)
 	}
 	getTargetPorts := func(app types.Application) string {
-		ports := make([]string, 0, len(app.GetTCPPorts()))
-		for _, portRange := range app.GetTCPPorts() {
-			var port string
-			if portRange.EndPort == 0 {
-				port = strconv.Itoa(int(portRange.Port))
-			} else {
-				port = fmt.Sprintf("%d-%d", portRange.Port, portRange.EndPort)
-			}
-			ports = append(ports, port)
-		}
-		return strings.Join(ports, ", ")
+		return app.GetTCPPorts().String()
 	}
 
 	const labelsColumn = "Labels"

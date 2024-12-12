@@ -22,7 +22,6 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"slices"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -30,7 +29,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	netutils "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -116,11 +114,7 @@ func pickDialTarget(app apitypes.Application, uriAddr *utils.NetAddr, targetPort
 		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(firstPort)), nil
 	// Multi-port TCP app with target port specified in cert.
 	default:
-		isTargetPortInTCPPorts := slices.ContainsFunc(app.GetTCPPorts(), func(portRange *apitypes.PortRange) bool {
-			return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
-		})
-
-		if !isTargetPortInTCPPorts {
+		if !app.GetTCPPorts().Contains(targetPort) {
 			// This is not treated as an access denied error since there's no RBAC on TCP ports.
 			return "", trace.BadParameter("port %d is not in TCP ports of app %q", targetPort, app.GetName())
 		}
