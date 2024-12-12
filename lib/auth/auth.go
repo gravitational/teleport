@@ -5099,7 +5099,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs, err := a.appendAdditionalResources(ctx, req.GetRequestedResourceIDs())
+	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
@@ -5254,6 +5254,9 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 
 	icAccounts := utils.NewSet[string]()
 	for _, resource := range accountAssignments {
+		// The UI needs access to the account associated with an Account Assignment
+		// in order to display the enclosing Account, otherwise the user will not
+		// be able to see their assigned permission sets.
 		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
 		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
 		if err != nil {
@@ -5268,7 +5271,6 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 			ClusterName: resource.ClusterName,
 			Kind:        types.KindIdentityCenterAccount,
 			Name:        asmt.GetSpec().GetAccountId(),
-		}),
 		})
 		icAccounts.Add(asmt.GetSpec().GetAccountId())
 	}
