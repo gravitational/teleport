@@ -1,6 +1,7 @@
 #
 # This Makefile is used for producing official Teleport releases
 #
+
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
@@ -239,6 +240,8 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
+	echo "ID of user running makefile, on 'bare' GH runner:"
+	id
 	docker buildx build \
 		--target buildbox-fips \
 		--build-arg UID=$(UID) \
