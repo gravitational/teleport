@@ -1628,6 +1628,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():
 		err = gitCmd.login.run(&cf)
+	case gitCmd.ssh.FullCommand():
+		err = gitCmd.ssh.run(&cf)
+	case gitCmd.config.FullCommand():
+		err = gitCmd.config.run(&cf)
+	case gitCmd.clone.FullCommand():
+		err = gitCmd.clone.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3954,7 +3960,12 @@ func onSSH(cf *CLIConf) error {
 		accessRequestForSSH,
 		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
 	)
+
 	// Exit with the same exit status as the failed command.
+	return trace.Wrap(convertSSHExitCode(tc, err))
+}
+
+func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
