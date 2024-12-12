@@ -1875,6 +1875,9 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
+	// ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+	ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error)
+
 	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
