@@ -86,6 +86,9 @@ message GlobalNotificationSpec {
   bool match_all_conditions = 4;
   // notification is the notification itself.
   Notification notification = 5;
+  // exclude_users is a list of usernames of users who should never match this notification
+  // under any circumstances.
+  repeated string exclude_users = 6;
 }
 
 // ByPermissions represents the RoleConditions needed for a user to receive this notification.

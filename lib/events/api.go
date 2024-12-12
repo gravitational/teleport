@@ -850,6 +850,9 @@ const (
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// GitCommandEvent is emitted when a Git command is executed.
+	GitCommandEvent = "git.command"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
