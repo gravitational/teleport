@@ -423,6 +423,16 @@ func TestRBAC(t *testing.T) {
 					return err
 				},
 			},
+			{
+				name: "ListDeployedDatabaseServices",
+				fn: func() error {
+					_, err := awsoidService.ListDeployedDatabaseServices(userCtx, &integrationv1.ListDeployedDatabaseServicesRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				err := tt.fn()
