@@ -126,7 +126,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
   );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getStandardEditorTab());
   expect(
@@ -134,26 +134,26 @@ test('rendering and switching tabs for a non-standard role', async () => {
   ).toBeVisible();
   expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getYamlEditorTab());
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   // Switch once again, reset to standard
   await user.click(getStandardEditorTab());
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
   await user.click(
     screen.getByRole('button', { name: 'Reset to Standard Settings' })
   );
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
   await user.type(screen.getByLabelText('Description'), 'some description');
 
   await user.click(getYamlEditorTab());
   const editorContents = fromFauxYaml(await getTextEditorContents());
   expect(editorContents.metadata.description).toBe('some description');
   expect(editorContents.spec.deny).toEqual({});
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
 });
 
 test('switching tabs triggers validation', async () => {

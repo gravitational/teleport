@@ -38,6 +38,8 @@ import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
+import cfg from 'teleport/config';
+
 import { RoleEditor } from './RoleEditor';
 import tagpromo from './tagpromo.png';
 
@@ -111,7 +113,7 @@ export function RoleEditorAdapter({
       <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
         {/* Same width as promo image + border */}
         <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-          <H1 mb={2}>Teleport Policy</H1>
+          <H1 mb={2}>Coming soon: Teleport Policy saves you from mistakes</H1>
           <Flex mb={4} gap={4} flexWrap="wrap" justifyContent="space-between">
             <Box flex="1" minWidth="30ch">
               <P>
@@ -121,17 +123,21 @@ export function RoleEditorAdapter({
               </P>
             </Box>
             <Flex flex="0 0 auto" alignItems="start">
-              <ButtonLockedFeature noIcon py={0} width={undefined}>
-                Contact Sales
-              </ButtonLockedFeature>
-              <ButtonSecondary
-                as="a"
-                href="https://goteleport.com/platform/policy/"
-                target="_blank"
-                ml={2}
-              >
-                Learn More
-              </ButtonSecondary>
+              {!cfg.isPolicyEnabled && (
+                <>
+                  <ButtonLockedFeature noIcon py={0} width={undefined}>
+                    Contact Sales
+                  </ButtonLockedFeature>
+                  <ButtonSecondary
+                    as="a"
+                    href="https://goteleport.com/platform/policy/"
+                    target="_blank"
+                    ml={2}
+                  >
+                    Learn More
+                  </ButtonSecondary>
+                </>
+              )}
             </Flex>
           </Flex>
           <Flex
@@ -146,7 +152,12 @@ export function RoleEditorAdapter({
             >
               <Image src={tagpromo} width="100%" />
             </Box>
-            <StepSlider flows={promoFlows} currFlow="default" />
+            <StepSlider
+              flows={promoFlows}
+              currFlow={
+                resources.status === 'creating' ? 'creating' : 'updating'
+              }
+            />
           </Flex>
         </Box>
       </Flex>
@@ -157,10 +168,11 @@ export function RoleEditorAdapter({
 const promoImageWidth = 782;
 
 const promoFlows = {
-  default: [PromoPanel1, PromoPanel2],
+  creating: [VisualizeAccessPathsPanel, VisualizeDiffPanel],
+  updating: [VisualizeDiffPanel, VisualizeAccessPathsPanel],
 };
 
-function PromoPanel1(props: StepComponentProps) {
+function VisualizeAccessPathsPanel(props: StepComponentProps) {
   return (
     <PromoPanel
       {...props}
@@ -176,7 +188,7 @@ function PromoPanel1(props: StepComponentProps) {
   );
 }
 
-function PromoPanel2(props: StepComponentProps) {
+function VisualizeDiffPanel(props: StepComponentProps) {
   return (
     <PromoPanel
       {...props}

@@ -63,7 +63,7 @@ export const EditorSaveCancelButton = ({
               (!isEditing && !roleAccess.create)
             }
           >
-            {isEditing ? 'Update' : 'Create'} Role
+            {isEditing ? 'Save Changes' : 'Create Role'}
           </ButtonPrimary>
         </HoverTooltip>
       </Box>
