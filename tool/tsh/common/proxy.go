@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -63,39 +62,25 @@ func onProxyCommandSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		var target string
-		switch {
-		case tc.Host != "":
-			targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-			if err != nil {
-				targetHost = tc.Host
-				targetPort = strconv.Itoa(tc.HostPort)
-			}
-			targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
-			target = net.JoinHostPort(targetHost, targetPort)
-		case len(tc.SearchKeywords) != 0 || tc.PredicateExpression != "":
-			nodes, err := client.GetAllResources[types.Server](cf.Context, clt.AuthClient, tc.ResourceFilter(types.KindNode))
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+		if err != nil {
+			targetHost = tc.Host
+			targetPort = strconv.Itoa(tc.HostPort)
+		}
+		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
+		tc.Host = targetHost
+		port, err := strconv.Atoi(targetPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tc.HostPort = port
 
-			if len(nodes) == 0 {
-				return trace.NotFound("no matching SSH hosts found for search terms or query expression")
-			}
-
-			if len(nodes) > 1 {
-				return trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
-			}
-
-			// Dialing is happening by UUID but a port is still required by
-			// the Proxy dial request. Zero is an indicator to the Proxy that
-			// it may chose the appropriate port based on the target server.
-			target = fmt.Sprintf("%s:0", nodes[0].GetName())
-		default:
-			return trace.BadParameter("no hostname, search terms or query expression provided")
+		target, err := tc.GetTargetNode(cf.Context, clt.AuthClient, nil)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		conn, _, err := clt.DialHostWithResumption(cf.Context, target.Addr, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
 			return trace.Wrap(err)
 		}
