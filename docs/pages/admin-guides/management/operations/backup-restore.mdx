@@ -14,7 +14,7 @@ backed up and lays out our recommended approach for performing backups.
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 Teleport's Proxy Service and Nodes are stateless. For these components, only
-`teleport.yaml` should be backed up.
+the configuration file (default `/etc/teleport.yaml`) should be backed up.
 
 The Auth Service is Teleport's brain, and depending on the backend should be
 backed up regularly.
