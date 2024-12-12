@@ -103,8 +103,21 @@ func TestAssignmentCalculation(t *testing.T) {
 
 	resources := makeTestResources(t, ctx, fixture)
 
+	icAccessRole := []types.Role{
+		makeTestRole(t, fixture, "test-aws-ic-access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       types.Wildcard,
+						PermissionSet: types.Wildcard,
+					},
+				},
+			},
+		}),
+	}
+
 	t.Run("User External ID set if empty", func(t *testing.T) {
-		user, userPrincipal := makeTestUser(t, "paul@atreides.duchy.ar", "", fixture)
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "")
 
 		externalIDs.setMockUser(t, user.GetName(), "EXTERNAL-ID")
 
@@ -114,7 +127,7 @@ func TestAssignmentCalculation(t *testing.T) {
 	})
 
 	t.Run("User with no External ID is an error", func(t *testing.T) {
-		user, userPrincipal := makeTestUser(t, "paul@atreides.duchy.ar", "", fixture)
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "")
 
 		// The user has no External ID, and because we have not added one into
 		// the mock ExternalID finder, so there is no way of finding one. Expect
@@ -133,8 +146,8 @@ func TestAssignmentCalculation(t *testing.T) {
 	})
 
 	t.Run("Access List External ID set if empty", func(t *testing.T) {
-		owner, _ := makeTestUser(t, "emperor@corrino.imperium.ka", "", fixture)
-		acl, aclPrincipal := makeTestAccessList(t, "acl-one", owner, nil, "", fixture)
+		owner, _ := makeTestUser(t, fixture, "emperor@corrino.imperium.ka", "")
+		acl, aclPrincipal := makeTestAccessList(t, fixture, "acl-one", owner, nil, "")
 
 		externalIDs.setMockAccessList(t, acl.GetName(), "LIST-#1-EXTERNAL-ID")
 
@@ -146,8 +159,8 @@ func TestAssignmentCalculation(t *testing.T) {
 	})
 
 	t.Run("Access List with no External ID is an error", func(t *testing.T) {
-		owner, _ := makeTestUser(t, "emperor@corrino.imperium.ka", "", fixture)
-		acl, aclPrincipal := makeTestAccessList(t, "acl-one", owner, nil, "", fixture)
+		owner, _ := makeTestUser(t, fixture, "emperor@corrino.imperium.ka", "")
+		acl, aclPrincipal := makeTestAccessList(t, fixture, "acl-one", owner, nil, "")
 
 		// The Access List has no External ID, and because we have not added one
 		// into he mock ExternalID finder, so there is no way of finding one for
@@ -167,31 +180,18 @@ func TestAssignmentCalculation(t *testing.T) {
 
 	t.Run("Access List Roles Allow", func(t *testing.T) {
 		// GIVEN an access list with multiple account-assignment roles
-		owner, _ := makeTestUser(t, "emperor@corrino.imperium.ka", "", fixture)
-		acl, aclPrincipal := makeTestAccessList(t, "acl-one", owner, nil, "ACL-EXTERNAL-ID", fixture)
+		owner, _ := makeTestUser(t, fixture, "emperor@corrino.imperium.ka", "")
+		acl, aclPrincipal := makeTestAccessList(t, fixture, "acl-one", owner, nil, "ACL-EXTERNAL-ID")
 
-		assignments := []assignment{
-			{
-				accountID:        resources.accounts[3].Metadata.Name,
-				permissionSetARN: resources.permissonSets[2].Spec.Arn,
-			},
-			{
-				accountID:        resources.accounts[2].Metadata.Name,
-				permissionSetARN: resources.permissonSets[1].Spec.Arn,
-			},
-			{
-				accountID:        resources.accounts[1].Metadata.Name,
-				permissionSetARN: resources.permissonSets[2].Spec.Arn,
-			},
-			{
-				accountID:        resources.accounts[0].Metadata.Name,
-				permissionSetARN: resources.permissonSets[2].Spec.Arn,
-			},
+		assignments := []index{
+			{account: 3, ps: 2},
+			{account: 2, ps: 1},
+			{account: 1, ps: 2},
+			{account: 0, ps: 2},
 		}
-
-		for _, key := range assignments {
+		for _, i := range assignments {
 			acl.Spec.Grants.Roles = append(acl.Spec.Grants.Roles,
-				resources.roles[key].GetName())
+				resources.getRole(i).GetName())
 		}
 
 		// WHEN I attempt to calculate the Access List's assignment set
@@ -206,29 +206,20 @@ func TestAssignmentCalculation(t *testing.T) {
 
 		// EXPECT that the assignments reflected in the principal state are what
 		// we expect.
-		requireAssignmentsMatch(t, assignments, aclPrincipal)
+		expectedAssignments := resources.getAssignments(assignments...)
+		requireAssignmentsMatch(t, expectedAssignments, aclPrincipal)
 	})
 
 	t.Run("User Roles Allow", func(t *testing.T) {
-		user, userPrincipal := makeTestUser(t, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID", fixture)
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
 
-		assignments := []assignment{
-			{
-				accountID:        resources.accounts[1].Metadata.Name,
-				permissionSetARN: resources.permissonSets[0].Spec.Arn,
-			},
-			{
-				accountID:        resources.accounts[3].Metadata.Name,
-				permissionSetARN: resources.permissonSets[2].Spec.Arn,
-			},
-			{
-				accountID:        resources.accounts[2].Metadata.Name,
-				permissionSetARN: resources.permissonSets[1].Spec.Arn,
-			},
+		assignments := []index{
+			{account: 1, ps: 0},
+			{account: 3, ps: 2},
+			{account: 2, ps: 1},
 		}
-
-		for _, key := range assignments {
-			user.AddRole(resources.roles[key].GetName())
+		for _, i := range assignments {
+			user.AddRole(resources.getRole(i).GetName())
 		}
 
 		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
@@ -237,19 +228,13 @@ func TestAssignmentCalculation(t *testing.T) {
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
 			userPrincipal.Status.ProvisioningState)
 
-		var actualAssignments []assignment
-		for _, asmt := range userPrincipal.Status.Assignments {
-			actualAssignments = append(actualAssignments, assignment{
-				accountID:        asmt.AccountId,
-				permissionSetARN: asmt.PermissionSetArn,
-			})
-		}
-		require.ElementsMatch(t, assignments, actualAssignments)
+		expectedAssignments := resources.getAssignments(assignments...)
+		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
 	})
 
 	t.Run("User Roles Allow with PS Glob", func(t *testing.T) {
 		// GIVEN a role that allows all PermissionSets in Account #01
-		roleSpec := types.RoleSpecV6{
+		allowRole := makeTestRole(t, fixture, "allow-all-on-acct1", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AccountAssignments: []types.IdentityCenterAccountAssignment{
 					{
@@ -258,11 +243,10 @@ func TestAssignmentCalculation(t *testing.T) {
 					},
 				},
 			},
-		}
-		allowRole := makeTestRole(t, "allow-all-on-acct1", roleSpec, fixture)
+		})
 
 		// GIVEN a user that has that allow role
-		user, userPrincipal := makeTestUser(t, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID", fixture)
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
 		user.AddRole(allowRole.GetName())
 
 		// WHEN I attempt to calculate the user assignment set
@@ -285,7 +269,7 @@ func TestAssignmentCalculation(t *testing.T) {
 
 	t.Run("User Roles Deny with PS Glob", func(t *testing.T) {
 		// GIVEN a role that denies access to all permission sets on Account #02
-		roleSpec := types.RoleSpecV6{
+		denyRole := makeTestRole(t, fixture, "deny_deny_deny", types.RoleSpecV6{
 			Deny: types.RoleConditions{
 				AccountAssignments: []types.IdentityCenterAccountAssignment{
 					{
@@ -294,12 +278,11 @@ func TestAssignmentCalculation(t *testing.T) {
 					},
 				},
 			},
-		}
-		denyRole := makeTestRole(t, "deny_deny_deny", roleSpec, fixture)
+		})
 
 		// GIVEN a user that has all known account assignment roles, AND the
 		// deny-all-on-account2 role
-		user, userPrincipal := makeTestUser(t, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID", fixture)
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
 		for _, role := range resources.roles {
 			user.AddRole(role.GetName())
 		}
@@ -308,7 +291,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		// WHEN I calculate the user's assignments
 		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
 
-		// EXPECT that the operation succedeed and the user has been marked
+		// EXPECT that the operation succeeded and the user has been marked
 		// stale for provisioning
 		require.NoError(t, err)
 		require.Equal(t,
@@ -316,7 +299,7 @@ func TestAssignmentCalculation(t *testing.T) {
 			userPrincipal.Status.ProvisioningState)
 
 		// EXPECT that the calculated permission set contains only the assignments
-		// NOT for Accout #2
+		// NOT for Account #2
 
 		// Generate the expected assignment list - all assignments minus those
 		// for Account #2
@@ -325,6 +308,206 @@ func TestAssignmentCalculation(t *testing.T) {
 			return a.accountID == resources.accounts[2].Metadata.Name
 		})
 		requireAssignmentsMatch(t, expected, userPrincipal)
+	})
+
+	t.Run("Role access requests are honored", func(t *testing.T) {
+		// GIVEN a user
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+
+		// GIVEN a set of desired assignments
+		assignments := []index{
+			{account: 0, ps: 2},
+			{account: 3, ps: 0},
+		}
+
+		// GIVEN an APPROVED access request granting access roles that grant
+		// the requested assignments
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:   user,
+			Expiry: fixture.Clock.Now().Add(time.Hour),
+			Roles:  resources.getRoles(assignments...),
+			State:  types.RequestState_APPROVED,
+		}.Build(t))
+
+		// GIVEN a PENDING access request granting access to a specific
+		// role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:   user,
+			Expiry: fixture.Clock.Now().Add(time.Hour),
+			Roles:  resources.getRoles(index{account: 1, ps: 0}),
+			State:  types.RequestState_PENDING,
+		}.Build(t))
+
+		// GIVEN a DENIED access request that is otherwise valid, which grants
+		// a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:   user,
+			Expiry: fixture.Clock.Now().Add(time.Hour),
+			Roles:  resources.getRoles(index{account: 1, ps: 1}),
+			State:  types.RequestState_DENIED,
+		}.Build(t))
+
+		// GIVEN an APPROVED access request WITH A START TIME IN THE FUTURE that
+		// grants a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:            user,
+			AssumeStartTime: fixture.Clock.Now().Add(30 * time.Minute),
+			Expiry:          fixture.Clock.Now().Add(time.Hour),
+			Roles:           resources.getRoles(index{account: 1, ps: 2}),
+			State:           types.RequestState_APPROVED,
+		}.Build(t))
+
+		// GIVEN an APPROVED access request WITH AN EXPIRY TIME IN THE PAST
+		// that grants a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:   user,
+			Expiry: fixture.Clock.Now().Add(-time.Hour),
+			Roles:  resources.getRoles(index{account: 2, ps: 0}),
+			State:  types.RequestState_APPROVED,
+		}.Build(t))
+
+		// WHEN I calculate the user's assignments
+		var err error
+		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
+
+		// EXPECT that the operation succeeded and the user has been marked
+		// stale for provisioning
+		require.NoError(t, err)
+		require.Equal(t,
+			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+			userPrincipal.Status.ProvisioningState)
+
+		// EXPECT that the user has only the assignments granted by the approved,
+		// in-window access request.
+		expectedAssignments := resources.getAssignments(assignments...)
+		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
+	})
+
+	t.Run("Resource access requests are honored", func(t *testing.T) {
+		// GIVEN a user
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+
+		// GIVEN a set of desired assignments
+		assignments := []index{
+			{account: 0, ps: 2},
+			{account: 3, ps: 0},
+		}
+
+		// GIVEN an APPROVED access request granting access to the desired Account
+		// Assignment resources
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:        user,
+			Expiry:      fixture.Clock.Now().Add(time.Hour),
+			Roles:       icAccessRole,
+			ResourceIDs: resources.getResourceIDs(assignments...),
+			State:       types.RequestState_APPROVED,
+		}.Build(t))
+
+		// GIVEN a PENDING access request granting access to a specific
+		// resource NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:        user,
+			Expiry:      fixture.Clock.Now().Add(time.Hour),
+			Roles:       icAccessRole,
+			ResourceIDs: resources.getResourceIDs(index{account: 0, ps: 0}),
+			State:       types.RequestState_PENDING,
+		}.Build(t))
+
+		// GIVEN a DENIED access request that is otherwise valid, which grants
+		// a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:        user,
+			Expiry:      fixture.Clock.Now().Add(time.Hour),
+			Roles:       icAccessRole,
+			ResourceIDs: resources.getResourceIDs(index{account: 0, ps: 1}),
+			State:       types.RequestState_DENIED,
+		}.Build(t))
+
+		// GIVEN an APPROVED access request WITH A START TIME IN THE FUTURE that
+		// grants a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:            user,
+			AssumeStartTime: fixture.Clock.Now().Add(30 * time.Minute),
+			Expiry:          fixture.Clock.Now().Add(time.Hour),
+			Roles:           icAccessRole,
+			ResourceIDs:     resources.getResourceIDs(index{account: 1, ps: 0}),
+			State:           types.RequestState_APPROVED,
+		}.Build(t))
+
+		// GIVEN an APPROVED access request WITH AN EXPIRY TIME IN THE PAST
+		// that grants a specific role NOT GRANTED BY ANY OTHER Access requests
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:        user,
+			Expiry:      fixture.Clock.Now().Add(-time.Hour),
+			Roles:       icAccessRole,
+			ResourceIDs: resources.getResourceIDs(index{account: 1, ps: 1}),
+			State:       types.RequestState_APPROVED,
+		}.Build(t))
+
+		// WHEN I calculate the user's assignments
+		var err error
+		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
+
+		// EXPECT that the operation succeeded and the user has been marked
+		// stale for provisioning
+		require.NoError(t, err)
+		require.Equal(t,
+			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+			userPrincipal.Status.ProvisioningState)
+
+		// EXPECT that the user has only the assignments granted by the approved,
+		// in-window access request.
+		expectedAssignments := resources.getAssignments(assignments...)
+		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
+	})
+
+	// This test assert that deny conditions on roles take precedence over access
+	// requests grants
+	t.Run("Role Deny conditions beat Resource Access Requests", func(t *testing.T) {
+		// GIVEN a role that denies all access to account assignments on Account #0
+		denyRole := makeTestRole(t, fixture, "deny_deny_deny", types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				AccountAssignments: []types.IdentityCenterAccountAssignment{
+					{
+						Account:       resources.accounts[0].Metadata.Name,
+						PermissionSet: "*",
+					},
+				},
+			},
+		})
+
+		// GIVEN a user with that deny role
+		user, userPrincipal := makeTestUser(t, fixture, "paul@atreides.duchy.ar", "MY-EXTERNAL-ID")
+		user.AddRole(denyRole.GetName())
+
+		// GIVEN an APPROVED access request granting access to some Account
+		// Assignment resources
+		makeTestAccessRequest(t, fixture, ictest.AccessRequest{
+			User:   user,
+			Expiry: fixture.Clock.Now().Add(time.Hour),
+			Roles:  icAccessRole,
+			ResourceIDs: resources.getResourceIDs(
+				index{account: 0, ps: 2},
+				index{account: 3, ps: 0},
+			),
+			State: types.RequestState_APPROVED,
+		}.Build(t))
+
+		// WHEN I calculate the user's assignments
+		var err error
+		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
+
+		// EXPECT that the operation succeeded and the user has been marked
+		// stale for provisioning
+		require.NoError(t, err)
+		require.Equal(t,
+			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
+			userPrincipal.Status.ProvisioningState)
+
+		// EXPECT that the user has only the assignment granted by the access
+		// request MINUS those denied by the `denied` role
+		expectedAssignments := resources.getAssignments(index{account: 3, ps: 0})
+		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
 	})
 }
 
@@ -350,11 +533,11 @@ func requireAssignmentsMatch(t *testing.T, expected []assignment, principalAssig
 // makeTestAccessList creates a test Access List and corresponding Principal
 // Assignment that are automatically deleted at the end of the test
 func makeTestAccessList(t *testing.T,
+	fixture *ictest.Fixture,
 	name string,
 	owner types.User,
 	memberGrants []types.Role,
 	externalID provisioning.ExternalID,
-	fixture *ictest.Fixture,
 ) (*accesslist.AccessList, *identitycenterv1.PrincipalAssignment) {
 	acl := ictest.AccessList{
 		Name:          name,
@@ -387,9 +570,9 @@ func makeTestAccessList(t *testing.T,
 // are automatically deleted at the end of the test
 func makeTestUser(
 	t *testing.T,
+	fixture *ictest.Fixture,
 	name string,
 	externalID provisioning.ExternalID,
-	fixture *ictest.Fixture,
 ) (types.User, *identitycenterv1.PrincipalAssignment) {
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
@@ -415,7 +598,7 @@ func makeTestUser(
 
 // makeTestRole creates a test Role that is automatically deleted at the end of
 // the test
-func makeTestRole(t *testing.T, name string, spec types.RoleSpecV6, fixture *ictest.Fixture) types.Role {
+func makeTestRole(t *testing.T, fixture *ictest.Fixture, name string, spec types.RoleSpecV6) types.Role {
 	role, err := types.NewRole(name, spec)
 	require.NoError(t, err)
 	role, err = fixture.Auth.CreateRole(fixture.Ctx, role)
@@ -427,11 +610,81 @@ func makeTestRole(t *testing.T, name string, spec types.RoleSpecV6, fixture *ict
 	return role
 }
 
+// makeTestAccessRequest creates an Access Request that is automatically deleted
+// at the end of the test.
+func makeTestAccessRequest(t *testing.T, fixture *ictest.Fixture, req types.AccessRequest) {
+	t.Helper()
+	ctx := fixture.Ctx
+	require.NoError(t, fixture.Auth.UpsertAccessRequest(ctx, req))
+	t.Cleanup(func() {
+		require.NoError(t, fixture.Auth.DeleteAccessRequest(ctx, req.GetName()))
+	})
+}
+
 type testResources struct {
 	accounts           []services.IdentityCenterAccount
-	permissonSets      []*identitycenterv1.PermissionSet
+	permissionSets     []*identitycenterv1.PermissionSet
+	assignments        []assignment
 	accountAssignments map[assignment]services.IdentityCenterAccountAssignment
 	roles              map[assignment]types.Role
+}
+
+type index struct {
+	account int
+	ps      int
+}
+
+func (tr *testResources) getAssignment(i index) assignment {
+	return assignment{
+		accountID:        tr.accounts[i.account].GetMetadata().GetName(),
+		permissionSetARN: tr.permissionSets[i.ps].GetSpec().GetArn(),
+	}
+}
+
+func (tr *testResources) getAssignments(indices ...index) []assignment {
+	if indices == nil {
+		return nil
+	}
+	dst := make([]assignment, len(indices))
+	for i, src := range indices {
+		dst[i] = tr.getAssignment(src)
+	}
+	return dst
+}
+
+func (tr *testResources) getRole(i index) types.Role {
+	return tr.roles[tr.getAssignment(i)]
+}
+
+func (tr *testResources) getRoles(indices ...index) []types.Role {
+	if indices == nil {
+		return nil
+	}
+	dst := make([]types.Role, len(indices))
+	for i, src := range indices {
+		dst[i] = tr.getRole(src)
+	}
+	return dst
+}
+
+func (tr *testResources) getResourceIDs(indices ...index) []types.ResourceID {
+	if indices == nil {
+		return nil
+	}
+	dst := make([]types.ResourceID, len(indices))
+	for i, src := range indices {
+		dst[i] = tr.getResourceID(src)
+	}
+	return dst
+}
+
+func (tr *testResources) getResourceID(i index) types.ResourceID {
+	assignment := tr.accountAssignments[tr.getAssignment(i)]
+	return types.ResourceID{
+		ClusterName: "test",
+		Kind:        types.KindIdentityCenterAccountAssignment,
+		Name:        assignment.GetMetadata().GetName(),
+	}
 }
 
 func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixture) testResources {
@@ -450,6 +703,7 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 	}
 
 	accounts := make([]services.IdentityCenterAccount, 4)
+	var assignments []assignment
 	accountAssignments := make(map[assignment]services.IdentityCenterAccountAssignment)
 	accountAssignmentRoles := make(map[assignment]types.Role)
 	for i := range accounts {
@@ -466,6 +720,7 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 
 		for _, ps := range permissionSets {
 			key := assignment{accountID: accountID, permissionSetARN: ps.Spec.Arn}
+			assignments = append(assignments, key)
 
 			assignment := ictest.AccountAssignment{
 				ID:                fmt.Sprintf("%s--%s", accountID, ps.Metadata.Name),
@@ -496,7 +751,8 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 
 	return testResources{
 		accounts:           accounts,
-		permissonSets:      permissionSets,
+		permissionSets:     permissionSets,
+		assignments:        assignments,
 		accountAssignments: accountAssignments,
 		roles:              accountAssignmentRoles,
 	}

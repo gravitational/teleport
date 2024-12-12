@@ -1,7 +1,6 @@
 package identitycenter
 
 import (
-	"context"
 	"log/slog"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // ProvisioningConfig defines the provisioning-specific options for the Identity
@@ -73,12 +71,6 @@ func (cfg *ImportConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AccountAssignmentLister defines a way to list all account assignment resources
-// in a collection
-type AccountAssignmentLister interface {
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
-}
-
 // ServiceConfig provides configuration for an Identity Center service
 type ServiceConfig struct {
 	Provisioning ProvisioningConfig
@@ -87,7 +79,7 @@ type ServiceConfig struct {
 	Clock                      clockwork.Clock
 	EventsClient               types.Events
 	IdentityCenterDataSvc      services.IdentityCenter
-	IdentityCenterDataSvcCache AccountAssignmentLister
+	IdentityCenterDataSvcCache services.IdentityCenterAccountAssignmentGetter
 	Log                        *slog.Logger
 	RolesSvc                   RolesService
 	UsersSvc                   UsersService

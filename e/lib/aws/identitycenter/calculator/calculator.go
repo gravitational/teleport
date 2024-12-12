@@ -44,8 +44,12 @@ type RolesGetter interface {
 	GetRole(context.Context, string) (types.Role, error)
 }
 
-// AccountAssignmentLister is an abstraction over listing Account Assignments
-type AccountAssignmentLister interface {
+// AccountAssignmentGetter is an abstraction over fetching and listing
+// Account Assignments
+type AccountAssignmentGetter interface {
+	// GetAccountAssignment fetches a specific Identity Center Account Assignment
+	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+
 	// ListAccountAssignments lists all IdentityCenterAccountAssignment record
 	// known to the service
 	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
@@ -69,7 +73,7 @@ type Config struct {
 
 	// AccountAssignmentCache is used to read info about account assignments
 	// during permission calculation
-	AccountAssignmentCache AccountAssignmentLister
+	AccountAssignmentCache AccountAssignmentGetter
 
 	// Logger is the logger used to write logging output. Optional. Defaults to
 	// the system logger
@@ -161,20 +165,32 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 	}
 
 	allRoles := utils.NewSet[string](user.GetRoles()...)
-
+	allowedByRequest := utils.NewSet[assignment]()
 	accessRequests, err := calc.getActiveAccessRequestsOnUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err, "Fetching active access requests for user")
 	}
 	for _, req := range accessRequests {
-		allRoles.Add(req.GetRoles()...)
-	}
+		resources := req.GetRequestedResourceIDs()
 
-	// TODO(tcsc): Handle Account Assignments granted by resource access requests
+		// Only add the assignments from roles if `req` is not a Resource Access
+		// Request, otherwise the user will end up being given all requestable
+		// roles, rather than just the set that have been specifically approved.
+		if len(resources) == 0 {
+			allRoles.Add(req.GetRoles()...)
+		}
+
+		assignments, err := accountAssignmentResources(ctx, req.GetRequestedResourceIDs(), calc.AccountAssignmentCache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allowedByRequest.Add(assignments...)
+	}
 
 	// build lists of possible account assignments rom the gathered roles. May
 	// include duplicates and glob patterns.)
-	allow, deny, err := calc.getAccountAssignmentsFromRoles(ctx, maps.Keys(allRoles))
+	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, maps.Keys(allRoles))
 	if err != nil {
 		return nil, trace.Wrap(err, "calculating account assignments")
 	}
@@ -182,16 +198,45 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 	// Reduce the allow and deny sets into a single set of allowed account
 	// assignments. Handles pattern matching in the role spec. All other
 	// account assignments are by definition disallowed
-	assignments, err := calc.applyExpressions(ctx, allow, deny)
+	allow, deny, err := calc.applyExpressions(ctx, allowExpressions, denyExpressions)
 	if err != nil {
 		return nil, trace.Wrap(err, "applying RBAC expressions")
 	}
 
-	updatedPrincipal, err := updatePrincipalAccountAssignments(ctx, assignments, extID, principalAssignment, calc.PrincipalAssignmentsSvc)
+	// Combine the assignments allowed by both roles and access requests, and
+	// then remove anything that has been denied.
+	allow.Union(allowedByRequest)
+	allow.Subtract(deny)
+
+	updatedPrincipal, err := updatePrincipalAccountAssignments(ctx, allow, extID, principalAssignment, calc.PrincipalAssignmentsSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to write account assignment")
 	}
 	return updatedPrincipal, nil
+}
+
+func accountAssignmentResources(
+	ctx context.Context,
+	resources []types.ResourceID,
+	assignmentSvc AccountAssignmentGetter,
+) ([]assignment, error) {
+	var result []assignment
+	for _, id := range resources {
+		if id.Kind != types.KindIdentityCenterAccountAssignment {
+			continue
+		}
+
+		asmt, err := assignmentSvc.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id.Name))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		result = append(result, assignment{
+			accountID:        asmt.GetSpec().GetAccountId(),
+			permissionSetARN: asmt.GetSpec().GetPermissionSet().GetArn(),
+		})
+	}
+	return result, nil
 }
 
 // calcAccessListAssignments calculates the appropriate assignment set for the
@@ -221,7 +266,7 @@ func (calc *AssignmentCalculator) calcAccessListAssignments(
 		}
 	}
 
-	allow, deny, err := calc.getAccountAssignmentsFromRoles(ctx, slices.Values(acl.GetGrants().Roles))
+	allowExpressions, denyExpressions, err := calc.getAccountAssignmentsFromRoles(ctx, slices.Values(acl.GetGrants().Roles))
 	if err != nil {
 		return nil, trace.Wrap(err, "building account assignments")
 	}
@@ -229,12 +274,13 @@ func (calc *AssignmentCalculator) calcAccessListAssignments(
 	// Reduce the allow and deny sets into a single set of allowed account
 	// assignments. Handles pattern matching in the role spec. All other
 	// account assignments are by definition disallowed
-	assignments, err := calc.applyExpressions(ctx, allow, deny)
+	allow, deny, err := calc.applyExpressions(ctx, allowExpressions, denyExpressions)
 	if err != nil {
 		return nil, trace.Wrap(err, "applying RBAC expressions")
 	}
+	allow.Subtract(deny)
 
-	updatedPrincipal, err := updatePrincipalAccountAssignments(ctx, assignments, extID, principalAssignment, calc.PrincipalAssignmentsSvc)
+	updatedPrincipal, err := updatePrincipalAccountAssignments(ctx, allow, extID, principalAssignment, calc.PrincipalAssignmentsSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to write account assignment")
 	}
@@ -251,9 +297,16 @@ func (calc *AssignmentCalculator) getActiveAccessRequestsOnUser(ctx context.Cont
 	}
 
 	now := calc.Clock.Now()
+	isOutsideTimeWindow := func(a types.AccessRequest) bool {
+		if startTime := a.GetAssumeStartTime(); startTime != nil {
+			if now.Before(*startTime) {
+				return true
+			}
+		}
+		return now.After(a.GetAccessExpiry())
+	}
+	result := slices.DeleteFunc(accessRequests, isOutsideTimeWindow)
 
-	isExpired := func(a types.AccessRequest) bool { return now.After(a.Expiry()) }
-	result := slices.DeleteFunc(accessRequests, isExpired)
 	return result, nil
 }
 
@@ -263,19 +316,19 @@ func (calc *AssignmentCalculator) getActiveAccessRequestsOnUser(ctx context.Cont
 func (calc *AssignmentCalculator) applyExpressions(
 	ctx context.Context,
 	allowExpressions, denyExpressions []types.IdentityCenterAccountAssignment,
-) (utils.Set[assignment], error) {
+) (utils.Set[assignment], utils.Set[assignment], error) {
 
 	allow := utils.NewSet[assignment]()
 	deny := utils.NewSet[assignment]()
 
 	for candidate, err := range iciter.AllAccountAssignments(ctx, calc.AccountAssignmentCache) {
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		allowMatches, err := assignmentMatchesExpressions(candidate, allowExpressions)
 		if err != nil {
-			return nil, trace.Wrap(err, "testing account assignment match")
+			return nil, nil, trace.Wrap(err, "testing account assignment match")
 		}
 
 		if allowMatches {
@@ -288,7 +341,7 @@ func (calc *AssignmentCalculator) applyExpressions(
 
 		denyMatches, err := assignmentMatchesExpressions(candidate, denyExpressions)
 		if err != nil {
-			return nil, trace.Wrap(err, "testing account assignment match")
+			return nil, nil, trace.Wrap(err, "testing account assignment match")
 		}
 
 		if denyMatches {
@@ -300,7 +353,7 @@ func (calc *AssignmentCalculator) applyExpressions(
 		}
 	}
 
-	return allow.Subtract(deny), nil
+	return allow, deny, nil
 }
 
 func sortAssignments(a, b *identitycenterv1.AccountAssignmentRef) int {

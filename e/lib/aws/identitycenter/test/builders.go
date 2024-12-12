@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -228,4 +229,48 @@ func (a AccessListMember) Build(t *testing.T) *accesslist.AccessListMember {
 	require.NoError(t, err)
 
 	return aclMember
+}
+
+type AccessRequest struct {
+	Name            string
+	User            types.User
+	Roles           []types.Role
+	ResourceIDs     []types.ResourceID
+	State           types.RequestState
+	AssumeStartTime time.Time
+	Expiry          time.Time
+}
+
+func (a AccessRequest) Build(t *testing.T) types.AccessRequest {
+	t.Helper()
+
+	if a.Name == "" {
+		a.Name = uuid.NewString()
+	}
+
+	if a.Expiry.IsZero() {
+		a.Expiry = time.Now().Add(time.Hour)
+	}
+
+	require.NotNil(t, a.User, "target User must be supplied")
+
+	roleNames := make([]string, len(a.Roles))
+	for i, r := range a.Roles {
+		roleNames[i] = r.GetName()
+	}
+
+	accessRequest, err := types.NewAccessRequestWithResources(
+		a.Name,
+		a.User.GetName(),
+		roleNames,
+		a.ResourceIDs)
+	require.NoError(t, err, "invalid access request")
+
+	if !a.AssumeStartTime.IsZero() {
+		accessRequest.SetAssumeStartTime(a.AssumeStartTime)
+	}
+	accessRequest.SetAccessExpiry(a.Expiry)
+	accessRequest.SetState(a.State)
+
+	return accessRequest
 }
