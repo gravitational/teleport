@@ -899,7 +899,7 @@ in their [storage backend](../../reference/backends.mdx).
 The following error can occur if a session recording file is not available or
 when employing multiple auth servers with directory storage backend for recorded
 sessions. When using a directory storage backend for audit logs and recorded sessions,
-only the auth server with that recorded session can retrieve it.
+only the Auth Service with that recorded session can retrieve it.
 
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b
@@ -953,7 +953,7 @@ lifetime.
 
 ## tsh request drop
 
-Drop one or more access requests from current identity
+Drop one or more Access Requests from current identity
 
 ```code
 $ tsh request drop [<request-id>...]

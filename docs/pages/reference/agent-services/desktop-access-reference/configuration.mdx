@@ -21,10 +21,10 @@ The Windows Desktop Service can be deployed in two modes.
 ### Direct mode
 
 In *direct* mode, Windows Desktop Services registers directly with the Teleport
-Auth Server, and listens for desktop connections from the Teleport Proxy. To
+Auth Service, and listens for desktop connections from the Teleport Proxy. To
 enable direct mode, set `windows_desktop_service.listen_addr` in
 `teleport.yaml`, and ensure that `teleport.auth_server` points directly at the
-Auth Server.
+Auth Service.
 
 Direct mode requires network connectivity both:
 
@@ -38,7 +38,7 @@ self-hosted Teleport clusters.
 
 In *IoT mode*, Windows Desktop Service only needs to be able to make an outbound
 connection to a Teleport Proxy. The Windows Desktop Service establishes a
-reverse tunnel to the proxy, and both registration with the Auth Server and
+reverse tunnel to the proxy, and both registration with the Auth Service and
 desktop sessions are performed over this tunnel. To enable this mode, ensure
 that `windows_desktop_service.listen_addr` is *unset*, and point
 `teleport.proxy_server` at a Teleport Proxy.
