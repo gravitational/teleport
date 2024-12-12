@@ -48,3 +48,12 @@ func TestGetErrorDetailsAzIdentity(t *testing.T) {
 	require.Equal(t, types.PluginStatusCode_UNAUTHORIZED, code)
 	require.Equal(t, "failed to fetch foo: Authentication to Azure failed (invalid_client): AADSTS700211: No matching federated identity record found for presented assertion issuer 'https://example.com'. Please check your federated identity credential Subject, Audience and Issuer against the presented assertion. https://docs.microsoft.com/en-us/azure/active-directory/develop/workload-identity-federation", msg)
 }
+
+func TestNilAzIdentityError(t *testing.T) {
+	t.Parallel()
+
+	azErr := &azidentity.AuthenticationFailedError{}
+	err := trace.Wrap(azErr, "failed to fetch foo")
+	code, _ := getErrorDetails(err)
+	require.Equal(t, types.PluginStatusCode_OTHER_ERROR, code)
+}

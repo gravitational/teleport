@@ -41,6 +41,9 @@ func getEntraErrorDetails(err error) (types.PluginStatusCode, string) {
 			// It is suffixed with a "Trace ID: ... Correlation ID: <...> Timestamp: <...>", which we strip.
 			ErrorDescription string `json:"error_description"`
 		}
+		if azIdentityErr.RawResponse == nil {
+			return types.PluginStatusCode_OTHER_ERROR, trace.Unwrap(err).Error()
+		}
 		body := azIdentityErr.RawResponse.Body
 		defer body.Close()
 		if err := json.NewDecoder(body).Decode(&response); err == nil {
