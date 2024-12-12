@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -62,6 +63,7 @@ type podHandler struct {
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
 	log                 *logrus.Entry
+	logger              *slog.Logger
 	userClient          authclient.ClientI
 	localCA             types.CertAuthority
 
@@ -207,7 +209,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	})
 
 	// Start sending ping frames through websocket to the client.
-	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.log, p.Close)
+	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.logger, p.Close)
 
 	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
