@@ -172,12 +172,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
 	requires := getDBLocalProxyRequirement(tc, dbInfo.RouteToDatabase)
-	if requires.tunnel && !cf.LocalProxyTunnel {
-		// Some scenarios require a local proxy tunnel, e.g.:
-		// - Snowflake, DynamoDB protocol
-		// - Hardware-backed private key policy
-		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
-	}
+	maybeEnableDbProxyTunnel(cf, requires)
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -289,6 +284,19 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// maybeEnableDbProxyTunnel forces cf.LocalProxyTunnel to true for scenarios require
+// a local proxy tunnel, e.g.:
+// - Snowflake, DynamoDB protocol
+// - Hardware-backed private key policy
+func maybeEnableDbProxyTunnel(cf *CLIConf, requires *dbLocalProxyRequirement) {
+	if requires.tunnel && !cf.LocalProxyTunnel {
+		cf.LocalProxyTunnel = true
+
+		msg := formatDbProxyAutoTunnel(requires.tunnelReasons...)
+		fmt.Fprintf(cf.Stdout(), msg)
+	}
 }
 
 func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
