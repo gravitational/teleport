@@ -22,12 +22,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAKSFetcher(t *testing.T) {
@@ -117,7 +117,7 @@ func TestAKSFetcher(t *testing.T) {
 				FilterLabels:   tt.args.filterLabels,
 				Regions:        tt.args.regions,
 				ResourceGroups: tt.args.resourceGroups,
-				Log:            logrus.New(),
+				Logger:         utils.NewSlogLoggerForTests(),
 			}
 			fetcher, err := NewAKSFetcher(cfg)
 			require.NoError(t, err)

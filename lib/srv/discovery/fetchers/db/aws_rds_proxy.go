@@ -65,20 +65,20 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 	// that owns the custom endpoints.
 	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, rdsClient, maxAWSPages)
 	if err != nil {
-		cfg.Log.Debugf("Failed to get RDS Proxy endpoints: %v.", err)
+		cfg.Logger.DebugContext(ctx, "Failed to get RDS Proxy endpoints", "error", err)
 	}
 
 	var databases types.Databases
 	for _, dbProxy := range rdsProxies {
 		if !aws.BoolValue(dbProxy.RequireTLS) {
-			cfg.Log.Debugf("RDS Proxy %q doesn't support TLS. Skipping.", aws.StringValue(dbProxy.DBProxyName))
+			cfg.Logger.DebugContext(ctx, "Skipping RDS Proxy that doesn't support TLS", "rds_proxy", aws.StringValue(dbProxy.DBProxyName))
 			continue
 		}
 
 		if !libcloudaws.IsRDSProxyAvailable(dbProxy) {
-			cfg.Log.Debugf("The current status of RDS Proxy %q is %q. Skipping.",
-				aws.StringValue(dbProxy.DBProxyName),
-				aws.StringValue(dbProxy.Status))
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable RDS Proxy",
+				"rds_proxy", aws.StringValue(dbProxy.DBProxyName),
+				"status", aws.StringValue(dbProxy.Status))
 			continue
 		}
 
@@ -86,14 +86,19 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 		// fetch the tags. If failed, keep going without the tags.
 		tags, err := listRDSResourceTags(ctx, rdsClient, dbProxy.DBProxyArn)
 		if err != nil {
-			cfg.Log.Debugf("Failed to get tags for RDS Proxy %v: %v.", aws.StringValue(dbProxy.DBProxyName), err)
+			cfg.Logger.DebugContext(ctx, "Failed to get tags for RDS Proxy",
+				"rds_proxy", aws.StringValue(dbProxy.DBProxyName),
+				"error", err,
+			)
 		}
 
 		// Add a database from RDS Proxy (default endpoint).
 		database, err := common.NewDatabaseFromRDSProxy(dbProxy, tags)
 		if err != nil {
-			cfg.Log.Debugf("Could not convert RDS Proxy %q to database resource: %v.",
-				aws.StringValue(dbProxy.DBProxyName), err)
+			cfg.Logger.DebugContext(ctx, "Could not convert RDS Proxy to database resource",
+				"rds_proxy", aws.StringValue(dbProxy.DBProxyName),
+				"error", err,
+			)
 		} else {
 			databases = append(databases, database)
 		}
@@ -101,19 +106,21 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 		// Add custom endpoints.
 		for _, customEndpoint := range customEndpointsByProxyName[aws.StringValue(dbProxy.DBProxyName)] {
 			if !libcloudaws.IsRDSProxyCustomEndpointAvailable(customEndpoint) {
-				cfg.Log.Debugf("The current status of custom endpoint %q of RDS Proxy %q is %q. Skipping.",
-					aws.StringValue(customEndpoint.DBProxyEndpointName),
-					aws.StringValue(customEndpoint.DBProxyName),
-					aws.StringValue(customEndpoint.Status))
+				cfg.Logger.DebugContext(ctx, "Skipping unavailable custom endpoint of RDS Proxy",
+					"endpoint", aws.StringValue(customEndpoint.DBProxyEndpointName),
+					"rds_proxy", aws.StringValue(customEndpoint.DBProxyName),
+					"status", aws.StringValue(customEndpoint.Status),
+				)
 				continue
 			}
 
 			database, err = common.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
 			if err != nil {
-				cfg.Log.Debugf("Could not convert custom endpoint %q of RDS Proxy %q to database resource: %v.",
-					aws.StringValue(customEndpoint.DBProxyEndpointName),
-					aws.StringValue(customEndpoint.DBProxyName),
-					err)
+				cfg.Logger.DebugContext(ctx, "Could not convert custom endpoint for RDS Proxy to database resource",
+					"endpoint", aws.StringValue(customEndpoint.DBProxyEndpointName),
+					"rds_proxy", aws.StringValue(customEndpoint.DBProxyName),
+					"error", err,
+				)
 				continue
 			}
 			databases = append(databases, database)

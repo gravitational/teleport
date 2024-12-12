@@ -29,12 +29,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestEKSFetcher(t *testing.T) {
@@ -106,7 +106,7 @@ func TestEKSFetcher(t *testing.T) {
 				ClientGetter: &mockEKSClientGetter{},
 				FilterLabels: tt.args.filterLabels,
 				Region:       tt.args.region,
-				Log:          logrus.New(),
+				Logger:       utils.NewSlogLoggerForTests(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)

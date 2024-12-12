@@ -17,7 +17,9 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -36,7 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -1403,7 +1404,7 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 		labels[types.DiscoveryLabelAzureReplicationRole] = role
 		ssrid, err := arm.ParseResourceID(azure.StringVal(server.Properties.SourceServerResourceID))
 		if err != nil {
-			log.WithError(err).Debugf("Skipping malformed %q label for Azure MySQL Flexible server replica.", types.DiscoveryLabelAzureSourceServer)
+			slog.DebugContext(context.Background(), "Skipping malformed label for Azure MySQL Flexible server replica", "error", err, "label", types.DiscoveryLabelAzureSourceServer)
 		} else {
 			labels[types.DiscoveryLabelAzureSourceServer] = ssrid.Name
 		}

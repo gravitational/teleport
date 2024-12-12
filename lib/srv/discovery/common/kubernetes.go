@@ -17,14 +17,15 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -79,7 +80,7 @@ func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
 		if types.IsValidLabelKey(key) {
 			labels[key] = aws.StringValue(val)
 		} else {
-			logrus.Debugf("Skipping EKS tag %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping EKS tag that is not a valid label key", "tag", key)
 		}
 	}
 	return labels
@@ -97,7 +98,7 @@ func addLabels(labels map[string]string, moreLabels map[string]string) map[strin
 		if types.IsValidLabelKey(key) {
 			labels[key] = value
 		} else {
-			logrus.Debugf("Skipping %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping label that is not a valid label key", "label", key)
 		}
 	}
 	return labels

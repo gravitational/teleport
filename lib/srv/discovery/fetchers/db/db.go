@@ -20,9 +20,9 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
@@ -133,16 +133,16 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 }
 
 // filterDatabasesByLabels filters input databases with provided labels.
-func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+func filterDatabasesByLabels(ctx context.Context, databases types.Databases, labels types.Labels, logger *slog.Logger) types.Databases {
 	var matchedDatabases types.Databases
 	for _, database := range databases {
 		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
 		if err != nil {
-			log.Warnf("Failed to match %v against selector: %v.", database, err)
+			logger.WarnContext(ctx, "Failed to match database gainst selector", "database", database, "error", err)
 		} else if match {
 			matchedDatabases = append(matchedDatabases, database)
 		} else {
-			log.Debugf("%v doesn't match selector.", database)
+			logger.DebugContext(ctx, "database doesn't match selector", "database", database)
 		}
 	}
 	return matchedDatabases

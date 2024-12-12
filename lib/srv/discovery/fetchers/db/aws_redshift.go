@@ -57,16 +57,19 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	var databases types.Databases
 	for _, cluster := range clusters {
 		if !libcloudaws.IsRedshiftClusterAvailable(cluster) {
-			cfg.Log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
-				aws.StringValue(cluster.ClusterIdentifier),
-				aws.StringValue(cluster.ClusterStatus))
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable Redshift cluster",
+				"cluster", aws.StringValue(cluster.ClusterIdentifier),
+				"status", aws.StringValue(cluster.ClusterStatus),
+			)
 			continue
 		}
 
 		database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 		if err != nil {
-			cfg.Log.Infof("Could not convert Redshift cluster %q to database resource: %v.",
-				aws.StringValue(cluster.ClusterIdentifier), err)
+			cfg.Logger.InfoContext(ctx, "Could not convert Redshift cluster to database resource",
+				"cluster", aws.StringValue(cluster.ClusterIdentifier),
+				"error", err,
+			)
 			continue
 		}
 

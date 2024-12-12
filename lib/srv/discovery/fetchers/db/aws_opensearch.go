@@ -60,7 +60,7 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 	var eligibleDomains []*opensearchservice.DomainStatus
 	for _, domain := range domains {
 		if !libcloudaws.IsOpenSearchDomainAvailable(domain) {
-			cfg.Log.Debugf("OpenSearch domain %q is unavailable. Skipping.", aws.StringValue(domain.DomainName))
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable OpenSearch domain", "domain", aws.StringValue(domain.DomainName))
 			continue
 		}
 
@@ -77,15 +77,21 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				cfg.Logger.DebugContext(ctx, "No permissions to list resource tags", "error", err)
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for OpenSearch domain %q.", aws.StringValue(domain.DomainName))
+				cfg.Logger.InfoContext(ctx, "Failed to list resource tags for OpenSearch domain",
+					"error", err,
+					"domain", aws.StringValue(domain.DomainName),
+				)
 			}
 		}
 
 		dbs, err := common.NewDatabasesFromOpenSearchDomain(domain, tags)
 		if err != nil {
-			cfg.Log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
+			cfg.Logger.InfoContext(ctx, "Could not convert OpenSearch domain configuration to database resource",
+				"error", err,
+				"domain", aws.StringValue(domain.DomainName),
+			)
 		} else {
 			databases = append(databases, dbs...)
 		}
