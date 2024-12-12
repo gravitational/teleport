@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.5-dev.fred-release-2-test7
+VERSION=17.0.5-dev.fred-release-2-test3
 
 DOCKER_IMAGE ?= teleport
 
@@ -1739,23 +1739,10 @@ ensure-webassets-e:
 # by issuing a bogus pnpm call with an env var that skips the prompt.
 .PHONY: ensure-js-package-manager
 ensure-js-package-manager:
-	id
-	pwd
-	ls -lah /go
-	ls -lah /go/src/
-	ls -lah /go/src/github.com/
-	ls -lah /go/src/github.com/gravitational/
-	echo "mounted dir:"
-	ls -lah /go/src/github.com/gravitational/teleport/
-	echo "package.json:"
-	ls -lah /go/src/github.com/gravitational/teleport/package.json
-	corepack enable pnpm
-	COREPACK_ENABLE_DOWNLOAD_PROMPT=1 corepack use pnpm@9.15
-	pnpm -v
 	if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
 		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
-			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm...'; \
-			corepack enable pnpm@9.15; \
+			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
+			corepack enable pnpm; \
 			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
 		else \
 			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
@@ -1776,7 +1763,7 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
