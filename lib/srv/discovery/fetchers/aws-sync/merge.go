@@ -51,6 +51,7 @@ func MergeResources(results ...*Resources) *Resources {
 		result.RDSDatabases = append(result.RDSDatabases, r.RDSDatabases...)
 		result.SAMLProviders = append(result.SAMLProviders, r.SAMLProviders...)
 		result.OIDCProviders = append(result.OIDCProviders, r.OIDCProviders...)
+		result.PolicyChanges = append(result.PolicyChanges, r.PolicyChanges...)
 	}
 
 	deduplicateResources(result)
@@ -78,4 +79,5 @@ func deduplicateResources(result *Resources) {
 	result.RDSDatabases = deduplicateSlice(result.RDSDatabases, rdsDbKey)
 	result.SAMLProviders = deduplicateSlice(result.SAMLProviders, samlProvKey)
 	result.OIDCProviders = deduplicateSlice(result.OIDCProviders, oidcProvKey)
+	result.PolicyChanges = deduplicateSlice(result.PolicyChanges, policyChangeKey)
 }

@@ -3,7 +3,6 @@ package aws_sync
 import (
 	"context"
 	"fmt"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"net/url"
 	"time"
@@ -15,11 +14,11 @@ import (
 const pollInterval = 100 * time.Millisecond
 const maxPollTime = 1 * time.Minute
 
-func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) error {
+func (a *awsFetcher) fetchPolicyChanges(ctx context.Context, result *Resources) ([]*accessgraphv1alpha.AWSPolicyChange, error) {
 	// Initialize the client
 	client, err := a.CloudClients.GetAWSIAMAccessAnalyzerClient(ctx, "us-east-2", a.getAWSOptions()...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	analyzerArn := "arn:aws:access-analyzer:us-east-2:278576220453:analyzer/mbrock-test"
 	input := &accessanalyzer.ListFindingsV2Input{
@@ -27,7 +26,7 @@ func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) e
 	}
 	findings, err := client.ListFindingsV2(input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Generate the finding recommendations
@@ -81,29 +80,45 @@ func (a *awsFetcher) createAccessTasks(ctx context.Context, result *Resources) e
 	for _, policy := range result.Policies {
 		policies[policy.Arn] = policy
 	}
-	var policyUpdates []*usertasksv1.PolicyUpdate
+	var policyChanges []*accessgraphv1alpha.AWSPolicyChange
 	for _, rec := range findingRecs {
+		policyChange := &accessgraphv1alpha.AWSPolicyChange{
+			ResourceArn: *rec.ResourceArn,
+		}
 		for _, step := range rec.RecommendedSteps {
 			unused := step.UnusedPermissionsRecommendedStep
 			existingPolicy, ok := policies[*unused.ExistingPolicyId]
-			// TODO (mbrock): Assuming CREATE_POLICY implies an actual modification, but we need to differentiate
-			// between a modification and a removal
-			if *unused.RecommendedAction == "CREATE_POLICY" && ok {
-				existingDoc, err := url.QueryUnescape(string(existingPolicy.PolicyDocument))
-				if err != nil {
-					fmt.Printf("Could not decode URL-encoded policy document: %v\n", err)
-					continue
-				}
-				newDoc := *unused.RecommendedPolicy
-				fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
-				policyUpdates = append(policyUpdates, &usertasksv1.PolicyUpdate{
-					PolicyName:     *rec.ResourceArn,
-					PreviousPolicy: existingDoc,
-					NewPolicy:      newDoc,
-				})
+			if !ok {
+				fmt.Printf("No existing policy found for %s\n", *unused.ExistingPolicyId)
+				continue
 			}
+			existingDoc, err := url.QueryUnescape(string(existingPolicy.PolicyDocument))
+			if err != nil {
+				fmt.Printf("Could not decode URL-encoded policy document: %v\n", err)
+				continue
+			}
+			newDoc := ""
+			if unused.RecommendedPolicy != nil {
+				newDoc = *unused.RecommendedPolicy
+			}
+			fmt.Printf("Recommending policy change from '%s' to '%s'\n", existingDoc, newDoc)
+			change := accessgraphv1alpha.PolicyChange{
+				PolicyName:     *unused.ExistingPolicyId,
+				ExistingPolicy: existingDoc,
+				NewDocument:    newDoc,
+				Detach:         false,
+			}
+			if *unused.RecommendedAction == "DETACH_POLICY" {
+				change.Detach = true
+			}
+			policyChange.Changes = append(policyChange.Changes, &change)
+		}
+		if len(policyChange.Changes) > 0 {
+			policyChanges = append(policyChanges, policyChange)
+		} else {
+			fmt.Printf("Not appending an empty set of policy changes for %s\n", policyChange.ResourceArn)
 		}
 	}
-
-	return nil
+	fmt.Printf("Returning %d policy changes\n", len(policyChanges))
+	return policyChanges, nil
 }
