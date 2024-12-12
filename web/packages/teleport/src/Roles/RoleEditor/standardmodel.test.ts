@@ -31,9 +31,9 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import { Labels } from 'teleport/services/resources';
 
 import {
+  KubernetesAccessSpec,
   labelsModelToLabels,
   labelsToModel,
-  newAccessSpec,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
@@ -288,6 +288,13 @@ describe('roleToRoleEditorModel', () => {
     ...minimalRoleModel(),
     requiresReset: true,
   };
+  // Same as newAccessSpec('kube_cluster'), but without default groups.
+  const newKubeClusterAccessSpec = (): KubernetesAccessSpec => ({
+    kind: 'kube_cluster',
+    groups: [],
+    labels: [],
+    resources: [],
+  });
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
     {
@@ -340,7 +347,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         accessSpecs: [
           {
-            ...newAccessSpec('kube_cluster'),
+            ...newKubeClusterAccessSpec(),
             resources: [expect.any(Object)],
           },
         ],
@@ -366,7 +373,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         accessSpecs: [
           {
-            ...newAccessSpec('kube_cluster'),
+            ...newKubeClusterAccessSpec(),
             resources: [
               expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
             ],
@@ -396,7 +403,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         accessSpecs: [
           {
-            ...newAccessSpec('kube_cluster'),
+            ...newKubeClusterAccessSpec(),
             resources: [
               expect.objectContaining({
                 verbs: [{ value: 'get', label: 'get' }],

@@ -49,12 +49,10 @@ import tagpromo from './tagpromo.png';
 export function RoleEditorAdapter({
   resources,
   onSave,
-  onDelete,
   onCancel,
 }: {
   resources: ResourcesState;
   onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
-  onDelete: () => Promise<void>;
   onCancel: () => void;
 }) {
   const theme = useTheme();
@@ -104,7 +102,6 @@ export function RoleEditorAdapter({
             originalRole={convertAttempt.data}
             onCancel={onCancel}
             onSave={onSave}
-            onDelete={onDelete}
           />
         )}
       </Flex>

@@ -331,21 +331,40 @@ export function newAccessSpec(kind: AccessSpecKind): AppAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
   switch (kind) {
     case 'node':
-      return { kind: 'node', labels: [], logins: [] };
+      return {
+        kind: 'node',
+        labels: [],
+        logins: [stringToOption('{{internal.logins}}')],
+      };
     case 'kube_cluster':
-      return { kind: 'kube_cluster', groups: [], labels: [], resources: [] };
+      return {
+        kind: 'kube_cluster',
+        groups: [stringToOption('{{internal.kubernetes_groups}}')],
+        labels: [],
+        resources: [],
+      };
     case 'app':
       return {
         kind: 'app',
         labels: [],
-        awsRoleARNs: [],
-        azureIdentities: [],
-        gcpServiceAccounts: [],
+        awsRoleARNs: ['{{internal.aws_role_arns}}'],
+        azureIdentities: ['{{internal.azure_identities}}'],
+        gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
       };
     case 'db':
-      return { kind: 'db', labels: [], names: [], users: [], roles: [] };
+      return {
+        kind: 'db',
+        labels: [],
+        names: [stringToOption('{{internal.db_names}}')],
+        users: [stringToOption('{{internal.db_users}}')],
+        roles: [stringToOption('{{internal.db_roles}}')],
+      };
     case 'windows_desktop':
-      return { kind: 'windows_desktop', labels: [], logins: [] };
+      return {
+        kind: 'windows_desktop',
+        labels: [],
+        logins: [stringToOption('{{internal.windows_logins}}')],
+      };
     default:
       kind satisfies never;
   }
