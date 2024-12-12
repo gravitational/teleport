@@ -175,9 +175,7 @@ test('switching tabs ignores standard model validation for a non-standard role',
   );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   await user.click(getStandardEditorTab());
-  expect(
-    screen.getByText(/Some fields were not readable by the standard editor/)
-  ).toBeVisible();
+  expect(screen.getByText(/This role is too complex/)).toBeVisible();
   await user.click(getYamlEditorTab());
   // Proceed, even though our validation would consider the data invalid.
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
