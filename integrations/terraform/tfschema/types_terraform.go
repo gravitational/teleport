@@ -1971,6 +1971,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 					}),
 					Description: "Allow is the set of conditions evaluated to grant access.",
 					Optional:    true,
@@ -2412,6 +2421,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.",
@@ -17901,6 +17919,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -19750,6 +19792,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
 											}
 										}
 									}
@@ -24163,6 +24229,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -27405,6 +27502,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												c.Unknown = false
 												tf.Attrs["spiffe"] = c
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
 										}
 									}
 								}
