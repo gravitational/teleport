@@ -19,6 +19,7 @@
 export type BaseView<T> = T & {
   hide?: boolean;
   index?: number;
+  displayIndex?: number;
   views?: BaseView<T>[];
   title: string;
 };
@@ -28,13 +29,17 @@ export type BaseView<T> = T & {
  * child. This is because the first child shares the same index with its parent, so we don't
  * need to count it as it's not taking up a new index
  */
-export function computeViewChildrenSize<T>(views: BaseView<T>[]) {
+export function computeViewChildrenSize<T>(views: BaseView<T>[], constrainToVisible = false) {
   let size = 0;
   for (const view of views) {
+    if (constrainToVisible && view.hide) {
+      continue;
+    }
+
     if (view.views) {
-      size += computeViewChildrenSize(view.views);
+      size += computeViewChildrenSize(view.views, constrainToVisible);
     } else {
-      size += 1;
+      size++;
     }
   }
 
@@ -48,7 +53,8 @@ export function computeViewChildrenSize<T>(views: BaseView<T>[]) {
  */
 export function addIndexToViews<T>(
   views: BaseView<T>[],
-  index = 0
+  index = 0,
+  displayIndex = 1
 ): BaseView<T>[] {
   const result: BaseView<T>[] = [];
 
@@ -60,11 +66,15 @@ export function addIndexToViews<T>(
     };
 
     if (view.views) {
-      copy.views = addIndexToViews(view.views, index);
-
+      copy.views = addIndexToViews(view.views, index, displayIndex);
       index += computeViewChildrenSize(view.views);
     } else {
-      index += 1;
+      index++;
+    }
+
+    if (!view.hide) {
+      copy.displayIndex = displayIndex;
+      displayIndex += (view.views ? computeViewChildrenSize(view.views, true) : 1);
     }
 
     result.push(copy);
