@@ -89,6 +89,9 @@ message AWSPolicyChange {
 
 // PolicyChange asdasd
 message PolicyChange {
+  string policy_arn = 3;
+  string policy_name = 5;
+  bool detach = 4;
   string existing_policy = 1;
   string new_document = 2;
 }
