@@ -41,6 +41,37 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ['**/*.test.{ts,tsx,js,jsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+      },
+    },
+    plugins: {
+      jest: jestPlugin,
+      'testing-library': testingLibraryPlugin,
+      'jest-dom': jestDomPlugin,
+    },
+    rules: {
+      'jest/prefer-called-with': 'off',
+      'jest/prefer-expect-assertions': 'off',
+      'jest/consistent-test-it': 'off',
+      'jest/no-try-expect': 'off',
+      'jest/no-hooks': 'off',
+      'jest/no-disabled-tests': 'off',
+      'jest/prefer-strict-equal': 'off',
+      'jest/prefer-inline-snapshots': 'off',
+      'jest/require-top-level-describe': 'off',
+      'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
+    },
+  },
+  {
+    files: ['**/*.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'warn',
+    },
+  },
+  {
     languageOptions: {
       ecmaVersion: 6,
       sourceType: 'module',
@@ -138,37 +169,6 @@ export default tseslint.config(
       'prefer-spread': 'off',
       'no-console': 'warn',
       'no-trailing-spaces': 'error',
-    },
-  },
-  {
-    files: ['**/*.test.{ts,tsx,js,jsx}'],
-    languageOptions: {
-      globals: {
-        ...globals.jest,
-      },
-    },
-    plugins: {
-      jest: jestPlugin,
-      'testing-library': testingLibraryPlugin,
-      'jest-dom': jestDomPlugin,
-    },
-    rules: {
-      'jest/prefer-called-with': 'off',
-      'jest/prefer-expect-assertions': 'off',
-      'jest/consistent-test-it': 'off',
-      'jest/no-try-expect': 'off',
-      'jest/no-hooks': 'off',
-      'jest/no-disabled-tests': 'off',
-      'jest/prefer-strict-equal': 'off',
-      'jest/prefer-inline-snapshots': 'off',
-      'jest/require-top-level-describe': 'off',
-      'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
-    },
-  },
-  {
-    files: ['**/*.js'],
-    rules: {
-      '@typescript-eslint/no-require-imports': 'warn',
     },
   }
 );
