@@ -3920,7 +3920,9 @@ func onSSH(cf *CLIConf) error {
 			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
 		}
 		if err != nil {
-			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			if errors.Is(err, teleport.ErrNodeIsAmbiguous) ||
+				// TODO(tross) DELETE IN v20.0.0
+				strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)

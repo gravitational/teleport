@@ -492,7 +492,10 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 			}
 		}
 	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+		// TODO(tross) DELETE IN V20.0.0
+		// NodeIsAmbiguous is included in the error message for backwards compatibility
+		// with older nodes that expect to see that string in the error message.
+		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 	case len(matches) == 1:
 		server = matches[0]
 	}
