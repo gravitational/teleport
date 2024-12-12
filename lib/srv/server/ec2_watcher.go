@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -305,7 +305,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			})
 		}
 	} else {
-		log.Debug("Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
+		slog.DebugContext(context.Background(), "Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
 	}
 	var parameters map[string]string
 	if cfg.Matcher.Params == nil {
