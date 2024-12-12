@@ -74,6 +74,100 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 	return srv, emitter
 }
 
+func TestIssueWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// issuer.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().UpsertProxy(ctx, proxy)
+	require.NoError(t, err)
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"dog",
+		[]string{},
+		[]types.Rule{},
+		auth.WithRoleMutator(func(role types.Role) {
+			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			})
+		}),
+	)
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+
+	// Create some WorkloadIdentity resources
+	full, err := srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "full",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "user.name",
+								Equals:    "dog",
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id:   "/example/{{user.name}}/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}",
+				Hint: "Wow - what a lovely hint, {{user.name}}!",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
+		authorizedClient.GetConnection(),
+	)
+
+	res, err := c.IssueWorkloadIdentity(ctx, &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+		Name: full.GetMetadata().GetName(),
+		Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+			JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+				Audiences: []string{"example.com", "test.example.com"},
+			},
+		},
+		WorkloadAttrs: &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
+				Attested:       true,
+				Namespace:      "default",
+				PodName:        "test",
+				ServiceAccount: "bar",
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Logf("res: %+v", res)
+
+	tests := []struct {
+		name       string
+		client     *authclient.Client
+		req        *workloadidentityv1pb.IssueWorkloadIdentityRequest
+		requireErr require.ErrorAssertionFunc
+	}{
+		{},
+	}
+	for _, tt := range tests {
+		
+	}
+
+}
+
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
