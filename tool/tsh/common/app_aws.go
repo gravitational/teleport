@@ -144,7 +144,7 @@ type awsApp struct {
 // newAWSApp creates a new AWS app.
 func newAWSApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*awsApp, error) {
 	return &awsApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyInterface, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
 	}, nil
 }

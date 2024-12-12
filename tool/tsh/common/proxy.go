@@ -416,7 +416,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyInterface, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
