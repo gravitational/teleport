@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import Dialog from 'design/Dialog';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import {
   MFA_OPTION_SSO_DEFAULT,
@@ -98,7 +96,6 @@ const stepProps = {
     MFA_OPTION_SSO_DEFAULT,
   ],
   onReauthMethodChange: () => {},
-  submitWithPasswordless: async () => {},
   submitWithMfa: async () => {},
 
   // ChangePasswordStepProps

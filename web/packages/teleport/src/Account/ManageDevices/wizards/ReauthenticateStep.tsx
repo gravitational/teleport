@@ -21,7 +21,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepHeader } from 'design/StepSlider';
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -30,16 +30,9 @@ import Box from 'design/Box';
 
 import Indicator from 'design/Indicator';
 
-import { useEffect } from 'react';
-
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-
-import {
-  DeviceType,
-  getMfaChallengeOptions,
-  MfaOption,
-} from 'teleport/services/mfa';
+import { DeviceType, MfaOption } from 'teleport/services/mfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
   setPrivilegeToken(token: string): void;
@@ -57,7 +50,7 @@ export function ReauthenticateStep({
   const [otpCode, setOtpCode] = useState('');
 
   const {
-    getMfaChallenge,
+    challengeState,
     getChallengeAttempt,
     submitWithMfa,
     submitAttempt,
@@ -67,25 +60,22 @@ export function ReauthenticateStep({
     onMfaResponse: mfaResponse => {
       // TODO(Joerger): v19.0.0
       // Devices can be deleted with an MFA response, so exchanging it for a
-      // privilege token adds an unnecessary API call. The device deletion
-      // endpoint requires a token, but the new endpoint "DELETE: /webapi/mfa/devices"
-      // can be used after v19 backwards compatibly.
+      // privilege token adds an unnecessary API call and security consideration.
+      // The device deletion endpoint requires a token and, but the new endpoint
+      // "DELETE: /webapi/mfa/devices" can be used after v19 backwards compatibly.
       //
       // Adding devices can also be done with an MFA response, but a privilege token
       // gives the user more flexibility in the wizard flow to go back/forward or
       // switch register-device-type without re-prompting MFA. A reusable
       // mfa challenge would be a better fit, or allowing the user to decide device
       // registration type after retrieving the mfa register challenge.
-      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
+      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken).then(next);
     },
   });
 
-  const [mfaOption, setMfaOption] = useState<DeviceType>();
-  const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
-
+  const mfaOptions = challengeState?.mfaOptions;
+  const [selectedMfaOption, setSelectedMfaOption] = useState<DeviceType>();
   useEffect(() => {
-    getMfaChallenge().then(getMfaChallengeOptions).then(setMfaOptions);
-
     // If user has no re-authentication options, continue without re-auth.
     // The user must be registering their first device, which doesn't require re-auth.
     //
@@ -95,11 +85,13 @@ export function ReauthenticateStep({
     // However the existing web register endpoint requires privilege token.
     // We have a new endpoint "/v1/webapi/users/privilege" which does not
     // require token, but can't be used until v19 for backwards compatibility.
-    if (mfaOptions.length === 0) {
-      submitWithMfa().then(next);
+    if (mfaOptions && mfaOptions.length === 0) {
+      submitWithMfa();
       return;
     }
-  });
+
+    setSelectedMfaOption(mfaOptions ? mfaOptions[0].value : null);
+  }, [mfaOptions, setSelectedMfaOption]);
 
   // Handle potential mfa challenge error states.
   switch (getChallengeAttempt.status) {
@@ -121,14 +113,16 @@ export function ReauthenticateStep({
     setOtpCode(e.target.value);
   };
 
-  const onReauthenticate = (
+  const onReauthenticate = async (
     e: FormEvent<HTMLFormElement>,
     validator: Validator
   ) => {
     e.preventDefault();
     if (!validator.validate()) return;
-    submitWithMfa().then(next);
+    submitWithMfa();
   };
+
+  console.log(submitAttempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -140,26 +134,26 @@ export function ReauthenticateStep({
         />
       </Box>
       {submitAttempt.status === 'error' && (
-        <OutlineDanger>{submitAttempt.statusText}</OutlineDanger>
+        <OutlineDanger>{submitAttempt.error.message}</OutlineDanger>
       )}
-      {mfaOption && <Box mb={2}>Multi-factor type</Box>}
+      {selectedMfaOption && <Box mb={2}>Multi-factor type</Box>}
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onReauthenticate(e, validator)}>
             <RadioGroup
               name="mfaOption"
               options={mfaOptions}
-              value={mfaOption}
+              value={selectedMfaOption}
               autoFocus
               flexDirection="row"
               gap={3}
               mb={4}
               onChange={o => {
-                setMfaOption(o as DeviceType);
+                setSelectedMfaOption(o as DeviceType);
                 clearSubmitAttempt();
               }}
             />
-            {mfaOption === 'totp' && (
+            {selectedMfaOption === 'totp' && (
               <FieldInput
                 label="Authenticator Code"
                 rule={requiredField('Authenticator code is required')}
@@ -172,7 +166,7 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              {mfaOption && (
+              {selectedMfaOption && (
                 <ButtonPrimary type="submit" block={true} size="large">
                   Verify my identity
                 </ButtonPrimary>

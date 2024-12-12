@@ -31,17 +31,13 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 
-import { useAsync } from 'shared/hooks/useAsync';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import { getMfaChallengeOptions, MfaOption } from 'teleport/services/mfa';
+import { MfaOption } from 'teleport/services/mfa';
 
 import useReAuthenticate, {
   ReauthProps,
@@ -63,19 +59,14 @@ export type State = ReauthState & {
 
 export function ReAuthenticate({
   onClose,
-  getMfaChallenge,
+  challengeState,
   getChallengeAttempt,
   submitWithMfa,
   submitAttempt,
   clearSubmitAttempt,
 }: State) {
   const [otpCode, setOtpToken] = useState('');
-
-  const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
-  const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
-  useEffect(() => {
-    getMfaChallenge().then(getMfaChallengeOptions).then(setMfaOptions);
-  });
+  const [mfaOption, setMfaOption] = useState(challengeState[2][0]);
 
   // Handle potential error states first.
   switch (getChallengeAttempt.status) {
@@ -128,7 +119,7 @@ export function ReAuthenticate({
                   width="60%"
                   label="Two-factor Type"
                   value={mfaOption}
-                  options={mfaOptions}
+                  options={challengeState[2]}
                   onChange={(o: MfaOption) => {
                     setMfaOption(o);
                     clearSubmitAttempt();

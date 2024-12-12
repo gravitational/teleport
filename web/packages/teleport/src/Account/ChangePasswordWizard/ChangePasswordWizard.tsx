@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
 import { Alert, OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
-import React, { useEffect, useState } from 'react';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
+import React, { useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -32,19 +31,21 @@ import {
   requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
+import styled from 'styled-components';
 
 import Box from 'design/Box';
 
 import Indicator from 'design/Indicator';
 
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
   DeviceType,
+  DeviceUsage,
   MfaOption,
   WebauthnAssertionResponse,
 } from 'teleport/services/mfa';
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 export interface ChangePasswordWizardProps {
   hasPasswordless: boolean;
@@ -59,32 +60,22 @@ export function ChangePasswordWizard({
 }: ChangePasswordWizardProps) {
   const [webauthnResponse, setWebauthnResponse] =
     useState<WebauthnAssertionResponse>();
-  const { getMfaChallengeOptions, submitWithMfa, submitWithPasswordless } =
-    useReAuthenticate({
-      challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
-      onMfaResponse: mfaResponse => {
-        setWebauthnResponse(mfaResponse.webauthn_response);
-      },
-    });
 
-  // Attempt to get an MFA challenge for an existing device. If the challenge is
-  // empty, the user has no existing device (e.g. SSO user) and can register their
-  // first device without re-authentication.
-  const [reauthOptions, initReauthOptions] = useAsync(async () => {
-    let mfaOptions = await getMfaChallengeOptions();
-    const reauthOptions = getReauthOptions(mfaOptions, hasPasswordless);
-    setReauthMethod(reauthOptions[0].value);
-    return reauthOptions;
+  const { getChallengeAttempt, submitWithMfa } = useReAuthenticate({
+    challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
+    onMfaResponse: mfaResponse => {
+      setWebauthnResponse(mfaResponse.webauthn_response);
+    },
   });
 
-  useEffect(() => {
-    initReauthOptions();
-  }, []);
-
-  const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>();
+  const reauthOptions = getReauthOptions(
+    getChallengeAttempt.data[2],
+    hasPasswordless
+  );
+  const [reauthMethod, setReauthMethod] = useState(reauthOptions[0]?.value);
 
   // Handle potential error states first.
-  switch (reauthOptions.status) {
+  switch (getChallengeAttempt.status) {
     case 'processing':
       return (
         <Box textAlign="center" m={10}>
@@ -92,7 +83,7 @@ export function ChangePasswordWizard({
         </Box>
       );
     case 'error':
-      return <Alert children={reauthOptions.statusText} />;
+      return <Alert children={getChallengeAttempt.statusText} />;
     case 'success':
       break;
     default:
@@ -110,11 +101,10 @@ export function ChangePasswordWizard({
         flows={wizardFlows}
         currFlow={'withReauthentication'}
         // Step properties
-        reauthOptions={reauthOptions.data}
+        reauthOptions={reauthOptions}
         reauthMethod={reauthMethod}
         webauthnResponse={webauthnResponse}
         onReauthMethodChange={setReauthMethod}
-        submitWithPasswordless={submitWithPasswordless}
         submitWithMfa={submitWithMfa}
         onClose={onClose}
         onSuccess={onSuccess}
@@ -168,8 +158,10 @@ interface ReauthenticateStepProps {
   reauthOptions: ReauthenticationOption[];
   reauthMethod: ReauthenticationMethod;
   onReauthMethodChange(method: ReauthenticationMethod): void;
-  submitWithPasswordless(): Promise<void>;
-  submitWithMfa(mfaType?: DeviceType): Promise<void>;
+  submitWithMfa(
+    mfaType?: DeviceType,
+    deviceUsage?: DeviceUsage
+  ): Promise<[void, Error]>;
   onClose(): void;
 }
 
@@ -181,7 +173,6 @@ export function ReauthenticateStep({
   reauthOptions,
   reauthMethod,
   onReauthMethodChange,
-  submitWithPasswordless,
   submitWithMfa,
   onClose,
 }: ChangePasswordWizardStepProps) {
@@ -189,7 +180,7 @@ export function ReauthenticateStep({
     async (reauthMethod: ReauthenticationMethod) => {
       switch (reauthMethod) {
         case 'passwordless':
-          await submitWithPasswordless();
+          await submitWithMfa('webauthn', reauthMethod);
           break;
         case 'totp':
           // totp is handled in the ChangePasswordStep
