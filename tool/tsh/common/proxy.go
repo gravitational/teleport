@@ -344,6 +344,11 @@ func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClien
 }
 
 func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) []dbcmd.ConnectCommandFunc {
+	// Skip for non-Oracle protocols.
+	if dbInfo.Protocol != defaults.ProtocolOracle {
+		return opts
+	}
+
 	// TODO(Tener): DELETE IN 20.0.0 - all agents should now contain improved Oracle engine.
 	// minimum version to support TCPS-less connection.
 	cutoffVersion := semver.Version{
