@@ -59,6 +59,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcile(old.RDSDatabases, new.RDSDatabases, rdsDbKey, rdsDbWrap),
 		reconcile(old.SAMLProviders, new.SAMLProviders, samlProvKey, samlProvWrap),
 		reconcile(old.OIDCProviders, new.OIDCProviders, oidcProvKey, oidcProvWrap),
+		reconcile(old.PolicyChanges, new.PolicyChanges, policyChangeKey, policyChangeWrap),
 	}
 	for _, res := range reconciledResources {
 		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
@@ -295,4 +296,12 @@ func oidcProvKey(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
 
 func oidcProvWrap(provider *accessgraphv1alpha.AWSOIDCProviderV1) *accessgraphv1alpha.AWSResource {
 	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_OidcProvider{OidcProvider: provider}}
+}
+
+func policyChangeKey(change *accessgraphv1alpha.AWSPolicyChange) string {
+	return fmt.Sprintf("%s", change.ResourceArn)
+}
+
+func policyChangeWrap(change *accessgraphv1alpha.AWSPolicyChange) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_AwsPolicyChange{AwsPolicyChange: change}}
 }

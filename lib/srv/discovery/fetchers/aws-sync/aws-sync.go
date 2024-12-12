@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"reflect"
 	"sync"
 	"time"
@@ -59,6 +60,8 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
+	// The AccessPoint for sending auth commands
+	AccessPoint authclient.DiscoveryAccessPoint
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -138,6 +141,8 @@ type Resources struct {
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 	// OIDCProviders is a list of OIDC providers.
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+	// PolicyChanges is a list of policy changes from the IAM Access Analyzer
+	PolicyChanges []*accessgraphv1alpha.AWSPolicyChange
 }
 
 func (r *Resources) count() int {
@@ -203,6 +208,12 @@ func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, e
 	result, err := a.poll(ctx, features)
 	deduplicateResources(result)
 	a.storeReport(result, err)
+	// Fetch policy changes outside the poll loop for max hackathonification
+	changes, taskErr := a.fetchPolicyChanges(ctx, result)
+	if taskErr != nil {
+		err = trace.NewAggregate(err, taskErr)
+	}
+	result.PolicyChanges = changes
 	return result, trace.Wrap(err)
 }
 
@@ -299,6 +310,7 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return result, trace.NewAggregate(errs...)
 }
 

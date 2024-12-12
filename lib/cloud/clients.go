@@ -38,6 +38,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/accessanalyzer"
+	"github.com/aws/aws-sdk-go/service/accessanalyzer/accessanalyzeriface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -137,6 +139,8 @@ type AWSClients interface {
 	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
 	// GetAWSS3Client returns AWS S3 client.
 	GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error)
+	// GetAWSIAMAccessAnalyzerClient returns AWS IAM Access Analyzer client
+	GetAWSIAMAccessAnalyzerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (accessanalyzeriface.AccessAnalyzerAPI, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -597,6 +601,14 @@ func (c *cloudClients) GetAWSEKSClient(ctx context.Context, region string, opts 
 	return eks.New(session), nil
 }
 
+func (c *cloudClients) GetAWSIAMAccessAnalyzerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (accessanalyzeriface.AccessAnalyzerAPI, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accessanalyzer.New(session), nil
+}
+
 // GetAWSKMSClient returns AWS KMS client for the specified region.
 func (c *cloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error) {
 	session, err := c.GetAWSSession(ctx, region, opts...)
@@ -1012,6 +1024,7 @@ type TestCloudClients struct {
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
 	S3                      s3iface.S3API
+	AccessAnalyzer          accessanalyzeriface.AccessAnalyzerAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1175,6 +1188,14 @@ func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.KMS, nil
+}
+
+func (c *TestCloudClients) GetAWSIAMAccessAnalyzerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (accessanalyzeriface.AccessAnalyzerAPI, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.AccessAnalyzer, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.

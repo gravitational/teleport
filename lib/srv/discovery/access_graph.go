@@ -509,6 +509,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 				Regions:             awsFetcher.Regions,
 				Integration:         awsFetcher.Integration,
 				DiscoveryConfigName: discoveryConfigName,
+				AccessPoint:         s.AccessPoint,
 			},
 		)
 		if err != nil {
