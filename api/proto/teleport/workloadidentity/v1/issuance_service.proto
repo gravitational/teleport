@@ -52,7 +52,7 @@ message Credential {
   // The TTL that was chosen by the server.
   google.protobuf.Duration ttl = 1;
   // The time that the TTL is reached for this credential.
-  google.protobuf.Timestamp expiry = 2;
+  google.protobuf.Timestamp expires_at = 2;
   // The hint configured for this Workload Identity - if any. This is provided
   // to workloads using the SPIFFE Workload API to fetch credentials.
   string hint = 3;
