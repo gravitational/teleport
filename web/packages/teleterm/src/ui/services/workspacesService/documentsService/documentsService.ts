@@ -85,7 +85,7 @@ export class DocumentsService {
     };
   }
 
-  /** @deprecated Use createClusterDocument directly. */
+  /** @deprecated Use createClusterDocument function instead of the method on DocumentsService. */
   createClusterDocument(opts: {
     clusterUri: uri.ClusterUri;
     queryParams?: DocumentClusterQueryParams;

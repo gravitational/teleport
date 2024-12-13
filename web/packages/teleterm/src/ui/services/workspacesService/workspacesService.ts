@@ -94,6 +94,12 @@ export interface Workspace {
   // This requires updating many of tests
   // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
+  /**
+   * Tracks whether the user has restored or discarded documents from a previous session.
+   * This is used to ensure that the prompt to restore a previous session is shown only once.
+   *
+   * This field is not persisted to disk.
+   */
   documentsRestoredOrDiscarded?: boolean;
 }
 
@@ -108,6 +114,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     workspaces: {},
     isInitialized: false,
   };
+  /**
+   * Keeps the state restored when the app was launched.
+   * This state is not processed in any way, so it may, for example,
+   * contain clusters that are no longer available.
+   */
   private restoredState?: WorkspacesPersistedState;
 
   constructor(
