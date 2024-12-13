@@ -22,13 +22,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
-	"io/fs"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 	"text/template"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
+	"github.com/spf13/afero"
 )
 
 const versionField = "Version"
@@ -249,8 +249,8 @@ func (g GenerationError) Error() string {
 }
 
 // Generate uses the provided user-facing configuration to write the resource
-// reference to out.
-func Generate(out io.Writer, conf GeneratorConfig) error {
+// reference to fs.
+func Generate(fs afero.Fs, conf GeneratorConfig) error {
 	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	possibleFuncDecls := []resource.DeclarationInfo{}
 	stringAssignments := make(map[resource.PackageInfo]string)
@@ -259,7 +259,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := filepath.WalkDir(conf.SourcePath, func(path string, info fs.DirEntry, err error) error {
+	err := filepath.WalkDir(conf.SourcePath, func(path string, info iofs.DirEntry, err error) error {
 		// There is an error with the path, so we can't load Go source.
 		if err != nil {
 			return err
