@@ -25,6 +25,7 @@ import {
 } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import { AwsRole } from 'shared/services/apps';
+
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -168,6 +169,18 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   const { actions, userSamlIdPPerm } = useSamlAppAction();
 
   const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  function getAwsLaunchUrl(arnOrPermSetName: string) {
+    if (isAwsIdentityCenterApp) {
+      return `${publicAddr}&role_name=${arnOrPermSetName}`;
+    } else {
+      return cfg.getAppLauncherRoute({
+        fqdn,
+        clusterId,
+        publicAddr,
+        arn: arnOrPermSetName,
+      });
+    }
+  }
   if (awsConsole || isAwsIdentityCenterApp) {
     let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
     if (isAwsIdentityCenterApp) {
@@ -179,18 +192,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           accountId: name,
         })
       );
-    }
-    function getAwsLaunchUrl(arnOrPermSetName: string) {
-      if (isAwsIdentityCenterApp) {
-        return `${publicAddr}&role_name=${arnOrPermSetName}`;
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn: arnOrPermSetName,
-        });
-      }
     }
 
     return (
