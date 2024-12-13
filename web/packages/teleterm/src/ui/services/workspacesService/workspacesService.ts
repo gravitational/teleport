@@ -624,14 +624,15 @@ function getWorkspaceDefaultState(
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
   };
-  if (restoredWorkspace) {
-    defaultWorkspace.localClusterUri = restoredWorkspace.localClusterUri;
-    defaultWorkspace.unifiedResourcePreferences =
-      parseUnifiedResourcePreferences(
-        restoredWorkspace.unifiedResourcePreferences
-      );
-    defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
+  if (!restoredWorkspace) {
+    return defaultWorkspace;
   }
+
+  defaultWorkspace.localClusterUri = restoredWorkspace.localClusterUri;
+  defaultWorkspace.unifiedResourcePreferences = parseUnifiedResourcePreferences(
+    restoredWorkspace.unifiedResourcePreferences
+  );
+  defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
 
   return defaultWorkspace;
 }
