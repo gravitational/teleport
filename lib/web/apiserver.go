@@ -21,6 +21,7 @@
 package web
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/tls"
@@ -31,6 +32,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -5144,15 +5146,105 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	)
 	if err != nil {
 		h.log.WithError(err).Debug("Failed to generate CA Certs.")
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
+		h.serveErrorResponse(err, w, r)
 		return
 	}
 
-	reader := strings.NewReader(authorities)
+	err = serveTextResponse(authorities, w, r)
+	if err != nil {
+		h.log.WithError(err).Error("Failed to encode and send response.")
+		h.serveErrorResponse(err, w, r)
+	}
+}
 
-	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
+// Given an HTTP request and a response body to the request, return an encoded response based
+// on the `Accept` header, as well as the appropriate Content-Type.
+// If an error has occured, the response encoding and content type are chosen on a best-effort basis.
+// Will always return encoded response bytes, and content type value.
+func encodeTextResponse(responseBody string, r *http.Request) ([]byte, string, error) {
+	// Track the latest error. Callers can choose to handle or ignore this. Useful for
+	// error handling functions.
+	var trackedErr error
+
+	// Parse "Accept" header values into mime types
+	var mimeTypes []string
+	// Handle the case of multiple headers
+	for _, acceptHeaderValue := range r.Header["Accept"] {
+		// Handle the case of multiple values in a single header
+		for _, splitHeaderValue := range strings.Split(acceptHeaderValue, ",") {
+			splitHeaderValue = strings.TrimSpace(splitHeaderValue)
+
+			// Parameters (such as charset and quality factor) are not currently supported
+			var mimeType string
+			mimeType, _, err := mime.ParseMediaType(splitHeaderValue)
+			if err != nil {
+				trackedErr = trace.Wrap(err, "malformed mime type %q", splitHeaderValue)
+				continue
+			}
+
+			mimeTypes = append(mimeTypes, mimeType)
+		}
+	}
+
+	// Ignore duplicate MIME types
+	mimeTypes = slices.Compact(mimeTypes)
+
+	// Add a default value in the event that either no value is sent, or no supported value is sent
+	// This must always be a plain text response to preserve backwards compatibility
+	mimeTypes = append(mimeTypes, "text/plain")
+
+	for _, mimeType := range mimeTypes {
+		switch mimeType {
+		case "application/json":
+			var responseContent []byte
+			responseContent, err := json.Marshal(responseBody)
+			if err != nil {
+				trackedErr = trace.Wrap(err, "failed to marshal JSON response")
+				continue
+			}
+
+			return responseContent, "application/json", trackedErr
+		// Default to text/plain
+		case "text/plain":
+			return []byte(responseBody), "text/plain; charset=utf-8", trackedErr
+		}
+	}
+
+	// This will never be hit but the Golang compiler isn't smart enough to realize this will never be hit
+	return nil, "", trace.Errorf("failed to match MIME type (Teleport bug - this should never be hit)")
+}
+
+// This must always succeed in sending _some_ response.
+func (h *Handler) serveErrorResponse(err error, w http.ResponseWriter, r *http.Request) {
+	// This ignores encoding errors, as this could be the reason why this function is being called
+	// in the first place.
+	responseBody, contentType, _ := encodeTextResponse(err.Error(), r)
+
+	w.Header().Set("Content-Type", contentType)
+
+	w.WriteHeader(trace.ErrorToCode(err))
+
+	_, err = w.Write(responseBody)
+	if err != nil {
+		// Error handling failed, try one last time with a function that drops additional errors.
+		h.log.WithError(err).Error("Failed to write error response.")
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
+	}
+}
+
+// Given an HTTP request with a textual response body, convert it to the requested response type.
+func serveTextResponse(responseBody string, w http.ResponseWriter, r *http.Request) error {
+	responseBodyBytes, contentType, err := encodeTextResponse(responseBody, r)
+	if err != nil {
+		return trace.Wrap(err, "failed to serve text response")
+	}
+
+	w.Header().Set("Content-Type", contentType)
+
+	// ServeContent sets the correct headers: Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
+	http.ServeContent(w, r, "", time.Now(), bytes.NewReader(responseBodyBytes))
+	return nil
 }
 
 const robots = `User-agent: *
