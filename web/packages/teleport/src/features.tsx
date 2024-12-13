@@ -245,7 +245,12 @@ export class FeatureBots implements TeleportFeature {
     component: Bots,
   };
 
-  hasAccess() {
+  hasAccess(flags: FeatureFlags) {
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.listBots;
+    }
     return true;
   }
 
@@ -433,7 +438,12 @@ export class FeatureIntegrations implements TeleportFeature {
   section = ManagementSection.Access;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.integrations;
+    }
+    return true;
   }
 
   route = {
