@@ -121,7 +121,8 @@ function ConnectForm(props: {
 
   const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
   const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
-  const [selectedRoles, setSelectedRoles] = useState<readonly Option[]>();
+  const [selectedRoles, setSelectedRoles] =
+    useState<readonly Option[]>(dbRolesOpts);
 
   const dbConnect = () => {
     props.onConnect({
@@ -137,7 +138,19 @@ function ConnectForm(props: {
     <Validation>
       {({ validator }) => (
         <form>
-          <DialogContent minHeight="240px" flex="0 0 auto">
+          <DialogContent flex="0 0 auto">
+            <FieldSelectCreatable
+              label="Database name"
+              menuPosition="fixed"
+              onChange={option => setSelectedName(option as Option)}
+              value={selectedName}
+              options={dbNamesOpts}
+              isDisabled={dbNamesOpts?.length == 1}
+              formatCreateLabel={userInput =>
+                `Use "${userInput}" database name`
+              }
+              rule={requiredField('Database name is required')}
+            />
             <FieldSelectCreatable
               label="Database user"
               menuPosition="fixed"
@@ -158,20 +171,9 @@ function ConnectForm(props: {
                 onChange={setSelectedRoles}
                 value={selectedRoles}
                 options={dbRolesOpts}
+                rule={requiredField('At least one database role is required')}
               />
             )}
-            <FieldSelectCreatable
-              label="Database name"
-              menuPosition="fixed"
-              onChange={option => setSelectedName(option as Option)}
-              value={selectedName}
-              options={dbNamesOpts}
-              isDisabled={dbNamesOpts?.length == 1}
-              formatCreateLabel={userInput =>
-                `Use "${userInput}" database name`
-              }
-              rule={requiredField('Database name is required')}
-            />
           </DialogContent>
           <DialogFooter>
             <Flex alignItems="center" justifyContent="space-between">

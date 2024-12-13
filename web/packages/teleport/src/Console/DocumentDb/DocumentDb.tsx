@@ -69,7 +69,8 @@ export function DocumentDb({ doc, visible }: Props) {
           fontFamily={theme.fonts.mono}
           theme={theme.colors.terminal}
           convertEol
-          doc={doc}
+          // TODO(gabrielcorado): remove this once the server can properly handle it.
+          disableCtrlC={true}
         />
       )}
     </Document>

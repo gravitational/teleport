@@ -72,7 +72,7 @@ describe('DocumentDb', () => {
     );
   };
 
-  test('renders loading indicator when status is loading', async () => {
+  test('renders loading indicator when status is loading', () => {
     jest.useFakeTimers();
     setup('loading');
 
@@ -112,7 +112,6 @@ function getContexts() {
 
 const baseDoc = {
   kind: 'db',
-  status: 'connected',
   sid: 'sid-value',
   clusterId: 'clusterId-value',
   serverId: 'serverId-value',

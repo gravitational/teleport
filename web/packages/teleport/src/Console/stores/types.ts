@@ -65,12 +65,9 @@ export interface DocumentKubeExec extends DocumentBase {
 }
 
 export interface DocumentDb extends DocumentBase {
-  status: 'connected' | 'disconnected';
   kind: 'db';
   sid?: string;
   name: string;
-  dbName?: string;
-  dbUser?: string;
 }
 
 export type Document =

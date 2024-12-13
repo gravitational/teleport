@@ -71,7 +71,6 @@ export function useDbSession(doc: DocumentDb) {
 
         tty.on(TermEvent.CONN_CLOSE, () => {
           setStatus('disconnected');
-          ctx.updateDbDocument(doc.id, { status: 'disconnected' });
         });
 
         tty.on(TermEvent.SESSION, payload => {
@@ -90,7 +89,7 @@ export function useDbSession(doc: DocumentDb) {
     );
 
     function teardownTty() {
-      ttyRef.current && ttyRef.current.removeAllListeners();
+      ttyRef.current?.removeAllListeners();
     }
 
     return teardownTty;
@@ -122,7 +121,6 @@ function handleTtyConnect(
   const createdDate = new Date(created);
 
   ctx.updateDbDocument(docId, {
-    status: 'connected',
     url,
     created: createdDate,
     sid,
