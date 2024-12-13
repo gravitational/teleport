@@ -22,6 +22,7 @@ import (
 	"go/ast"
 	"go/token"
 	"regexp"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -40,6 +41,21 @@ type ReferenceEntry struct {
 	Description string
 	SourcePath  string
 	Fields      []Field
+}
+
+// Len returns the number of fields in the ReferenceEntry. Required for sorting.
+func (re ReferenceEntry) Len() int {
+	return len(re.Fields)
+}
+
+// Less compares field names in order to sort them.
+func (re ReferenceEntry) Less(i, j int) bool {
+	return re.Fields[j].Name < re.Fields[i].Name
+}
+
+// Swap swaps the order of reference fields in order to sort them.
+func (re ReferenceEntry) Swap(i, j int) {
+	re.Fields[i], re.Fields[j] = re.Fields[j], re.Fields[i]
 }
 
 // DeclarationInfo includes data about a declaration so the generator can
@@ -641,6 +657,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		return nil, err
 	}
 	entry.Fields = fld
+	sort.Sort(entry)
 	refs[key] = entry
 
 	// For any fields within decl that have a custom type, look up the
@@ -686,6 +703,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 			}
 
 			for k, v := range r {
+				sort.Sort(v)
 				refs[k] = v
 			}
 		}
