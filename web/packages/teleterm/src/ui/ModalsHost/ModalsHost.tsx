@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Fragment } from 'react';
+import { Fragment } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -32,7 +32,6 @@ import { assertUnreachable } from '../utils';
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
 import { ReAuthenticate } from './modals/ReAuthenticate';
-import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 
@@ -87,20 +86,6 @@ function renderDialog({
   }
 
   switch (dialog.kind) {
-    case 'device-trust-authorize': {
-      return (
-        <AuthenticateWebDevice
-          hidden={hidden}
-          rootClusterUri={dialog.rootClusterUri}
-          onAuthorize={dialog.onAuthorize}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onClose={handleClose}
-        />
-      );
-    }
     case 'cluster-connect': {
       return (
         <ClusterConnect

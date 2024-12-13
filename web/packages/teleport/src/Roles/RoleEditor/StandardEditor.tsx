@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import {
   Box,
   ButtonIcon,
@@ -24,25 +24,32 @@ import {
   Flex,
   H3,
   H4,
+  Input,
+  LabelInput,
   Mark,
   Text,
 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import { useValidation } from 'shared/components/Validation';
+import {
+  precomputed,
+  ValidationResult,
+} from 'shared/components/Validation/rules';
 import * as Icon from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import styled, { useTheme } from 'styled-components';
-
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import {
   FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
+import { SlideTabs } from 'design/SlideTabs';
+import { RadioGroup } from 'design/RadioGroup';
+import Select from 'shared/components/Select';
+
+import { components, MultiValueProps } from 'react-select';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
-
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
 import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
@@ -65,7 +72,30 @@ import {
   AppAccessSpec,
   DatabaseAccessSpec,
   WindowsDesktopAccessSpec,
+  RuleModel,
+  resourceKindOptions,
+  verbOptions,
+  newRuleModel,
+  OptionsModel,
+  requireMFATypeOptions,
+  createHostUserModeOptions,
+  createDBUserModeOptions,
+  sessionRecordingModeOptions,
+  resourceKindOptionsMap,
+  ResourceKindOption,
 } from './standardmodel';
+import {
+  validateRoleEditorModel,
+  MetadataValidationResult,
+  AccessSpecValidationResult,
+  ServerSpecValidationResult,
+  KubernetesSpecValidationResult,
+  KubernetesResourceValidationResult,
+  AppSpecValidationResult,
+  DatabaseSpecValidationResult,
+  WindowsDesktopSpecValidationResult,
+  AccessRuleValidationResult,
+} from './validation';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 
@@ -92,13 +122,30 @@ export const StandardEditor = ({
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
   const { roleModel } = standardEditorModel;
+  const validation = validateRoleEditorModel(roleModel);
 
   /** All spec kinds except those that are already in the role. */
   const allowedSpecKinds = allAccessSpecKinds.filter(k =>
     roleModel.accessSpecs.every(as => as.kind !== k)
   );
 
-  function handleSave(validator: Validator) {
+  enum StandardEditorTab {
+    Overview,
+    Resources,
+    AccessRules,
+    Options,
+  }
+
+  const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
+  const idPrefix = useId();
+  const overviewTabId = `${idPrefix}-overview`;
+  const resourcesTabId = `${idPrefix}-resources`;
+  const accessRulesTabId = `${idPrefix}-access-rules`;
+  const optionsTabId = `${idPrefix}-options`;
+
+  const validator = useValidation();
+
+  function handleSave() {
     if (!validator.validate()) {
       return;
     }
@@ -115,18 +162,6 @@ export const StandardEditor = ({
       ...standardEditorModel,
       roleModel: updatedResourceModel,
       isDirty: hasModifiedFields(updatedResourceModel, originalRole?.object),
-    });
-  }
-
-  /**
-   * Resets the standard editor back into viewable state. The existing model
-   * has been already stripped from unsupported features by the parsing
-   * attempt, the only thing left to do is to set the `requiresReset` flag.
-   */
-  function resetForStandardEditor() {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      requiresReset: false,
     });
   }
 
@@ -158,32 +193,117 @@ export const StandardEditor = ({
     });
   }
 
+  function setRules(rules: RuleModel[]) {
+    handleChange({
+      ...standardEditorModel.roleModel,
+      rules,
+    });
+  }
+
+  function setOptions(options: OptionsModel) {
+    handleChange({
+      ...standardEditorModel,
+      options,
+    });
+  }
+
   return (
-    <Validation>
-      {({ validator }) => (
-        <>
-          {roleModel.requiresReset && (
-            <RequiresResetToStandard reset={resetForStandardEditor} />
-          )}
-          <EditorWrapper
-            mute={standardEditorModel.roleModel.requiresReset}
-            data-testid="standard-editor"
+    <>
+      {roleModel.requiresReset && (
+        <Box mx={3}>
+          <RequiresResetToStandard />
+        </Box>
+      )}
+      <EditorWrapper
+        mute={standardEditorModel.roleModel.requiresReset}
+        data-testid="standard-editor"
+      >
+        <Box mb={3} mx={3}>
+          <SlideTabs
+            appearance="round"
+            hideStatusIconOnActiveTab
+            tabs={[
+              {
+                key: StandardEditorTab.Overview,
+                title: 'Overview',
+                controls: overviewTabId,
+                status:
+                  validator.state.validating && !validation.metadata.valid
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.Resources,
+                title: 'Resources',
+                controls: resourcesTabId,
+                status:
+                  validator.state.validating &&
+                  validation.accessSpecs.some(s => !s.valid)
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.AccessRules,
+                title: 'Access Rules',
+                controls: accessRulesTabId,
+                status:
+                  validator.state.validating &&
+                  validation.rules.some(s => !s.valid)
+                    ? validationErrorTabStatus
+                    : undefined,
+              },
+              {
+                key: StandardEditorTab.Options,
+                title: 'Options',
+                controls: optionsTabId,
+              },
+            ]}
+            activeIndex={currentTab}
+            onChange={setCurrentTab}
+          />
+        </Box>
+        <Flex
+          flex="1 1 0"
+          flexDirection="column"
+          px={3}
+          pb={3}
+          css={`
+            overflow-y: auto;
+          `}
+        >
+          <Box
+            id={overviewTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Overview ? '' : 'none',
+            }}
+          >
+            <MetadataSection
+              value={roleModel.metadata}
+              isProcessing={isProcessing}
+              validation={validation.metadata}
+              onChange={metadata => handleChange({ ...roleModel, metadata })}
+            />
+          </Box>
+          <Box
+            id={resourcesTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Resources ? '' : 'none',
+            }}
           >
             <Flex flexDirection="column" gap={3} my={2}>
-              <MetadataSection
-                value={roleModel.metadata}
-                isProcessing={isProcessing}
-                onChange={metadata => handleChange({ ...roleModel, metadata })}
-              />
-              {roleModel.accessSpecs.map(spec => (
-                <AccessSpecSection
-                  key={spec.kind}
-                  value={spec}
-                  isProcessing={isProcessing}
-                  onChange={value => setAccessSpec(value)}
-                  onRemove={() => removeAccessSpec(spec.kind)}
-                />
-              ))}
+              {roleModel.accessSpecs.map((spec, i) => {
+                const validationResult = validation.accessSpecs[i];
+                return (
+                  <AccessSpecSection
+                    key={spec.kind}
+                    value={spec}
+                    isProcessing={isProcessing}
+                    validation={validationResult}
+                    onChange={value => setAccessSpec(value)}
+                    onRemove={() => removeAccessSpec(spec.kind)}
+                  />
+                );
+              })}
               <Box>
                 <MenuButton
                   menuProps={{
@@ -216,45 +336,79 @@ export const StandardEditor = ({
                 </MenuButton>
               </Box>
             </Flex>
-          </EditorWrapper>
-          <EditorSaveCancelButton
-            onSave={() => handleSave(validator)}
-            onCancel={onCancel}
-            disabled={
-              isProcessing ||
-              standardEditorModel.roleModel.requiresReset ||
-              !standardEditorModel.isDirty
-            }
-            isEditing={isEditing}
-          />
-        </>
-      )}
-    </Validation>
+          </Box>
+          <Box
+            id={accessRulesTabId}
+            style={{
+              display:
+                currentTab === StandardEditorTab.AccessRules ? '' : 'none',
+            }}
+          >
+            <AccessRules
+              isProcessing={isProcessing}
+              value={roleModel.rules}
+              onChange={setRules}
+              validation={validation.rules}
+            />
+          </Box>
+          <Box
+            id={optionsTabId}
+            style={{
+              display: currentTab === StandardEditorTab.Options ? '' : 'none',
+            }}
+          >
+            <Options
+              isProcessing={isProcessing}
+              value={roleModel.options}
+              onChange={setOptions}
+            />
+          </Box>
+        </Flex>
+      </EditorWrapper>
+      <EditorSaveCancelButton
+        onSave={() => handleSave()}
+        onCancel={onCancel}
+        disabled={
+          isProcessing ||
+          standardEditorModel.roleModel.requiresReset ||
+          !standardEditorModel.isDirty
+        }
+        isEditing={isEditing}
+      />
+    </>
   );
 };
 
-export type SectionProps<T> = {
-  value: T;
+export type SectionProps<Model, ValidationResult> = {
+  value: Model;
   isProcessing: boolean;
-  onChange?(value: T): void;
+  validation?: ValidationResult;
+  onChange?(value: Model): void;
 };
+
+const validationErrorTabStatus = {
+  kind: 'danger',
+  ariaLabel: 'Invalid data',
+} as const;
 
 const MetadataSection = ({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<MetadataModel>) => (
+}: SectionProps<MetadataModel, MetadataValidationResult>) => (
   <Section
     title="Role Metadata"
     tooltip="Basic information about the role resource"
     isProcessing={isProcessing}
+    validation={validation}
   >
     <FieldInput
       label="Role Name"
       placeholder="Enter Role Name"
       value={value.name}
       disabled={isProcessing}
-      rule={requiredField('Role name is required')}
+      rule={precomputed(validation.fields.name)}
       onChange={e => onChange({ ...value, name: e.target.value })}
     />
     <FieldInput
@@ -262,10 +416,18 @@ const MetadataSection = ({
       placeholder="Enter Role Description"
       value={value.description || ''}
       disabled={isProcessing}
-      mb={0}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
         onChange({ ...value, description: e.target.value })
       }
+    />
+    <Text typography="body3" mb={1}>
+      Labels
+    </Text>
+    <LabelsInput
+      disableBtns={isProcessing}
+      labels={value.labels}
+      setLabels={labels => onChange?.({ ...value, labels })}
+      rule={precomputed(validation.fields.labels)}
     />
   </Section>
 );
@@ -280,18 +442,21 @@ const Section = ({
   children,
   removable,
   isProcessing,
+  validation,
   onRemove,
 }: React.PropsWithChildren<{
   title: string;
   tooltip: string;
   removable?: boolean;
   isProcessing: boolean;
+  validation?: ValidationResult;
   onRemove?(): void;
 }>) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(true);
   const ExpandIcon = expanded ? Icon.Minus : Icon.Plus;
   const expandTooltip = expanded ? 'Collapse' : 'Expand';
+  const validator = useValidation();
 
   const handleExpand = (e: React.MouseEvent) => {
     // Don't let <summary> handle the event, we'll do it ourselves to keep
@@ -311,7 +476,11 @@ const Section = ({
       as="details"
       open={expanded}
       border={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderColor={
+        validator.state.validating && !validation.valid
+          ? theme.colors.interactive.solid.danger.default
+          : theme.colors.interactive.tonal.neutral[0]
+      }
       borderRadius={3}
     >
       <Flex
@@ -375,7 +544,7 @@ const specSections: Record<
   {
     title: string;
     tooltip: string;
-    component: React.ComponentType<SectionProps<unknown>>;
+    component: React.ComponentType<SectionProps<unknown, unknown>>;
   }
 > = {
   kube_cluster: {
@@ -409,12 +578,16 @@ const specSections: Record<
  * A generic access spec section. Details are rendered by components from the
  * `specSections` map.
  */
-const AccessSpecSection = <T extends AccessSpec>({
+const AccessSpecSection = <
+  T extends AccessSpec,
+  V extends AccessSpecValidationResult,
+>({
   value,
   isProcessing,
+  validation,
   onChange,
   onRemove,
-}: SectionProps<T> & {
+}: SectionProps<T, V> & {
   onRemove?(): void;
 }) => {
   const { component: Body, title, tooltip } = specSections[value.kind];
@@ -425,8 +598,14 @@ const AccessSpecSection = <T extends AccessSpec>({
       onRemove={onRemove}
       tooltip={tooltip}
       isProcessing={isProcessing}
+      validation={validation}
     >
-      <Body value={value} isProcessing={isProcessing} onChange={onChange} />
+      <Body
+        value={value}
+        isProcessing={isProcessing}
+        validation={validation}
+        onChange={onChange}
+      />
     </Section>
   );
 };
@@ -434,8 +613,9 @@ const AccessSpecSection = <T extends AccessSpec>({
 export function ServerAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<ServerAccessSpec>) {
+}: SectionProps<ServerAccessSpec, ServerSpecValidationResult>) {
   return (
     <>
       <Text typography="body3" mb={1}>
@@ -445,6 +625,7 @@ export function ServerAccessSpecSection({
         disableBtns={isProcessing}
         labels={value.labels}
         setLabels={labels => onChange?.({ ...value, labels })}
+        rule={precomputed(validation.fields.labels)}
       />
       <FieldSelectCreatable
         isMulti
@@ -457,6 +638,7 @@ export function ServerAccessSpecSection({
         openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
+        rule={precomputed(validation.fields.logins)}
         mt={3}
         mb={0}
       />
@@ -467,8 +649,9 @@ export function ServerAccessSpecSection({
 export function KubernetesAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<KubernetesAccessSpec>) {
+}: SectionProps<KubernetesAccessSpec, KubernetesSpecValidationResult>) {
   return (
     <>
       <FieldSelectCreatable
@@ -490,6 +673,7 @@ export function KubernetesAccessSpecSection({
       <LabelsInput
         disableBtns={isProcessing}
         labels={value.labels}
+        rule={precomputed(validation.fields.labels)}
         setLabels={labels => onChange?.({ ...value, labels })}
       />
 
@@ -498,6 +682,7 @@ export function KubernetesAccessSpecSection({
           <KubernetesResourceView
             key={resource.id}
             value={resource}
+            validation={validation.fields.resources.results[index]}
             isProcessing={isProcessing}
             onChange={newRes =>
               onChange?.({
@@ -540,11 +725,13 @@ export function KubernetesAccessSpecSection({
 
 function KubernetesResourceView({
   value,
+  validation,
   isProcessing,
   onChange,
   onRemove,
 }: {
   value: KubernetesResourceModel;
+  validation: KubernetesResourceValidationResult;
   isProcessing: boolean;
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
@@ -590,6 +777,7 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={name}
+        rule={precomputed(validation.name)}
         onChange={e => onChange?.({ ...value, name: e.target.value })}
       />
       <FieldInput
@@ -602,6 +790,7 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={namespace}
+        rule={precomputed(validation.namespace)}
         onChange={e => onChange?.({ ...value, namespace: e.target.value })}
       />
       <FieldSelect
@@ -619,9 +808,10 @@ function KubernetesResourceView({
 
 export function AppAccessSpecSection({
   value,
+  validation,
   isProcessing,
   onChange,
-}: SectionProps<AppAccessSpec>) {
+}: SectionProps<AppAccessSpec, AppSpecValidationResult>) {
   return (
     <Flex flexDirection="column" gap={3}>
       <Box>
@@ -632,6 +822,7 @@ export function AppAccessSpecSection({
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
         />
       </Box>
       <FieldMultiInput
@@ -639,18 +830,21 @@ export function AppAccessSpecSection({
         disabled={isProcessing}
         value={value.awsRoleARNs}
         onChange={arns => onChange?.({ ...value, awsRoleARNs: arns })}
+        rule={precomputed(validation.fields.awsRoleARNs)}
       />
       <FieldMultiInput
         label="Azure Identities"
         disabled={isProcessing}
         value={value.azureIdentities}
         onChange={ids => onChange?.({ ...value, azureIdentities: ids })}
+        rule={precomputed(validation.fields.azureIdentities)}
       />
       <FieldMultiInput
         label="GCP Service Accounts"
         disabled={isProcessing}
         value={value.gcpServiceAccounts}
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
+        rule={precomputed(validation.fields.gcpServiceAccounts)}
       />
     </Flex>
   );
@@ -659,8 +853,9 @@ export function AppAccessSpecSection({
 export function DatabaseAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<DatabaseAccessSpec>) {
+}: SectionProps<DatabaseAccessSpec, DatabaseSpecValidationResult>) {
   return (
     <>
       <Box mb={3}>
@@ -671,6 +866,7 @@ export function DatabaseAccessSpecSection({
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
         />
       </Box>
       <FieldSelectCreatable
@@ -721,6 +917,7 @@ export function DatabaseAccessSpecSection({
         openMenuOnClick={false}
         value={value.roles}
         onChange={roles => onChange?.({ ...value, roles })}
+        rule={precomputed(validation.fields.roles)}
         mb={0}
       />
     </>
@@ -730,8 +927,9 @@ export function DatabaseAccessSpecSection({
 export function WindowsDesktopAccessSpecSection({
   value,
   isProcessing,
+  validation,
   onChange,
-}: SectionProps<WindowsDesktopAccessSpec>) {
+}: SectionProps<WindowsDesktopAccessSpec, WindowsDesktopSpecValidationResult>) {
   return (
     <>
       <Box mb={3}>
@@ -742,6 +940,7 @@ export function WindowsDesktopAccessSpecSection({
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
         />
       </Box>
       <FieldSelectCreatable
@@ -761,7 +960,313 @@ export function WindowsDesktopAccessSpecSection({
   );
 }
 
-export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
+export function AccessRules({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+}: SectionProps<RuleModel[], AccessRuleValidationResult[]>) {
+  function addRule() {
+    onChange?.([...value, newRuleModel()]);
+  }
+  function setRule(rule: RuleModel) {
+    onChange?.(value.map(r => (r.id === rule.id ? rule : r)));
+  }
+  function removeRule(id: string) {
+    onChange?.(value.filter(r => r.id !== id));
+  }
+  return (
+    <Flex flexDirection="column" gap={3}>
+      {value.map((rule, i) => (
+        <AccessRule
+          key={rule.id}
+          isProcessing={isProcessing}
+          value={rule}
+          onChange={setRule}
+          validation={validation[i]}
+          onRemove={() => removeRule(rule.id)}
+        />
+      ))}
+      <ButtonSecondary alignSelf="start" onClick={addRule}>
+        <Icon.Plus size="small" mr={2} />
+        Add New
+      </ButtonSecondary>
+    </Flex>
+  );
+}
+
+function AccessRule({
+  value,
+  isProcessing,
+  validation,
+  onChange,
+  onRemove,
+}: SectionProps<RuleModel, AccessRuleValidationResult> & {
+  onRemove?(): void;
+}) {
+  const { resources, verbs } = value;
+  return (
+    <Section
+      title="Access Rule"
+      tooltip="A rule that gives users access to certain kinds of resources"
+      removable
+      isProcessing={isProcessing}
+      validation={validation}
+      onRemove={onRemove}
+    >
+      <ResourceKindSelect
+        components={{ MultiValue: ResourceKindMultiValue }}
+        isMulti
+        label="Resources"
+        isDisabled={isProcessing}
+        options={resourceKindOptions}
+        value={resources}
+        onChange={r => onChange?.({ ...value, resources: r })}
+        rule={precomputed(validation.fields.resources)}
+      />
+      <FieldSelect
+        isMulti
+        label="Permissions"
+        isDisabled={isProcessing}
+        options={verbOptions}
+        value={verbs}
+        onChange={v => onChange?.({ ...value, verbs: v })}
+        rule={precomputed(validation.fields.verbs)}
+        mb={0}
+      />
+    </Section>
+  );
+}
+
+const ResourceKindSelect = styled(
+  FieldSelectCreatable<ResourceKindOption, true>
+)`
+  .teleport-resourcekind__value--unknown {
+    background: ${props => props.theme.colors.interactive.solid.alert.default};
+    .react-select__multi-value__label,
+    .react-select__multi-value__remove {
+      color: ${props => props.theme.colors.text.primaryInverse};
+    }
+  }
+`;
+
+function ResourceKindMultiValue(props: MultiValueProps<ResourceKindOption>) {
+  if (resourceKindOptionsMap.has(props.data.value)) {
+    return <components.MultiValue {...props} />;
+  }
+  return (
+    <HoverTooltip tipContent="Unrecognized resource type">
+      <components.MultiValue
+        {...props}
+        className="teleport-resourcekind__value--unknown"
+      />
+    </HoverTooltip>
+  );
+}
+
+function Options({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<OptionsModel, never>) {
+  const theme = useTheme();
+  const id = useId();
+  const maxSessionTTLId = `${id}-max-session-ttl`;
+  const clientIdleTimeoutId = `${id}-client-idle-timeout`;
+  const requireMFATypeId = `${id}-require-mfa-type`;
+  const createHostUserModeId = `${id}-create-host-user-mode`;
+  const createDBUserModeId = `${id}-create-db-user-mode`;
+  const defaultSessionRecordingModeId = `${id}-default-session-recording-mode`;
+  const sshSessionRecordingModeId = `${id}-ssh-session-recording-mode`;
+  return (
+    <OptionsGridContainer
+      border={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderRadius={3}
+      p={3}
+    >
+      <OptionsHeader>Global Settings</OptionsHeader>
+
+      <OptionLabel htmlFor={maxSessionTTLId}>Max Session TTL</OptionLabel>
+      <Input
+        id={maxSessionTTLId}
+        value={value.maxSessionTTL}
+        disabled={isProcessing}
+        onChange={e => onChange({ ...value, maxSessionTTL: e.target.value })}
+      />
+
+      <OptionLabel htmlFor={clientIdleTimeoutId}>
+        Client Idle Timeout
+      </OptionLabel>
+      <Input
+        id={clientIdleTimeoutId}
+        value={value.clientIdleTimeout}
+        disabled={isProcessing}
+        onChange={e =>
+          onChange({ ...value, clientIdleTimeout: e.target.value })
+        }
+      />
+
+      <Box>Disconnect When Certificate Expires</Box>
+      <BoolRadioGroup
+        name="disconnect-expired-cert"
+        value={value.disconnectExpiredCert}
+        onChange={d => onChange({ ...value, disconnectExpiredCert: d })}
+      />
+
+      <OptionLabel htmlFor={requireMFATypeId}>Require Session MFA</OptionLabel>
+      <Select
+        inputId={requireMFATypeId}
+        isDisabled={isProcessing}
+        options={requireMFATypeOptions}
+        value={value.requireMFAType}
+        onChange={t => onChange?.({ ...value, requireMFAType: t })}
+      />
+
+      <OptionLabel htmlFor={defaultSessionRecordingModeId}>
+        Default Session Recording Mode
+      </OptionLabel>
+      <Select
+        inputId={defaultSessionRecordingModeId}
+        isDisabled={isProcessing}
+        options={sessionRecordingModeOptions}
+        value={value.defaultSessionRecordingMode}
+        onChange={m => onChange?.({ ...value, defaultSessionRecordingMode: m })}
+      />
+
+      <OptionsHeader separator>SSH</OptionsHeader>
+
+      <OptionLabel htmlFor={createHostUserModeId}>
+        Create Host User Mode
+      </OptionLabel>
+      <Select
+        inputId={createHostUserModeId}
+        isDisabled={isProcessing}
+        options={createHostUserModeOptions}
+        value={value.createHostUserMode}
+        onChange={m => onChange?.({ ...value, createHostUserMode: m })}
+      />
+
+      <Box>Agent Forwarding</Box>
+      <BoolRadioGroup
+        name="forward-agent"
+        value={value.forwardAgent}
+        onChange={f => onChange({ ...value, forwardAgent: f })}
+      />
+
+      <OptionLabel htmlFor={sshSessionRecordingModeId}>
+        Session Recording Mode
+      </OptionLabel>
+      <Select
+        inputId={sshSessionRecordingModeId}
+        isDisabled={isProcessing}
+        options={sessionRecordingModeOptions}
+        value={value.sshSessionRecordingMode}
+        onChange={m => onChange?.({ ...value, sshSessionRecordingMode: m })}
+      />
+
+      <OptionsHeader separator>Database</OptionsHeader>
+
+      <Box>Create Database User</Box>
+      <BoolRadioGroup
+        name="create-db-user"
+        value={value.createDBUser}
+        onChange={c => onChange({ ...value, createDBUser: c })}
+      />
+
+      {/* TODO(bl-nero): a bug in YAML unmarshalling backend breaks the
+          createDBUserMode field. Fix it and add the field here. */}
+      <OptionLabel htmlFor={createDBUserModeId}>
+        Create Database User Mode
+      </OptionLabel>
+      <Select
+        inputId={createDBUserModeId}
+        isDisabled={isProcessing}
+        options={createDBUserModeOptions}
+        value={value.createDBUserMode}
+        onChange={m => onChange?.({ ...value, createDBUserMode: m })}
+      />
+
+      <OptionsHeader separator>Desktop</OptionsHeader>
+
+      <Box>Create Desktop User</Box>
+      <BoolRadioGroup
+        name="create-desktop-user"
+        value={value.createDesktopUser}
+        onChange={c => onChange({ ...value, createDesktopUser: c })}
+      />
+
+      <Box>Allow Clipboard Sharing</Box>
+      <BoolRadioGroup
+        name="desktop-clipboard"
+        value={value.desktopClipboard}
+        onChange={c => onChange({ ...value, desktopClipboard: c })}
+      />
+
+      <Box>Allow Directory Sharing</Box>
+      <BoolRadioGroup
+        name="desktop-directory-sharing"
+        value={value.desktopDirectorySharing}
+        onChange={s => onChange({ ...value, desktopDirectorySharing: s })}
+      />
+
+      <Box>Record Desktop Sessions</Box>
+      <BoolRadioGroup
+        name="record-desktop-sessions"
+        value={value.recordDesktopSessions}
+        onChange={r => onChange({ ...value, recordDesktopSessions: r })}
+      />
+    </OptionsGridContainer>
+  );
+}
+
+const OptionsGridContainer = styled(Box)`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: baseline;
+  row-gap: ${props => props.theme.space[3]}px;
+`;
+
+const OptionsHeader = styled(H4)<{ separator?: boolean }>`
+  grid-column: 1/3;
+  border-top: ${props =>
+    props.separator
+      ? `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[0]}`
+      : 'none'};
+  padding-top: ${props =>
+    props.separator ? `${props.theme.space[3]}px` : '0'};
+`;
+
+function BoolRadioGroup({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: boolean;
+  onChange(b: boolean): void;
+}) {
+  return (
+    <RadioGroup
+      name={name}
+      flexDirection="row"
+      options={[
+        { label: 'True', value: 'true' },
+        { label: 'False', value: 'false' },
+      ]}
+      value={String(value)}
+      onChange={d => onChange(d === 'true')}
+    />
+  );
+}
+
+const OptionLabel = styled(LabelInput)`
+  ${props => props.theme.typography.body2}
+`;
+
+export const EditorWrapper = styled(Flex)<{ mute?: boolean }>`
+  flex-direction: column;
+  flex: 1;
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
 `;

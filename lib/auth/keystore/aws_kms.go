@@ -37,8 +37,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
@@ -81,10 +83,14 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 			return nil, trace.Wrap(err, "loading default AWS config")
 		}
 		if stsClient == nil {
-			stsClient = sts.NewFromConfig(awsCfg)
+			stsClient = sts.NewFromConfig(awsCfg, func(o *sts.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
 		}
 		if kmsClient == nil {
-			kmsClient = kms.NewFromConfig(awsCfg)
+			kmsClient = kms.NewFromConfig(awsCfg, func(o *kms.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
 		}
 	}
 	id, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})

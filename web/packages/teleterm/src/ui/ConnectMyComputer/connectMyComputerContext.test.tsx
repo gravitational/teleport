@@ -26,6 +26,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
+  makeAcl,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
@@ -49,7 +50,7 @@ beforeAll(() => {
 function getMocks() {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
-      acl: {
+      acl: makeAcl({
         tokens: {
           create: true,
           edit: false,
@@ -58,7 +59,7 @@ function getMocks() {
           read: false,
           delete: false,
         },
-      },
+      }),
     }),
   });
   const appContext = new MockAppContext({

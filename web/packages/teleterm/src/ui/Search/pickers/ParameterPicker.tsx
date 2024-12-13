@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactElement, useCallback, useEffect } from 'react';
+import { ReactElement, useCallback, useEffect } from 'react';
 import { Highlight } from 'shared/components/Highlight';
 import {
   makeSuccessAttempt,

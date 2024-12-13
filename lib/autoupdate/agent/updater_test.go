@@ -223,6 +223,7 @@ func TestUpdater_Update(t *testing.T) {
 		cfg        *UpdateConfig // nil -> file not present
 		flags      InstallFlags
 		inWindow   bool
+		now        bool
 		installErr error
 		setupErr   error
 		reloadErr  error
@@ -252,6 +253,30 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			},
 			inWindow: true,
+
+			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
+			installedRevision: NewRevision("16.3.0", 0),
+			installedTemplate: "https://example.com",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "group",
+			reloadCalls:       1,
+			setupCalls:        1,
+		},
+		{
+			name: "updates enabled now",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			now: true,
 
 			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
 			installedRevision: NewRevision("16.3.0", 0),
@@ -627,7 +652,7 @@ func TestUpdater_Update(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Update(ctx)
+			err = updater.Update(ctx, tt.now)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
