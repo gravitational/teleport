@@ -38,6 +38,8 @@ import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+
 import cfg from 'e-teleport/config';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
@@ -59,7 +61,6 @@ import {
   AccessCard,
   renderRolesAndTraits,
 } from 'e-teleport/AccessListManagement/AccessLists/AccessCard';
-import { NoAccessState } from 'e-teleport/AccessListManagement/NoAccessState';
 import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
 import { EmptyState } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/EmptyState';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
@@ -93,6 +94,7 @@ export function AccessLists() {
 
   const perm = ctx.storeUser.getAccessListAccess();
   const canUpsertAsAdmin = perm.create && perm.edit;
+  const canList = perm.list;
 
   const [notificationItem, setNotificationItem] = useState(() => {
     if (location.state?.reviewedAccessList) {
@@ -138,27 +140,44 @@ export function AccessLists() {
         <FeatureHeader alignItems="center" justifyContent="space-between">
           <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
           {showCreateBtn && (
-            <Button
-              intent="primary"
-              fill="border"
-              title={
-                noPermToCreate
-                  ? `Only Teleport administrators can create new Access Lists`
-                  : ''
+            <HoverTooltip
+              position="bottom"
+              tipContent={
+                noPermToCreate ? (
+                  <MissingPermissionsTooltip
+                    missingPermissions={['access_list.create']}
+                  />
+                ) : null
               }
-              disabled={
-                noPermToCreate || attempt.attempt.status === 'processing'
-              }
-              width="240px"
-              as={Link}
-              to={cfg.routes.accessListNew}
             >
-              Create New Access List
-            </Button>
+              <Button
+                intent="primary"
+                fill="border"
+                title={
+                  noPermToCreate
+                    ? `Only Teleport administrators can create new Access Lists`
+                    : ''
+                }
+                disabled={
+                  noPermToCreate || attempt.attempt.status === 'processing'
+                }
+                width="240px"
+                as={Link}
+                to={cfg.routes.accessListNew}
+              >
+                Create New Access List
+              </Button>
+            </HoverTooltip>
           )}
         </FeatureHeader>
       )}
       <Box>
+        {!canList && (
+          <Alert kind="info">
+            You do not have permission to view Access Lists. You are missing
+            role permissions: <code>access_list.list</code>
+          </Alert>
+        )}
         <MainContent
           searchValue={searchValue}
           setSearchValue={setSearchValue}
@@ -193,6 +212,7 @@ function MainContent({
   } = useAccessListManagementContext();
 
   const currentUsername = ctx.storeUser.getUsername();
+  const canList = ctx.storeUser.getAccessListAccess().list;
 
   const showListTypes = useMemo(
     () =>
@@ -256,9 +276,19 @@ function MainContent({
     [filteredAccessLists, currentSort]
   );
 
-  if (attempt.status === '') {
-    return <NoAccessState />;
+  const emptyState = (
+    <>
+      <EmptyState />
+      {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+        <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
+      )}
+    </>
+  );
+
+  if (attempt.status === '' || !canList) {
+    return emptyState;
   }
+
   if (attempt.status === 'processing') {
     return (
       <Box textAlign="center" m={10}>
@@ -273,14 +303,7 @@ function MainContent({
     return null;
   }
   if (accessLists.length === 0) {
-    return (
-      <>
-        <EmptyState />
-        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
-        )}
-      </>
-    );
+    return emptyState;
   }
 
   return (

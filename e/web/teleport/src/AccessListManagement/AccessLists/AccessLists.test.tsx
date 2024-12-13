@@ -1,7 +1,7 @@
 import React from 'react';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Router } from 'react-router';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, waitFor } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { getAcl } from 'teleport/mocks/contexts';
@@ -60,13 +60,12 @@ describe('access list management upsell links', () => {
 
     renderComponent(ctx);
 
-    await screen.findByText(/can only be viewed by their owners/i);
-    expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
-
-    // eslint-disable-next-line jest-dom/prefer-enabled-disabled
-    expect(screen.getByText(/create new access list/i)).toHaveAttribute(
-      'disabled'
-    );
+    await waitFor(() => {
+      expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/You do not have permission to view Access Lists/i)
+    ).toBeInTheDocument();
   });
 
   test('unlimited access renders no cta', async () => {
