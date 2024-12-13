@@ -5099,47 +5099,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs := req.GetRequestedResourceIDs()
-	var additionalResources []types.ResourceID
-
-	var userGroups []types.ResourceID
-	existingApps := map[string]struct{}{}
-	for _, resource := range requestedResourceIDs {
-		switch resource.Kind {
-		case types.KindApp:
-			existingApps[resource.Name] = struct{}{}
-		case types.KindUserGroup:
-			userGroups = append(userGroups, resource)
-		}
+	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
+	if err != nil {
+		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
-
-	for _, resource := range userGroups {
-		if resource.Kind != types.KindUserGroup {
-			continue
-		}
-
-		userGroup, err := a.GetUserGroup(ctx, resource.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, app := range userGroup.GetApplications() {
-			// Only add to the request if we haven't already added it.
-			if _, ok := existingApps[app]; !ok {
-				additionalResources = append(additionalResources, types.ResourceID{
-					ClusterName: resource.ClusterName,
-					Kind:        types.KindApp,
-					Name:        app,
-				})
-				existingApps[app] = struct{}{}
-			}
-		}
-	}
-
-	if len(additionalResources) > 0 {
-		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
-		req.SetRequestedResourceIDs(requestedResourceIDs)
-	}
+	req.SetRequestedResourceIDs(requestedResourceIDs)
 
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -5169,7 +5133,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -5249,6 +5213,69 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// appendImplicitlyRequiredResources examines the set of requested resources and adds
+// any extra resources that are implicitly required by the request.
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+	addedApps := utils.NewSet[string]()
+	var userGroups []types.ResourceID
+	var accountAssignments []types.ResourceID
+
+	for _, resource := range resources {
+		switch resource.Kind {
+		case types.KindApp:
+			addedApps.Add(resource.Name)
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		case types.KindIdentityCenterAccountAssignment:
+			accountAssignments = append(accountAssignments, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if !addedApps.Contains(app) {
+				resources = append(resources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				addedApps.Add(app)
+			}
+		}
+	}
+
+	icAccounts := utils.NewSet[string]()
+	for _, resource := range accountAssignments {
+		// The UI needs access to the account associated with an Account Assignment
+		// in order to display the enclosing Account, otherwise the user will not
+		// be able to see their assigned permission sets.
+		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
+		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching identity center account assignment")
+		}
+
+		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {
+			continue
+		}
+
+		resources = append(resources, types.ResourceID{
+			ClusterName: resource.ClusterName,
+			Kind:        types.KindIdentityCenterAccount,
+			Name:        asmt.GetSpec().GetAccountId(),
+		})
+		icAccounts.Add(asmt.GetSpec().GetAccountId())
+	}
+
+	return resources, nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log

@@ -2227,8 +2227,23 @@ func (h CreateDatabaseUserMode) encode() (string, error) {
 func (h *CreateDatabaseUserMode) decode(val any) error {
 	var str string
 	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		str = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_database_user_mode cannot be true, got %v", val)
+		}
+		str = createHostUserModeOffString
 	default:
 		return trace.BadParameter("bad value type %T, expected string", val)
 	}
@@ -2246,6 +2261,15 @@ func (h *CreateDatabaseUserMode) decode(val any) error {
 		return trace.BadParameter("invalid database user mode %v", val)
 	}
 
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateDatabaseUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateDatabaseUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid database user creation mode %v", val)
+	}
+	*h = CreateDatabaseUserMode(val)
 	return nil
 }
 
