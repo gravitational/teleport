@@ -36,7 +36,7 @@ import (
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, currentVersion string) error {
+func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs ...string) error {
 	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
@@ -51,7 +51,10 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string) error {
 		return trace.Wrap(err)
 	}
 	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion))
+		if len(reExecArgs) == 0 {
+			reExecArgs = os.Args[1:]
+		}
+		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
 	}
 
 	return nil
@@ -64,7 +67,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string) error {
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool) error {
+func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool, reExecArgs ...string) error {
 	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
@@ -81,13 +84,16 @@ func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy stri
 		return trace.Wrap(err)
 	}
 	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion))
+		if len(reExecArgs) == 0 {
+			reExecArgs = os.Args[1:]
+		}
+		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
 	}
 
 	return nil
 }
 
-func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string) error {
+func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This
@@ -99,7 +105,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string)
 	}
 
 	// Re-execute client tools with the correct version of client tools.
-	code, err := updater.Exec()
+	code, err := updater.Exec(args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err)
 		os.Exit(code)
