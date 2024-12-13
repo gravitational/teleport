@@ -38,7 +38,7 @@ export function EmptyState() {
   }, []);
 
   return (
-    <Box>
+    <Box mt={4}>
       <Box mb={3}>
         <H1 mb={3}>What are Access Lists?</H1>
         <Text css={{ maxWidth: '1204px' }}>
