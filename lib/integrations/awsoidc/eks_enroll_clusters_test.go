@@ -118,7 +118,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		},
 	}
 
-	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 		clt := &mockEnrollEKSClusterClient{}
 		clt.describeCluster = func(ctx context.Context, params *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
 			for _, cluster := range clusters {
@@ -155,7 +155,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	testCases := []struct {
 		name                string
-		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSCLusterClient
+		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSClusterClient
 		eksClusters         []eksTypes.Cluster
 		request             EnrollEKSClustersRequest
 		requestClusterNames []string
@@ -171,6 +171,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
 				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
 		},
@@ -187,9 +188,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 				})
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
 				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 				require.Equal(t, "EKS2", response.Results[1].ClusterName)
 				require.NoError(t, response.Results[1].Error)
+				require.Empty(t, response.Results[1].IssueType)
 				require.NotEmpty(t, response.Results[1].ResourceId)
 			},
 		},
@@ -242,6 +245,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll EKS cluster "EKS1" - expected "ACTIVE" state, got "PENDING".`)
+				require.Equal(t, "eks-status-not-active", response.Results[0].IssueType)
 			},
 		},
 		{
@@ -265,6 +269,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll "EKS1" because its access config's authentication mode is "CONFIG_MAP", only [API API_AND_CONFIG_MAP] are supported`)
+				require.Equal(t, "eks-authentication-mode-unsupported", response.Results[0].IssueType)
 			},
 		},
 		{
@@ -297,6 +302,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll "EKS3" because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`)
+				require.Equal(t, "eks-missing-endpoint-public-access", response.Results[0].IssueType)
 			},
 		},
 		{
@@ -331,7 +337,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		},
 		{
 			name: "cluster with already present agent is not enrolled",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -347,11 +353,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`teleport-kube-agent is already installed on the cluster "EKS1"`)
+				require.Equal(t, "eks-agent-not-connecting", response.Results[0].IssueType)
 			},
 		},
 		{
 			name: "if access entry is already present we don't create another one and don't delete it",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -621,7 +628,7 @@ func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Con
 	return "", nil
 }
 
-var _ EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+var _ EnrollEKSClusterClient = &mockEnrollEKSClusterClient{}
 
 func TestKubeAgentLabels(t *testing.T) {
 	kubeClusterLabels := map[string]string{

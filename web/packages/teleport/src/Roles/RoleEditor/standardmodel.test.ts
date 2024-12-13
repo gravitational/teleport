@@ -24,6 +24,7 @@ import {
   ResourceKind,
   Role,
   Rule,
+  SessionRecordingMode,
 } from 'teleport/services/resources';
 
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
@@ -38,13 +39,13 @@ import {
   roleEditorModelToRole,
   roleToRoleEditorModel,
 } from './standardmodel';
-import { withDefaults } from './withDefaults';
+import { optionsWithDefaults, withDefaults } from './withDefaults';
 
 const minimalRole = () =>
   withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
 
 const minimalRoleModel = (): RoleEditorModel => ({
-  metadata: { name: 'foobar' },
+  metadata: { name: 'foobar', labels: [] },
   accessSpecs: [],
   rules: [],
   requiresReset: false,
@@ -68,6 +69,10 @@ const minimalRoleModel = (): RoleEditorModel => ({
     desktopClipboard: true,
     createDesktopUser: false,
     desktopDirectorySharing: true,
+    defaultSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+    sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+    recordDesktopSessions: true,
+    forwardAgent: false,
   },
 });
 
@@ -83,6 +88,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       metadata: {
         name: 'role-name',
         description: 'role-description',
+        labels: { foo: 'bar' },
       },
     },
     model: {
@@ -90,6 +96,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       metadata: {
         name: 'role-name',
         description: 'role-description',
+        labels: [{ name: 'foo', value: 'bar' }],
       },
     },
   },
@@ -250,6 +257,12 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           desktop_clipboard: false,
           create_desktop_user: true,
           desktop_directory_sharing: false,
+          record_session: {
+            default: 'strict',
+            desktop: false,
+            ssh: 'best_effort',
+          },
+          forward_agent: true,
         },
       },
     },
@@ -269,6 +282,10 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         desktopClipboard: false,
         createDesktopUser: true,
         desktopDirectorySharing: false,
+        defaultSessionRecordingMode: { value: 'strict', label: 'Strict' },
+        sshSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+        recordDesktopSessions: false,
+        forwardAgent: true,
       },
     },
   },
@@ -433,28 +450,6 @@ describe('roleToRoleEditorModel', () => {
     },
 
     {
-      name: 'unsupported resource kind in Rule',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            rules: [{ resources: ['illegal', 'node'] } as unknown as Rule],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        rules: [
-          expect.objectContaining({
-            resources: [{ value: 'node', label: 'node' }],
-          }),
-        ],
-      },
-    },
-
-    {
       name: 'unsupported verb in Rule',
       role: {
         ...minRole,
@@ -591,6 +586,46 @@ describe('roleToRoleEditorModel', () => {
         },
       },
     },
+
+    {
+      name: 'unsupported value in spec.options.record_session.default',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            record_session: { default: 'bogus' as SessionRecordingMode },
+          }),
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          defaultSessionRecordingMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.record_session.ssh',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            record_session: { ssh: 'bogus' as SessionRecordingMode },
+          }),
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
   ])(
     'requires reset because of $name',
     ({ role, model = roleModelWithReset }) => {
@@ -625,6 +660,7 @@ describe('roleToRoleEditorModel', () => {
       metadata: {
         name: 'role-name',
         revision: originalRev,
+        labels: [],
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -653,6 +689,7 @@ describe('roleToRoleEditorModel', () => {
       metadata: {
         name: 'role-name',
         revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
+        labels: [],
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -805,6 +842,7 @@ describe('roleEditorModelToRole', () => {
           name: 'dog-walker',
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
+          labels: [{ name: 'kind', value: 'occupation' }],
         },
       })
     ).toEqual({
@@ -813,6 +851,7 @@ describe('roleEditorModelToRole', () => {
         name: 'dog-walker',
         description: 'walks dogs',
         revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
+        labels: { kind: 'occupation' },
       },
     } as Role);
   });

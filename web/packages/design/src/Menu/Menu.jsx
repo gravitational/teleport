@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { createRef } from 'react';
+import { Component, createRef } from 'react';
 import PropTypes from 'prop-types';
 
 import Popover from '../Popover';
@@ -29,7 +29,7 @@ const POSITION = {
   horizontal: 'right',
 };
 
-class Menu extends React.Component {
+class Menu extends Component {
   menuListRef = createRef();
 
   getContentAnchorEl = () => this.menuListRef.current?.firstChild;
