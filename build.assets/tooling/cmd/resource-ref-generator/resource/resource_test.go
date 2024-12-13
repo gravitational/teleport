@@ -122,14 +122,14 @@ type Metadata struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						Field{
-							Name:        "names",
-							Description: "A list of names.",
-							Type:        "[]string",
-						},
-						Field{
 							Name:        "numbers",
 							Description: "A list of numbers.",
 							Type:        "[]number",
+						},
+						Field{
+							Name:        "names",
+							Description: "A list of names.",
+							Type:        "[]string",
 						},
 						Field{
 							Name:        "booleans",
@@ -191,14 +191,14 @@ type Server struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						{
 							Name:        "spec",
 							Description: "Contains information about the server.",
 							Type:        "",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 				},
