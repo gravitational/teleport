@@ -577,14 +577,15 @@ type Metadata struct {
 					Description: "A resource declared for testing.",
 					SourcePath:  "myfile.go",
 					Fields: []Field{
-						{
-							Name:        "alias",
-							Description: "Another name to call the resource.",
-							Type:        "string",
-						},
+
 						{
 							Name:        "name",
 							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						{
+							Name:        "alias",
+							Description: "Another name to call the resource.",
 							Type:        "string",
 						},
 						{
@@ -627,14 +628,15 @@ type Metadata struct {
 					Description: "A resource declared for testing.",
 					SourcePath:  "myfile.go",
 					Fields: []Field{
-						{
-							Name:        "alias",
-							Description: "Another name to call the resource.",
-							Type:        "string",
-						},
+
 						{
 							Name:        "name",
 							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						{
+							Name:        "alias",
+							Description: "Another name to call the resource.",
 							Type:        "string",
 						},
 						{
@@ -684,13 +686,13 @@ type ActivityStatus struct{
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						{
-							Name:        "alias",
-							Description: "Another name to call the resource.",
+							Name:        "name",
+							Description: "The name of the resource.",
 							Type:        "string",
 						},
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
+							Name:        "alias",
+							Description: "Another name to call the resource.",
 							Type:        "string",
 						},
 						{
@@ -740,13 +742,13 @@ type ActivityStatus struct{
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						{
-							Name:        "alias",
-							Description: "Another name to call the resource.",
+							Name:        "name",
+							Description: "The name of the resource.",
 							Type:        "string",
 						},
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
+							Name:        "alias",
+							Description: "Another name to call the resource.",
 							Type:        "string",
 						},
 						{
@@ -824,14 +826,14 @@ type Metadata struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						Field{
-							Name:        "kind",
-							Description: "The database server resource kind.",
-							Type:        "string",
-						},
-						Field{
 							Name:        "metadata",
 							Description: "The database server metadata.",
 							Type:        "[Metadata](#metadata)",
+						},
+						Field{
+							Name:        "kind",
+							Description: "The database server resource kind.",
+							Type:        "string",
 						},
 					},
 				},
@@ -1090,14 +1092,14 @@ type Metadata struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						Field{
 							Name:        "private_key",
 							Description: "The private key of the resource.",
 							Type:        "base64-encoded string",
+						},
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 				},
