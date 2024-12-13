@@ -283,7 +283,28 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 }
 `,
 			},
-			errorSubstring: "Example YAML:",
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Server",
+					PackageName: "mypkg",
+				}: ReferenceEntry{
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					Fields: []Field{
+						{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+					},
+				},
+			},
 		},
 		{
 			description: "custom type with custom YAML unmarshaller",
