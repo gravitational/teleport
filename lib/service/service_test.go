@@ -41,6 +41,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -294,7 +295,10 @@ func TestMonitor(t *testing.T) {
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
@@ -1631,7 +1635,10 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1745,6 +1752,7 @@ func TestInstanceMetadata(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, process.Close())
+				require.NoError(t, process.Wait())
 			})
 
 			if tc.expectCloudLabels {
@@ -1818,19 +1826,28 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.Databases.Enabled = test.enabled
 			cfg.Databases.Databases = test.databases
 
+			// This timeout should consider time to receive the event + shutdown
+			// time.
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			var eg errgroup.Group
 			process, err := NewTeleport(cfg)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, process.Close())
-			})
 			require.NoError(t, process.Start())
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+			eg.Go(func() error { return process.WaitForSignals(ctx, nil) })
+			// Ensures the process is closed in failure scenarios.
+			t.Cleanup(func() {
+				cancel()
+				_ = eg.Wait()
+			})
 
 			if !test.expectErr {
 				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
 				require.NoError(t, err)
+				require.NoError(t, process.Close())
+				// Expect Teleport to shutdown without reporting any issue.
+				require.NoError(t, eg.Wait())
 				return
 			}
 
@@ -1840,6 +1857,9 @@ func TestInitDatabaseService(t *testing.T) {
 			exitPayload, ok := event.Payload.(ExitEventPayload)
 			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
 			require.Equal(t, "db.init", exitPayload.Service.Name())
+			// Database service init is a critical service, meaning failures on
+			// it should cause the process to exit with error.
+			require.Error(t, eg.Wait())
 		})
 	}
 }
@@ -1851,13 +1871,13 @@ func TestInitDatabaseService(t *testing.T) {
 func TestAgentRolloutController(t *testing.T) {
 	t.Parallel()
 
-	// Test setup: create a Teleport Auth config
-	fakeClock := clockwork.NewFakeClock()
-
 	dataDir := makeTempDir(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Clock = fakeClock
+	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
+	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
+	// check, this will break the next time we add a new waiter.
+	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = dataDir
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
@@ -1866,6 +1886,8 @@ func TestAgentRolloutController(t *testing.T) {
 	cfg.DebugService.Enabled = false
 	cfg.Auth.StorageConfig.Params["path"] = dataDir
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	// Speed up the reconciliation period for testing purposes.
+	cfg.Auth.AgentRolloutControllerSyncPeriod = 200 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
@@ -1904,9 +1926,6 @@ func TestAgentRolloutController(t *testing.T) {
 	version, err = authServer.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	// Test execution: advance clock to trigger a reconciliation
-	fakeClock.Advance(2 * time.Minute)
-
 	// Test validation: check that a new autoupdate_agent_rollout config was created
 	require.Eventually(t, func() bool {
 		rollout, err := authServer.GetAutoUpdateAgentRollout(ctx)
@@ -1914,7 +1933,7 @@ func TestAgentRolloutController(t *testing.T) {
 			return false
 		}
 		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
-	}, time.Second, 10*time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 // makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to

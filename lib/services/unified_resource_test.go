@@ -52,6 +52,7 @@ type client struct {
 	services.SAMLIdPServiceProviders
 	services.GitServers
 	services.IdentityCenterAccounts
+	services.IdentityCenterAccountAssignments
 	types.Events
 }
 
@@ -71,12 +72,13 @@ func newClient(t *testing.T) *client {
 	require.NoError(t, err)
 
 	return &client{
-		Presence:                local.NewPresenceService(bk),
-		WindowsDesktops:         local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders: samlService,
-		Events:                  local.NewEventsService(bk),
-		GitServers:              gitService,
-		IdentityCenterAccounts:  icService,
+		Presence:                         local.NewPresenceService(bk),
+		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders:          samlService,
+		Events:                           local.NewEventsService(bk),
+		GitServers:                       gitService,
+		IdentityCenterAccounts:           icService,
+		IdentityCenterAccountAssignments: icService,
 	}
 }
 
@@ -170,12 +172,15 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	_, err = clt.UpsertGitServer(ctx, gitServer2)
 	require.NoError(t, err)
 
-	icAcct := newIdentityCenterAccount(t, ctx, clt)
+	icAcct := newICAccount(t, ctx, clt)
+	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct)}
+		types.Resource153ToUnifiedResource(icAcct),
+		types.Resource153ToUnifiedResource(icAcctAssignment),
+	}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		return len(res) == len(expectedRes)
@@ -200,7 +205,9 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 			headerv1.Metadata{},
 			identitycenterv1.Account{},
 			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{}),
+			identitycenterv1.PermissionSetInfo{},
+			identitycenterv1.AccountAssignment{},
+			identitycenterv1.AccountAssignmentSpec{}),
 	))
 
 	// // Update and remove some resources.
@@ -213,7 +220,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct)}
+		types.Resource153ToUnifiedResource(icAcct),
+		types.Resource153ToUnifiedResource(icAcctAssignment)}
 
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -242,7 +250,9 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 			headerv1.Metadata{},
 			identitycenterv1.Account{},
 			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{}),
+			identitycenterv1.PermissionSetInfo{},
+			identitycenterv1.AccountAssignment{},
+			identitycenterv1.AccountAssignmentSpec{}),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
@@ -385,7 +395,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
-	icAcct := newIdentityCenterAccount(t, ctx, clt)
+	icAcct := newICAccount(t, ctx, clt)
 
 	// add git server
 	gitServer := newGitServer(t, "my-org")
@@ -487,7 +497,7 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
-func newIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
+func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
 	t.Helper()
 
 	accountID := t.Name()
@@ -499,7 +509,7 @@ func newIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.Id
 			Metadata: &headerv1.Metadata{
 				Name: t.Name(),
 				Labels: map[string]string{
-					types.OriginLabel: common.OriginIntegrationAWSOIDC,
+					types.OriginLabel: common.OriginAWSIdentityCenter,
 				},
 			},
 			Spec: &identitycenterv1.AccountSpec{
@@ -521,4 +531,32 @@ func newIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.Id
 		}})
 	require.NoError(t, err, "creating Identity Center Account")
 	return icAcct
+}
+
+func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterAccountAssignments) services.IdentityCenterAccountAssignment {
+	t.Helper()
+
+	assignment, err := svc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:    types.KindIdentityCenterAccountAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: t.Name(),
+				Labels: map[string]string{
+					types.OriginLabel: common.OriginAWSIdentityCenter,
+				},
+			},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				Display: "Admin access on Production",
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn:          "arn:aws::::ps-Admin",
+					Name:         "Admin",
+					AssignmentId: "production--admin",
+				},
+				AccountName: "Production",
+				AccountId:   "99999999",
+			},
+		}})
+	require.NoError(t, err, "creating Identity Center Account Assignment")
+	return assignment
 }

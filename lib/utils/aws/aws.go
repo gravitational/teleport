@@ -31,15 +31,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 const (
@@ -75,6 +76,8 @@ const (
 	// used by the AssumeRole call.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
 	MaxRoleSessionNameLength = 64
+
+	iamServiceName = "iam"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -147,6 +150,11 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
+// VerifyAWSSignatureV2 is a temporary AWS SDK migration helper.
+func VerifyAWSSignatureV2(req *http.Request, provider aws.CredentialsProvider) error {
+	return VerifyAWSSignature(req, migration.NewCredentialsAdapter(provider))
+}
+
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
@@ -212,6 +220,11 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("signature verification failed")
 	}
 	return nil
+}
+
+// NewSignerV2 is a temporary AWS SDK migration helper.
+func NewSignerV2(provider aws.CredentialsProvider, signingServiceName string) *v4.Signer {
+	return NewSigner(migration.NewCredentialsAdapter(provider), signingServiceName)
 }
 
 // NewSigner creates a new V4 signer.
@@ -384,7 +397,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 	}
 	roleARN := arn.ARN{
 		Partition: partition,
-		Service:   iam.ServiceName,
+		Service:   iamServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}
@@ -424,7 +437,7 @@ func ParseRoleARN(roleARN string) (*arn.ARN, error) {
 // Example role ARN: arn:aws:iam::123456789012:role/some-role-name
 func checkRoleARN(parsed *arn.ARN) error {
 	parts := strings.Split(parsed.Resource, "/")
-	if parts[0] != "role" || parsed.Service != iam.ServiceName {
+	if parts[0] != "role" || parsed.Service != iamServiceName {
 		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
 	}
 	if len(parts) < 2 || len(parts[len(parts)-1]) == 0 {

@@ -177,7 +177,7 @@ func TestProgressLogger(t *testing.T) {
 				v, err := io.ReadAll(out)
 				require.NoError(t, err)
 				if len(v) > 0 {
-					e.out = fmt.Sprintf(`msg="test - progress: %s"`+"\n", e.out)
+					e.out = fmt.Sprintf(`msg=Downloading file=test progress=%s`+"\n", e.out)
 				}
 				require.Equal(t, e.out, string(v))
 			}

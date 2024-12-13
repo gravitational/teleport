@@ -264,7 +264,7 @@ export const storageService = {
   },
 
   getUseNewRoleEditor(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, false);
+    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, true);
   },
 
   getIsTopBarView(): boolean {

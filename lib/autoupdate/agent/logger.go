@@ -46,8 +46,10 @@ type progressLogger struct {
 func (w *progressLogger) Write(p []byte) (n int, err error) {
 	w.n += len(p)
 	if w.n >= w.max*(w.l+1)/w.lines {
-		msg := fmt.Sprintf("%s - progress: %d%%", w.name, w.n*100/w.max)
-		w.log.Log(w.ctx, w.level, msg) //nolint:sloglint // msg cannot be constant
+		w.log.Log(w.ctx, w.level, "Downloading",
+			"file", w.name,
+			"progress", fmt.Sprintf("%d%%", w.n*100/w.max),
+		)
 		w.l++
 	}
 	return len(p), nil

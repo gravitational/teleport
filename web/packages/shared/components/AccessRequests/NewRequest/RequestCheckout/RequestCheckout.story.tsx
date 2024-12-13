@@ -241,6 +241,11 @@ const baseProps: RequestCheckoutWithSliderProps = {
       name: 'app-saml',
       id: 'app-name',
     },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'admin-on-account1',
+    },
   ],
   clearAttempt: () => null,
   onClose: () => null,

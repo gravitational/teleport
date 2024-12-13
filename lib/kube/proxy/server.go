@@ -21,6 +21,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -421,7 +422,8 @@ func (t *TLSServer) close(ctx context.Context) error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	return authclient.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, t.log)(info)
+	// TODO(tross): remove slog.Default once the TLSServer is updated to use a slog.Logger
+	return authclient.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, slog.Default())(info)
 }
 
 // GetServerInfo returns a services.Server object for heartbeats (aka

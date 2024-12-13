@@ -50,6 +50,7 @@ func TestGitListCommand(t *testing.T) {
 		name           string
 		format         string
 		fetchFn        func(*CLIConf, *client.TeleportClient) ([]types.Server, error)
+		profileStatus  *client.ProfileStatus
 		wantError      bool
 		containsOutput []string
 	}{
@@ -65,10 +66,28 @@ func TestGitListCommand(t *testing.T) {
 			fetchFn: func(c *CLIConf, client *client.TeleportClient) ([]types.Server, error) {
 				return []types.Server{server1, server2}, nil
 			},
+			profileStatus: &client.ProfileStatus{},
 			containsOutput: []string{
 				"Type   Organization Username URL",
 				"GitHub org1         (n/a)*   https://github.com/org1",
 				"GitHub org2         (n/a)*   https://github.com/org2",
+			},
+		},
+		{
+			name: "text format with GitHub identity",
+			fetchFn: func(c *CLIConf, client *client.TeleportClient) ([]types.Server, error) {
+				return []types.Server{server1, server2}, nil
+			},
+			profileStatus: &client.ProfileStatus{
+				GitHubIdentity: &client.GitHubIdentity{
+					UserID:   "1234567",
+					Username: "wow",
+				},
+			},
+			containsOutput: []string{
+				"Type   Organization Username URL",
+				"GitHub org1         wow      https://github.com/org1",
+				"GitHub org2         wow      https://github.com/org2",
 			},
 		},
 		{
@@ -101,10 +120,11 @@ func TestGitListCommand(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var capture bytes.Buffer
 			cf := &CLIConf{
-				Proxy:          "proxy",
-				Username:       "alice",
-				OverrideStdout: &capture,
-				HomePath:       t.TempDir(),
+				Proxy:                 "proxy",
+				Username:              "alice",
+				OverrideStdout:        &capture,
+				HomePath:              t.TempDir(),
+				profileStatusOverride: test.profileStatus,
 			}
 
 			// Create a empty profile so we don't ping proxy.
