@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -81,9 +82,13 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 }
 
 func TestIssueWorkloadIdentity(t *testing.T) {
-	t.Parallel()
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+
 	srv, eventRecorder := newTestTLSServer(t)
 	ctx := context.Background()
+	clock := srv.Auth().GetClock()
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
 	// issuer.
@@ -234,7 +239,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					protocmp.Transform(),
 					protocmp.IgnoreFields(
 						&workloadidentityv1pb.Credential{},
-						"expiry",
+						"expires_at",
 					),
 					protocmp.IgnoreOneofs(
 						&workloadidentityv1pb.Credential{},
@@ -242,7 +247,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					),
 				))
 				// Check expiry makes sense
-				require.WithinDuration(t, time.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				require.WithinDuration(t, clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
 
 				// Check the JWT
 				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
@@ -259,8 +264,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.NotEmpty(t, claims.ID)
 				require.Equal(t, jwt.Audience{"example.com", "test.example.com"}, claims.Audience)
 				require.Equal(t, wantIssuer, claims.Issuer)
-				require.WithinDuration(t, time.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
-				require.WithinDuration(t, time.Now(), claims.IssuedAt.Time(), 5*time.Second)
+				require.WithinDuration(t, clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
 
 				// Check audit log event
 				evt, ok := eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
@@ -324,7 +329,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					protocmp.Transform(),
 					protocmp.IgnoreFields(
 						&workloadidentityv1pb.Credential{},
-						"expiry",
+						"expires_at",
 					),
 					protocmp.IgnoreOneofs(
 						&workloadidentityv1pb.Credential{},
@@ -332,7 +337,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					),
 				))
 				// Check expiry makes sense
-				require.WithinDuration(t, time.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				require.WithinDuration(t, clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
 
 				// Check the X509
 				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
@@ -340,9 +345,9 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				// Check included public key matches
 				require.Equal(t, workloadKey.Public(), cert.PublicKey)
 				// Check cert expiry
-				require.WithinDuration(t, time.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				require.WithinDuration(t, clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
 				// Check cert nbf
-				require.WithinDuration(t, time.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				require.WithinDuration(t, clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
 
@@ -366,7 +371,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 
 				// Check cert signature is valid
 				_, err = cert.Verify(x509.VerifyOptions{
-					Roots: spiffeX509CAPool,
+					Roots:       spiffeX509CAPool,
+					CurrentTime: srv.Auth().GetClock().Now(),
 				})
 				require.NoError(t, err)
 
