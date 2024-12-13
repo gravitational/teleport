@@ -46,6 +46,23 @@ message JWTSVIDParams {
   repeated string audiences = 1;
 }
 
+// The issued X509 SVID credential and any X509 SVID specific metadata.
+message X509SVIDCredential {
+  // The X509 SVID that was issued.
+  // ASN.1 DER encoded X.509 certificate. No PEM.
+  bytes cert = 1;
+  // The serial number of the X509 SVID.
+  string serial_number = 2;
+}
+
+// The issued JWT SVID credential and any JWT SVID specific metadata.
+message JWTSVIDCredential {
+  // The signed JWT
+  string jwt = 1;
+  // The JTI of the JWT
+  string jti = 2;
+}
+
 // A credential, and its metadata, that has been issued by Teleport Workload
 // Identity.
 message Credential {
@@ -66,10 +83,9 @@ message Credential {
 
   oneof credential {
     // The X509 SVID that was issued.
-    // ASN.1 DER encoded X.509 certificate. No PEM.
-    bytes x509_svid = 7;
+    X509SVIDCredential x509_svid = 7;
     // The JWT SVID that was issued.
-    string jwt_svid = 8;
+    JWTSVIDCredential jwt_svid = 8;
   }
 }
 
