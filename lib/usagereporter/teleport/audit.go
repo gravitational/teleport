@@ -114,17 +114,22 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
+		var app *prehogv1a.SessionStartAppMetadata
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = TCPSessionType
+			// IsMultiPort for now is the only type of app metadata, so don't include it unless it's a TCP
+			// app.
+			app = &prehogv1a.SessionStartAppMetadata{
+				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
+			}
 		}
+
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
-			App: &prehogv1a.SessionStartAppMetadata{
-				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
-			},
+			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
