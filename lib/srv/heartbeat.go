@@ -21,11 +21,11 @@ package srv
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -155,14 +155,17 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		cancelCtx:       ctx,
 		cancel:          cancel,
 		HeartbeatConfig: cfg,
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(cfg.Component, "beat"),
-		}),
-		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
-		announceC:   make(chan struct{}, 1),
-		sendC:       make(chan struct{}, 1),
+		logger:          slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "beat")),
+		checkTicker:     cfg.Clock.NewTicker(cfg.CheckPeriod),
+		announceC:       make(chan struct{}, 1),
+		sendC:           make(chan struct{}, 1),
 	}
-	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.KeepAlivePeriod, cfg.AnnouncePeriod, cfg.CheckPeriod)
+	h.logger.DebugContext(ctx, "Starting heartbeat with announce period",
+		"mode", cfg.Mode,
+		"keep_alive_period", cfg.KeepAlivePeriod,
+		"announce_period", cfg.AnnouncePeriod,
+		"check_period", cfg.CheckPeriod,
+	)
 	return h, nil
 }
 
@@ -249,7 +252,7 @@ type Heartbeat struct {
 	HeartbeatConfig
 	cancelCtx context.Context
 	cancel    context.CancelFunc
-	*log.Entry
+	logger    *slog.Logger
 	state     KeepAliveState
 	current   types.Resource
 	keepAlive *types.KeepAlive
@@ -280,15 +283,15 @@ func (h *Heartbeat) Run() error {
 	for {
 		err := h.fetchAndAnnounce()
 		if err != nil {
-			h.Warningf("Heartbeat failed %v.", err)
+			h.logger.WarnContext(h.Context, "Heartbeat failed", "error", err)
 		}
 		h.OnHeartbeat(err)
 		select {
 		case <-h.checkTicker.Chan():
 		case <-h.sendC:
-			h.Debugf("Asked check out of cycle")
+			h.logger.DebugContext(h.Context, "Asked check out of cycle")
 		case <-h.cancelCtx.Done():
-			h.Debugf("Heartbeat exited.")
+			h.logger.DebugContext(h.Context, "Heartbeat exited")
 			return nil
 		}
 	}
@@ -324,7 +327,7 @@ func (h *Heartbeat) reset(state KeepAliveState) {
 	h.keepAlive = nil
 	if h.keepAliver != nil {
 		if err := h.keepAliver.Close(); err != nil {
-			h.Warningf("Failed to close keep aliver: %v", err)
+			h.logger.WarnContext(h.Context, "Failed to close keep aliver", "error", err)
 		}
 		h.keepAliver = nil
 	}
@@ -590,7 +593,7 @@ func (h *Heartbeat) announce() error {
 		case <-h.cancelCtx.Done():
 			return nil
 		case <-timeout.C:
-			h.Warningf("Blocked on keep alive send, going to reset.")
+			h.logger.WarnContext(h.Context, "Blocked on keep alive send, going to reset.")
 			h.reset(HeartbeatStateInit)
 			return trace.ConnectionProblem(nil, "timeout sending keep alive")
 		case h.keepAliver.KeepAlives() <- keepAlive:
@@ -599,7 +602,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case <-h.keepAliver.Done():
-			h.Warningf("Keep alive has failed: %v.", h.keepAliver.Error())
+			h.logger.WarnContext(h.Context, "Keep alive has failed", "error", h.keepAliver.Error())
 			err := h.keepAliver.Error()
 			h.reset(HeartbeatStateInit)
 			return trace.ConnectionProblem(err, "keep alive channel closed")

@@ -114,10 +114,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
-	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance").Alias("get").Alias("describe")
+	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
 	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
 
-	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances").Alias("ls")
+	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")

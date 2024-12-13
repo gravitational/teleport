@@ -1586,12 +1586,22 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] Verify that users can run custom audit queries.
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
+- [ ] Access Requests
+  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+    - [ ] CLI fails to create Access Request displaying a message that reason is required.
+    - [ ] Web UI fails to create Access Request displaying a message that reason is required.
+    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Non-affected resources/roles don't require reason.
+    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
+      - [ ] For CLI.
+      - [ ] For Web UI.
+
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
   - [ ] Verify permissions granted by Access List membership.
   - [ ] Verify permissions granted by Access List ownership.
   - [ ] Verify Access List Review.
-  - [ ] verify Access LIst Promotion.
+  - [ ] Verify Access List Promotion.
   - [ ] Verify that owners can only add/remove members and not change other properties.
   - [ ] Nested Access Lists
     - [ ] Verify that Access Lists can be added as members or owners of other Access Lists.

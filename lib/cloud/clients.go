@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -60,8 +60,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
@@ -133,8 +131,6 @@ type AWSClients interface {
 	GetAWSIAMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
-	// GetAWSSSMClient returns AWS SSM client for the specified region.
-	GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error)
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
 	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (eksiface.EKSAPI, error)
 	// GetAWSKMSClient returns AWS KMS client for the specified region.
@@ -394,6 +390,9 @@ type awsOptions struct {
 
 	// maxRetries is the maximum number of retries to use for the session.
 	maxRetries *int
+
+	// withoutSessionCache disables the session cache for the AWS session.
+	withoutSessionCache bool
 }
 
 func (a *awsOptions) checkAndSetDefaults() error {
@@ -422,6 +421,13 @@ func WithAssumeRole(roleARN, externalID string) AWSOptionsFn {
 	return func(options *awsOptions) {
 		options.assumeRoleARN = roleARN
 		options.assumeRoleExternalID = externalID
+	}
+}
+
+// WithoutSessionCache disables the session cache for the AWS session.
+func WithoutSessionCache() AWSOptionsFn {
+	return func(options *awsOptions) {
+		options.withoutSessionCache = true
 	}
 }
 
@@ -491,7 +497,7 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	}
 	var err error
 	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(region, options)
+		options.baseSession, err = c.getAWSSessionForRegion(ctx, region, options)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -590,15 +596,6 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
-}
-
-// GetAWSSSMClient returns AWS SSM client for the specified region.
-func (c *cloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ssm.New(session), nil
 }
 
 // GetAWSEKSClient returns AWS EKS client for the specified region.
@@ -780,17 +777,12 @@ func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.
 }
 
 // getAWSSessionForRegion returns AWS session for the specified region.
-func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*awssession.Session, error) {
+func (c *cloudClients) getAWSSessionForRegion(ctx context.Context, region string, opts awsOptions) (*awssession.Session, error) {
 	if err := opts.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cacheKey := awsSessionCacheKey{
-		region:      region,
-		integration: opts.integration,
-	}
-
-	sess, err := utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
 		if opts.credentialsSource == credentialsSourceIntegration {
 			if c.awsIntegrationSessionProviderFn == nil {
 				return nil, trace.BadParameter("missing aws integration session provider")
@@ -803,6 +795,30 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*
 
 		logrus.Debugf("Initializing AWS session for region %v using environment credentials.", region)
 		session, err := awsAmbientSessionProvider(ctx, region)
+		return session, trace.Wrap(err)
+	}
+
+	if opts.withoutSessionCache {
+		sess, err := createSession(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if opts.customRetryer != nil || opts.maxRetries != nil {
+			return sess.Copy(&aws.Config{
+				Retryer:    opts.customRetryer,
+				MaxRetries: opts.maxRetries,
+			}), nil
+		}
+		return sess, trace.Wrap(err)
+	}
+
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: opts.integration,
+	}
+
+	sess, err := utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		session, err := createSession(ctx)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -823,6 +839,16 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		return nil, trace.Wrap(err)
 	}
 
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
+		stsClient := sts.New(options.baseSession)
+		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+	}
+
+	if options.withoutSessionCache {
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
+	}
+
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: options.integration,
@@ -830,8 +856,8 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		externalID:  options.assumeRoleExternalID,
 	}
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		stsClient := sts.New(options.baseSession)
-		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
 	})
 }
 
@@ -1021,7 +1047,6 @@ type TestCloudClients struct {
 	GCPGKE                  gcp.GKEClient
 	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
-	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        imds.Client
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
@@ -1189,15 +1214,6 @@ func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.KMS, nil
-}
-
-// GetAWSSSMClient returns an AWS SSM client
-func (c *TestCloudClients) GetAWSSSMClient(ctx context.Context, region string, opts ...AWSOptionsFn) (ssmiface.SSMAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.SSM, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.

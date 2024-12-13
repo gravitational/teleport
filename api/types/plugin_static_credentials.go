@@ -33,6 +33,9 @@ type PluginStaticCredentials interface {
 	// GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
 	// present, the client ID and client secret will be empty.
 	GetOAuthClientSecret() (clientID string, clientSecret string)
+
+	// GetSSHCertAuthorities will return the attached SSH CA keys.
+	GetSSHCertAuthorities() []*SSHKeyPair
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -88,6 +91,15 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 		if credentials.OAuthClientSecret.ClientSecret == "" {
 			return trace.BadParameter("client secret is empty")
 		}
+	case *PluginStaticCredentialsSpecV1_SSHCertAuthorities:
+		if credentials.SSHCertAuthorities == nil {
+			return trace.BadParameter("SSH CAs are missing")
+		}
+		for _, ca := range credentials.SSHCertAuthorities.CertAuthorities {
+			if err := ca.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err, "invalid SSH CA")
+			}
+		}
 	default:
 		return trace.BadParameter("credentials are not set or have an unknown type %T", credentials)
 	}
@@ -131,6 +143,15 @@ func (p *PluginStaticCredentialsV1) GetOAuthClientSecret() (clientID string, cli
 	}
 
 	return credentials.OAuthClientSecret.ClientId, credentials.OAuthClientSecret.ClientSecret
+}
+
+// GetSSHCertAuthorities will return the attached SSH CA keys.
+func (p *PluginStaticCredentialsV1) GetSSHCertAuthorities() []*SSHKeyPair {
+	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_SSHCertAuthorities)
+	if !ok {
+		return nil
+	}
+	return credentials.SSHCertAuthorities.CertAuthorities
 }
 
 // MatchSearch is a dummy value as credentials are not searchable.

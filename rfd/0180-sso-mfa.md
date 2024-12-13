@@ -585,7 +585,7 @@ message CreateAuthenticateChallengeRequest {
 message SSOChallenge {
   // RequestId is the ID of an SSO auth request.
   string request_id = 1;
-  // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
+  // RedirectUrl is an IdP redirect URL to initiate the SSO MFA flow.
   string redirect_url = 2;
 }
 ```

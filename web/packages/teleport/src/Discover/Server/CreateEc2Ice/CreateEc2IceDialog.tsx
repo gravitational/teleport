@@ -263,8 +263,9 @@ export function CreateEc2IceDialog({
             style={{ display: 'flex', textAlign: 'left', width: '100%' }}
           >
             <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-            The EC2 instance [{typedAgentMeta?.node.awsMetadata.instanceId}] has
-            been added to Teleport.
+            The EC2 instance [{
+              typedAgentMeta?.node.awsMetadata.instanceId
+            }] has been added to Teleport.
           </Text>
           <ButtonPrimary width="100%" onClick={() => nextStep()}>
             Next

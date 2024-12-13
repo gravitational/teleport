@@ -63,6 +63,8 @@ type WatcherConfig struct {
 	DiscoveryGroup string
 	// Origin is used to specify what type of origin watcher's resources are
 	Origin string
+	// PreFetchHookFn is called before starting a new fetch cycle.
+	PreFetchHookFn func()
 }
 
 // CheckAndSetDefaults validates the config.
@@ -103,12 +105,12 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	watcher := &Watcher{
+
+	return &Watcher{
 		cfg:        config,
 		ctx:        ctx,
 		resourcesC: make(chan types.ResourcesWithLabels),
-	}
-	return watcher, nil
+	}, nil
 }
 
 // Start starts fetching cloud resources and sending them to the channel.
@@ -141,6 +143,10 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
+	if w.cfg.PreFetchHookFn != nil {
+		w.cfg.PreFetchHookFn()
+	}
+
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
 		fetchersLock        sync.Mutex

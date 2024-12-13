@@ -20,7 +20,7 @@ import React from 'react';
 import { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { User, UserOrigin } from 'teleport/services/user';
+import { Access, User, UserOrigin } from 'teleport/services/user';
 import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport';
 
 export default function UserList({
@@ -29,6 +29,7 @@ export default function UserList({
   onEdit,
   onDelete,
   onReset,
+  usersAcl,
 }: Props) {
   return (
     <ClientSearcheableTableWithQueryParamSupport
@@ -72,6 +73,7 @@ export default function UserList({
           altKey: 'options-btn',
           render: user => (
             <ActionCell
+              acl={usersAcl}
               user={user}
               onEdit={onEdit}
               onReset={onReset}
@@ -118,12 +120,21 @@ const ActionCell = ({
   onEdit,
   onReset,
   onDelete,
+  acl,
 }: {
   user: User;
   onEdit: (user: User) => void;
   onReset: (user: User) => void;
   onDelete: (user: User) => void;
+  acl: Access;
 }) => {
+  const canEdit = acl.edit;
+  const canDelete = acl.remove;
+
+  if (!(canEdit || canDelete)) {
+    return <Cell align="right" />;
+  }
+
   if (user.isBot || !user.isLocal) {
     return <Cell align="right" />;
   }
@@ -131,11 +142,15 @@ const ActionCell = ({
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>
-        <MenuItem onClick={() => onReset(user)}>
-          Reset Authentication...
-        </MenuItem>
-        <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
+        {canEdit && <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>}
+        {canEdit && (
+          <MenuItem onClick={() => onReset(user)}>
+            Reset Authentication...
+          </MenuItem>
+        )}
+        {canDelete && (
+          <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
+        )}
       </MenuButton>
     </Cell>
   );
@@ -147,4 +162,7 @@ type Props = {
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;
+  // determines if the viewer is able to edit/delete users. This is used
+  // to conditionally render the edit/delete buttons in the ActionCell
+  usersAcl: Access;
 };

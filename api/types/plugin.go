@@ -118,6 +118,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 

@@ -38,9 +38,9 @@ import {
 
 import cfg from 'teleport/config';
 
-import { DeviceUsage } from 'teleport/services/auth';
-
 import { PasswordState } from 'teleport/services/user';
+
+import { DeviceUsage } from 'teleport/services/mfa';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
@@ -62,9 +62,13 @@ export interface EnterpriseComponentProps {
 
 export interface AccountPageProps {
   enterpriseComponent?: React.ComponentType<EnterpriseComponentProps>;
+  userTrustedDevicesComponent?: React.ComponentType;
 }
 
-export function AccountPage({ enterpriseComponent }: AccountPageProps) {
+export function AccountPage({
+  enterpriseComponent,
+  userTrustedDevicesComponent,
+}: AccountPageProps) {
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
   const isSso = storeUser.isSso();
@@ -85,6 +89,7 @@ export function AccountPage({ enterpriseComponent }: AccountPageProps) {
       passwordState={storeUser.getPasswordState()}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
+      userTrustedDevicesComponent={userTrustedDevicesComponent}
       onPasswordChange={onPasswordChange}
     />
   );
@@ -116,6 +121,7 @@ export function Account({
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
+  userTrustedDevicesComponent: TrustedDeviceListComponent,
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
@@ -191,7 +197,7 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox>
+      <FeatureBox maxWidth={1440} margin="auto">
         <FeatureHeader>
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
@@ -264,6 +270,7 @@ export function Account({
           {EnterpriseComponent && (
             <EnterpriseComponent addNotification={addNotification} />
           )}
+          {TrustedDeviceListComponent && <TrustedDeviceListComponent />}
         </Flex>
       </FeatureBox>
 

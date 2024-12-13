@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
@@ -26,7 +26,7 @@ import { ResourceIcon } from 'design/ResourceIcon';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';

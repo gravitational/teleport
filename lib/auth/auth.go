@@ -100,8 +100,8 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -331,6 +331,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -388,6 +394,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
+	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
+	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -485,6 +504,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
+		GitServers:                cfg.GitServers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -511,6 +533,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
+		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
 			if g, ok := connectedResourceGauges[s]; ok {
 				g.Inc()
@@ -603,10 +626,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
-		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+		as.k8sTokenReviewValidator = &kubetoken.TokenReviewValidator{}
 	}
 	if as.k8sJWKSValidator == nil {
-		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -701,6 +724,9 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.PluginStaticCredentials
+	services.GitServers
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
@@ -994,7 +1020,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
-	//the purpose of tests.
+	// the purpose of tests.
 	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
@@ -1377,8 +1403,6 @@ func (a *Server) runPeriodicOperations() {
 
 	defer ticker.Stop()
 
-	missedKeepAliveCount := 0
-
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
@@ -1480,7 +1504,7 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
 
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
@@ -1518,9 +1542,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()
@@ -2195,6 +2216,10 @@ type certRequest struct {
 	appName string
 	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	appURI string
+	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
+	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
+	// used in other contexts (e.g., access requests).
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2443,6 +2468,8 @@ type AppTestCertRequest struct {
 	TTL time.Duration
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
+	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
@@ -2502,6 +2529,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		appSessionID:      sessionID,
 		appPublicAddr:     req.PublicAddr,
+		appTargetPort:     req.TargetPort,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
@@ -3180,6 +3208,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3218,6 +3253,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            githubUserID,
+			GitHubUsername:          githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {
@@ -3279,6 +3316,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
 			URI:               req.appURI,
+			TargetPort:        req.appTargetPort,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -4823,9 +4861,6 @@ func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uin
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	const pingAttempt = "ping-attempt"
-	const pingSuccess = "ping-success"
-	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
@@ -4833,83 +4868,14 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 
 	id := mathrand.Uint64()
 
-	if !req.ControlLog {
-		// this ping doesn't pass through the control log, so just execute it immediately.
-		d, err := stream.Ping(ctx, id)
-		return proto.InventoryPingResponse{
-			Duration: d,
-		}, trace.Wrap(err)
-	}
-
-	// matchEntry is used to check if our log entry has been included
-	// in the control log.
-	matchEntry := func(entry types.InstanceControlLogEntry) bool {
-		return entry.Type == pingAttempt && entry.ID == id
-	}
-
-	var included bool
-	for i := 1; i <= maxAttempts; i++ {
-		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-			// check if we've already successfully included the ping entry
-			if ref.LastHeartbeat != nil {
-				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
-					included = true
-					return
-				}
-			}
-
-			// if the entry pending already, we just need to wait
-			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
-				return
-			}
-
-			// either this is the first iteration, or the pending control log was reset.
-			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
-				Type: pingAttempt,
-				ID:   id,
-				Time: time.Now(),
-			})
-			stream.HeartbeatInstance()
-			return
-		})
-
-		if included {
-			// entry appeared in control log
-			break
-		}
-
-		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
-		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
-		// simple sleep loop.
-		select {
-		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
-		case <-stream.Done():
-			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
-		case <-ctx.Done():
-			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
-		}
-	}
-
-	if !included {
-		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	if req.ControlLog { //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		return proto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
 	}
 
 	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
-
-	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
-			Type: pingSuccess,
-			ID:   id,
-			Labels: map[string]string{
-				"duration": d.String(),
-			},
-		})
-		return
-	})
-	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,
@@ -5164,47 +5130,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs := req.GetRequestedResourceIDs()
-	var additionalResources []types.ResourceID
-
-	var userGroups []types.ResourceID
-	existingApps := map[string]struct{}{}
-	for _, resource := range requestedResourceIDs {
-		switch resource.Kind {
-		case types.KindApp:
-			existingApps[resource.Name] = struct{}{}
-		case types.KindUserGroup:
-			userGroups = append(userGroups, resource)
-		}
+	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
+	if err != nil {
+		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
-
-	for _, resource := range userGroups {
-		if resource.Kind != types.KindUserGroup {
-			continue
-		}
-
-		userGroup, err := a.GetUserGroup(ctx, resource.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, app := range userGroup.GetApplications() {
-			// Only add to the request if we haven't already added it.
-			if _, ok := existingApps[app]; !ok {
-				additionalResources = append(additionalResources, types.ResourceID{
-					ClusterName: resource.ClusterName,
-					Kind:        types.KindApp,
-					Name:        app,
-				})
-				existingApps[app] = struct{}{}
-			}
-		}
-	}
-
-	if len(additionalResources) > 0 {
-		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
-		req.SetRequestedResourceIDs(requestedResourceIDs)
-	}
+	req.SetRequestedResourceIDs(requestedResourceIDs)
 
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -5234,7 +5164,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -5284,6 +5214,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 					},
 				},
 			},
+			// Prevent the requester from seeing the notification for their own access request.
+			ExcludeUsers: []string{req.GetUser()},
 			Notification: &notificationsv1.Notification{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
@@ -5312,6 +5244,69 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// appendImplicitlyRequiredResources examines the set of requested resources and adds
+// any extra resources that are implicitly required by the request.
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+	addedApps := utils.NewSet[string]()
+	var userGroups []types.ResourceID
+	var accountAssignments []types.ResourceID
+
+	for _, resource := range resources {
+		switch resource.Kind {
+		case types.KindApp:
+			addedApps.Add(resource.Name)
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		case types.KindIdentityCenterAccountAssignment:
+			accountAssignments = append(accountAssignments, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if !addedApps.Contains(app) {
+				resources = append(resources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				addedApps.Add(app)
+			}
+		}
+	}
+
+	icAccounts := utils.NewSet[string]()
+	for _, resource := range accountAssignments {
+		// The UI needs access to the account associated with an Account Assignment
+		// in order to display the enclosing Account, otherwise the user will not
+		// be able to see their assigned permission sets.
+		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
+		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching identity center account assignment")
+		}
+
+		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {
+			continue
+		}
+
+		resources = append(resources, types.ResourceID{
+			ClusterName: resource.ClusterName,
+			Kind:        types.KindIdentityCenterAccount,
+			Name:        asmt.GetSpec().GetAccountId(),
+		})
+		icAccounts.Add(asmt.GetSpec().GetAccountId())
+	}
+
+	return resources, nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log

@@ -61,7 +61,8 @@ teleportVersionOverride: ""
 # For example:
 #
 # auth:
-#  postStart: ["curl", "http://hook"]
+#  postStart:
+#    command: ["curl", "http://hook"]
 #  imagePullPolicy: Always
 auth:
   # auth.teleportConfig contains YAML teleport configuration for auth pods
@@ -84,7 +85,8 @@ auth:
 # This is merged with chart-scoped values and takes precedence in case of conflict.
 # For example:
 # proxy:
-#   postStart: ["curl", "http://hook"]
+#   postStart:
+#     command: ["curl", "http://hook"]
 #   imagePullPolicy: Always
 #   annotations:
 #     service:
@@ -654,6 +656,9 @@ extraLabels:
   ingress: {}
   # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
   job: {}
+  # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
+  # Job run by the Helm hook.
+  jobPod: {}
   # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
   persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the

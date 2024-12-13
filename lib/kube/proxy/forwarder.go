@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -1667,6 +1668,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		httpResponseWriter: w,
 		context:            ctx,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
@@ -1772,10 +1774,12 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
+	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
 	onPortForward := func(addr string, success bool) {
-		if !sess.isLocalKubernetesCluster {
+		if !sess.isLocalKubernetesCluster || auditSent[addr] {
 			return
 		}
+		auditSent[addr] = true
 		portForward := &apievents.PortForward{
 			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
@@ -1791,6 +1795,11 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 			Status: apievents.Status{
 				Success: success,
 			},
+			KubernetesClusterMetadata: sess.eventClusterMeta(req),
+			KubernetesPodMetadata: apievents.KubernetesPodMetadata{
+				KubernetesPodNamespace: p.ByName("podNamespace"),
+				KubernetesPodName:      p.ByName("podName"),
+			},
 		}
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
@@ -1799,6 +1808,31 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
+	defer func() {
+		for addr := range auditSent {
+			portForward := &apievents.PortForward{
+				Metadata: apievents.Metadata{
+					Type: events.PortForwardEvent,
+					Code: events.PortForwardStopCode,
+				},
+				UserMetadata: authCtx.eventUserMeta(),
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  sess.kubeAddress,
+					RemoteAddr: req.RemoteAddr,
+					Protocol:   events.EventProtocolKube,
+				},
+				Addr:                      addr,
+				KubernetesClusterMetadata: sess.eventClusterMeta(req),
+				KubernetesPodMetadata: apievents.KubernetesPodMetadata{
+					KubernetesPodNamespace: p.ByName("podNamespace"),
+					KubernetesPodName:      p.ByName("podName"),
+				},
+			}
+			if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, portForward); err != nil {
+				f.log.WithError(err).Warn("Failed to emit event.")
+			}
+		}
+	}()
 
 	q := req.URL.Query()
 	request := portForwardRequest{
@@ -1811,6 +1845,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		onPortForward:      onPortForward,
 		targetDialer:       dialer,
 		pingPeriod:         f.cfg.ConnPingPeriod,
+		idleTimeout:        sess.clientIdleTimeout,
 	}
 	f.log.Debugf("Starting %v.", request)
 	err = runPortForwarding(request)
@@ -2186,7 +2221,6 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 }
 
 func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-
 	wsDialer, err := f.getWebsocketDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2347,9 +2381,11 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Context:               s.connCtx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
-		Entry:                 s.parent.log,
-		Emitter:               s.parent.cfg.AuthClient,
-		EmitterContext:        s.parent.ctx,
+		// TODO(tross) update this to use the child logger
+		// once Forwarder is converted to use a slog.Logger
+		Logger:         slog.Default(),
+		Emitter:        s.parent.cfg.AuthClient,
+		EmitterContext: s.parent.ctx,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)
@@ -2514,7 +2550,8 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	opts := []reverseproxy.Option{
 		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(f.log),
+		// TODO(tross): convert this to use f.log once it has been converted to use slog
+		reverseproxy.WithLogger(slog.Default()),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	}
 	if sess.isLocalKubernetesCluster {

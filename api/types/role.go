@@ -107,6 +107,13 @@ type Role interface {
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
 	SetNodeLabels(RoleConditionType, Labels)
 
+	// GetWorkloadIdentityLabels gets the map of node labels this role is
+	// allowed or denied access to.
+	GetWorkloadIdentityLabels(RoleConditionType) Labels
+	// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this
+	// role is allowed or denied access to.
+	SetWorkloadIdentityLabels(RoleConditionType, Labels)
+
 	// GetAppLabels gets the map of app labels this role is allowed or denied access to.
 	GetAppLabels(RoleConditionType) Labels
 	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
@@ -279,6 +286,15 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+
+	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
+	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
+	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
+
+	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
+	// Assignments for the role
+	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 }
 
 // NewRole constructs new standard V7 role.
@@ -604,6 +620,25 @@ func (r *RoleV6) SetNodeLabels(rct RoleConditionType, labels Labels) {
 		r.Spec.Allow.NodeLabels = labels.Clone()
 	} else {
 		r.Spec.Deny.NodeLabels = labels.Clone()
+	}
+}
+
+// GetWorkloadIdentityLabels gets the map of WorkloadIdentity labels for
+// allow or deny.
+func (r *RoleV6) GetWorkloadIdentityLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.WorkloadIdentityLabels
+	}
+	return r.Spec.Deny.WorkloadIdentityLabels
+}
+
+// SetWorkloadIdentityLabels sets the map of WorkloadIdentity labels this role
+// is allowed or denied access to.
+func (r *RoleV6) SetWorkloadIdentityLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.WorkloadIdentityLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.WorkloadIdentityLabels = labels.Clone()
 	}
 }
 
@@ -958,6 +993,23 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 	}
 }
 
+// GetGitHubPermissions returns the allow or deny GitHubPermission.
+func (r *RoleV6) GetGitHubPermissions(rct RoleConditionType) []GitHubPermission {
+	if rct == Allow {
+		return r.Spec.Allow.GitHubPermissions
+	}
+	return r.Spec.Deny.GitHubPermissions
+}
+
+// SetGitHubPermissions sets the allow or deny GitHubPermission.
+func (r *RoleV6) SetGitHubPermissions(rct RoleConditionType, perms []GitHubPermission) {
+	if rct == Allow {
+		r.Spec.Allow.GitHubPermissions = perms
+	} else {
+		r.Spec.Deny.GitHubPermissions = perms
+	}
+}
+
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
@@ -1039,14 +1091,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
 	}
-	if r.Spec.Options.PortForwarding == nil {
-		r.Spec.Options.PortForwarding = NewBoolOption(true)
-	}
 	if len(r.Spec.Options.BPF) == 0 {
 		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
-	if r.Spec.Allow.Namespaces == nil {
-		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Allow.Namespaces); err != nil {
+		// Using trace.BadParameter instead of trace.Wrap for a better error message.
+		return trace.BadParameter("allow: %s", err)
 	}
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
@@ -1149,8 +1199,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
 
-	if r.Spec.Deny.Namespaces == nil {
-		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
+		// Using trace.BadParameter instead of trace.Wrap for a better error message.
+		return trace.BadParameter("deny: %s", err)
 	}
 
 	// Validate request.kubernetes_resources fields are all valid.
@@ -1230,6 +1281,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
+		r.Spec.Allow.WorkloadIdentityLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -1290,6 +1342,27 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {
+	// If nil use the default.
+	// This distinguishes between nil and empty (in accordance to legacy code).
+	if *namespaces == nil {
+		*namespaces = []string{defaults.Namespace}
+		return nil
+	}
+
+	for i, ns := range *namespaces {
+		if ns == Wildcard {
+			continue // OK, wildcard is accepted.
+		}
+		if err := ValidateNamespaceDefault(ns); err != nil {
+			// Using trace.BadParameter instead of trace.Wrap for a better error message.
+			return trace.BadParameter("namespaces[%d]: %s", i, err)
 		}
 	}
 
@@ -1922,6 +1995,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindGitServer:
+		return r.makeGitServerLabelMatchers(cond), nil
+	case KindWorkloadIdentity:
+		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -1975,6 +2052,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.GroupLabels = labelMatchers.Labels
 		cond.GroupLabelsExpression = labelMatchers.Expression
 		return nil
+	case KindWorkloadIdentity:
+		cond.WorkloadIdentityLabels = labelMatchers.Labels
+		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
 }
@@ -2023,6 +2104,27 @@ func (r *RoleV6) SetOrigin(origin string) {
 func (r *RoleV6) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
+	var all []string
+	for _, perm := range cond.GitHubPermissions {
+		all = append(all, perm.Organizations...)
+	}
+	return LabelMatchers{
+		Labels: Labels{
+			GitHubOrgLabel: all,
+		},
+	}
+}
+
+// GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
+	if rct == Allow {
+		return r.Spec.Allow.AccountAssignments
+	}
+	return r.Spec.Deny.AccountAssignments
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label
@@ -2181,8 +2283,23 @@ func (h CreateDatabaseUserMode) encode() (string, error) {
 func (h *CreateDatabaseUserMode) decode(val any) error {
 	var str string
 	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		str = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_database_user_mode cannot be true, got %v", val)
+		}
+		str = createHostUserModeOffString
 	default:
 		return trace.BadParameter("bad value type %T, expected string", val)
 	}
@@ -2200,6 +2317,15 @@ func (h *CreateDatabaseUserMode) decode(val any) error {
 		return trace.BadParameter("invalid database user mode %v", val)
 	}
 
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *CreateDatabaseUserMode) setFromEnum(val int32) error {
+	if _, ok := CreateDatabaseUserMode_name[val]; !ok {
+		return trace.BadParameter("invalid database user creation mode %v", val)
+	}
+	*h = CreateDatabaseUserMode(val)
 	return nil
 }
 
@@ -2249,4 +2375,9 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 // IsEnabled returns true if database automatic user provisioning is enabled.
 func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
+// GetAccount fetches the Account ID from a Role Condition Account Assignment
+func (a IdentityCenterAccountAssignment) GetAccount() string {
+	return a.Account
 }

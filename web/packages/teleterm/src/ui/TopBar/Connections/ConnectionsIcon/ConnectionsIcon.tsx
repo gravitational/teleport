@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { Cluster } from 'design/Icon';
 import styled from 'styled-components';
 import { ButtonSecondary } from 'design';

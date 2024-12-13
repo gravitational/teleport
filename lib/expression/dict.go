@@ -50,7 +50,9 @@ func (d Dict) addValues(key string, values ...string) Dict {
 		out[key] = NewSet(values...)
 		return out
 	}
-	s.Add(values...)
+	// Calling s.add would do an unnecessary extra copy since we already
+	// cloned the whole Dict. s.s.Add adds to the existing cloned set.
+	s.s.Add(values...)
 	return out
 }
 
@@ -71,7 +73,7 @@ func (d Dict) remove(keys ...string) any {
 func (d Dict) clone() Dict {
 	out := make(Dict, len(d))
 	for key, set := range d {
-		out[key] = Set{set.Clone()}
+		out[key] = set.clone()
 	}
 	return out
 }

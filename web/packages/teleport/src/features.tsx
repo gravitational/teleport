@@ -47,6 +47,8 @@ import {
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
+
 import { NavTitle } from './types';
 
 import { AuditContainer as Audit } from './Audit';
@@ -246,7 +248,12 @@ export class FeatureBots implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.listBots;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.listBots;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -433,7 +440,12 @@ export class FeatureIntegrations implements TeleportFeature {
   section = ManagementSection.Access;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.integrations;
+    }
+    return true;
   }
 
   route = {
@@ -628,6 +640,22 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 }
 
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -702,6 +730,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureIntegrationStatus(),
 
     // - Identity
     new AccessRequests(),

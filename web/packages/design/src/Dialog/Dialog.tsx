@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef, PropsWithChildren } from 'react';
+import { ComponentProps, forwardRef, PropsWithChildren } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 
 import Modal, { ModalProps } from './../Modal';
@@ -30,7 +30,7 @@ export const Dialog = forwardRef<
   PropsWithChildren<
     {
       className?: string;
-      dialogCss?: StyleFunction<any>;
+      dialogCss?: StyleFunction<ComponentProps<'div'>>;
     } & ModalPropsWithoutChildren
   >
 >((props, ref) => {
@@ -68,7 +68,9 @@ const ModalBox = styled.div`
   transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
 `;
 
-const DialogBox = styled.div<{ dialogCss: StyleFunction<any> | undefined }>`
+const DialogBox = styled.div<{
+  dialogCss: StyleFunction<ComponentProps<'div'>> | undefined;
+}>`
   padding: 32px;
   padding-top: 24px;
   background: ${props => props.theme.colors.levels.surface};

@@ -16,28 +16,64 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Role } from 'teleport/services/resources';
+import {
+  CreateDBUserMode,
+  CreateHostUserMode,
+  KubernetesResource,
+  RequireMFAType,
+  ResourceKind,
+  Role,
+  Rule,
+  SessionRecordingMode,
+} from 'teleport/services/resources';
 
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 
 import { Labels } from 'teleport/services/resources';
 
 import {
+  KubernetesAccessSpec,
   labelsModelToLabels,
   labelsToModel,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
 } from './standardmodel';
-import { withDefaults } from './withDefaults';
+import { optionsWithDefaults, withDefaults } from './withDefaults';
 
 const minimalRole = () =>
   withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
 
 const minimalRoleModel = (): RoleEditorModel => ({
-  metadata: { name: 'foobar' },
+  metadata: { name: 'foobar', labels: [] },
   accessSpecs: [],
+  rules: [],
   requiresReset: false,
+  options: {
+    maxSessionTTL: '30h0m0s',
+    clientIdleTimeout: '',
+    disconnectExpiredCert: false,
+    requireMFAType: {
+      value: false,
+      label: 'No',
+    },
+    createHostUserMode: {
+      value: '',
+      label: 'Unspecified',
+    },
+    createDBUser: false,
+    createDBUserMode: {
+      value: '',
+      label: 'Unspecified',
+    },
+    desktopClipboard: true,
+    createDesktopUser: false,
+    desktopDirectorySharing: true,
+    defaultSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+    sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+    recordDesktopSessions: true,
+    forwardAgent: false,
+  },
 });
 
 // These tests make sure that role to model and model to role conversions are
@@ -52,6 +88,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       metadata: {
         name: 'role-name',
         description: 'role-description',
+        labels: { foo: 'bar' },
       },
     },
     model: {
@@ -59,6 +96,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       metadata: {
         name: 'role-name',
         description: 'role-description',
+        labels: [{ name: 'foo', value: 'bar' }],
       },
     },
   },
@@ -200,6 +238,57 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ],
     },
   },
+
+  {
+    name: 'Options object',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        options: {
+          ...minimalRole().spec.options,
+          max_session_ttl: '1h15m30s',
+          client_idle_timeout: '2h30m45s',
+          disconnect_expired_cert: true,
+          require_session_mfa: 'hardware_key',
+          create_host_user_mode: 'keep',
+          create_db_user: true,
+          create_db_user_mode: 'best_effort_drop',
+          desktop_clipboard: false,
+          create_desktop_user: true,
+          desktop_directory_sharing: false,
+          record_session: {
+            default: 'strict',
+            desktop: false,
+            ssh: 'best_effort',
+          },
+          forward_agent: true,
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      options: {
+        maxSessionTTL: '1h15m30s',
+        clientIdleTimeout: '2h30m45s',
+        disconnectExpiredCert: true,
+        requireMFAType: { value: 'hardware_key', label: 'Hardware Key' },
+        createHostUserMode: { value: 'keep', label: 'Keep' },
+        createDBUser: true,
+        createDBUserMode: {
+          value: 'best_effort_drop',
+          label: 'Drop (best effort)',
+        },
+        desktopClipboard: false,
+        createDesktopUser: true,
+        desktopDirectorySharing: false,
+        defaultSessionRecordingMode: { value: 'strict', label: 'Strict' },
+        sshSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+        recordDesktopSessions: false,
+        forwardAgent: true,
+      },
+    },
+  },
 ])('$name', ({ role, model }) => {
   it('is converted to a model', () => {
     expect(roleToRoleEditorModel(role)).toEqual(model);
@@ -211,88 +300,202 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
 });
 
 describe('roleToRoleEditorModel', () => {
-  it('detects unknown fields', () => {
-    const minRole = minimalRole();
-    const roleModelWithReset: RoleEditorModel = {
-      ...minimalRoleModel(),
-      requiresReset: true,
-    };
+  const minRole = minimalRole();
+  const roleModelWithReset: RoleEditorModel = {
+    ...minimalRoleModel(),
+    requiresReset: true,
+  };
+  // Same as newAccessSpec('kube_cluster'), but without default groups.
+  const newKubeClusterAccessSpec = (): KubernetesAccessSpec => ({
+    kind: 'kube_cluster',
+    groups: [],
+    labels: [],
+    resources: [],
+  });
 
-    expect(roleToRoleEditorModel(minRole).requiresReset).toEqual(false);
+  test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
+    {
+      name: 'unknown fields in Role',
+      role: { ...minRole, unknownField: 123 } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({ ...minRole, unknownField: 123 } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in metadata',
+      role: {
         ...minRole,
         metadata: { name: 'foobar', unknownField: 123 },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec',
+      role: {
         ...minRole,
         spec: { ...minRole.spec, unknownField: 123 },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.allow',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           allow: { ...minRole.spec.allow, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'job', unknownField: 123 } as KubernetesResource,
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newKubeClusterAccessSpec(),
+            resources: [expect.any(Object)],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unsupported resource kind in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'illegal' } as unknown as KubernetesResource,
+              { kind: 'job' },
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newKubeClusterAccessSpec(),
+            resources: [
+              expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
+            ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unsupported verb in KubernetesResource',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              {
+                kind: '*',
+                verbs: ['illegal', 'get'],
+              } as unknown as KubernetesResource,
+            ],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        accessSpecs: [
+          {
+            ...newKubeClusterAccessSpec(),
+            resources: [
+              expect.objectContaining({
+                verbs: [{ value: 'get', label: 'get' }],
+              }),
+            ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unknown fields in Rule',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            rules: [{ unknownField: 123 } as Rule],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        rules: [expect.any(Object)],
+      },
+    },
+
+    {
+      name: 'unsupported verb in Rule',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            rules: [{ verbs: ['illegal', 'create'] } as unknown as Rule],
+          },
+        },
+      } as Role,
+      model: {
+        ...roleModelWithReset,
+        rules: [
+          expect.objectContaining({
+            verbs: [{ value: 'create', label: 'create' }],
+          }),
+        ],
+      },
+    },
+
+    {
+      name: 'unknown fields in spec.deny',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           deny: { ...minRole.spec.deny, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          deny: { ...minRole.spec.deny, unknownField: 123 },
-        },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
           options: { ...minRole.spec.options, unknownField: 123 },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            idp: { saml: { enabled: true }, unknownField: 123 },
-          },
-        },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options.idp.saml',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
@@ -301,11 +504,12 @@ describe('roleToRoleEditorModel', () => {
             idp: { saml: { enabled: true, unknownField: 123 } },
           },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
+      } as Role,
+    },
 
-    expect(
-      roleToRoleEditorModel({
+    {
+      name: 'unknown fields in spec.options.record_session',
+      role: {
         ...minRole,
         spec: {
           ...minRole.spec,
@@ -317,9 +521,117 @@ describe('roleToRoleEditorModel', () => {
             },
           },
         },
-      } as Role)
-    ).toEqual(roleModelWithReset);
-  });
+      } as Role,
+    },
+
+    {
+      name: 'unsupported value in spec.options.require_session_mfa',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            require_session_mfa: 'bogus' as RequireMFAType,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          requireMFAType: { value: false, label: 'No' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.create_host_user_mode',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            create_host_user_mode: 'bogus' as CreateHostUserMode,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          createHostUserMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.create_db_user_mode',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: {
+            ...minRole.spec.options,
+            create_db_user_mode: 'bogus' as CreateDBUserMode,
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          createDBUserMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.record_session.default',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            record_session: { default: 'bogus' as SessionRecordingMode },
+          }),
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          defaultSessionRecordingMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+
+    {
+      name: 'unsupported value in spec.options.record_session.ssh',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            record_session: { ssh: 'bogus' as SessionRecordingMode },
+          }),
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        options: {
+          ...roleModelWithReset.options,
+          sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+        },
+      },
+    },
+  ])(
+    'requires reset because of $name',
+    ({ role, model = roleModelWithReset }) => {
+      expect(roleToRoleEditorModel(role)).toEqual(model);
+    }
+  );
 
   test('version change requires reset', () => {
     expect(roleToRoleEditorModel({ ...minimalRole(), version: 'v1' })).toEqual({
@@ -348,6 +660,7 @@ describe('roleToRoleEditorModel', () => {
       metadata: {
         name: 'role-name',
         revision: originalRev,
+        labels: [],
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -376,6 +689,7 @@ describe('roleToRoleEditorModel', () => {
       metadata: {
         name: 'role-name',
         revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
+        labels: [],
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -471,6 +785,46 @@ describe('roleToRoleEditorModel', () => {
   });
 });
 
+it('creates a rule model', () => {
+  expect(
+    roleToRoleEditorModel({
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          rules: [
+            {
+              resources: [ResourceKind.User, ResourceKind.DatabaseService],
+              verbs: ['read', 'list'],
+            },
+            { resources: [ResourceKind.Lock], verbs: ['create'] },
+          ],
+        },
+      },
+    })
+  ).toEqual({
+    ...minimalRoleModel(),
+    rules: [
+      {
+        id: expect.any(String),
+        resources: [
+          { label: 'user', value: 'user' },
+          { label: 'db_service', value: 'db_service' },
+        ],
+        verbs: [
+          { label: 'read', value: 'read' },
+          { label: 'list', value: 'list' },
+        ],
+      },
+      {
+        id: expect.any(String),
+        resources: [{ label: 'lock', value: 'lock' }],
+        verbs: [{ label: 'create', value: 'create' }],
+      },
+    ],
+  } as RoleEditorModel);
+});
+
 test('labelsToModel', () => {
   expect(labelsToModel({ foo: 'bar', doubleFoo: ['bar1', 'bar2'] })).toEqual([
     { name: 'foo', value: 'bar' },
@@ -488,6 +842,7 @@ describe('roleEditorModelToRole', () => {
           name: 'dog-walker',
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
+          labels: [{ name: 'kind', value: 'occupation' }],
         },
       })
     ).toEqual({
@@ -496,6 +851,7 @@ describe('roleEditorModelToRole', () => {
         name: 'dog-walker',
         description: 'walks dogs',
         revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
+        labels: { kind: 'occupation' },
       },
     } as Role);
   });
@@ -557,6 +913,43 @@ describe('roleEditorModelToRole', () => {
               namespace: '',
               verbs: [],
             },
+          ],
+        },
+      },
+    } as Role);
+  });
+
+  it('converts a rule model', () => {
+    expect(
+      roleEditorModelToRole({
+        ...minimalRoleModel(),
+        rules: [
+          {
+            id: 'dummy-id-1',
+            resources: [
+              { label: 'user', value: ResourceKind.User },
+              { label: 'db_service', value: ResourceKind.DatabaseService },
+            ],
+            verbs: [
+              { label: 'read', value: 'read' },
+              { label: 'list', value: 'list' },
+            ],
+          },
+          {
+            id: 'dummy-id-2',
+            resources: [{ label: 'lock', value: ResourceKind.Lock }],
+            verbs: [{ label: 'create', value: 'create' }],
+          },
+        ],
+      })
+    ).toEqual({
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          rules: [
+            { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
+            { resources: ['lock'], verbs: ['create'] },
           ],
         },
       },
