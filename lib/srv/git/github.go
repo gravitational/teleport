@@ -45,7 +45,6 @@ import (
 // should try to periodically (e.g. once per day) poll them from the API.
 var knownGithubDotComFingerprints = []string{
 	"SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s",
-	"SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ",
 	"SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM",
 	"SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
 }
@@ -121,11 +120,8 @@ func (c *GitHubSignerConfig) CheckAndSetDefaults() error {
 }
 
 func (c *GitHubSignerConfig) certTTL() time.Duration {
-	userExpires := c.IdentityExpires.Sub(c.Clock.Now())
-	if userExpires > defaultGitHubUserCertTTL {
-		return defaultGitHubUserCertTTL
-	}
-	return userExpires
+	userTTL := c.IdentityExpires.Sub(c.Clock.Now())
+	return min(userTTL, defaultGitHubUserCertTTL)
 }
 
 // MakeGitHubSigner generates an ssh.Signer that can impersonate a GitHub user

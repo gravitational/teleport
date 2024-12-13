@@ -191,10 +191,8 @@ var (
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
 		EC2InstanceConnect: Ed25519,
-		// GitHubProxyCASSH uses same algorithms as UserCASSH.
-		GitHubProxyCASSH: RSA2048,
-		// GitClient uses same algorithms as UserCASSH.
-		GitClient: RSA2048,
+		GitHubProxyCASSH:   Ed25519,
+		GitClient:          Ed25519,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and

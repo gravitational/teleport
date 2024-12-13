@@ -47,12 +47,6 @@ func TestCheckSSHCommand(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name:       "success command with double quotes",
-			server:     server,
-			sshCommand: "git-upload-pack \"my-org/my-repo.git\"",
-			checkError: require.NoError,
-		},
-		{
 			name:       "org does not match",
 			server:     server,
 			sshCommand: "git-upload-pack 'some-other-org/my-repo.git'",
@@ -73,6 +67,74 @@ func TestCheckSSHCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.checkError(t, CheckSSHCommand(tt.server, tt.sshCommand))
+		})
+	}
+}
+
+func Test_parseSSHCommand(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		checkError require.ErrorAssertionFunc
+		wantOutput *command
+	}{
+		{
+			name:       "git-upload-pack",
+			input:      "git-upload-pack 'my-org/my-repo.git'",
+			checkError: require.NoError,
+			wantOutput: &command{
+				service:    "git-upload-pack",
+				repository: "my-org/my-repo.git",
+			},
+		},
+		{
+			name:       "git-upload-pack with double quote",
+			input:      "git-upload-pack \"my-org/my-repo.git\"",
+			checkError: require.NoError,
+			wantOutput: &command{
+				service:    "git-upload-pack",
+				repository: "my-org/my-repo.git",
+			},
+		},
+		{
+			name:       "git-upload-pack with args",
+			input:      "git-upload-pack --strict 'my-org/my-repo.git'",
+			checkError: require.NoError,
+			wantOutput: &command{
+				service:    "git-upload-pack",
+				repository: "my-org/my-repo.git",
+			},
+		},
+		{
+			name:       "missing quote",
+			input:      "git-upload-pack 'my-org/my-repo.git",
+			checkError: require.Error,
+		},
+		{
+			name:       "git-receive-pack",
+			input:      "git-receive-pack 'my-org/my-repo.git'",
+			checkError: require.NoError,
+			wantOutput: &command{
+				service:    "git-receive-pack",
+				repository: "my-org/my-repo.git",
+			},
+		},
+		{
+			name:       "missing args",
+			input:      "git-receive-pack",
+			checkError: require.Error,
+		},
+		{
+			name:       "unsupported",
+			input:      "git-cat-file",
+			checkError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := parseSSHCommand(tt.input)
+			tt.checkError(t, err)
+			require.Equal(t, tt.wantOutput, output)
 		})
 	}
 }

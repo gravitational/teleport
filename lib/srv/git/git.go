@@ -21,7 +21,9 @@ package git
 import (
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -30,44 +32,77 @@ import (
 func CheckSSHCommand(server types.Server, command string) error {
 	cmd, err := parseSSHCommand(command)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "parsing ssh command %q", command)
 	}
+	// Only supporting GitHub for now.
 	if server.GetGitHub() == nil {
 		return trace.BadParameter("missing GitHub spec")
 	}
-	if server.GetGitHub().Organization != cmd.org {
-		return trace.AccessDenied("expect organization %q but got %q", server.GetGitHub().Organization, cmd.org)
+	if server.GetGitHub().Organization != cmd.repository.owner() {
+		return trace.AccessDenied("expect organization %q but got %q", server.GetGitHub().Organization, cmd.repository.owner())
 	}
 	return nil
 }
 
-type sshCommand struct {
-	gitService string
-	path       string
-	org        string
-}
+type repository string
 
-// parseSSHCommand parses the provided SSH command and returns details of the
-// parts.
+// owner returns the first part of the repository. If repository does not have
+// multiple parts, empty will be returned.
 //
-// Sample command: git-upload-pack 'my-org/my-repo.git'
-func parseSSHCommand(command string) (*sshCommand, error) {
-	gitService, path, ok := strings.Cut(strings.TrimSpace(command), " ")
-	if !ok {
-		return nil, trace.BadParameter("invalid git command %s", command)
+// For GitHub, owner is either the user or the organization that owns the repo.
+func (r repository) owner() string {
+	if owner, _, ok := strings.Cut(string(r), "/"); ok {
+		return owner
 	}
-
-	path = strings.TrimLeft(path, quotesAndSpace)
-	path = strings.TrimRight(path, quotesAndSpace)
-	org, _, ok := strings.Cut(path, "/")
-	if !ok {
-		return nil, trace.BadParameter("invalid git command %s", command)
-	}
-	return &sshCommand{
-		gitService: gitService,
-		path:       path,
-		org:        org,
-	}, nil
+	return ""
 }
 
-const quotesAndSpace = `"' `
+// command is the Git command to be executed.
+type command struct {
+	service    string
+	repository repository
+}
+
+// parseSSHCommand parses the provided SSH command and returns the plumbing
+// command details.
+func parseSSHCommand(sshCommand string) (*command, error) {
+	args, err := shellwords.Parse(sshCommand)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(args) == 0 {
+		return nil, trace.BadParameter("invalid ssh command %s", sshCommand)
+	}
+
+	// There are a number of plumbing commands but only upload-pack and
+	// receive-pack are expected over SSH transport.
+	// https://git-scm.com/docs/pack-protocol#_transports
+	switch args[0] {
+	// git-receive-pack - Receive what is pushed into the repository
+	// Example: git-upload-pack 'my-org/my-repo.git'
+	// https://git-scm.com/docs/git-receive-pack
+	case transport.ReceivePackServiceName:
+		if len(args) != 2 {
+			return nil, trace.CompareFailed("expecting 2 arguments for %q, got %d", args[0], len(args))
+		}
+		return &command{
+			service:    args[0],
+			repository: repository(args[1]),
+		}, nil
+
+	// git-upload-pack - Send objects packed back to git-fetch-pack
+	// Example: git-upload-pack 'my-org/my-repo.git'
+	// https://git-scm.com/docs/git-upload-pack
+	case transport.UploadPackServiceName:
+		if len(args) < 2 {
+			return nil, trace.CompareFailed("expecting more than one arguments for %q, got %d", args[0], len(args))
+		}
+
+		return &command{
+			service:    args[0],
+			repository: repository(args[len(args)-1]),
+		}, nil
+	default:
+		return nil, trace.BadParameter("unsupported command %q", sshCommand)
+	}
+}
