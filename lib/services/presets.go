@@ -923,16 +923,15 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	return role, nil
 }
 
-func mergeStrings(dst, src []string, dirty *bool) []string {
+func mergeStrings(dst, src []string) (merged []string, changed bool) {
 	items := utils.NewSet[string](dst...)
 	items.Add(src...)
 	if len(items) == len(dst) {
-		return dst
+		return dst, false
 	}
 	dst = items.Elements()
 	slices.Sort(dst)
-	(*dirty) = true
-	return dst
+	return dst, true
 }
 
 func applyAccessRequestConditionDefaults(role types.Role, enterprise bool) bool {
@@ -947,8 +946,13 @@ func applyAccessRequestConditionDefaults(role types.Role, enterprise bool) bool 
 		target = *defaults
 		changed = true
 	} else {
-		target.Roles = mergeStrings(target.Roles, defaults.Roles, &changed)
-		target.SearchAsRoles = mergeStrings(target.SearchAsRoles, defaults.SearchAsRoles, &changed)
+		var rolesUpdated bool
+
+		target.Roles, rolesUpdated = mergeStrings(target.Roles, defaults.Roles)
+		changed = changed || rolesUpdated
+
+		target.SearchAsRoles, rolesUpdated = mergeStrings(target.SearchAsRoles, defaults.SearchAsRoles)
+		changed = changed || rolesUpdated
 	}
 
 	if changed {
@@ -970,8 +974,13 @@ func applyAccessReviewConditionDefaults(role types.Role, enterprise bool) bool {
 		target = *defaults
 		changed = true
 	} else {
-		target.Roles = mergeStrings(target.Roles, defaults.Roles, &changed)
-		target.PreviewAsRoles = mergeStrings(target.PreviewAsRoles, defaults.PreviewAsRoles, &changed)
+		var rolesUpdated bool
+
+		target.Roles, rolesUpdated = mergeStrings(target.Roles, defaults.Roles)
+		changed = changed || rolesUpdated
+
+		target.PreviewAsRoles, rolesUpdated = mergeStrings(target.PreviewAsRoles, defaults.PreviewAsRoles)
+		changed = changed || rolesUpdated
 	}
 
 	if changed {
