@@ -26,8 +26,10 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/trace"
 )
 
 func TestStripProtocolAndPort(t *testing.T) {
@@ -431,7 +433,7 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 		},
 	}
 
-	outputDb := MakeDatabase(inputDb, nil, nil, false)
+	outputDb := MakeDatabase(inputDb, nil, nil, false, &mockDatabaseInteractiveChecker{false})
 
 	require.Equal(t, []ui.Label{
 		{
@@ -589,4 +591,36 @@ func TestSortedLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeDatabaseSupportsInteractive(t *testing.T) {
+	db := &types.DatabaseV3{}
+
+	for name, tc := range map[string]struct {
+		supports bool
+	}{
+		"supported":   {supports: true},
+		"unsupported": {supports: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			single := MakeDatabase(db, nil /* dbUsers */, nil /* dbNames */, false, &mockDatabaseInteractiveChecker{supports: tc.supports})
+			require.Equal(t, tc.supports, single.SupportsInteractive)
+
+			multi := MakeDatabases([]*types.DatabaseV3{db}, nil /* dbUsers */, nil /* dbNames */, &mockDatabaseInteractiveChecker{supports: tc.supports})
+			require.Len(t, multi, 1)
+			require.Equal(t, tc.supports, multi[0].SupportsInteractive)
+		})
+	}
+}
+
+type mockDatabaseInteractiveChecker struct {
+	supports bool
+}
+
+func (m *mockDatabaseInteractiveChecker) GetREPL(_ string) (dbrepl.REPLNewFunc, error) {
+	if m.supports {
+		return nil, nil
+	}
+
+	return nil, trace.NotImplemented("not supported")
 }

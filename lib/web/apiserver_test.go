@@ -7481,7 +7481,7 @@ func TestOverwriteDatabase(t *testing.T) {
 
 				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
 				require.NoError(t, err)
-				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false, dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})), gotDb)
 			},
 		},
 		{

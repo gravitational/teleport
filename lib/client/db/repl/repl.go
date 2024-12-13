@@ -50,7 +50,7 @@ type REPLInstance interface {
 // the database protocol.
 type REPLGetter interface {
 	// GetREPL returns a start function for the specified protocol.
-	GetREPL(dbProtocol string) (REPLNewFunc, error)
+	GetREPL(protocol string) (REPLNewFunc, error)
 }
 
 // NewREPLGetter creates a new REPL getter given the list of supported REPLs.
