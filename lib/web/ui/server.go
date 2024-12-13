@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
@@ -306,6 +307,9 @@ type Database struct {
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportsInteractive is a flag to indicate the database supports
+	// interactive sessions using database REPLs.
+	SupportsInteractive bool `json:"supports_interactive,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -322,22 +326,34 @@ const (
 	LabelStatus = "status"
 )
 
+// DatabaseInteractiveChecker is used to check if the database supports
+// interactive sessions using database REPLs.
+type DatabaseInteractiveChecker interface {
+	GetREPL(protocol string) (dbrepl.REPLNewFunc, error)
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool, interactiveChecker DatabaseInteractiveChecker) Database {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
+	var supportsInteractive bool
+	if _, err := interactiveChecker.GetREPL(database.GetProtocol()); err == nil {
+		supportsInteractive = true
+	}
+
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                database.GetKind(),
+		Name:                database.GetName(),
+		Desc:                database.GetDescription(),
+		Protocol:            database.GetProtocol(),
+		Type:                database.GetType(),
+		Labels:              uiLabels,
+		DatabaseUsers:       dbUsers,
+		DatabaseNames:       dbNames,
+		Hostname:            stripProtocolAndPort(database.GetURI()),
+		URI:                 database.GetURI(),
+		RequiresRequest:     requiresRequest,
+		SupportsInteractive: supportsInteractive,
 	}
 
 	if database.IsAWSHosted() {
@@ -355,10 +371,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, interactiveChecker)
 		uiServers = append(uiServers, db)
 	}
 

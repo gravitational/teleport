@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -315,6 +316,9 @@ type Config struct {
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
+
+	// DatabaseREPLGetter is used for retrieving database REPL.
+	DatabaseREPLGetter dbrepl.REPLGetter
 }
 
 // SetDefaults ensures proper default values are set if
@@ -834,6 +838,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
 	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -3094,7 +3099,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 				hasFetchedDBUsersAndNames = true
 			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
+			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest, h.cfg.DatabaseREPLGetter)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3588,6 +3593,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	term, err := NewTerminal(ctx, TerminalHandlerConfig{
+		Logger:             h.logger,
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		UserAuthClient:     clt,
@@ -3740,6 +3746,7 @@ func (h *Handler) podConnect(
 		ws:                  ws,
 		keepAliveInterval:   keepAliveInterval,
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		logger:              h.logger.With(teleport.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,

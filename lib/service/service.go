@@ -108,6 +108,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -1065,6 +1066,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	if cfg.PluginRegistry == nil {
 		cfg.PluginRegistry = plugin.NewRegistry()
+	}
+
+	if cfg.DatabaseREPLGetter == nil {
+		// TODO(gabrielcorado): register PostgreSQL REPL.
+		cfg.DatabaseREPLGetter = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})
 	}
 
 	var cloudLabels labels.Importer
@@ -4644,6 +4650,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
+			DatabaseREPLGetter:        cfg.DatabaseREPLGetter,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
