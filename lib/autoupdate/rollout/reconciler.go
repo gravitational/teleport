@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -40,8 +41,9 @@ const (
 	defaultStrategy       = update.AgentsStrategyHaltOnError
 	maxConflictRetry      = 3
 
-	defaultGroupName = "default"
-	defaultStartHour = 12
+	defaultGroupName    = "default"
+	defaultCMCGroupName = defaultGroupName + "-cmc"
+	defaultStartHour    = 12
 )
 
 var (
@@ -294,7 +296,7 @@ func (r *reconciler) computeStatus(
 	groups := status.GetGroups()
 	var err error
 	if len(groups) == 0 {
-		groups, err = makeGroupsStatus(configSchedules, now)
+		groups, err = r.makeGroupsStatus(ctx, configSchedules, now)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating groups status")
 		}
@@ -302,7 +304,7 @@ func (r *reconciler) computeStatus(
 
 	err = r.progressRollout(ctx, newSpec.GetStrategy(), groups)
 	// Failing to progress the update is not a hard failure.
-	// We expected to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
+	// We want to update the status even if something went wrong to surface the failed reconciliation and potential errors to the user.
 	if err != nil {
 		r.log.ErrorContext(ctx, "Errors encountered during rollout progress. Some groups might not get updated properly.",
 			"error", err)
@@ -328,10 +330,10 @@ func (r *reconciler) progressRollout(ctx context.Context, strategyName string, g
 
 // makeGroupStatus creates the autoupdate_agent_rollout.status.groups based on the autoupdate_config.
 // This should be called if the status groups have not been initialized or must be reset.
-func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.Time) ([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, error) {
+func (r *reconciler) makeGroupsStatus(ctx context.Context, schedules *autoupdate.AgentAutoUpdateSchedules, now time.Time) ([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, error) {
 	configGroups := schedules.GetRegular()
 	if len(configGroups) == 0 {
-		defaultGroup, err := defaultConfigGroup()
+		defaultGroup, err := r.defaultConfigGroup(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "retrieving default group")
 		}
@@ -357,12 +359,45 @@ func makeGroupsStatus(schedules *autoupdate.AgentAutoUpdateSchedules, now time.T
 // defaultConfigGroup returns the default group in case of missing autoupdate_config resource.
 // This is a function and not a variable because we will need to add more logic there in the future
 // lookup maintenance information from RFD 109's cluster_maintenance_config.
-func defaultConfigGroup() (*autoupdate.AgentAutoUpdateGroup, error) {
-	// TODO: get group from CMC if possible
+func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentAutoUpdateGroup, error) {
+	cmc, err := r.clt.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// There's no CMC, we return the default group.
+			return defaultGroup(), nil
+		}
+
+		// If we had an error, and it's not trace.ErrNotFound, we stop.
+		return nil, trace.Wrap(err, "retrieving the cluster maintenance config")
+	}
+	// We got a CMC, we generate the default from it.
+	upgradeWindow, ok := cmc.GetAgentUpgradeWindow()
+
+	if !ok {
+		// The CMC is here but does not contain upgrade window.
+		return defaultGroup(), nil
+	}
+
+	weekdays := upgradeWindow.Weekdays
+	// A CMC upgrade window not specifying weekdays should update every day.
+	if len(weekdays) == 0 {
+		weekdays = []string{types.Wildcard}
+	}
+
+	return &autoupdate.AgentAutoUpdateGroup{
+		Name:      defaultCMCGroupName,
+		Days:      weekdays,
+		StartHour: int32(upgradeWindow.UTCStartHour),
+		WaitDays:  0,
+	}, nil
+
+}
+
+func defaultGroup() *autoupdate.AgentAutoUpdateGroup {
 	return &autoupdate.AgentAutoUpdateGroup{
 		Name:      defaultGroupName,
 		Days:      defaultUpdateDays,
 		StartHour: defaultStartHour,
 		WaitDays:  0,
-	}, nil
+	}
 }
