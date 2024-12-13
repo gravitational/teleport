@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   FileTransferActionBar,
   FileTransfer,

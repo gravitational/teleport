@@ -573,7 +573,7 @@ spec:
 We may wish to consider a second-order configuration resource
 (e.g a WorkloadIdentityProfile) which would allow customization settings to be
 shared between WorkloadIdentity resources. This would provide a unified way
-to control customizations which may be necessary for compliance or compatability
+to control customizations which may be necessary for compliance or compatibility
 purposes.
 
 ### Revisiting our use-case
@@ -910,7 +910,7 @@ This persistence must remain over:
 To achieve this persistence, the JoinAttributes protobuf message will be
 encoded using `protojson.Marshal` and stored within the X509 certificate using
 a new extension - `1.3.9999.2.21`. When unmarshalling, unknown fields should be
-ignored to ensure forwards compatability.
+ignored to ensure forwards compatibility.
 
 The GenerateUserCert RPC will be modified to propagate the JoinAttributes,
 if present, to any certificates issued.
@@ -995,7 +995,7 @@ message WorkloadIdentityRule {
 // Deny rules take precedence over allow rules.
 message WorkloadIdentityRules {
   // Allow is a list of rules. If any rule evaluate to true, then the allow
-  // ruleset is consdered satisfied.
+  // ruleset is considered satisfied.
   //
   // If the allow ruleset is empty, then the allow ruleset is considered to be
   // satisfied.
@@ -1456,7 +1456,7 @@ them under separate root attribute keys (e.g `join` vs `workload`).
 Largely, the blast radius of this risk is mitigated by the use of best practices
 such as ensuring that attributes from the join are included in rules or 
 templates with a higher precedence than that of attributes sourced from 
-workload attestation. This limits a bad actors abiliy to issue credentials
+workload attestation. This limits a bad actors ability to issue credentials
 to a subset of the workload identifier namespace. Authorization rules that
 process workload identities should also abide this.
 

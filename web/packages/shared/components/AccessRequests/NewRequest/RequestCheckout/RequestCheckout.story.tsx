@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MemoryRouter, Link } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';

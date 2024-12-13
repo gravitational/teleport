@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { SVGIcon, SVGIconProps } from 'design/SVGIcon';
 
 export function InfoFilled({ size = 24, fill }: SVGIconProps) {

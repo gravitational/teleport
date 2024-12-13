@@ -21,6 +21,7 @@ package usertasks
 import (
 	"encoding/binary"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,6 +73,35 @@ func NewDiscoverEC2UserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOpti
 	return ut, nil
 }
 
+// NewDiscoverEKSUserTask creates a new DiscoverEKS User Task Type.
+func NewDiscoverEKSUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOption) (*usertasksv1.UserTask, error) {
+	taskName := TaskNameForDiscoverEKS(TaskNameForDiscoverEKSParts{
+		Integration:     spec.GetIntegration(),
+		IssueType:       spec.GetIssueType(),
+		AccountID:       spec.GetDiscoverEks().GetAccountId(),
+		Region:          spec.GetDiscoverEks().GetRegion(),
+		AppAutoDiscover: spec.GetDiscoverEks().GetAppAutoDiscover(),
+	})
+
+	ut := &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: taskName,
+		},
+		Spec: spec,
+	}
+	for _, o := range opts {
+		o(ut)
+	}
+
+	if err := ValidateUserTask(ut); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ut, nil
+}
+
 const (
 	// TaskStateOpen identifies an issue with an instance that is not yet resolved.
 	TaskStateOpen = "OPEN"
@@ -86,6 +116,11 @@ const (
 	// when an auto-enrollment of an EC2 instance fails.
 	// UserTasks that have this Task Type must include the DiscoverEC2 field.
 	TaskTypeDiscoverEC2 = "discover-ec2"
+
+	// TaskTypeDiscoverEKS identifies a User Tasks that is created
+	// when an auto-enrollment of an EKS cluster fails.
+	// UserTasks that have this Task Type must include the DiscoverEKS field.
+	TaskTypeDiscoverEKS = "discover-eks"
 )
 
 // List of Auto Discover EC2 issues identifiers.
@@ -128,6 +163,40 @@ var discoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInvocationFailure,
 }
 
+// List of Auto Discover EKS issues identifiers.
+// This value is used to populate the UserTasks.Spec.IssueType for Discover EKS tasks.
+const (
+	// AutoDiscoverEKSIssueStatusNotActive is used to identify clusters that failed to auto-enroll
+	// because their Status is not Active.
+	AutoDiscoverEKSIssueStatusNotActive = "eks-status-not-active"
+	// AutoDiscoverEKSIssueMissingEndpoingPublicAccess is used to identify clusters that failed to auto-enroll
+	// because they don't have a public endpoint and this Teleport Cluster is running in Teleport Cloud.
+	AutoDiscoverEKSIssueMissingEndpoingPublicAccess = "eks-missing-endpoint-public-access"
+	// AutoDiscoverEKSIssueAuthenticationModeUnsupported is used to identify clusters that failed to auto-enroll
+	// because their Authentication Mode is not supported.
+	// Accepted values are API and API_AND_CONFIG_MAP.
+	AutoDiscoverEKSIssueAuthenticationModeUnsupported = "eks-authentication-mode-unsupported"
+	// AutoDiscoverEKSIssueClusterUnreachable is used to identify clusters that failed to auto-enroll
+	// because Teleport Cluster is not able to reach the cluster's API.
+	// Similar to AutoDiscoverEKSIssueMissingEndpoingPublicAccess, which is only used when Teleport is running in Teleport Cloud.
+	AutoDiscoverEKSIssueClusterUnreachable = "eks-cluster-unreachable"
+	// AutoDiscoverEKSIssueAgentNotConnecting is used to identify clusters that Teleport tried to
+	// install the HELM chart but the Kube Agent is not connecting to Teleport.
+	// This can be a transient issue (eg kube agent is in the process of joining), or some non-recoverable issue.
+	// To get more information, users can follow the following link:
+	// https://<region>.console.aws.amazon.com/eks/home?#/clusters/<cluster-name>/statefulsets/teleport-kube-agent?namespace=teleport-agent
+	AutoDiscoverEKSIssueAgentNotConnecting = "eks-agent-not-connecting"
+)
+
+// DiscoverEKSIssueTypes is a list of issue types that can occur when trying to auto enroll EKS clusters.
+var DiscoverEKSIssueTypes = []string{
+	AutoDiscoverEKSIssueStatusNotActive,
+	AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
+	AutoDiscoverEKSIssueAuthenticationModeUnsupported,
+	AutoDiscoverEKSIssueClusterUnreachable,
+	AutoDiscoverEKSIssueAgentNotConnecting,
+}
+
 // ValidateUserTask validates the UserTask object without modifying it.
 func ValidateUserTask(ut *usertasksv1.UserTask) error {
 	switch {
@@ -150,6 +219,10 @@ func ValidateUserTask(ut *usertasksv1.UserTask) error {
 	switch ut.Spec.TaskType {
 	case TaskTypeDiscoverEC2:
 		if err := validateDiscoverEC2TaskType(ut); err != nil {
+			return trace.Wrap(err)
+		}
+	case TaskTypeDiscoverEKS:
+		if err := validateDiscoverEKSTaskType(ut); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -216,6 +289,62 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 	return nil
 }
 
+func validateDiscoverEKSTaskType(ut *usertasksv1.UserTask) error {
+	if ut.GetSpec().Integration == "" {
+		return trace.BadParameter("integration is required")
+	}
+	if ut.GetSpec().DiscoverEks == nil {
+		return trace.BadParameter("%s requires the discover_eks field", TaskTypeDiscoverEKS)
+	}
+	if ut.GetSpec().DiscoverEks.AccountId == "" {
+		return trace.BadParameter("%s requires the discover_eks.account_id field", TaskTypeDiscoverEKS)
+	}
+	if ut.GetSpec().DiscoverEks.Region == "" {
+		return trace.BadParameter("%s requires the discover_eks.region field", TaskTypeDiscoverEKS)
+	}
+
+	expectedTaskName := TaskNameForDiscoverEKS(TaskNameForDiscoverEKSParts{
+		Integration:     ut.Spec.Integration,
+		IssueType:       ut.Spec.IssueType,
+		AccountID:       ut.Spec.DiscoverEks.AccountId,
+		Region:          ut.Spec.DiscoverEks.Region,
+		AppAutoDiscover: ut.Spec.DiscoverEks.AppAutoDiscover,
+	})
+	if ut.Metadata.GetName() != expectedTaskName {
+		return trace.BadParameter("task name is pre-defined for discover-eks types, expected %s, got %s",
+			expectedTaskName,
+			ut.Metadata.GetName(),
+		)
+	}
+
+	if !slices.Contains(DiscoverEKSIssueTypes, ut.GetSpec().IssueType) {
+		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEKSIssueTypes)
+	}
+
+	if len(ut.Spec.DiscoverEks.Clusters) == 0 {
+		return trace.BadParameter("at least one cluster is required")
+	}
+	for clusterName, clusterIssue := range ut.Spec.DiscoverEks.Clusters {
+		if clusterName == "" {
+			return trace.BadParameter("cluster name in discover_eks.clusters map is required")
+		}
+		if clusterIssue.Name == "" {
+			return trace.BadParameter("cluster name in discover_eks.clusters field is required")
+		}
+		if clusterName != clusterIssue.Name {
+			return trace.BadParameter("cluster name in discover_eks.clusters map and field are different")
+		}
+		if clusterIssue.DiscoveryConfig == "" {
+			return trace.BadParameter("discovery config in discover_eks.clusters field is required")
+		}
+		if clusterIssue.DiscoveryGroup == "" {
+			return trace.BadParameter("discovery group in discover_eks.clusters field is required")
+		}
+	}
+
+	return nil
+}
+
 // TaskNameForDiscoverEC2Parts are the fields that deterministically compute a Discover EC2 task name.
 // To be used with TaskNameForDiscoverEC2 function.
 type TaskNameForDiscoverEC2Parts struct {
@@ -248,3 +377,34 @@ func TaskNameForDiscoverEC2(parts TaskNameForDiscoverEC2Parts) string {
 
 // discoverEC2Namespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEC2 User Task names.
 var discoverEC2Namespace = uuid.Must(uuid.Parse("6ba7b815-9dad-11d1-80b4-00c04fd430c8"))
+
+// TaskNameForDiscoverEKSParts are the fields that deterministically compute a Discover EKS task name.
+// To be used with TaskNameForDiscoverEKS function.
+type TaskNameForDiscoverEKSParts struct {
+	Integration     string
+	IssueType       string
+	AccountID       string
+	Region          string
+	AppAutoDiscover bool
+}
+
+// TaskNameForDiscoverEKS returns a deterministic name for the DiscoverEKS task type.
+// This method is used to ensure a single UserTask is created to report issues in enrolling EKS clusters for a given integration, issue type, account id and region.
+func TaskNameForDiscoverEKS(parts TaskNameForDiscoverEKSParts) string {
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
+	bs = append(bs, []byte(parts.Region)...)
+	appAutoDiscoverString := strconv.FormatBool(parts.AppAutoDiscover)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(appAutoDiscoverString)))...)
+	bs = append(bs, []byte(appAutoDiscoverString)...)
+	return uuid.NewSHA1(discoverEKSNamespace, bs).String()
+}
+
+// discoverEKSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEKS User Task names.
+var discoverEKSNamespace = uuid.NewSHA1(uuid.Nil, []byte("discover-eks"))

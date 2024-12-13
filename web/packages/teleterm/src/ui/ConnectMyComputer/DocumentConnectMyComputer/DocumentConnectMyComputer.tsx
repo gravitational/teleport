@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 
 import Indicator from 'design/Indicator';
 

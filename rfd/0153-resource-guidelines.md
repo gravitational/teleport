@@ -149,7 +149,7 @@ specification. To provide consistency and uniformity there are a few
 and [design patterns](https://cloud.google.com/apis/design/design_patterns)
 that should be followed when possible. The most notable of the design patterns
 is
-[Bool vs. Enum vs. String](https://cloud.google.com/apis/design/design_patterns#bool_vs_enum_vs_string). There have been several occasions in the past where a particular field
+[Bool vs. Enum vs. String](https://google.aip.dev/126). There have been several occasions in the past where a particular field
 was not flexible enough which prevented behavior from being easily extended to
 support a new feature.
 
