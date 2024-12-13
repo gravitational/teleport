@@ -285,7 +285,7 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 			errorSubstring: "Example YAML:",
 		},
 		{
-			description: "custom type fields with no override and custom YAML unmarshaller",
+			description: "custom type with custom YAML unmarshaller",
 			source: `
 package mypkg
 
@@ -305,7 +305,19 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 }
 `,
 			},
-			errorSubstring: "Example YAML:",
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Application",
+					PackageName: "mypkg",
+				}: ReferenceEntry{
+					SectionName: "Application",
+					Description: "Includes information about an application registered with Teleport.",
+					SourcePath:  "myfile0.go",
+					// Fields are empty if there is a custom
+					// unmarshaler.
+					Fields: []Field{},
+				},
+			},
 		},
 		{
 			description: "a custom type field declared in a second source file",
