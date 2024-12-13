@@ -549,6 +549,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 			EksClusterName: r.ClusterName,
 			ResourceId:     r.ResourceId,
 			Error:          trace.UserMessage(r.Error),
+			IssueType:      r.IssueType,
 		})
 	}
 
