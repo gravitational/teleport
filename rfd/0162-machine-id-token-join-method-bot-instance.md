@@ -22,7 +22,7 @@ Terminology:
 - Bot instance: A single instance of `tbot` running on a host.
 
 This RFD proposes improvements to the management of fleets of Machine ID Bots.
-These improvements are mostly targetted at on-prem deployments, where the
+These improvements are mostly targeted at on-prem deployments, where the
 delegated join methods are not available.
 
 The improvements will focus on three points:
@@ -564,7 +564,7 @@ Existing analytics for join, renewal and certificate generation should be
 extended to include the BotInstance ID anonymized. This will allow them to be
 linked together.
 
-### Migration/Compatability
+### Migration/Compatibility
 
 The "create if not exists" behaviour of the BotInstance resource will mean that
 existing Bot instances will have a BotInstance resource created on their first
