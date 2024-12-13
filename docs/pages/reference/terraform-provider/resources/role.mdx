@@ -507,12 +507,13 @@ Optional:
 - `mfa_verification_interval` (String) MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.
 - `permit_x11_forwarding` (Boolean) PermitX11Forwarding authorizes use of X11 forwarding.
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
-- `port_forwarding` (Boolean) PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer
+- `port_forwarding` (Boolean) Deprecated: Use SSHPortForwarding instead
 - `record_session` (Attributes) RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false. (see [below for nested schema](#nested-schema-for-specoptionsrecord_session))
 - `request_access` (String) RequestAccess defines the request strategy (optional|note|always) where optional is the default.
 - `request_prompt` (String) RequestPrompt is an optional message which tells users what they aught to request.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
+- `ssh_port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwarding))
 
 ### Nested Schema for `spec.options.cert_extensions`
 
@@ -545,4 +546,25 @@ Optional:
 - `default` (String) Default indicates the default value for the services.
 - `desktop` (Boolean) Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.
 - `ssh` (String) SSH indicates the session mode used on SSH sessions.
+
+
+### Nested Schema for `spec.options.ssh_port_forwarding`
+
+Optional:
+
+- `local` (Attributes) Allow local port forwarding. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwardinglocal))
+- `remote` (Attributes) Allow remote port forwarding. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwardingremote))
+
+### Nested Schema for `spec.options.ssh_port_forwarding.local`
+
+Optional:
+
+- `enabled` (Boolean)
+
+
+### Nested Schema for `spec.options.ssh_port_forwarding.remote`
+
+Optional:
+
+- `enabled` (Boolean)
 

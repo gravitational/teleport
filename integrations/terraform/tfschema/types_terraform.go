@@ -2675,7 +2675,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"port_forwarding": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Description: "PortForwarding defines if the certificate will have \"permit-port-forwarding\" in the certificate. PortForwarding is \"yes\" if not set, that's why this is a pointer",
+							Description: "Deprecated: Use SSHPortForwarding instead",
 							Optional:    true,
 						}),
 						"record_session": {
@@ -2717,6 +2717,28 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.",
 							Optional:    true,
 						}),
+						"ssh_port_forwarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"local": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										Description: "",
+										Optional:    true,
+									})}),
+									Description: "Allow local port forwarding.",
+									Optional:    true,
+								},
+								"remote": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										Description: "",
+										Optional:    true,
+									})}),
+									Description: "Allow remote port forwarding.",
+									Optional:    true,
+								},
+							}),
+							Description: "SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.",
+							Optional:    true,
+						},
 					}),
 					Description: "Options is for OpenSSH options like agent forwarding.",
 					Optional:    true,
@@ -16718,6 +16740,74 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["ssh_port_forwarding"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.SSHPortForwarding = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.SSHPortForwarding = &github_com_gravitational_teleport_api_types.SSHPortForwarding{}
+													obj := obj.SSHPortForwarding
+													{
+														a, ok := tf.Attrs["local"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.Local = nil
+																if !v.Null && !v.Unknown {
+																	tf := v
+																	obj.Local = &github_com_gravitational_teleport_api_types.SSHLocalPortForwarding{}
+																	obj := obj.Local
+																	{
+																		a, ok := tf.Attrs["enabled"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local.Enabled"})
+																		}
+																		CopyFromBoolOption(diags, a, &obj.Enabled)
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["remote"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.Remote = nil
+																if !v.Null && !v.Unknown {
+																	tf := v
+																	obj.Remote = &github_com_gravitational_teleport_api_types.SSHRemotePortForwarding{}
+																	obj := obj.Remote
+																	{
+																		a, ok := tf.Attrs["enabled"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote.Enabled"})
+																		}
+																		CopyFromBoolOption(diags, a, &obj.Enabled)
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -21828,6 +21918,120 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = string(obj.CreateHostUserDefaultShell)
 											v.Unknown = false
 											tf.Attrs["create_host_user_default_shell"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["ssh_port_forwarding"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["ssh_port_forwarding"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.SSHPortForwarding == nil {
+													v.Null = true
+												} else {
+													obj := obj.SSHPortForwarding
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["local"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																v, ok := tf.Attrs["local"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																if !ok {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																		AttrTypes: o.AttrTypes,
+																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																	}
+																} else {
+																	if v.Attrs == nil {
+																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																	}
+																}
+																if obj.Local == nil {
+																	v.Null = true
+																} else {
+																	obj := obj.Local
+																	tf := &v
+																	{
+																		t, ok := tf.AttrTypes["enabled"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Local.Enabled"})
+																		} else {
+																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+																			tf.Attrs["enabled"] = v
+																		}
+																	}
+																}
+																v.Unknown = false
+																tf.Attrs["local"] = v
+															}
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["remote"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																v, ok := tf.Attrs["remote"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																if !ok {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																		AttrTypes: o.AttrTypes,
+																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																	}
+																} else {
+																	if v.Attrs == nil {
+																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																	}
+																}
+																if obj.Remote == nil {
+																	v.Null = true
+																} else {
+																	obj := obj.Remote
+																	tf := &v
+																	{
+																		t, ok := tf.AttrTypes["enabled"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.SSHPortForwarding.Remote.Enabled"})
+																		} else {
+																			v := CopyToBoolOption(diags, obj.Enabled, t, tf.Attrs["enabled"])
+																			tf.Attrs["enabled"] = v
+																		}
+																	}
+																}
+																v.Unknown = false
+																tf.Attrs["remote"] = v
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["ssh_port_forwarding"] = v
+											}
 										}
 									}
 								}

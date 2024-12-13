@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -1017,6 +1018,18 @@ func (s *Server) checkTCPIPForwardRequest(r *ssh.Request) error {
 		return err
 	}
 
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		_, scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		if err != nil {
+			return err
+		}
+
+		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeRemote); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -1074,8 +1087,12 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	if err != nil {
 		s.log.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			s.log.Warnf("Failed to close channel: %v", err)
+		}
 		return
 	}
+	scx.AddCloser(ch)
 	scx.RemoteClient = s.remoteClient
 	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
@@ -1084,11 +1101,13 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 
 	ch = scx.TrackActivity(ch)
 
-	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
-	if err != nil {
-		s.stderrWrite(ch, err.Error())
-		return
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
+		if err != nil {
+			s.stderrWrite(ch, err.Error())
+			return
+		}
 	}
 
 	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", scx.SrcAddr, scx.DstAddr, scx.ID())
@@ -1107,8 +1126,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 		scx.WithError(err).Warn("Failed to emit port forward event.")
 	}
 
-	if err := utils.ProxyConn(ctx, ch, conn); err != nil {
-		s.log.WithError(err).Warn("Pailed proxying data for port forwarding connection.")
+	if err := utils.ProxyConn(ctx, ch, conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+		s.log.WithError(err).Warn("Failed proxying data for port forwarding connection.")
 	}
 }
 
