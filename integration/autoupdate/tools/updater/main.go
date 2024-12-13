@@ -65,7 +65,7 @@ func main() {
 		}
 
 		// Re-execute client tools with the correct version of client tools.
-		code, err := updater.Exec()
+		code, err := updater.Exec(os.Args[1:])
 		if err != nil {
 			log.Fatalf("Failed to re-exec client tool: %v\n", err)
 		} else {
