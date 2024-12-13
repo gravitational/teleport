@@ -20,7 +20,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -51,41 +50,23 @@ type REPLInstance interface {
 // the database protocol.
 type REPLGetter interface {
 	// GetREPL returns a start function for the specified protocol.
-	GetREPL(ctx context.Context, dbProtocol string) (REPLNewFunc, error)
+	GetREPL(dbProtocol string) (REPLNewFunc, error)
 }
 
-// registry implements a default package level registry.
-var registry = &REPLRegistry{repl: make(map[string]REPLNewFunc)}
+// NewREPLGetter creates a new REPL getter given the list of supported REPLs.
+func NewREPLGetter(replNewFuncs map[string]REPLNewFunc) REPLGetter {
+	return &replGetter{m: replNewFuncs}
+}
 
-// REPLRegistry implements a database REPL registry.
-type REPLRegistry struct {
-	mu   sync.Mutex
-	repl map[string]REPLNewFunc
+type replGetter struct {
+	m map[string]REPLNewFunc
 }
 
 // GetREPL implements REPLGetter.
-func (r *REPLRegistry) GetREPL(_ context.Context, dbProtocol string) (REPLNewFunc, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if startFunc, ok := r.repl[dbProtocol]; ok {
-		return startFunc, nil
+func (r *replGetter) GetREPL(dbProtocol string) (REPLNewFunc, error) {
+	if f, ok := r.m[dbProtocol]; ok {
+		return f, nil
 	}
 
-	return nil, trace.NotImplemented("REPL not registered for protocol %q", dbProtocol)
-}
-
-func (r *REPLRegistry) register(dbProtocol string, f REPLNewFunc) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.repl[dbProtocol] = f
-}
-
-// DefaultGetter implements a default instance of REPLGetter.
-var DefaultGetter REPLGetter = registry
-
-// RegisterREPL registers a new REPL for the database protocol.
-func RegisterREPL(dbProtocol string, f REPLNewFunc) {
-	registry.register(dbProtocol, f)
+	return nil, trace.NotImplemented("REPL not supported for protocol %q", dbProtocol)
 }

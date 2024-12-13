@@ -1069,7 +1069,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.DatabaseREPLGetter == nil {
-		cfg.DatabaseREPLGetter = dbrepl.DefaultGetter
+		// TODO(gabrielcorado): register PostgreSQL REPL.
+		cfg.DatabaseREPLGetter = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})
 	}
 
 	var cloudLabels labels.Importer

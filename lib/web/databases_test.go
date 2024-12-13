@@ -543,12 +543,12 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	// Use a mock REPL and modify it adding the additiona configuration when
 	// it is set.
 	repl := &mockDatabaseREPL{message: "hello from repl"}
-	getter := &mockDatabaseREPLGetter{
-		replNewFunc: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
+	getter := dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
+		databaseProtocol: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
 			repl.setConfig(c)
 			return repl, nil
 		},
-	}
+	})
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
@@ -681,18 +681,6 @@ func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-}
-
-type mockDatabaseREPLGetter struct {
-	replNewFunc dbrepl.REPLNewFunc
-}
-
-func (m *mockDatabaseREPLGetter) GetREPL(_ context.Context, _ string) (dbrepl.REPLNewFunc, error) {
-	if m.replNewFunc == nil {
-		return nil, trace.NotImplemented("REPL not implemented")
-	}
-
-	return m.replNewFunc, nil
 }
 
 type mockDatabaseREPL struct {

@@ -459,7 +459,7 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(ctx, req.Protocol)
+	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(req.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
