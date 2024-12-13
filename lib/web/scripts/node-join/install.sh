@@ -17,7 +17,7 @@ MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
 TELEPORT_APP_BUNDLES_darwin="tctl.app tsh.app"
-TELEPORT_ARCHIVE_PATH='teleport'
+TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
 TELEPORT_BINARY_LIST_darwin="teleport"
@@ -40,7 +40,7 @@ INTERACTIVE=false
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
 TELEPORT_VERSION='{{.version}}'
-TELEPORT_PACKAGE_NAME='teleport'
+TELEPORT_PACKAGE_NAME='{{.packageName}}'
 REPO_CHANNEL='{{.repoChannel}}'
 TARGET_HOSTNAME='{{.hostname}}'
 TARGET_PORT='{{.port}}'
