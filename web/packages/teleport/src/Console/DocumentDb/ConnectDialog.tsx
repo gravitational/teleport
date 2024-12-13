@@ -106,18 +106,24 @@ function ConnectForm(props: {
   onConnect(data: DbConnectData): void;
   onClose(): void;
 }) {
-  const dbUserOpts = props.db.users?.map(user => ({
-    value: user,
-    label: user,
-  }));
-  const dbNamesOpts = props.db.names?.map(name => ({
-    value: name,
-    label: name,
-  }));
-  const dbRolesOpts = props.db.roles?.map(role => ({
-    value: role,
-    label: role,
-  }));
+  const dbUserOpts = props.db.users
+    ?.map(user => ({
+      value: user,
+      label: user,
+    }))
+    .filter(removeWildcardOption);
+  const dbNamesOpts = props.db.names
+    ?.map(name => ({
+      value: name,
+      label: name,
+    }))
+    .filter(removeWildcardOption);
+  const dbRolesOpts = props.db.roles
+    ?.map(role => ({
+      value: role,
+      label: role,
+    }))
+    .filter(removeWildcardOption);
 
   const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
   const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
@@ -145,7 +151,6 @@ function ConnectForm(props: {
               onChange={option => setSelectedName(option as Option)}
               value={selectedName}
               options={dbNamesOpts}
-              isDisabled={dbNamesOpts?.length == 1}
               formatCreateLabel={userInput =>
                 `Use "${userInput}" database name`
               }
@@ -157,7 +162,6 @@ function ConnectForm(props: {
               onChange={option => setSelectedUser(option as Option)}
               value={selectedUser}
               options={dbUserOpts}
-              isDisabled={dbUserOpts?.length == 1}
               formatCreateLabel={userInput =>
                 `Use "${userInput}" database user`
               }
@@ -202,6 +206,10 @@ function ConnectForm(props: {
       )}
     </Validation>
   );
+}
+
+function removeWildcardOption({ value }: Option): boolean {
+  return value !== '*';
 }
 
 const dialogCss = () => `

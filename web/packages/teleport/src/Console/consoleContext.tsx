@@ -169,7 +169,6 @@ export default class ConsoleContext {
 
     return this.storeDocs.add({
       kind: 'db',
-      status: 'disconnected',
       clusterId: params.clusterId,
       title: params.serviceName,
       url,
