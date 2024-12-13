@@ -999,6 +999,10 @@ func TestX11Forward(t *testing.T) {
 // TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
 // with the connecting user's file permissions (where needed), rather than root.
 func TestRootX11ForwardPermissions(t *testing.T) {
+	// TODO(Joerger): Fix CI issue related to github actions sometimes using
+	// UID 1001 - https://github.com/gravitational/teleport/pull/50176
+	t.Skip("This test is flaky")
+
 	requireRoot(t)
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
