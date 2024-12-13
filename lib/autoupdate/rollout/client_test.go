@@ -161,11 +161,7 @@ func (h *legacyGetHandler[T]) handle(_ context.Context) (T, error) {
 
 	// We need to deep copy because the reconciler might do updates in place.
 	// We don't want the original resource to be edited as this would mess with other tests.
-	result := protoadapt.MessageV1Of(
-		proto.Clone(
-			protoadapt.MessageV2Of(entry.result),
-		),
-	).(T)
+	result := apiutils.CloneProtoMsg(entry.result)
 	return result, entry.err
 }
 
