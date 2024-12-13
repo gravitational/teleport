@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
+  forwardRef,
   useCallback,
   useMemo,
   useRef,
@@ -91,7 +92,7 @@ export type IdentityProps = {
   makeTitle: (userWithClusterName: string | undefined) => string;
 };
 
-export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
+export const Identity = forwardRef<IdentityHandler, IdentityProps>(
   (
     {
       activeRootCluster,
