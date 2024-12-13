@@ -368,7 +368,12 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						ReviewRequests: &types.AccessReviewConditions{
-							Roles: []string{"some-role"},
+							Roles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"some-role",
+							},
 							PreviewAsRoles: []string{
 								teleport.PresetAccessRoleName,
 								teleport.SystemIdentityCenterAccessRoleName,

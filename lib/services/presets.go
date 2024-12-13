@@ -775,6 +775,7 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 				Roles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 			},
 		}
@@ -946,6 +947,7 @@ func applyAccessRequestConditionDefaults(role types.Role, enterprise bool) bool 
 		target = *defaults
 		changed = true
 	} else {
+		target.Roles = mergeStrings(target.Roles, defaults.Roles, &changed)
 		target.SearchAsRoles = mergeStrings(target.SearchAsRoles, defaults.SearchAsRoles, &changed)
 	}
 
@@ -968,6 +970,7 @@ func applyAccessReviewConditionDefaults(role types.Role, enterprise bool) bool {
 		target = *defaults
 		changed = true
 	} else {
+		target.Roles = mergeStrings(target.Roles, defaults.Roles, &changed)
 		target.PreviewAsRoles = mergeStrings(target.PreviewAsRoles, defaults.PreviewAsRoles, &changed)
 	}
 
