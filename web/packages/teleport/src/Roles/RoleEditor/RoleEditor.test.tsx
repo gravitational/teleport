@@ -126,17 +126,17 @@ test('rendering and switching tabs for a non-standard role', async () => {
   );
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getStandardEditorTab());
   expect(screen.getByText(/This role is too complex/)).toBeVisible();
   expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
   await user.click(getYamlEditorTab());
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
-  expect(screen.getByRole('button', { name: 'Update Role' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 });
 
 test('switching tabs triggers validation', async () => {
