@@ -35,35 +35,41 @@ export default function useReAuthenticate({
   challengeScope,
   onMfaResponse,
 }: ReauthProps): ReauthState {
+  const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
   const [challengeState, setChallengeState] = useState<challengeState>();
 
-  const [getChallengeAttempt, getChallenge] = useAsync(
-    useCallback(
-      async (deviceUsage: DeviceUsage = 'mfa') => {
-        // If the challenge state is empty, used, or has different args,
-        // retrieve a new mfa challenge and set it in the state.
-        if (!challengeState || challengeState.deviceUsage != deviceUsage) {
-          console.log('new challenge!');
-          const challenge = await auth.getMfaChallenge({
-            scope: challengeScope,
-          });
-          setChallengeState({
-            challenge,
-            deviceUsage,
-            mfaOptions: getMfaChallengeOptions(challenge),
-            used: false,
-          });
-        }
+  const [initAttempt, init] = useAsync(async () => {
+    const challenge = await auth.getMfaChallenge({
+      scope: challengeScope,
+    });
 
-        return challengeState.challenge;
-      },
-      [challengeState, setChallengeState, challengeScope]
-    )
-  );
+    setChallengeState({ challenge, deviceUsage: 'mfa' });
+    setMfaOptions(getMfaChallengeOptions(challenge));
+  });
 
   useEffect(() => {
-    getChallenge();
-  }, [getChallenge]);
+    init();
+  }, []);
+
+  const getChallenge = useCallback(
+    async (deviceUsage: DeviceUsage = 'mfa') => {
+      // If the challenge state is empty, used, or has different args,
+      // retrieve a new mfa challenge and set it in the state.
+      if (!challengeState || challengeState.deviceUsage != deviceUsage) {
+        const challenge = await auth.getMfaChallenge({
+          scope: challengeScope,
+          userVerificationRequirement:
+            deviceUsage === 'passwordless' ? 'required' : 'discouraged',
+        });
+        setChallengeState({
+          challenge,
+          deviceUsage,
+        });
+      }
+      return challengeState.challenge;
+    },
+    [challengeScope, challengeState]
+  );
 
   const [submitAttempt, submitWithMfa, setSubmitAttempt] = useAsync(
     useCallback(
@@ -72,30 +78,26 @@ export default function useReAuthenticate({
         deviceUsage?: DeviceUsage,
         totpCode?: string
       ) => {
-        const [challenge, err] = await getChallenge(deviceUsage);
-        if (err) throw err;
+        const challenge = await getChallenge(deviceUsage);
 
-        const response = auth.getMfaChallengeResponse(
-          challenge,
-          mfaType,
-          totpCode
-        );
+        let response: MfaChallengeResponse;
         try {
-          await response;
+          response = await auth.getMfaChallengeResponse(
+            challenge,
+            mfaType,
+            totpCode
+          );
         } catch (err) {
           throw new Error(getReAuthenticationErrorMessage(err));
         }
 
         try {
-          return onMfaResponse(await response);
+          onMfaResponse(response);
         } finally {
-          setChallengeState({
-            ...challengeState,
-            used: true,
-          });
+          setChallengeState(null);
         }
       },
-      [getChallenge, onMfaResponse, challengeState, setChallengeState]
+      [getChallenge, onMfaResponse]
     )
   );
 
@@ -104,8 +106,8 @@ export default function useReAuthenticate({
   }
 
   return {
-    challengeState,
-    getChallengeAttempt,
+    initAttempt,
+    mfaOptions,
     submitWithMfa,
     submitAttempt,
     clearSubmitAttempt,
@@ -118,8 +120,8 @@ export type ReauthProps = {
 };
 
 export type ReauthState = {
-  challengeState: challengeState;
-  getChallengeAttempt: Attempt<any>;
+  initAttempt: Attempt<any>;
+  mfaOptions: MfaOption[];
   submitWithMfa: (
     mfaType?: DeviceType,
     deviceUsage?: DeviceUsage,
@@ -132,23 +134,19 @@ export type ReauthState = {
 type challengeState = {
   challenge: MfaAuthenticateChallenge;
   deviceUsage: DeviceUsage;
-  mfaOptions: MfaOption[];
-  used: boolean;
 };
 
-function getReAuthenticationErrorMessage(err: Error | string): string {
-  const errMsg = err instanceof Error ? err.message : err;
-
-  if (errMsg.includes('attempt was made to use an object that is not')) {
+function getReAuthenticationErrorMessage(err: Error): string {
+  if (err.message.includes('attempt was made to use an object that is not')) {
     // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
     return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
   }
 
-  if (errMsg === 'invalid totp token') {
+  if (err.message === 'invalid totp token') {
     // This message relies on the status message produced by the auth server in
     // lib/auth/Server.checkOTP function. Please keep these in sync.
     return 'Invalid authenticator code';
   }
 
-  return errMsg;
+  return err.message;
 }

@@ -38,7 +38,7 @@ import { StepHeader } from 'design/StepSlider';
 
 import { P } from 'design/Text/Text';
 
-import auth from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import useTeleport from 'teleport/useTeleport';
 
 import {
@@ -54,6 +54,7 @@ import {
   ReauthenticateStep,
   ReauthenticateStepProps,
 } from './ReauthenticateStep';
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 interface AddAuthDeviceWizardProps {
   /** Indicates usage of the device to be added: MFA or a passkey. */
@@ -81,6 +82,62 @@ export function AddAuthDeviceWizard({
     mfaRegisterOptions[0].value
   );
 
+  const reauthState = useReAuthenticate({
+    challengeScope: MfaChallengeScope.MANAGE_DEVICES,
+    onMfaResponse: mfaResponse => {
+      // TODO(Joerger): v19.0.0
+      // Devices can be deleted with an MFA response, so exchanging it for a
+      // privilege token adds an unnecessary API call and security consideration.
+      // The device deletion endpoint requires a token and, but the new endpoint
+      // "DELETE: /webapi/mfa/devices" can be used after v19 backwards compatibly.
+      //
+      // Adding devices can also be done with an MFA response, but a privilege token
+      // gives the user more flexibility in the wizard flow to go back/forward or
+      // switch register-device-type without re-prompting MFA. A reusable
+      // mfa challenge would be a better fit, or allowing the user to decide device
+      // registration type after retrieving the mfa register challenge.
+      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken).then(next);
+    },
+  });
+  // wait for mfaOptions to initialize and handle errors.
+  useEffect(() => {
+    if (!mfaOptions) {
+      return;
+    }
+
+    // If user has no re-authentication options, continue without re-auth.
+    // The user must be registering their first device, which doesn't require re-auth.
+    //
+    // TODO(Joerger): v19.0.0
+    // Registering first device does not require a privilege token anymore, so we
+    // could just call next() and return here instead of empty submit w/ setPrivilegeToken.
+    // However the existing web register endpoint requires privilege token.
+    // We have a new endpoint "/v1/webapi/users/privilege" which does not
+    // require token, but can't be used until v19 for backwards compatibility.
+    if (mfaOptions.length === 0) {
+      next();
+      // submitWithMfa();
+      return;
+    }
+
+    setSelectedMfaOption(mfaOptions[0].value);
+  }, [submitWithMfa, mfaOptions]);
+
+  switch (initAttempt.status) {
+    case 'processing':
+      return (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      );
+    case 'error':
+      return <Alert children={initAttempt.statusText} />;
+    case 'success':
+      break;
+    default:
+      return null;
+  }
+
   return (
     <Dialog
       open={true}
@@ -90,7 +147,7 @@ export function AddAuthDeviceWizard({
     >
       <StepSlider
         flows={wizardFlows}
-        currFlow="default"
+        currFlow="withReauthentication"
         // Step properties
         setPrivilegeToken={setPrivilegeToken}
         usage={usage}
@@ -108,9 +165,8 @@ export function AddAuthDeviceWizard({
 }
 
 const wizardFlows = {
-  default: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
-  // TODO(Joerger): Deleting this unused wizard flow gives me errors.
-  unused: [CreateDeviceStep, SaveDeviceStep],
+  withReauthentication: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
+  withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
 export type AddAuthDeviceWizardStepProps = StepComponentProps &

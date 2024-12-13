@@ -30,11 +30,14 @@ import Box from 'design/Box';
 
 import Indicator from 'design/Indicator';
 
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import useReAuthenticate, {
+  ReauthState,
+} from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DeviceType } from 'teleport/services/mfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
+  reauthState: ReauthState;
   setPrivilegeToken(token: string): void;
   onClose(): void;
 };
@@ -49,65 +52,7 @@ export function ReauthenticateStep({
 }: ReauthenticateStepProps) {
   const [otpCode, setOtpCode] = useState('');
 
-  const {
-    challengeState,
-    getChallengeAttempt,
-    submitWithMfa,
-    submitAttempt,
-    clearSubmitAttempt,
-  } = useReAuthenticate({
-    challengeScope: MfaChallengeScope.MANAGE_DEVICES,
-    onMfaResponse: mfaResponse => {
-      // TODO(Joerger): v19.0.0
-      // Devices can be deleted with an MFA response, so exchanging it for a
-      // privilege token adds an unnecessary API call and security consideration.
-      // The device deletion endpoint requires a token and, but the new endpoint
-      // "DELETE: /webapi/mfa/devices" can be used after v19 backwards compatibly.
-      //
-      // Adding devices can also be done with an MFA response, but a privilege token
-      // gives the user more flexibility in the wizard flow to go back/forward or
-      // switch register-device-type without re-prompting MFA. A reusable
-      // mfa challenge would be a better fit, or allowing the user to decide device
-      // registration type after retrieving the mfa register challenge.
-      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken).then(next);
-    },
-  });
-
-  const mfaOptions = challengeState?.mfaOptions;
   const [selectedMfaOption, setSelectedMfaOption] = useState<DeviceType>();
-  useEffect(() => {
-    // If user has no re-authentication options, continue without re-auth.
-    // The user must be registering their first device, which doesn't require re-auth.
-    //
-    // TODO(Joerger): v19.0.0
-    // Registering first device does not require a privilege token anymore, so we
-    // could just call next() and return here instead of empty submit w/ setPrivilegeToken.
-    // However the existing web register endpoint requires privilege token.
-    // We have a new endpoint "/v1/webapi/users/privilege" which does not
-    // require token, but can't be used until v19 for backwards compatibility.
-    if (mfaOptions?.length === 0) {
-      submitWithMfa();
-      return;
-    }
-
-    setSelectedMfaOption(mfaOptions ? mfaOptions[0].value : null);
-  }, [submitWithMfa, mfaOptions]);
-
-  // Handle potential mfa challenge error states.
-  switch (getChallengeAttempt.status) {
-    case 'processing':
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    case 'error':
-      return <Alert children={getChallengeAttempt.statusText} />;
-    case 'success':
-      break;
-    default:
-      return null;
-  }
 
   const onOtpCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
     setOtpCode(e.target.value);
