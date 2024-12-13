@@ -139,6 +139,7 @@ func TestUserTask(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "OPEN", userTaskDetailResp.State)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
+		lastStateChangeT0 := userTaskDetailResp.LastStateChange
 
 		// Mark it as resolved.
 		_, err = pack.clt.PutJSON(ctx, updateStateEndpoint(userTaskName), ui.UpdateUserTaskStateRequest{
@@ -153,5 +154,8 @@ func TestUserTask(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
 		require.Equal(t, "RESOLVED", userTaskDetailResp.State)
+		// Its last changed state should be updated.
+		lastStateChangeT1 := userTaskDetailResp.LastStateChange
+		require.True(t, lastStateChangeT1.After(lastStateChangeT0), "last state change was not updated after changing the UserTask state")
 	})
 }

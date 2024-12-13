@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Flex, Text, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import { Attempt } from 'shared/hooks/useAsync';

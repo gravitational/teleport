@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Text, Toggle, Link, Flex, H2 } from 'design';
 
 import { P } from 'design/Text/Text';
