@@ -310,7 +310,6 @@ export const DialogWithPolicyEnabled: StoryObj = {
           open={open}
           onClose={() => setOpen(false)}
           onSave={async () => setOpen(false)}
-          onDelete={async () => setOpen(false)}
         />
       </>
     );
