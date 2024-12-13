@@ -646,7 +646,10 @@ function parseUnifiedResourcePreferences(
       unifiedResourcePreferences
     ) as UnifiedResourcePreferencesSchemaAsRequired;
   } catch (e) {
-    new Logger().error('Failed to parse unified resource preferences', e);
+    new Logger('WorkspacesService').error(
+      'Failed to parse unified resource preferences',
+      e
+    );
   }
 }
 
