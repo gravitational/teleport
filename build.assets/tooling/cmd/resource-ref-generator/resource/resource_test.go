@@ -334,10 +334,19 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 				}: ReferenceEntry{
 					SectionName: "Application",
 					Description: "Includes information about an application registered with Teleport.",
-					SourcePath:  "myfile0.go",
-					// Fields are empty if there is a custom
-					// unmarshaler.
-					Fields: []Field{},
+					SourcePath:  "myfile.go",
+					Fields: []Field{
+						{
+							Name:        "spec",
+							Description: "Contains information about the application.",
+							Type:        "",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+					},
 				},
 			},
 		},
@@ -375,14 +384,15 @@ type ServerSpecV1 struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)",
+						},
+						Field{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
 						},
-						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
 					},
 				},
 				PackageInfo{
@@ -393,11 +403,7 @@ type ServerSpecV1 struct {
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
 					Fields: []Field{
-						Field{
-							Name:        "address",
-							Description: "The address of the server.",
-							Type:        "string",
-						},
+
 						Field{
 							Name:        "ttl",
 							Description: "How long the resource is valid.",
@@ -407,6 +413,11 @@ type ServerSpecV1 struct {
 							Name:        "is_active",
 							Description: "Whether the server is active.",
 							Type:        "Boolean",
+						},
+						Field{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
 						},
 					},
 				},
@@ -453,7 +464,7 @@ type Label string
 						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
-							Type:        "",
+							Type:        "[]map[string][Label](#label)",
 						},
 					},
 				},
@@ -479,7 +490,7 @@ type Label string
 					SectionName: "Label",
 					Description: "A custom type that we unmarshal in a non-default way.",
 					SourcePath:  "myfile1.go",
-					Fields:      []Field{},
+					Fields:      nil,
 				},
 			},
 		},
