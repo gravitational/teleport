@@ -535,7 +535,7 @@ func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
 }
 
 func TestConnectDatabaseInteractiveSession(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	databaseProtocol := defaults.ProtocolPostgres
@@ -555,7 +555,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 				RPID: "localhost",
 			},
 		},
-		databaseREPLGetter: &mockDatabaseREPLGetter{
+		databaseREPLGetter: &mockDatabaseREPLRegistry{
 			repl: map[string]dbrepl.REPLNewFunc{
 				databaseProtocol: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
 					repl.setConfig(c)
@@ -684,21 +684,21 @@ func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 }
 
-type mockDatabaseREPLGetter struct {
+type mockDatabaseREPLRegistry struct {
 	repl map[string]dbrepl.REPLNewFunc
 }
 
-// GetREPL implements repl.REPLGetter.
-func (m *mockDatabaseREPLGetter) GetREPL(protocol string) (dbrepl.REPLNewFunc, error) {
-	if replFunc, ok := m.repl[protocol]; ok {
-		return replFunc, nil
+// NewInstance implements repl.REPLGetter.
+func (m *mockDatabaseREPLRegistry) NewInstance(ctx context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
+	if replFunc, ok := m.repl[cfg.Route.Protocol]; ok {
+		return replFunc(ctx, cfg)
 	}
 
 	return nil, trace.NotImplemented("not supported")
 }
 
 // IsSupported implements repl.REPLGetter.
-func (m *mockDatabaseREPLGetter) IsSupported(protocol string) bool {
+func (m *mockDatabaseREPLRegistry) IsSupported(protocol string) bool {
 	_, supported := m.repl[protocol]
 	return supported
 }

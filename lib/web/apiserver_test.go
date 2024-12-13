@@ -213,7 +213,7 @@ type webSuiteConfig struct {
 	clock clockwork.FakeClock
 
 	// databaseREPLGetter allows setting custom database REPLs.
-	databaseREPLGetter dbrepl.REPLGetter
+	databaseREPLGetter dbrepl.REPLRegistry
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -512,7 +512,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
-		DatabaseREPLGetter:    cfg.databaseREPLGetter,
+		DatabaseREPLRegistry:  cfg.databaseREPLGetter,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -8393,7 +8393,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
-		DatabaseREPLGetter:    &mockDatabaseREPLGetter{repl: map[string]dbrepl.REPLNewFunc{}},
+		DatabaseREPLRegistry:  &mockDatabaseREPLRegistry{repl: map[string]dbrepl.REPLNewFunc{}},
 	}, SetClock(clock))
 	require.NoError(t, err)
 

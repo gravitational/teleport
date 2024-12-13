@@ -1068,9 +1068,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		cfg.PluginRegistry = plugin.NewRegistry()
 	}
 
-	if cfg.DatabaseREPLGetter == nil {
+	if cfg.DatabaseREPLRegistry == nil {
 		// TODO(gabrielcorado): register PostgreSQL REPL.
-		cfg.DatabaseREPLGetter = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})
+		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})
 	}
 
 	var cloudLabels labels.Importer
@@ -4650,7 +4650,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
-			DatabaseREPLGetter:        cfg.DatabaseREPLGetter,
+			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

@@ -266,9 +266,9 @@ type Config struct {
 	// AccessGraph represents AccessGraph server config
 	AccessGraph AccessGraphConfig
 
-	// DatabaseREPLGetter is used to retrieve datatabase REPL given the
+	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
-	DatabaseREPLGetter dbrepl.REPLGetter
+	DatabaseREPLRegistry dbrepl.REPLRegistry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token

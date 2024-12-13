@@ -317,8 +317,8 @@ type Config struct {
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
 
-	// DatabaseREPLGetter is used for retrieving database REPL.
-	DatabaseREPLGetter dbrepl.REPLGetter
+	// DatabaseREPLRegistry is used for retrieving database REPL.
+	DatabaseREPLRegistry dbrepl.REPLRegistry
 }
 
 // SetDefaults ensures proper default values are set if
@@ -3099,7 +3099,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 				hasFetchedDBUsersAndNames = true
 			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest, h.cfg.DatabaseREPLGetter.IsSupported(r.GetDatabase().GetProtocol()))
+			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest, h.cfg.DatabaseREPLRegistry.IsSupported(r.GetDatabase().GetProtocol()))
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)

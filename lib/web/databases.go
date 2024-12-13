@@ -164,7 +164,7 @@ func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, h.cfg.DatabaseREPLGetter.IsSupported(database.GetProtocol())), nil
+	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, h.cfg.DatabaseREPLRegistry.IsSupported(database.GetProtocol())), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
@@ -273,7 +273,7 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 	}
 
 	fmt.Println("====>>>>>>>", h.cfg)
-	return webui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */, h.cfg.DatabaseREPLGetter.IsSupported(database.GetProtocol())), nil
+	return webui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */, h.cfg.DatabaseREPLRegistry.IsSupported(database.GetProtocol())), nil
 }
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
@@ -445,6 +445,11 @@ func (h *Handler) dbConnect(
 	)
 	log.DebugContext(ctx, "Received database interactive session request")
 
+	if !h.cfg.DatabaseREPLRegistry.IsSupported(req.Protocol) {
+		log.ErrorContext(ctx, "Unsupported database protocol")
+		return nil, trace.NotImplemented("%q database protocol not supported for REPL sessions", req.Protocol)
+	}
+
 	accessPoint, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -456,11 +461,6 @@ func (h *Handler) dbConnect(
 	}
 
 	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	replStartFunc, err := h.cfg.DatabaseREPLGetter.GetREPL(req.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +481,7 @@ func (h *Handler) dbConnect(
 		replConn:          replConn,
 		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
-		replNewFunc:       replStartFunc,
+		registry:          h.cfg.DatabaseREPLRegistry,
 		proxyAddr:         h.PublicProxyAddr(),
 	}
 	defer sess.Close()
@@ -564,7 +564,7 @@ type databaseInteractiveSession struct {
 	replConn          net.Conn
 	alpnConn          net.Conn
 	keepAliveInterval time.Duration
-	replNewFunc       dbrepl.REPLNewFunc
+	registry          dbrepl.REPLRegistry
 	proxyAddr         string
 }
 
@@ -597,7 +597,7 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
-	repl, err := s.replNewFunc(s.ctx, &dbrepl.NewREPLConfig{
+	repl, err := s.registry.NewInstance(s.ctx, &dbrepl.NewREPLConfig{
 		Client:     s.stream,
 		ServerConn: s.replConn,
 		Route:      *route,
