@@ -4307,12 +4307,18 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
+	// Wait for the nodes to be visible to both Proxy instances.
+	require.NoError(t, main.WaitForNodeCount(ctx, helpers.Site, 1))
+	instance := helpers.TeleInstance{Tunnel: proxyTunnel}
+	require.NoError(t, instance.WaitForNodeCount(ctx, helpers.Site, 1))
+
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    "cluster-main-node",
 	}
+
 	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
