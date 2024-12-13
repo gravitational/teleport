@@ -20,7 +20,7 @@ import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App } from './types';
+import { App, PermissionSet } from './types';
 
 export default function makeApp(json: any): App {
   json = json || {};
@@ -38,7 +38,6 @@ export default function makeApp(json: any): App {
     integration = '',
     samlAppPreset,
     subKind,
-    permissionSets,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -49,6 +48,7 @@ export default function makeApp(json: any): App {
   const labels = json.labels || [];
   const awsRoles: AwsRole[] = json.awsRoles || [];
   const userGroups = json.userGroups || [];
+  const permissionSets: PermissionSet[] = json.permissionSets || [];
 
   const isTcp = uri && uri.startsWith('tcp://');
   const isCloud = uri && uri.startsWith('cloud://');
