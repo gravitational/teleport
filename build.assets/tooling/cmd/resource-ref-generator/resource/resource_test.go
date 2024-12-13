@@ -1183,7 +1183,6 @@ type Server struct {
 }
 `,
 			declSources: []string{`package types
-
 import alias "otherpkg"
 
 // ServerSpecV1 includes aspects of a proxied server.
@@ -1200,6 +1199,21 @@ type AddressInfo struct {
 }`,
 			},
 			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "AddressInfo",
+					PackageName: "otherpkg",
+				}: {
+					SectionName: "Address Info",
+					Description: "Provides information about an address.",
+					SourcePath:  "myfile1.go",
+					Fields: []Field{
+						{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
+						},
+					},
+				},
 				PackageInfo{
 					DeclName:    "Server",
 					PackageName: "mypkg",
@@ -1226,21 +1240,6 @@ type AddressInfo struct {
 							Name:        "info",
 							Description: "Address information.",
 							Type:        "[Address Info](#address-info)",
-						},
-					},
-				},
-				PackageInfo{
-					DeclName:    "AddressInfo",
-					PackageName: "otherpkg",
-				}: {
-					SectionName: "Address Info",
-					Description: "Provides information about an address.",
-					SourcePath:  "myfile1.go",
-					Fields: []Field{
-						{
-							Name:        "address",
-							Description: "The address of the server.",
-							Type:        "string",
 						},
 					},
 				},
