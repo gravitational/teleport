@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor, act } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
