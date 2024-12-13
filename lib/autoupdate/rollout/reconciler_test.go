@@ -890,7 +890,7 @@ func TestDefaultConfigGroup(t *testing.T) {
 			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
 				nil, trace.NotFound("no cmc"),
 			},
-			expectedResult: defaultGroup,
+			expectedResult: defaultGroup(),
 			expectError:    require.NoError,
 		},
 		{
@@ -902,7 +902,7 @@ func TestDefaultConfigGroup(t *testing.T) {
 					},
 				}, nil,
 			},
-			expectedResult: defaultGroup,
+			expectedResult: defaultGroup(),
 			expectError:    require.NoError,
 		},
 		{

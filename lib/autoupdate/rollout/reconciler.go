@@ -48,12 +48,6 @@ const (
 
 var (
 	defaultUpdateDays = []string{"Mon", "Tue", "Wed", "Thu"}
-	defaultGroup      = &autoupdate.AgentAutoUpdateGroup{
-		Name:      defaultGroupName,
-		Days:      defaultUpdateDays,
-		StartHour: defaultStartHour,
-		WaitDays:  0,
-	}
 )
 
 // reconciler reconciles the AutoUpdateAgentRollout singleton based on the content of the AutoUpdateVersion and
@@ -370,7 +364,7 @@ func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentA
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// There's no CMC, we return the default group.
-			return defaultGroup, nil
+			return defaultGroup(), nil
 		}
 
 		// If we had an error, and it's not trace.ErrNotFound, we stop.
@@ -381,7 +375,7 @@ func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentA
 
 	if !ok {
 		// The CMC is here but does not contain upgrade window.
-		return defaultGroup, nil
+		return defaultGroup(), nil
 	}
 
 	weekdays := upgradeWindow.Weekdays
@@ -397,4 +391,13 @@ func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentA
 		WaitDays:  0,
 	}, nil
 
+}
+
+func defaultGroup() *autoupdate.AgentAutoUpdateGroup {
+	return &autoupdate.AgentAutoUpdateGroup{
+		Name:      defaultGroupName,
+		Days:      defaultUpdateDays,
+		StartHour: defaultStartHour,
+		WaitDays:  0,
+	}
 }
