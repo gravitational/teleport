@@ -54,7 +54,6 @@ type accessListLocationState = {
   createdList?: AccessList;
   reviewedAccessList?: AccessList;
   deletedAccessListId?: string;
-  previousPaths?: string[];
 };
 
 /**

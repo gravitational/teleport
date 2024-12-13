@@ -3,13 +3,17 @@ import { format } from 'date-fns';
 import { useHistory, useLocation, useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Alert, Box, ButtonSecondary, Flex, H1, Indicator, Text } from 'design';
-import { ArrowBack, ArrowForward, ListMagnifyingGlass } from 'design/Icon';
+import {
+  ArrowBack,
+  ArrowForward,
+  ListMagnifyingGlass,
+  Info,
+} from 'design/Icon';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { OutlineInfo } from 'design/Alert/Alert';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -58,10 +62,7 @@ export function ViewEditAccessList() {
     usersAndRolesAttempt,
     processAccessLists,
   } = useAccessListManagementContext();
-  const location = useLocation<{
-    startReviewFor?: string;
-    previousPaths?: string[];
-  }>();
+  const location = useLocation();
   const history = useHistory();
   const { accessListId } = useParams<{ accessListId: string }>();
 
@@ -70,7 +71,6 @@ export function ViewEditAccessList() {
   const [accessList, setAccessList] = useState<AccessListModified>();
 
   const [perms, setPerms] = useState<Perms>(getPerms({}));
-  const [reviewing, setReviewing] = useState(false);
   const [showEditTitle, setShowEditTitle] = useState(false);
 
   function updateAccessList(
@@ -162,16 +162,6 @@ export function ViewEditAccessList() {
       );
   }
 
-  const navigateBackFromList = () => {
-    const to = location.state?.previousPaths?.length
-      ? location.state.previousPaths[location.state.previousPaths.length - 1]
-      : cfg.getAccessListManagementRoute();
-
-    history.push(to, {
-      previousPaths: (location.state?.previousPaths || []).slice(0, -1),
-    });
-  };
-
   // On initial run, this effect will fetch an access list
   // and the list of users and roles.
   // Users and roles are used as dropdown options.
@@ -185,40 +175,36 @@ export function ViewEditAccessList() {
   // The accessListId can change if a user clicks on a different
   // access list in the notification dropdown.
   useEffect(() => {
-    if (location.state?.startReviewFor !== accessListId) {
-      setReviewing(false);
-    }
     if (!accessList || accessList.id !== accessListId) {
       fetchAccessList();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessListId]);
 
-  if (
-    reviewing ||
-    (location.state?.startReviewFor &&
-      location.state.startReviewFor === accessListId &&
-      attempt.attempt.status === 'success' &&
-      !!accessList)
+  showReview: if (
+    location.hash === '#review' &&
+    attempt.attempt.status === 'success' &&
+    !!accessList
   ) {
+    const canReview = perms.isOwner || perms.adminWhoCanEdit;
+    const requiresReview =
+      accessList.requiresReview || accessList.audit.nextDate < new Date();
+
+    if (!requiresReview || !canReview) {
+      break showReview;
+    }
+
     return (
       <ReviewAccessList
         reviewer={ctx.storeUser.getUsername()}
         accessList={accessList}
         fetchRoleOptions={fetchRoleOptions}
         cancelReview={() => {
-          setReviewing(false);
-
-          // If we're coming from list of all ALs, we should navigate back there.
-          if (location.state?.startReviewFor === accessListId) {
-            navigateBackFromList();
-            return;
+          if (!location.key || location.key === 'default') {
+            history.replace(location.pathname, location.state);
+          } else {
+            history.goBack();
           }
-
-          history.push(location.pathname, {
-            startReviewFor: undefined,
-            previousPaths: location.state.previousPaths,
-          });
         }}
         isOwner={perms.isOwner}
       />
@@ -235,7 +221,14 @@ export function ViewEditAccessList() {
             <div
               data-testid="back-button"
               css={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-              onClick={navigateBackFromList}
+              onClick={() => {
+                // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+                if (!location.key || location.key === 'default') {
+                  history.push(cfg.getAccessListManagementRoute());
+                } else {
+                  history.goBack();
+                }
+              }}
               aria-label="Back"
               role="button"
               tabIndex={0}
@@ -269,7 +262,6 @@ export function ViewEditAccessList() {
         accessList={accessList}
         userOptions={userOptions}
         accessLists={accessLists}
-        setReviewing={setReviewing}
         fetchRoleOptions={fetchRoleOptions}
         updateAccessList={updateAccessList}
       />
@@ -340,7 +332,6 @@ const MainContent = ({
   userOptions,
   accessList,
   accessLists,
-  setReviewing,
   fetchRoleOptions,
   updateAccessList,
 }: {
@@ -349,7 +340,6 @@ const MainContent = ({
   userOptions: UserOption[];
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
-  setReviewing: (value: boolean) => void;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   updateAccessList: (
     newAccessList: AccessList,
@@ -372,24 +362,7 @@ const MainContent = ({
 
   return (
     <>
-      {accessList.requiresReview &&
-        (perms.isOwner || perms.adminWhoCanEdit) && (
-          <OutlineInfo
-            icon={ListMagnifyingGlass}
-            primaryAction={{
-              content: (
-                <>
-                  Start Review
-                  <ArrowForward size={18} ml={2} />
-                </>
-              ),
-              onClick: () => setReviewing(true),
-            }}
-          >
-            This Access List needs review by{' '}
-            {format(accessList.audit.nextDate, 'MM/dd')}.
-          </OutlineInfo>
-        )}
+      <ReviewBanner accessList={accessList} perms={perms} />
       <Box mb={6}>
         <Specs
           fetchRoleOptions={fetchRoleOptions}
@@ -418,4 +391,52 @@ const MainContent = ({
       )}
     </>
   );
+};
+
+const ReviewBanner = ({
+  accessList,
+  perms,
+}: {
+  accessList: AccessListModified;
+  perms: Perms;
+}) => {
+  const location = useLocation();
+  const history = useHistory();
+
+  const canReview = perms.isOwner || perms.adminWhoCanEdit;
+  const requiresReview =
+    accessList.requiresReview || accessList.audit.nextDate < new Date();
+
+  if (!requiresReview && canReview && location.hash === '#review') {
+    return (
+      <Alert kind="neutral" icon={Info}>
+        This Access List does not need review until{' '}
+        {format(accessList.audit.nextDate, 'MM/dd')}.
+      </Alert>
+    );
+  }
+
+  if (requiresReview && canReview) {
+    return (
+      <Alert
+        kind="outline-info"
+        icon={ListMagnifyingGlass}
+        primaryAction={{
+          content: (
+            <>
+              Start Review
+              <ArrowForward size={18} ml={2} />
+            </>
+          ),
+          onClick: () =>
+            history.push(`${location.pathname}#review`, location.state),
+        }}
+      >
+        This Access List needs review by{' '}
+        {format(accessList.audit.nextDate, 'MM/dd')}.
+      </Alert>
+    );
+  }
+
+  return null;
 };

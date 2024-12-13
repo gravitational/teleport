@@ -41,13 +41,11 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-test('back button uses router provided state "previousPath', async () => {
+test('back button uses previous route if present and preserves queries', async () => {
   const history = createMemoryHistory({
-    initialEntries: [
-      { state: { previousPaths: ['web/random?search=banana'] } },
-    ],
+    initialEntries: [`${cfg.getAccessListManagementRoute()}?search=banana`],
   });
-  history.push = jest.fn();
+  history.goBack = jest.fn();
 
   render(
     <Router history={history}>
@@ -61,14 +59,16 @@ test('back button uses router provided state "previousPath', async () => {
 
   await screen.findByText(/apple/i);
   await userEvent.click(screen.getByTestId('back-button'));
-  expect(history.push).toHaveBeenCalledWith('web/random?search=banana', {
-    previousPaths: [],
-  });
+  expect(history.goBack).toHaveBeenCalled();
+  expect(history.location?.pathname).toBe(cfg.getAccessListManagementRoute());
+  expect(history.location?.search).toBe('?search=banana');
 });
 
 test('back button uses default route if router state is not provided', async () => {
   const history = createMemoryHistory();
   history.push = jest.fn();
+  // Manually unset location.key to simulate initial page load in-browser
+  history.location.key = undefined;
 
   render(
     <Router history={history}>
@@ -82,10 +82,7 @@ test('back button uses default route if router state is not provided', async () 
 
   await screen.findByText(/apple/i);
   await userEvent.click(screen.getByTestId('back-button'));
-  expect(history.push).toHaveBeenCalledWith(
-    cfg.getAccessListManagementRoute(),
-    { previousPaths: [] }
-  );
+  expect(history.push).toHaveBeenCalledWith(cfg.getAccessListManagementRoute());
 });
 
 const mockAccessListApple: AccessList = {

@@ -85,7 +85,6 @@ export function AccessLists() {
     createdList?: AccessList;
     reviewedAccessList?: AccessList;
     deletedAccessListId?: string;
-    previousPaths?: string[];
   }>();
   const searchParams = new URLSearchParams(location.search);
   const [searchValue, setSearchValue] = useState(
@@ -393,7 +392,7 @@ function MainContent({
               accessList={a}
               key={a.id}
               onClick={() =>
-                handleOnClickViewAccessList(history, searchValue, a.id)
+                history.push(cfg.getAccessListManagementRoute(a.id))
               }
             />
           ))
@@ -519,11 +518,7 @@ const AccessListTable = ({
           return a.audit.nextDate.getTime() - b.audit.nextDate.getTime();
         },
         render: acl => (
-          <TableAuditNextDateCell
-            accessList={acl}
-            history={history}
-            searchValue={searchValue}
-          />
+          <TableAuditNextDateCell accessList={acl} history={history} />
         ),
       }
     );
@@ -539,7 +534,7 @@ const AccessListTable = ({
       isSearchable={false}
       row={{
         onClick: (acl: AccessListWithModifiedGrants) =>
-          handleOnClickViewAccessList(history, searchValue, acl.id),
+          history.push(cfg.getAccessListManagementRoute(acl.id)),
         getStyle: () => ({
           cursor: 'pointer',
           height: '46px',
@@ -571,11 +566,9 @@ const friendlyListType = (listType: string) => {
 const TableAuditNextDateCell = ({
   accessList,
   history,
-  searchValue,
 }: {
   accessList: AccessListWithModifiedGrants;
   history: ReturnType<typeof useHistory>;
-  searchValue?: string;
 }) => {
   if (!accessList.audit?.nextDate) {
     return <Cell></Cell>;
@@ -601,15 +594,9 @@ const TableAuditNextDateCell = ({
       <ReviewBadge
         onClick={e => {
           e.stopPropagation();
-          history.push(`${cfg.getAccessListManagementRoute(accessList.id)}`, {
-            startReviewFor: accessList.id,
-            previousPaths: [
-              encodeUrlQueryParams({
-                pathname: location.pathname,
-                searchString: searchValue,
-              }),
-            ],
-          });
+          history.push(
+            `${cfg.getAccessListManagementRoute(accessList.id)}#review`
+          );
         }}
         isOverdue={isOverdue}
       >
@@ -619,21 +606,6 @@ const TableAuditNextDateCell = ({
       </ReviewBadge>
     </Cell>
   );
-};
-
-const handleOnClickViewAccessList = (
-  history: ReturnType<typeof useHistory>,
-  searchValue: string,
-  accessListId: string
-) => {
-  history.push(cfg.getAccessListManagementRoute(accessListId), {
-    previousPaths: [
-      encodeUrlQueryParams({
-        pathname: location.pathname,
-        searchString: searchValue,
-      }),
-    ],
-  });
 };
 
 const renderFilterOwner = (
