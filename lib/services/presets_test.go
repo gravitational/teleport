@@ -205,94 +205,6 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "access (account assignments set on enterprise)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-					},
-				},
-			},
-			enterprise:  true,
-			expectedErr: require.NoError,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						DatabaseServiceLabels: defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseRoles,
-
-						AccountAssignments: []types.IdentityCenterAccountAssignment{
-							{
-								Account:       types.Wildcard,
-								PermissionSet: types.Wildcard,
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "access (account assignments not set on OSS)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-					},
-				},
-			},
-			enterprise:  false,
-			expectedErr: noChange,
-		},
-		{
-			name: "access (account assignments unchanged if already set)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						AccountAssignments: []types.IdentityCenterAccountAssignment{
-							{
-								Account:       "Some Account",
-								PermissionSet: "Some PermissionSet",
-							},
-						},
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						DatabaseServiceLabels: defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels(true)[teleport.PresetAccessRoleName].DatabaseRoles,
-					},
-				},
-			},
-			enterprise:  true,
-			expectedErr: noChange,
-		},
-		{
 			name: "auditor (default rules match preset rules)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
@@ -437,13 +349,36 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						ReviewRequests: &types.AccessReviewConditions{
-							Roles: []string{"some-role"},
+							Roles:          []string{"some-role"},
+							PreviewAsRoles: []string{"preview-role"},
 						},
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:     true,
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"some-role"},
+							PreviewAsRoles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"preview-role",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "requester (not enterprise)",
@@ -508,13 +443,36 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
-							Roles: []string{"some-role"},
+							Roles:         []string{"some-role"},
+							SearchAsRoles: []string{"search-as-role"},
 						},
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+							SearchAsRoles: []string{
+								teleport.PresetAccessRoleName,
+								teleport.SystemIdentityCenterAccessRoleName,
+								teleport.PresetGroupAccessRoleName,
+								"search-as-role",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "okta resources (not enterprise)",
@@ -643,8 +601,28 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-			enterprise:  true,
-			expectedErr: noChange,
+			enterprise:             true,
+			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.SystemOktaRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+						types.OriginLabel:                  types.OriginOkta,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+							SearchAsRoles: []string{
+								teleport.SystemOktaAccessRoleName,
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -662,8 +640,15 @@ func TestAddRoleDefaults(t *testing.T) {
 			require.Empty(t, cmp.Diff(role, test.expected))
 
 			if test.expected != nil {
-				require.Equal(t, test.reviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
-				require.Equal(t, test.accessRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.reviewNotEmpty,
+					!role.GetAccessReviewConditions(types.Allow).IsEmpty(),
+					"Expected populated Access Review Conditions (%t)",
+					test.reviewNotEmpty)
+
+				require.Equal(t, test.accessRequestsNotEmpty,
+					!role.GetAccessRequestConditions(types.Allow).IsEmpty(),
+					"Expected populated Access Request Conditions (%t)",
+					test.accessRequestsNotEmpty)
 			}
 		})
 	}

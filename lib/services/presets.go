@@ -28,8 +28,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
@@ -577,6 +579,32 @@ func NewSystemOktaRequesterRole() types.Role {
 	return role
 }
 
+// NewSystemIdentityCenterAccessRole creates a role that allows access to AWS
+// IdentityCenter resources via Access Requests
+func NewSystemIdentityCenterAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access AWS IdentityCenter resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignments: defaultAllowAccountAssignments(true)[teleport.SystemIdentityCenterAccessRoleName],
+			},
+		},
+	}
+}
+
 // NewPresetTerraformProviderRole returns a new pre-defined role for the Teleport Terraform provider.
 // This role can edit any Terraform-supported resource.
 func NewPresetTerraformProviderRole() types.Role {
@@ -716,6 +744,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 				SearchAsRoles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 			},
 			teleport.SystemOktaRequesterRoleName: {
@@ -739,6 +768,7 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 				PreviewAsRoles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 				Roles: []string{
 					teleport.PresetAccessRoleName,
@@ -754,7 +784,7 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 func defaultAllowAccountAssignments(enterprise bool) map[string][]types.IdentityCenterAccountAssignment {
 	if enterprise {
 		return map[string][]types.IdentityCenterAccountAssignment{
-			teleport.PresetAccessRoleName: {
+			teleport.SystemIdentityCenterAccessRoleName: {
 				{
 					Account:       types.Wildcard,
 					PermissionSet: types.Wildcard,
@@ -763,7 +793,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 		}
 	}
 
-	return nil
+	return map[string][]types.IdentityCenterAccountAssignment{}
 }
 
 // AddRoleDefaults adds default role attributes to a preset role.
@@ -867,20 +897,12 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
-	if role.GetAccessRequestConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
-		if arc != nil {
-			role.SetAccessRequestConditions(types.Allow, *arc)
-			changed = true
-		}
+	if roleUpdated := applyAccessRequestConditionDefaults(role, enterprise); roleUpdated {
+		changed = true
 	}
 
-	if role.GetAccessReviewConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
-		if arc != nil {
-			role.SetAccessReviewConditions(types.Allow, *arc)
-			changed = true
-		}
+	if roleUpdated := applyAccessReviewConditionDefaults(role, enterprise); roleUpdated {
+		changed = true
 	}
 
 	if len(role.GetIdentityCenterAccountAssignments(types.Allow)) == 0 {
@@ -896,6 +918,61 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	}
 
 	return role, nil
+}
+
+func mergeStrings(dst, src []string, dirty *bool) []string {
+	items := utils.NewSet[string](dst...)
+	items.Add(src...)
+	if len(items) == len(dst) {
+		return dst
+	}
+	dst = items.Elements()
+	slices.Sort(dst)
+	(*dirty) = true
+	return dst
+}
+
+func applyAccessRequestConditionDefaults(role types.Role, enterprise bool) bool {
+	defaults := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
+	if defaults == nil {
+		return false
+	}
+
+	target := role.GetAccessRequestConditions(types.Allow)
+	changed := false
+	if target.IsEmpty() {
+		target = *defaults
+		changed = true
+	} else {
+		target.SearchAsRoles = mergeStrings(target.SearchAsRoles, defaults.SearchAsRoles, &changed)
+	}
+
+	if changed {
+		role.SetAccessRequestConditions(types.Allow, target)
+	}
+
+	return changed
+}
+
+func applyAccessReviewConditionDefaults(role types.Role, enterprise bool) bool {
+	defaults := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
+	if defaults == nil {
+		return false
+	}
+
+	target := role.GetAccessReviewConditions(types.Allow)
+	changed := false
+	if target.IsEmpty() {
+		target = *defaults
+		changed = true
+	} else {
+		target.PreviewAsRoles = mergeStrings(target.PreviewAsRoles, defaults.PreviewAsRoles, &changed)
+	}
+
+	if changed {
+		role.SetAccessReviewConditions(types.Allow, target)
+	}
+	return changed
 }
 
 func labelMatchersUnset(role types.Role, kind string) (bool, error) {
