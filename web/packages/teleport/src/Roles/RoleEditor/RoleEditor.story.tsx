@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
 import { Info } from 'design/Alert';
@@ -34,6 +34,8 @@ import { withDefaults } from './withDefaults';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
 
+const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+
 export default {
   title: 'Teleport/Roles/Role Editor',
   decorators: [
@@ -42,6 +44,12 @@ export default {
       if (parameters.acl) {
         ctx.storeUser.getRoleAccess = () => parameters.acl;
       }
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+        };
+      }, []);
       return (
         <TeleportContextProvider ctx={ctx}>
           <Flex flexDirection="column" width="700px" height="800px">
@@ -268,6 +276,31 @@ export const noAccess: StoryObj = {
 
 export const Dialog: StoryObj = {
   render() {
+    const [open, setOpen] = useState(false);
+    const resources = useResources([], {});
+    return (
+      <>
+        <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
+        <RoleEditorDialog
+          resources={resources}
+          open={open}
+          onClose={() => setOpen(false)}
+          onSave={async () => setOpen(false)}
+          onDelete={async () => setOpen(false)}
+        />
+      </>
+    );
+  },
+  parameters: {
+    msw: {
+      handlers: [yamlifyHandler, parseHandler],
+    },
+  },
+};
+
+export const DialogWithPolicyEnabled: StoryObj = {
+  render() {
+    cfg.isPolicyEnabled = true;
     const [open, setOpen] = useState(false);
     const resources = useResources([], {});
     return (
