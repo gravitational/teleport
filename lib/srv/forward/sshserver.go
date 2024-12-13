@@ -1018,6 +1018,18 @@ func (s *Server) checkTCPIPForwardRequest(r *ssh.Request) error {
 		return err
 	}
 
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		_, scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		if err != nil {
+			return err
+		}
+
+		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeRemote); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -1089,11 +1101,13 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 
 	ch = scx.TrackActivity(ch)
 
-	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
-	if err != nil {
-		s.stderrWrite(ch, err.Error())
-		return
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
+		if err != nil {
+			s.stderrWrite(ch, err.Error())
+			return
+		}
 	}
 
 	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", scx.SrcAddr, scx.DstAddr, scx.ID())
