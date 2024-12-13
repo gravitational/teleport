@@ -1143,14 +1143,15 @@ type ServerSpec struct {
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)",
+						},
+						Field{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
 						},
-						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
 					},
 				},
 				PackageInfo{
