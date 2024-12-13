@@ -10998,3 +10998,302 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 		})
 	}
 }
+
+func Test_encodeTextResponse(t *testing.T) {
+	t.Parallel()
+
+	baselineTestBody := "@cert-authority platform.teleport.sh,*.platform.teleport.sh ssh-rsa"
+	jsonTestResponseBody, err := json.Marshal(baselineTestBody)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		providedBody              string
+		expectedBody              []byte
+		acceptHeader              []string
+		expectedContentTypeHeader string
+		errFunc                   require.ErrorAssertionFunc
+	}{
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/plain"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/plain;q=0.8"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/*"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/plain", "application/json"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              jsonTestResponseBody,
+			acceptHeader:              []string{"application/json"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              jsonTestResponseBody,
+			acceptHeader:              []string{"application/json", "text/plain"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              jsonTestResponseBody,
+			acceptHeader:              []string{"unsupported", "application/json"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"application/scim+json"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"application/*"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"*/*"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"*"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/"}, // Malformed
+			expectedContentTypeHeader: "text/plain",
+			errFunc:                   require.Error,
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"unsupportedtype"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              jsonTestResponseBody,
+			acceptHeader:              []string{"application/json, unsupportedtype"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              baselineTestBody,
+			expectedBody:              []byte(baselineTestBody),
+			acceptHeader:              []string{"text/plain, application/json"},
+			expectedContentTypeHeader: "text/plain",
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Setup
+		req, err := http.NewRequest("", "", nil)
+		require.NoError(t, err)
+		req.Header["Accept"] = testCase.acceptHeader
+
+		// Test
+		responseBodyBytes, contentType, err := encodeTextResponse(testCase.providedBody, req)
+
+		// Verify results
+		if testCase.errFunc == nil {
+			testCase.errFunc = require.NoError
+		}
+		testCase.errFunc(t, err)
+
+		require.ElementsMatch(t, testCase.expectedBody, responseBodyBytes)
+
+		if len(contentType) > len(testCase.expectedContentTypeHeader) {
+			// Handle the case where other parameters are returned (such as charset), which _requires_
+			// a semicolon
+			require.True(t, strings.HasPrefix(contentType, testCase.expectedContentTypeHeader+";"))
+		} else {
+			require.Equal(t, testCase.expectedContentTypeHeader, contentType)
+		}
+	}
+}
+
+func Test_serveErrorResponse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		err                       error
+		expectedBody              []byte
+		acceptHeader              []string
+		expectedContentTypeHeader string
+	}{
+		{
+			err:                       fmt.Errorf("error message"),
+			expectedBody:              []byte("error message"),
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			err:                       fmt.Errorf("error message"),
+			expectedBody:              []byte("\"error message\""),
+			acceptHeader:              []string{"application/json"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			err:                       fmt.Errorf("error message"),
+			expectedBody:              []byte("\"error message\""),
+			acceptHeader:              []string{"application/json", "text/plain"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			err:                       fmt.Errorf("error message"),
+			expectedBody:              []byte("error message"),
+			acceptHeader:              []string{"application/unsupported", "text/plain"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			err:                       fmt.Errorf("error message"),
+			expectedBody:              []byte("error message"),
+			acceptHeader:              []string{"malformed/", "text/plain"},
+			expectedContentTypeHeader: "text/plain",
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Setup
+		req, err := http.NewRequest("", "", nil)
+		require.NoError(t, err)
+		req.Header["Accept"] = testCase.acceptHeader
+
+		respWriter := httptest.NewRecorder()
+
+		// Test
+		(&Handler{}).serveErrorResponse(testCase.err, respWriter, req)
+
+		// Verify results
+		require.ElementsMatch(t, testCase.expectedBody, respWriter.Body.Bytes())
+
+		contentTypes := respWriter.Header()["Content-Type"]
+		require.Len(t, contentTypes, 1)
+
+		contentType := contentTypes[0]
+		if len(contentType) > len(testCase.expectedContentTypeHeader) {
+			// Handle the case where other parameters are returned (such as charset), which _requires_
+			// a semicolon
+			require.True(t, strings.HasPrefix(contentType, testCase.expectedContentTypeHeader+";"))
+		} else {
+			require.Equal(t, testCase.expectedContentTypeHeader, contentType)
+		}
+	}
+}
+
+func Test_serveTextResponse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		providedBody              string
+		expectedBody              []byte
+		acceptHeader              []string
+		expectedContentTypeHeader string
+		errFunc                   require.ErrorAssertionFunc
+		shouldNotSendResponse     bool
+	}{
+		{
+			providedBody:              "test message",
+			expectedBody:              []byte("test message"),
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:              "test message",
+			expectedBody:              []byte("\"test message\""),
+			acceptHeader:              []string{"application/json"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              "test message",
+			expectedBody:              []byte("\"test message\""),
+			acceptHeader:              []string{"application/json", "text/plain"},
+			expectedContentTypeHeader: "application/json",
+		},
+		{
+			providedBody:              "test message",
+			expectedBody:              []byte("test message"),
+			acceptHeader:              []string{"application/unsupported", "text/plain"},
+			expectedContentTypeHeader: "text/plain",
+		},
+		{
+			providedBody:          "test message",
+			acceptHeader:          []string{"malformed/", "text/plain"},
+			errFunc:               require.Error,
+			shouldNotSendResponse: true,
+		},
+		{
+			providedBody:          "test message",
+			acceptHeader:          []string{"malformed/"},
+			errFunc:               require.Error,
+			shouldNotSendResponse: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Setup
+		req, err := http.NewRequest("", "", nil)
+		require.NoError(t, err)
+		req.Header["Accept"] = testCase.acceptHeader
+
+		respWriter := httptest.NewRecorder()
+		respWriter.Code = 0
+
+		// Test
+		err = serveTextResponse(testCase.providedBody, respWriter, req)
+
+		// Verify results
+		if testCase.errFunc == nil {
+			testCase.errFunc = require.NoError
+		}
+		testCase.errFunc(t, err)
+
+		expectedStatusCode := http.StatusOK
+		if testCase.shouldNotSendResponse {
+			expectedStatusCode = 0
+		}
+		require.Equal(t, expectedStatusCode, respWriter.Code)
+
+		require.ElementsMatch(t, testCase.expectedBody, respWriter.Body.Bytes())
+
+		if testCase.shouldNotSendResponse {
+			continue
+		}
+
+		contentTypes := respWriter.Header()["Content-Type"]
+		require.Len(t, contentTypes, 1)
+
+		contentType := contentTypes[0]
+		if len(contentType) > len(testCase.expectedContentTypeHeader) {
+			// Handle the case where other parameters are returned (such as charset), which _requires_
+			// a semicolon
+			require.True(t, strings.HasPrefix(contentType, testCase.expectedContentTypeHeader+";"))
+		} else {
+			require.Equal(t, testCase.expectedContentTypeHeader, contentType)
+		}
+	}
+}
