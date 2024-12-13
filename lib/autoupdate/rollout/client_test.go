@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // mockClient is a mock implementation if the Client interface for testing purposes.
