@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { Flex, Box } from 'design';
 
 import { SelectCreatable, Option } from '../Select';
@@ -26,10 +26,10 @@ export default {
 };
 
 export const Selects = () => {
-  const [input, setInput] = React.useState('');
-  const [inputMulti, setInputMulti] = React.useState('');
-  const [selected, setSelected] = React.useState<Option>();
-  const [selectedMulti, setSelectedMulti] = React.useState<readonly Option[]>();
+  const [input, setInput] = useState('');
+  const [inputMulti, setInputMulti] = useState('');
+  const [selected, setSelected] = useState<Option>();
+  const [selectedMulti, setSelectedMulti] = useState<readonly Option[]>();
 
   return (
     // Note that these examples don't provide for great UX. Implementations
