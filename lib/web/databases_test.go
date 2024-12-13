@@ -540,15 +540,9 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 
 	databaseProtocol := defaults.ProtocolPostgres
 
-	// Use a mock REPL and modify it adding the additiona configuration when
+	// Use a mock REPL and modify it adding the additional configuration when
 	// it is set.
 	repl := &mockDatabaseREPL{message: "hello from repl"}
-	getter := dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
-		databaseProtocol: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
-			repl.setConfig(c)
-			return repl, nil
-		},
-	})
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
@@ -561,7 +555,14 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 				RPID: "localhost",
 			},
 		},
-		databaseREPLGetter: getter,
+		databaseREPLGetter: &mockDatabaseREPLGetter{
+			repl: map[string]dbrepl.REPLNewFunc{
+				databaseProtocol: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
+					repl.setConfig(c)
+					return repl, nil
+				},
+			},
+		},
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 
@@ -681,6 +682,25 @@ func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+type mockDatabaseREPLGetter struct {
+	repl map[string]dbrepl.REPLNewFunc
+}
+
+// GetREPL implements repl.REPLGetter.
+func (m *mockDatabaseREPLGetter) GetREPL(protocol string) (dbrepl.REPLNewFunc, error) {
+	if replFunc, ok := m.repl[protocol]; ok {
+		return replFunc, nil
+	}
+
+	return nil, trace.NotImplemented("not supported")
+}
+
+// IsSupported implements repl.REPLGetter.
+func (m *mockDatabaseREPLGetter) IsSupported(protocol string) bool {
+	_, supported := m.repl[protocol]
+	return supported
 }
 
 type mockDatabaseREPL struct {

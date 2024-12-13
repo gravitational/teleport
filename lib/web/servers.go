@@ -125,13 +125,8 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return listResourcesGetResponse{
-		Items:      webui.MakeDatabases(databases, dbUsers, dbNames, h.cfg.DatabaseREPLGetter),
+		Items:      webui.MakeDatabases(databases, accessChecker, h.cfg.DatabaseREPLGetter),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -164,7 +159,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, h.cfg.DatabaseREPLGetter), nil
+	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, h.cfg.DatabaseREPLGetter.IsSupported(database.GetProtocol())), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.

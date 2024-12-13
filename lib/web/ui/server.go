@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
@@ -329,17 +328,12 @@ const (
 // DatabaseInteractiveChecker is used to check if the database supports
 // interactive sessions using database REPLs.
 type DatabaseInteractiveChecker interface {
-	GetREPL(protocol string) (dbrepl.REPLNewFunc, error)
+	IsSupported(protocol string) bool
 }
 
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool, interactiveChecker DatabaseInteractiveChecker) Database {
+func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool, supportsInteractive bool) Database {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
-
-	var supportsInteractive bool
-	if _, err := interactiveChecker.GetREPL(database.GetProtocol()); err == nil {
-		supportsInteractive = true
-	}
 
 	db := Database{
 		Kind:                database.GetKind(),
@@ -371,10 +365,22 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string, interactiveChecker DatabaseInteractiveChecker) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, interactiveChecker)
+		dbNames := accessChecker.EnumerateDatabaseNames(database)
+		var dbUsers []string
+		if res, err := accessChecker.EnumerateDatabaseUsers(database); err != nil {
+			dbUsers = res.Allowed()
+		}
+
+		db := MakeDatabase(
+			database,
+			dbNames.Allowed(),
+			dbUsers,
+			false, /* requiresRequest */
+			interactiveChecker.IsSupported(database.GetProtocol()),
+		)
 		uiServers = append(uiServers, db)
 	}
 

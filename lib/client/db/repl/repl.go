@@ -49,6 +49,8 @@ type REPLInstance interface {
 // REPLGetter is an interface for retrieving REPL constructor functions given
 // the database protocol.
 type REPLGetter interface {
+	// IsSupported returns if a database protocol is supported by any REPL.
+	IsSupported(protocol string) bool
 	// GetREPL returns a start function for the specified protocol.
 	GetREPL(protocol string) (REPLNewFunc, error)
 }
@@ -62,11 +64,17 @@ type replGetter struct {
 	m map[string]REPLNewFunc
 }
 
+// IsSupported implements REPLGetter.
+func (r *replGetter) IsSupported(protocol string) bool {
+	_, supported := r.m[protocol]
+	return supported
+}
+
 // GetREPL implements REPLGetter.
-func (r *replGetter) GetREPL(dbProtocol string) (REPLNewFunc, error) {
-	if f, ok := r.m[dbProtocol]; ok {
+func (r *replGetter) GetREPL(protocol string) (REPLNewFunc, error) {
+	if f, ok := r.m[protocol]; ok {
 		return f, nil
 	}
 
-	return nil, trace.NotImplemented("REPL not supported for protocol %q", dbProtocol)
+	return nil, trace.NotImplemented("REPL not supported for protocol %q", protocol)
 }

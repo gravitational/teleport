@@ -7481,7 +7481,7 @@ func TestOverwriteDatabase(t *testing.T) {
 
 				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
 				require.NoError(t, err)
-				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false, dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})), gotDb)
+				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false, false), gotDb)
 			},
 		},
 		{
@@ -8393,6 +8393,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		DatabaseREPLGetter:    &mockDatabaseREPLGetter{repl: map[string]dbrepl.REPLNewFunc{}},
 	}, SetClock(clock))
 	require.NoError(t, err)
 
