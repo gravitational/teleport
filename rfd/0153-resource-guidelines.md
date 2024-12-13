@@ -569,7 +569,7 @@ func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
 		}
 		return types.Resource153ToLegacy(foo), nil
 	default:
