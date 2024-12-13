@@ -363,7 +363,7 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 type awsEC2Tasks struct {
 	mu sync.RWMutex
 	// instancesIssues maps the Discover EC2 User Task grouping parts to a set of instances metadata.
-	instancesIssues map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance
+	instancesIssues map[awsEC2TaskKey]*usertasksv1.DiscoverEC2
 	// issuesSyncQueue is used to register which groups were changed in memory but were not yet sent to the cluster.
 	// When upserting User Tasks, if the group is not in issuesSyncQueue,
 	// then the cluster already has the latest version of this particular group.
@@ -380,13 +380,13 @@ type awsEC2TaskKey struct {
 	installerScript string
 }
 
-// iterationStarted clears out any in memory issues that were recorded.
+// reset clears out any in memory issues that were recorded.
 // This is used when starting a new Auto Discover EC2 watcher iteration.
 func (d *awsEC2Tasks) reset() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.instancesIssues = make(map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
+	d.instancesIssues = make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2)
 	d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 }
 
@@ -397,16 +397,25 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 	if g.integration == "" {
 		return
 	}
+	if g.issueType == "" {
+		return
+	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.instancesIssues == nil {
-		d.instancesIssues = make(map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
+		d.instancesIssues = make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2)
 	}
 	if _, ok := d.instancesIssues[g]; !ok {
-		d.instancesIssues[g] = make(map[string]*usertasksv1.DiscoverEC2Instance)
+		d.instancesIssues[g] = &usertasksv1.DiscoverEC2{
+			Instances:       make(map[string]*usertasksv1.DiscoverEC2Instance),
+			AccountId:       g.accountID,
+			Region:          g.region,
+			SsmDocument:     g.ssmDocument,
+			InstallerScript: g.installerScript,
+		}
 	}
-	d.instancesIssues[g][instance.InstanceId] = instance
+	d.instancesIssues[g].Instances[instance.InstanceId] = instance
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
@@ -417,8 +426,9 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 // awsEKSTasks contains the Discover EKS User Tasks that must be reported to the user.
 type awsEKSTasks struct {
 	mu sync.RWMutex
-	// clusterIssues maps the Discover EKS User Task grouping parts to a set of clusters metadata.
-	clusterIssues map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster
+	// clusterIssues maps the EKS Task Key to a set of clusters.
+	// Each Task Key represents a single User Task that is going to be created for a set of EKS Clusters that suffer from the same issue.
+	clusterIssues map[awsEKSTaskKey]*usertasksv1.DiscoverEKS
 	// issuesSyncQueue is used to register which groups were changed in memory but were not yet sent to the cluster.
 	// When upserting User Tasks, if the group is not in issuesSyncQueue,
 	// then the cluster already has the latest version of this particular group.
@@ -434,13 +444,13 @@ type awsEKSTaskKey struct {
 	appAutoDiscover bool
 }
 
-// iterationStarted clears out any in memory issues that were recorded.
+// reset clears out any in memory issues that were recorded.
 // This is used when starting a new Auto Discover EKS watcher iteration.
 func (d *awsEKSTasks) reset() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.clusterIssues = make(map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster)
+	d.clusterIssues = make(map[awsEKSTaskKey]*usertasksv1.DiscoverEKS)
 	d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
 }
 
@@ -459,12 +469,17 @@ func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.clusterIssues == nil {
-		d.clusterIssues = make(map[awsEKSTaskKey]map[string]*usertasksv1.DiscoverEKSCluster)
+		d.clusterIssues = make(map[awsEKSTaskKey]*usertasksv1.DiscoverEKS)
 	}
 	if _, ok := d.clusterIssues[g]; !ok {
-		d.clusterIssues[g] = make(map[string]*usertasksv1.DiscoverEKSCluster)
+		d.clusterIssues[g] = &usertasksv1.DiscoverEKS{
+			Clusters:        make(map[string]*usertasksv1.DiscoverEKSCluster),
+			AccountId:       g.accountID,
+			Region:          g.region,
+			AppAutoDiscover: g.appAutoDiscover,
+		}
 	}
-	d.clusterIssues[g][cluster.Name] = cluster
+	d.clusterIssues[g].Clusters[cluster.Name] = cluster
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
@@ -528,7 +543,11 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) error {
+func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
+	if len(failedInstances.Instances) == 0 {
+		return nil
+	}
+
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
 		Integration:     taskGroup.integration,
 		IssueType:       taskGroup.issueType,
@@ -564,11 +583,7 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 			TaskType:    usertasks.TaskTypeDiscoverEC2,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
-			DiscoverEc2: &usertasksv1.DiscoverEC2{
-				AccountId: taskGroup.accountID,
-				Region:    taskGroup.region,
-				Instances: failedInstances,
-			},
+			DiscoverEc2: failedInstances,
 		},
 		usertasks.WithExpiration(taskExpiration),
 	)
@@ -584,7 +599,7 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 }
 
 // discoverEC2UserTaskAddExistingInstances takes the UserTask stored in the cluster and merges it into the existing map of failed instances.
-func (s *Server) discoverEC2UserTaskAddExistingInstances(currentUserTask *usertasksv1.UserTask, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) map[string]*usertasksv1.DiscoverEC2Instance {
+func (s *Server) discoverEC2UserTaskAddExistingInstances(currentUserTask *usertasksv1.UserTask, failedInstances *usertasksv1.DiscoverEC2) *usertasksv1.DiscoverEC2 {
 	for existingInstanceID, existingInstance := range currentUserTask.Spec.DiscoverEc2.Instances {
 		// Each DiscoveryService works on all the DiscoveryConfigs assigned to a given DiscoveryGroup.
 		// So, it's safe to say that current DiscoveryService has the last state for a given DiscoveryGroup.
@@ -602,7 +617,7 @@ func (s *Server) discoverEC2UserTaskAddExistingInstances(currentUserTask *userta
 		}
 
 		// Merge existing cluster state into in-memory object.
-		failedInstances[existingInstanceID] = existingInstance
+		failedInstances.Instances[existingInstanceID] = existingInstance
 	}
 	return failedInstances
 }
@@ -611,12 +626,7 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 	s.awsEC2Tasks.mu.Lock()
 	defer s.awsEC2Tasks.mu.Unlock()
 	for g := range s.awsEC2Tasks.issuesSyncQueue {
-		instancesIssueByID := s.awsEC2Tasks.instancesIssues[g]
-		if len(instancesIssueByID) == 0 {
-			continue
-		}
-
-		if err := s.mergeUpsertDiscoverEC2Task(g, instancesIssueByID); err != nil {
+		if err := s.mergeUpsertDiscoverEC2Task(g, s.awsEC2Tasks.instancesIssues[g]); err != nil {
 			s.Log.WarnContext(s.ctx, "Failed to create discover ec2 user task",
 				"integration", g.integration,
 				"issue_type", g.issueType,
@@ -635,12 +645,7 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 	s.awsEKSTasks.mu.Lock()
 	defer s.awsEKSTasks.mu.Unlock()
 	for g := range s.awsEKSTasks.issuesSyncQueue {
-		clustersIssueByID := s.awsEKSTasks.clusterIssues[g]
-		if len(clustersIssueByID) == 0 {
-			continue
-		}
-
-		if err := s.mergeUpsertDiscoverEKSTask(g, clustersIssueByID); err != nil {
+		if err := s.mergeUpsertDiscoverEKSTask(g, s.awsEKSTasks.clusterIssues[g]); err != nil {
 			s.Log.WarnContext(s.ctx, "Failed to create discover eks user task",
 				"integration", g.integration,
 				"issue_type", g.issueType,
@@ -659,7 +664,11 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters map[string]*usertasksv1.DiscoverEKSCluster) error {
+func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters *usertasksv1.DiscoverEKS) error {
+	if len(failedClusters.Clusters) == 0 {
+		return nil
+	}
+
 	userTaskName := usertasks.TaskNameForDiscoverEKS(usertasks.TaskNameForDiscoverEKSParts{
 		Integration:     taskGroup.integration,
 		IssueType:       taskGroup.issueType,
@@ -694,12 +703,7 @@ func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClust
 			TaskType:    usertasks.TaskTypeDiscoverEKS,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
-			DiscoverEks: &usertasksv1.DiscoverEKS{
-				Clusters:        failedClusters,
-				AccountId:       taskGroup.accountID,
-				Region:          taskGroup.region,
-				AppAutoDiscover: taskGroup.appAutoDiscover,
-			},
+			DiscoverEks: failedClusters,
 		},
 		usertasks.WithExpiration(taskExpiration),
 	)
@@ -715,7 +719,7 @@ func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClust
 }
 
 // discoverEKSUserTaskAddExistingClusters takes the UserTask stored in the cluster and merges it into the existing map of failed clusters.
-func (s *Server) discoverEKSUserTaskAddExistingClusters(currentUserTask *usertasksv1.UserTask, failedClusters map[string]*usertasksv1.DiscoverEKSCluster) map[string]*usertasksv1.DiscoverEKSCluster {
+func (s *Server) discoverEKSUserTaskAddExistingClusters(currentUserTask *usertasksv1.UserTask, failedClusters *usertasksv1.DiscoverEKS) *usertasksv1.DiscoverEKS {
 	for existingClusterName, existingCluster := range currentUserTask.Spec.DiscoverEks.Clusters {
 		// Each DiscoveryService works on all the DiscoveryConfigs assigned to a given DiscoveryGroup.
 		// So, it's safe to say that current DiscoveryService has the last state for a given DiscoveryGroup.
@@ -733,7 +737,7 @@ func (s *Server) discoverEKSUserTaskAddExistingClusters(currentUserTask *usertas
 		}
 
 		// Merge existing cluster state into in-memory object.
-		failedClusters[existingClusterName] = existingCluster
+		failedClusters.Clusters[existingClusterName] = existingCluster
 	}
 	return failedClusters
 }
