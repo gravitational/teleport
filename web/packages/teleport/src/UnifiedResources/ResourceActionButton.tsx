@@ -24,7 +24,7 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-
+import { AwsRole } from 'shared/services/apps';
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -42,7 +42,6 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
-import { AwsRole } from 'shared/services/apps';
 
 type Props = {
   resource: UnifiedResource;
