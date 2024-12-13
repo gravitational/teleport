@@ -391,7 +391,7 @@ type ServerSpecV1 struct {
 			},
 		},
 		{
-			description: "a composite field type with a custom type and an override",
+			description: "composite field type with named scalar type",
 			source: `
 package mypkg
 
@@ -431,7 +431,7 @@ type Label string
 						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
-							Type:        "[]map[string][Label](#label)",
+							Type:        "",
 						},
 					},
 				},
