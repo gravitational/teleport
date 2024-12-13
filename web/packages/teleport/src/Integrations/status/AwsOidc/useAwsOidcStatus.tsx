@@ -24,12 +24,14 @@ import {
   Integration,
   IntegrationKind,
   integrationService,
+  IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
 import useTeleport from 'teleport/useTeleport';
 
 export interface AwsOidcStatusContextState {
-  attempt: Attempt<Integration>;
+  statsAttempt: Attempt<IntegrationWithSummary>;
+  integrationAttempt: Attempt<Integration>;
 }
 
 export const awsOidcStatusContext =
@@ -44,18 +46,24 @@ export function AwsOidcStatusProvider({ children }: React.PropsWithChildren) {
   const integrationAccess = ctx.storeUser.getIntegrationsAccess();
   const hasIntegrationReadAccess = integrationAccess.read;
 
-  const [attempt, fetchIntegration] = useAsync(() =>
+  const [stats, fetchIntegrationStats] = useAsync(() =>
+    integrationService.fetchIntegrationStats(name)
+  );
+
+  const [integration, fetchIntegration] = useAsync(() =>
     integrationService.fetchIntegration(name)
   );
 
   useEffect(() => {
     if (hasIntegrationReadAccess) {
+      fetchIntegrationStats();
       fetchIntegration();
     }
   }, []);
 
   const value: AwsOidcStatusContextState = {
-    attempt,
+    statsAttempt: stats,
+    integrationAttempt: integration,
   };
 
   return (

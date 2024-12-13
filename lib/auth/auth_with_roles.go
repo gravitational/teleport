@@ -40,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -143,6 +145,20 @@ func (a *ServerWithRoles) authConnectorAction(resource string, verb string) erro
 		}
 	}
 	return nil
+}
+
+// identityCenterAction is a special checker that grants access to Identity Center
+// resources. In order to simplify the writing of role condition statements, the
+// various Identity Center resources are bundled up under an umbrella
+// `KindIdentityCenter` resource kind. This means that if access to the target
+// resource is not explicitly denied, then the user has a second chance to get
+// access via the generic resource kind.
+func (a *ServerWithRoles) identityCenterAction(namespace string, resource string, verbs ...string) error {
+	err := a.actionNamespace(namespace, resource, verbs...)
+	if err == nil || services.IsAccessExplicitlyDenied(err) {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.actionNamespace(namespace, types.KindIdentityCenter, verbs...))
 }
 
 // actionForListWithCondition extracts a restrictive filter condition to be
@@ -1258,7 +1274,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
@@ -1290,6 +1306,18 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	}
 
 	return true, nil
+}
+
+type actionChecker func(namespace, resourceKind string, verbs ...string) error
+
+func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
+	switch resourceKind {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		// Identity Center resources can be specified multiple ways in a Role
+		// Condition statement, so we need a special checker to handle it.
+		return a.identityCenterAction
+	}
+	return a.actionNamespace
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
@@ -1329,7 +1357,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccess.kindAccessMap[kind] = a.action(kind, actionVerbs...)
+		checkAction := a.selectActionChecker(kind)
+		resourceAccess.kindAccessMap[kind] = checkAction(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
@@ -1447,6 +1476,16 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
+				// Apps representing an Identity Center Account have a collection of Permission Sets
+				// that can be thought of as individually-addressable sub-resources. To present a consitent
+				// view of the account we check access for each Permission Set, filter out those that have
+				// no access and treat the whole app as requiring an access request if _any_ of the contained
+				// permission sets require one.
+				if err := a.filterICPermissionSets(r, d.GetApp(), resourceAccess); err != nil {
+					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
+					continue
+				}
+
 				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
@@ -1461,6 +1500,56 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
+}
+
+func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("resource must be an app")
+	}
+
+	pss := appV3.Spec.IdentityCenter.GetPermissionSets()
+	if pss == nil {
+		return nil
+	}
+
+	assignment := services.IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:     types.KindIdentityCenterAccountAssignment,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId:     appV3.GetName(),
+				PermissionSet: &identitycenterv1.PermissionSetInfo{},
+			},
+		},
+	}
+	permissionSetQuery := assignment.Spec.PermissionSet
+	checkable := types.Resource153ToResourceWithLabels(assignment)
+
+	var output []*types.IdentityCenterPermissionSet
+	for _, ps := range pss {
+		assignment.Metadata.Name = ps.AssignmentID
+		permissionSetQuery.Arn = ps.ARN
+
+		hasAccess, err := checker.checkAccess(checkable, services.MatchResourceFilter{
+			ResourceKind: types.KindIdentityCenterAccountAssignment,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !hasAccess {
+			continue
+		}
+		output = append(output, ps)
+		if _, requestable := checker.requestableMap[ps.AssignmentID]; requestable {
+			r.RequiresRequest = true
+		}
+	}
+	appV3.Spec.IdentityCenter.PermissionSets = output
+
+	return nil
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
@@ -1666,13 +1755,16 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	if err := a.actionNamespace(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
+	checkAction := a.selectActionChecker(req.ResourceType)
+	if err := checkAction(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1799,9 +1891,24 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
+
+	case types.Resource153Unwrapper:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			switch unwrapped := rr.Unwrap().(type) {
+			case services.IdentityCenterAccount:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
+
+			case services.IdentityCenterAccountAssignment:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+
+			default:
+				return r.CheckAccess(checkable, state)
+			}
+		}
 	}
 
-	return trace.BadParameter("could not check access to resource type %T", r)
+	return trace.BadParameter("could not check access to resource type %T", resource)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
@@ -1816,7 +1923,9 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindKubeServer,
 		types.KindUserGroup,
 		types.KindUnifiedResource,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)

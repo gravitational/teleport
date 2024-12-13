@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Component } from 'react';
 import styled from 'styled-components';
 import ace from 'ace-builds/src-min-noconflict/ace';
 
@@ -34,7 +34,7 @@ import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
 
-class TextEditor extends React.Component {
+class TextEditor extends Component {
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
     if (this.props.onDirty) {

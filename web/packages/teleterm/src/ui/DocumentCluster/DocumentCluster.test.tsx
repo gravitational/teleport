@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { act } from '@testing-library/react';
 import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
@@ -27,6 +26,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import {
   makeRootCluster,
   makeLoggedInUser,
+  makeAcl,
 } from 'teleterm/services/tshd/testHelpers';
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
@@ -50,7 +50,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
           userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
+          acl: makeAcl({
             tokens: {
               create: true,
               list: true,
@@ -59,7 +59,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );
@@ -123,7 +123,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
         uri: doc.clusterUri,
         loggedInUser: makeLoggedInUser({
           userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
+          acl: makeAcl({
             tokens: {
               create: false,
               list: true,
@@ -132,7 +132,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
               read: true,
               use: true,
             },
-          },
+          }),
         }),
       })
     );

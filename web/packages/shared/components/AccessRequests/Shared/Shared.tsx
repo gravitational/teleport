@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
 import { displayDateWithPrefixedTime } from 'design/datetime';

@@ -31,6 +31,8 @@ use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
 };
+use ironrdp_core::{encode_vec, EncodeError};
+use ironrdp_core::{function, WriteBuf};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
@@ -42,22 +44,22 @@ use ironrdp_pdu::input::fast_path::{
 };
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
-use ironrdp_pdu::mcs::DisconnectReason;
+use ironrdp_pdu::nego::NegoRequestData;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::write_buf::WriteBuf;
+use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
-use ironrdp_pdu::{custom_err, function, PduError};
+use ironrdp_pdu::{encode_err, pdu_other_err};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
-use ironrdp_session::x224::{self, ProcessorOutput};
+use ironrdp_session::x224::{self, DisconnectDescription, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
+use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
 use std::error::Error;
@@ -113,7 +115,7 @@ impl Client {
     pub fn run(
         cgo_handle: CgoHandle,
         params: ConnectParams,
-    ) -> ClientResult<Option<DisconnectReason>> {
+    ) -> ClientResult<Option<DisconnectDescription>> {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
@@ -280,7 +282,7 @@ impl Client {
     ///    which it then executes.
     ///
     /// When either loop returns, the other is aborted and the result is returned.
-    async fn run_loops(mut self) -> ClientResult<Option<DisconnectReason>> {
+    async fn run_loops(mut self) -> ClientResult<Option<DisconnectDescription>> {
         let read_stream = self
             .read_stream
             .take()
@@ -335,7 +337,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
+    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectDescription>>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
@@ -375,6 +377,7 @@ impl Client {
                                             &mut read_stream,
                                             sequence.as_mut(),
                                             &mut buf,
+                                            None,
                                         )
                                             .await?;
 
@@ -518,7 +521,7 @@ impl Client {
         debug!("DisplayControlClient channel opened");
         // We've been notified that the DisplayControl dvc channel has been opened:
         let mut pending_resize =
-            Self::resize_manager_lock(pending_resize).map_err(|err| custom_err!(err))?;
+            Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
         if let Some((width, height)) = pending_resize {
             // If there was a resize pending, perform it now.
@@ -531,7 +534,8 @@ impl Client {
                 height,
                 None,
                 Some((width, height)),
-            )?
+            )
+            .map_err(|e| encode_err!(e))?
             .into();
             return Ok(vec![Box::new(pdu)]);
         }
@@ -683,7 +687,7 @@ impl Client {
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
         write_stream
-            .write_all(&ironrdp_pdu::encode_vec(&FastPathInput(vec![event]))?)
+            .write_all(&encode_vec(&FastPathInput(vec![event]))?)
             .await?;
         Ok(())
     }
@@ -1406,15 +1410,12 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
         credentials: Credentials::SmartCard {
-            config: params.ad.then(|| {
-                SmartCardIdentity {
-                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
-                    reader_name: "Teleport".to_string(),
-                    container_name: "".to_string(),
-                    certificate: params.cert_der.clone(),
-                    private_key: params.key_der.clone(),
-                }
-                .into()
+            config: params.ad.then(|| SmartCardIdentity {
+                csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                reader_name: "Teleport".to_string(),
+                container_name: "".to_string(),
+                certificate: params.cert_der.clone(),
+                private_key: params.key_der.clone(),
             }),
             pin,
         },
@@ -1443,6 +1444,10 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
+        // Send the username in the request cookie, which is sent in the initial connection request.
+        // The RDP server ignores this value, but load balancers sitting in front of the server
+        // can use it to implement persistence.
+        request_data: Some(NegoRequestData::cookie(params.username.clone())),
         performance_flags: PerformanceFlags::default()
             | PerformanceFlags::DISABLE_CURSOR_SHADOW // this is required for pointer to work correctly in Windows 2019
             | if !params.show_desktop_wallpaper {
@@ -1456,6 +1461,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
 
 #[derive(Debug)]
 pub struct ConnectParams {
+    pub username: String,
     pub addr: String,
     pub kdc_addr: Option<String>,
     pub computer_name: Option<String>,
@@ -1474,6 +1480,7 @@ pub struct ConnectParams {
 pub enum ClientError {
     Tcp(IoError),
     Rdp(RdpError),
+    EncodeError(EncodeError),
     PduError(PduError),
     SessionError(SessionError),
     ConnectorError(ConnectorError),
@@ -1523,6 +1530,7 @@ impl Display for ClientError {
             ClientError::SendError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
+            ClientError::EncodeError(e) => Display::fmt(e, f),
             ClientError::PduError(e) => Display::fmt(e, f),
             ClientError::UrlError(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
@@ -1575,6 +1583,12 @@ impl From<JoinError> for ClientError {
     }
 }
 
+impl From<EncodeError> for ClientError {
+    fn from(e: EncodeError) -> Self {
+        ClientError::EncodeError(e)
+    }
+}
+
 impl From<PduError> for ClientError {
     fn from(e: PduError) -> Self {
         ClientError::PduError(e)
@@ -1583,7 +1597,7 @@ impl From<PduError> for ClientError {
 
 impl From<ClientError> for PduError {
     fn from(e: ClientError) -> Self {
-        custom_err!(e)
+        pdu_other_err!("", source:e)
     }
 }
 

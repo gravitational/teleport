@@ -20,10 +20,10 @@ package alpnproxy
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -35,7 +35,7 @@ type AuthorizationCheckerMiddleware struct {
 	DefaultLocalProxyHTTPMiddleware
 
 	// Log is the Logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Secret is the expected value of a bearer token.
 	Secret string
 }
@@ -45,7 +45,7 @@ var _ LocalProxyHTTPMiddleware = (*AuthorizationCheckerMiddleware)(nil)
 // CheckAndSetDefaults checks configuration validity and sets defaults.
 func (m *AuthorizationCheckerMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = logrus.WithField(teleport.ComponentKey, "gcp")
+		m.Log = slog.With(teleport.ComponentKey, "authz")
 	}
 
 	if m.Secret == "" {
@@ -58,7 +58,7 @@ func (m *AuthorizationCheckerMiddleware) CheckAndSetDefaults() error {
 func (m *AuthorizationCheckerMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	auth := req.Header.Get("Authorization")
 	if auth == "" {
-		m.Log.Debugf("No Authorization header present, ignoring request.")
+		m.Log.DebugContext(req.Context(), "No Authorization header present, ignoring request")
 		return false
 	}
 
