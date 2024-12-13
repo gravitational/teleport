@@ -384,12 +384,17 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]Decla
 		if ok {
 			pkg = x.Name
 		}
+		info := PackageInfo{
+			DeclName:    t.Sel.Name,
+			PackageName: pkg,
+		}
+		if _, ok := allDecls[info]; !ok {
+			return nonYAMLKind{}, nil
+		}
+
 		return yamlCustomType{
-			name: makeSectionName(t.Sel.Name),
-			declarationInfo: PackageInfo{
-				DeclName:    t.Sel.Name,
-				PackageName: pkg,
-			},
+			name:            makeSectionName(t.Sel.Name),
+			declarationInfo: info,
 		}, nil
 	default:
 		return nonYAMLKind{}, nil
