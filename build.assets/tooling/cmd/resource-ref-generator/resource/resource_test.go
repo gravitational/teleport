@@ -213,7 +213,7 @@ type Server struct {
     Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
     // Spec contains information about the server.
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
-    // Labels for the server
+    // Label specifies labels for the server.
     Label Labels
 }
 `,
@@ -234,18 +234,19 @@ type Labels []string
 					SourcePath:  "myfile.go",
 					Fields: []Field{
 						{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "",
+						},
+
+						{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
 						},
 						{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "",
-						},
-						{
 							Name:        "Label",
-							Description: "Labels for the server",
+							Description: "Specifies labels for the server.",
 							Type:        "[Labels](#labels)",
 						},
 					},
