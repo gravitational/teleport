@@ -69,6 +69,7 @@ func TestAWSDataFetch(t *testing.T) {
 				ARN:            "arn:aws:iam::1111111111:account/Account1",
 				IsOwner:        false,
 				PermissionSets: maps.Values(expectedPermissionSets),
+				StartURL:       "https://store1.awsapps.com/start/#/console?account_id=1111111111",
 			}.Build(),
 
 			"2222222222": test.Account{
@@ -77,6 +78,7 @@ func TestAWSDataFetch(t *testing.T) {
 				ARN:            "arn:aws:iam::2222222222:account/Account2",
 				IsOwner:        false,
 				PermissionSets: maps.Values(expectedPermissionSets),
+				StartURL:       "https://store1.awsapps.com/start/#/console?account_id=2222222222",
 			}.Build(),
 		}
 		require.Equal(t, expectedAccounts, data.accounts)

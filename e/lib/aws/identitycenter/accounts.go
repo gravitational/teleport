@@ -2,6 +2,7 @@ package identitycenter
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -12,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/equal"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -88,7 +90,7 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	return result, nil
 }
 
-func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN) services.IdentityCenterAccount {
+func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID) services.IdentityCenterAccount {
 	return services.IdentityCenterAccount{
 		Account: &identitycenterv1.Account{
 			Kind:    types.KindIdentityCenterAccount,
@@ -101,9 +103,10 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 				},
 			},
 			Spec: &identitycenterv1.AccountSpec{
-				Id:   string(id),
-				Arn:  arn.String(),
-				Name: name,
+				Id:       string(id),
+				Arn:      arn.String(),
+				Name:     name,
+				StartUrl: fmt.Sprintf("https://%s.awsapps.com/start/#/console?account_id=%s", idSource, id),
 			},
 			Status: &identitycenterv1.AccountStatus{},
 		},

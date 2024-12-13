@@ -53,6 +53,7 @@ type Account struct {
 	ARN            string
 	IsOwner        bool
 	PermissionSets iter.Seq[*identitycenterv1.PermissionSet]
+	StartURL       string
 }
 
 func (a Account) Build() services.IdentityCenterAccount {
@@ -72,6 +73,7 @@ func (a Account) Build() services.IdentityCenterAccount {
 				Name:                a.Name,
 				Arn:                 a.ARN,
 				IsOrganizationOwner: a.IsOwner,
+				StartUrl:            a.StartURL,
 			},
 			Status: &identitycenterv1.AccountStatus{},
 		},

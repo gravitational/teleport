@@ -37,7 +37,7 @@ func (svc *Service) refreshExternalData(ctx context.Context) (*externalData, err
 		return nil, trace.Wrap(err)
 	}
 
-	accounts, err := svc.fetchAccounts(ctx)
+	accounts, err := svc.fetchAccounts(ctx, icInstance.IdentityStoreID)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching AWS Identity Center accounts")
 	}
@@ -74,7 +74,7 @@ func (svc *Service) refreshExternalData(ctx context.Context) (*externalData, err
 	return result, nil
 }
 
-func (svc *Service) fetchAccounts(ctx context.Context) (accountResourceMap, error) {
+func (svc *Service) fetchAccounts(ctx context.Context, idStoreID icsdk.IdentityStoreID) (accountResourceMap, error) {
 	svc.log.DebugContext(ctx, "listing Accounts...")
 	accountList, err := svc.icClient.ListAccounts(ctx)
 	if err != nil {
@@ -87,7 +87,8 @@ func (svc *Service) fetchAccounts(ctx context.Context) (accountResourceMap, erro
 			return nil, trace.Wrap(err)
 		}
 
-		acct := newIdentityCenterAccount(src.Name, services.IdentityCenterAccountID(src.ID), accountArn)
+		acct := newIdentityCenterAccount(src.Name, services.IdentityCenterAccountID(src.ID),
+			accountArn, idStoreID)
 		accounts[getAccountID(acct)] = acct
 	}
 	return accounts, err
