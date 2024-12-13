@@ -272,7 +272,6 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println("====>>>>>>>", h.cfg)
 	return webui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */, h.cfg.DatabaseREPLRegistry.IsSupported(database.GetProtocol())), nil
 }
 
