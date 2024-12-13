@@ -254,12 +254,25 @@ func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
 	// tools into /opt/homebrew/opt/libpq/bin, check in this path first.
 	brewBin := filepath.Join("/", "opt", "homebrew", "opt", "libpq", "bin", postgresBin)
 	_, err := exec.LookPath(brewBin)
-	fmt.Printf("--> lookup brew: %v %v\n", brewBin, err)
 	if err == nil {
 		return exec.Command(brewBin, c.getPostgresConnString())
 	}
 
 	return exec.Command(postgresBin, c.getPostgresConnString())
+}
+
+func (c *CLICommandBuilder) getInstallDetails() (string, string) {
+	var pm string
+	switch {
+	case runtime.GOOS == constants.DarwinOS && hasCommand("brew"):
+		pm = "brew install libpq"
+	case runtime.GOOS == constants.LinuxOS && hasCommand("apt"):
+		pm = "apt install postgresql-client"
+	case runtime.GOOS == constants.LinuxOS && (hasCommand("yum") || hasCommand("dnf")):
+		pm = "dnf install -y postgresql"
+	}
+
+	return "https://www.postgresql.org", pm
 }
 
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -1024,6 +1037,11 @@ func WithGetDatabaseFunc(f GetDatabaseFunc) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.getDatabase = f
 	}
+}
+
+func hasCommand(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
 }
 
 const (

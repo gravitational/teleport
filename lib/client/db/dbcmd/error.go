@@ -28,16 +28,71 @@ import (
 	"github.com/gravitational/trace"
 )
 
+//var install = map[string]map[string]string{}
+//
+//func installCommand(tool string) (string, string, error) {
+//	switch {
+//	case runtime.GOOS == constants.DarwinOS && hasCommand("brew"):
+//		return installDarwinBrew(tool)
+//	case runtime.GOOS == constants.LinuxOS && hasCommand("apt"):
+//		return installLinuxDebian(tool)
+//	case runtime.GOOS == constants.LinuxOS && (hasCommand("yum") || hasCommand("dnf")):
+//		return installLinuxRHEL(tool)
+//	default:
+//		return "", "", trace.BadParameter("unknown OS/tool: %v/%v", runtime.GOOS, tool)
+//	}
+//}
+//
+//
+//type details struct {
+//	url string
+//	cmd string
+//}
+//
+//func installDarwinBrew(tool string) (string, string, error) {
+//	p, ok := brewmap[tool]
+//	if !ok {
+//		return "", "", trace.BadParameter("no package for %v available", tool)
+//	}
+//	return p[0], p[1]
+//}
+//
+//func installLinuxDebian(tool string) (string, string, error) {
+//	return "", "", trace.BadParameter("no package for %v available", tool)
+//}
+//
+//func installLinuxRHEL(tool string) (string, string, error) {
+//	return "", "", trace.BadParameter("no package for %v available", tool)
+//}
+//
+//func hasCommand(command string) bool {
+//	_, err := exec.LookPath(command)
+//	return err == nil
+//}
+
 // ConvertCommandError translates some common errors to more user friendly
 // messages.
 //
 // This helps in situations where the user does not have the full context to
 // decipher errors when the database command is executed internally (e.g.
 // command executed through "tsh db connect").
-func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
+func ConvertCommandError(cb *CLICommandBuilder, cmd *exec.Cmd, err error, peakStderr string) error {
 	var ee *exec.Error
 	switch {
 	case errors.As(err, &ee):
+		// TODO(russjones): Can this never return an error? Can we be in a situation
+		// where no install details are found?
+		url, command := cb.getInstallDetails()
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("In order to connect to this database, tsh requires that the %q tool is installed.\n", cmd.Args[0]))
+		b.WriteString(fmt.Sprintf("Install it from %v or via your system's package manager", url))
+		if command != "" {
+			b.WriteString(fmt.Sprintf(" (%v).\n", command))
+		}
+		fmt.Print(b.String())
+
+		return trace.Wrap(err)
+
 		// TODO(russjones): Capture all dbcommands: https://github.com/gravitational/teleport/blob/master/lib/client/db/dbcmd/dbcmd.go
 
 		// ./tsh.sh -d db connect --db-user=rjones --db-name=foo postgres
@@ -52,7 +107,7 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 		// 		runtime/proc.go:272 runtime.main
 		// 		runtime/asm_arm64.s:1223 runtime.goexit
 		// User Message: exec: &#34;psql&#34;: executable file not found in $PATH
-		fmt.Printf("--> %v\n", err)
+		//fmt.Printf("--> %v\n", err)
 	}
 
 	switch filepath.Base(cmd.Path) {

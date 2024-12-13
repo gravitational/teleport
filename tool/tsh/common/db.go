@@ -19,7 +19,6 @@
 package common
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -27,7 +26,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"slices"
 	"sort"
 	"strings"
@@ -792,34 +790,34 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Check if required third-party tool is installed. If not installed, prompt
-	// the user to allow running a package manager command to install the tool.
-	if _, err := exec.LookPath("psql"); err != nil {
-		fmt.Printf(`Teleport requires a third-party tool (psql) to be installed to run this command.
-
-Run "brew install libpq" to install third-party tool? [Y/n]
-`)
-
-		buf, er := bufio.NewReader(os.Stdin).ReadString('\n')
-		if er != nil {
-			return trace.Wrap(err)
-		}
-		if strings.TrimSpace(strings.ToLower(buf)) != "y" {
-			fmt.Printf(`Failed to find the required third-party tool (psql) within $PATH.
-
-Download and install psql >= VERSION from https://www.postgresql.org or your
-system package manager.
-`)
-			return trace.NewAggregate(err, er)
-		}
-
-		cmd := exec.Command("brew", "install", "libpq")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	//	// Check if required third-party tool is installed. If not installed, prompt
+	//	// the user to allow running a package manager command to install the tool.
+	//	if _, err := exec.LookPath("psql"); err != nil {
+	//		fmt.Printf(`Teleport requires a third-party tool (psql) to be installed to run this command.
+	//
+	//Run// "brew install libpq" to install third-party tool? [Y/n]
+	//`//)
+	//
+	//		buf, er := bufio.NewReader(os.Stdin).ReadString('\n')
+	//		if er != nil {
+	//			return trace.Wrap(err)
+	//		}
+	//		if strings.TrimSpace(strings.ToLower(buf)) != "y" {
+	//			fmt.Printf(`Failed to find the required third-party tool (psql) within $PATH.
+	//
+	//Dow//nload and install psql >= VERSION from https://www.postgresql.org or your
+	//sys//tem package manager.
+	//`//)
+	//			return trace.NewAggregate(err, er)
+	//		}
+	//
+	//		cmd := exec.Command("brew", "install", "libpq")
+	//		cmd.Stdout = os.Stdout
+	//		cmd.Stderr = os.Stderr
+	//		if err := cmd.Run(); err != nil {
+	//			return trace.Wrap(err)
+	//		}
+	//	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
 	cmd, err := bb.GetConnectCommand(cf.Context)
@@ -839,7 +837,7 @@ system package manager.
 
 	err = cmd.Run()
 	if err != nil {
-		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
+		return dbcmd.ConvertCommandError(bb, cmd, err, string(peakStderr.Bytes()))
 	}
 	return nil
 }
