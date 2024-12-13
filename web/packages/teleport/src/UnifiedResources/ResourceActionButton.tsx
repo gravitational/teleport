@@ -36,12 +36,13 @@ import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
-import { App } from 'teleport/services/apps';
+import { App, AppSubKind } from 'teleport/services/apps';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { AwsRole } from 'shared/services/apps';
 
 type Props = {
   resource: UnifiedResource;
@@ -162,21 +163,43 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
+    subKind,
+    permissionSets,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
-  if (awsConsole) {
+
+  const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  if (awsConsole || isAwsIdentityCenterApp) {
+    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
+    if (isAwsIdentityCenterApp) {
+      awsConsoleOrIdentityCenterRoles = permissionSets.map(
+        (ps): AwsRole => ({
+          name: ps.name,
+          arn: ps.name,
+          display: ps.name,
+          accountId: name,
+        })
+      );
+    }
+    function getAwsLaunchUrl(arnOrPermSetName: string) {
+      if (isAwsIdentityCenterApp) {
+        return `${publicAddr}&role_name=${arnOrPermSetName}`;
+      } else {
+        return cfg.getAppLauncherRoute({
+          fqdn,
+          clusterId,
+          publicAddr,
+          arn: arnOrPermSetName,
+        });
+      }
+    }
+
     return (
       <AwsLaunchButton
         width="123px"
-        awsRoles={awsRoles}
-        getLaunchUrl={arn =>
-          cfg.getAppLauncherRoute({
-            fqdn,
-            clusterId,
-            publicAddr,
-            arn,
-          })
-        }
+        awsRoles={awsConsoleOrIdentityCenterRoles}
+        getLaunchUrl={getAwsLaunchUrl}
+        isAwsIdentityCenterApp={isAwsIdentityCenterApp}
       />
     );
   }
