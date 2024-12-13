@@ -102,7 +102,7 @@ export const ConnectWithoutValues = () => {
   return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
 };
 
-export const ConnectWithWildcards= () => {
+export const ConnectWithWildcards = () => {
   const { ctx, consoleCtx } = getContexts(
     Promise.resolve({
       agents: [
