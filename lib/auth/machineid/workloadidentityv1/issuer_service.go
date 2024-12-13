@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -125,16 +126,20 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	}, nil
 }
 
-// getFieldStringValue
-// TODO(noah): This is a fairly gnarly first pass of a reflection based
-// attribute extraction function. This will eventually be replaced potentially
-// by the chosen expression/predicate language mechanism.
+// getFieldStringValue returns a string value from the given attribute set.
+// The attribute is specified as a dot-separated path to the field in the
+// attribute set.
+//
+// The specified attribute must be a string field. If the attribute is not
+// found, an error is returned.
+//
+// TODO(noah): This function will be replaced by the Teleport predicate language
+// in a coming PR.
 func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string, error) {
-	// join.gitlab.username
 	attrParts := strings.Split(attr, ".")
 	message := attrs.ProtoReflect()
-	// TODO: Improve errors by including the fully qualified attribute (e.g
-	// add up the parts of the attribute path processed thus far)
+	// TODO(noah): Improve errors by including the fully qualified attribute
+	// (e.g add up the parts of the attribute path processed thus far)
 	for i, part := range attrParts {
 		fieldDesc := message.Descriptor().Fields().ByTextName(part)
 		if fieldDesc == nil {
@@ -158,12 +163,14 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 	return "", nil
 }
 
-// This place is not a place of honor...
-// no highly esteemed deed is commemorated here...
-// nothing valued is here.
+// templateString takes a given input string and replaces any values within
+// {{ }} with values from the attribute set.
 //
-// What is here was dangerous and repulsive to us.
-// This message is a warning about danger.
+// If the specified value is not found in the attribute set, an error is
+// returned.
+//
+// TODO(noah): In a coming PR, this will be replaced by evaluating the values
+// within the handlebars as expressions.
 func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
 	re := regexp.MustCompile(`\{\{(.*?)\}\}`)
 	matches := re.FindAllStringSubmatch(in, -1)
@@ -227,10 +234,16 @@ func (s *IssuanceService) deriveAttrs(
 	return attrs, nil
 }
 
+var defaultMaxTTL = 24 * time.Hour
+
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentityResponse, error) {
+	if !experiment.Enabled() {
+		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
+	}
+
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -284,8 +297,15 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err, "templating spec.spiffe.hint")
 	}
 
-	// TODO: Actually like calculate the TTL.
+	// TODO(noah): Add more sophisticated control of the TTL.
 	ttl := time.Hour
+	if req.RequestedTtl != nil && req.RequestedTtl.AsDuration() != 0 {
+		ttl := req.RequestedTtl.AsDuration()
+		if ttl > defaultMaxTTL {
+			ttl = defaultMaxTTL
+		}
+	}
+
 	now := s.clock.Now()
 	notBefore := now.Add(-1 * time.Minute)
 	notAfter := now.Add(ttl)
