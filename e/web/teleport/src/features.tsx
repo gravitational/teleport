@@ -371,7 +371,12 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.plugins || flags.integrations || flags.externalAuditStorage;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.oss.hideInaccessibleFeatures) {
+      return flags.plugins || flags.integrations || flags.externalAuditStorage;
+    }
+    return true;
   }
 }
 

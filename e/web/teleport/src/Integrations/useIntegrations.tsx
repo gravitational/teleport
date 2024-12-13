@@ -253,6 +253,19 @@ export function useIntegrations() {
     );
   }
 
+  const requiredCreatePermissions = [
+    {
+      value: ctx.storeUser.getPluginsAccess().create,
+      label: 'plugin.create',
+    },
+    {
+      value: ctx.storeUser.getIntegrationsAccess().create,
+      label: 'integration.create',
+    },
+  ];
+
+  const canCreateIntegrations = requiredCreatePermissions.some(v => v.value);
+
   return {
     items,
     attempt,
@@ -276,9 +289,8 @@ export function useIntegrations() {
     },
     auditStorageAttempt,
     warning,
-    canCreateIntegrations:
-      ctx.storeUser.getPluginsAccess().create ||
-      ctx.storeUser.getIntegrationsAccess().create,
+    requiredCreatePermissions,
+    canCreateIntegrations,
   };
 }
 

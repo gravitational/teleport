@@ -29,9 +29,9 @@ export function Integrations(props: State) {
     items,
     pluginOps,
     integrationOps,
+    requiredCreatePermissions,
     externalAuditStorageOps,
     warning,
-    canCreateIntegrations,
     auditStorageAttempt,
   } = props;
 
@@ -42,7 +42,9 @@ export function Integrations(props: State) {
       <FeatureHeader>
         <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
         {hasItems && (
-          <IntegrationsAddButton canCreate={canCreateIntegrations} />
+          <IntegrationsAddButton
+            requiredPermissions={requiredCreatePermissions}
+          />
         )}
       </FeatureHeader>
       {warning && <Alert kind="warning" children={warning} />}
