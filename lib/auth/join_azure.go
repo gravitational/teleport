@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
@@ -76,9 +75,23 @@ type attestedData struct {
 
 type accessTokenClaims struct {
 	jwt.Claims
-	ResourceID string `json:"xms_mirid"`
-	TenantID   string `json:"tid"`
-	Version    string `json:"ver"`
+	TenantID string `json:"tid"`
+	Version  string `json:"ver"`
+
+	// Azure JWT tokens include two optional claims that can be used to validate
+	// the subscription and resource group of a joining node. These claims hold
+	// different values depending on the assigned Managed Identity of the Azure VM:
+	// - xms_mirid:
+	//   - For System-Assigned Identity it represents the resource id of the VM.
+	//   - For User-Assigned Identity it represents the resource id of the user-assigned identity.
+	// - xms_az_rid:
+	//   - For System-Assigned Identity this claim is omitted.
+	//   - For User-Assigned Identity it represents the resource id of the VM.
+	//
+	// More details at: https://learn.microsoft.com/en-us/answers/questions/1282788/existence-of-xms-az-rid-field-in-activity-logs-of
+
+	ManangedIdentityResourceID string `json:"xms_mirid"`
+	AzureResourceID            string `json:"xms_az_rid"`
 }
 
 type azureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error)
@@ -153,45 +166,44 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 
 type azureRegisterOption func(cfg *azureRegisterConfig)
 
-// parseAndVeryAttestedData verifies that an attested data document was signed
-// by Azure. If verification is successful, it returns the ID of the VM that
-// produced the document.
-func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge string, certs []*x509.Certificate) (subscriptionID, vmID string, err error) {
+// verifyAttestedData verifies that an attested data document was signed
+// by Azure.
+func verifyAttestedData(ctx context.Context, adBytes []byte, challenge string, certs []*x509.Certificate) error {
 	var signedAD signedAttestedData
 	if err := utils.FastUnmarshal(adBytes, &signedAD); err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if signedAD.Encoding != "pkcs7" {
-		return "", "", trace.AccessDenied("unsupported signature type: %v", signedAD.Encoding)
+		return trace.AccessDenied("unsupported signature type: %v", signedAD.Encoding)
 	}
 
 	sigPEM := "-----BEGIN PKCS7-----\n" + signedAD.Signature + "\n-----END PKCS7-----"
 	sigBER, _ := pem.Decode([]byte(sigPEM))
 	if sigBER == nil {
-		return "", "", trace.AccessDenied("unable to decode attested data document")
+		return trace.AccessDenied("unable to decode attested data document")
 	}
 
 	p7, err := pkcs7.Parse(sigBER.Bytes)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	var ad attestedData
 	if err := utils.FastUnmarshal(p7.Content, &ad); err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if ad.Nonce != challenge {
-		return "", "", trace.AccessDenied("challenge is missing or does not match")
+		return trace.AccessDenied("challenge is missing or does not match")
 	}
 
 	if len(p7.Certificates) == 0 {
-		return "", "", trace.AccessDenied("no certificates for signature")
+		return trace.AccessDenied("no certificates for signature")
 	}
 	fixAzureSigningAlgorithm(p7)
 
 	// Azure only sends the leaf cert, so we have to fetch the intermediate.
 	intermediate, err := getAzureIssuerCert(ctx, p7.Certificates[0])
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if intermediate != nil {
 		p7.Certificates = append(p7.Certificates, intermediate)
@@ -203,15 +215,14 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 	}
 
 	if err := p7.VerifyWithChain(pool); err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return ad.SubscriptionID, ad.ID, nil
+	return nil
 }
 
-// verifyVMIdentity verifies that the provided access token came from the
-// correct Azure VM.
-func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken, subscriptionID, vmID string, requestStart time.Time) (*azure.VirtualMachine, error) {
+// verifyToken verifies the token and validates the expected claims.
+func verifyToken(ctx context.Context, cfg *azureRegisterConfig, accessToken string, requestStart time.Time) (*accessTokenClaims, error) {
 	tokenClaims, err := cfg.verify(ctx, accessToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,59 +250,36 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 		return nil, trace.Wrap(err)
 	}
 
-	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
-		Token:     accessToken,
-		ExpiresOn: tokenClaims.Expiry.Time(),
-	})
-	vmClient, err := cfg.getVMClient(subscriptionID, tokenCredential)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resourceID, err := arm.ParseResourceID(tokenClaims.ResourceID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var vm *azure.VirtualMachine
-
-	// If the token is from the system-assigned managed identity, the resource ID
-	// is for the VM itself and we can use it to look up the VM.
-	if slices.Contains(resourceID.ResourceType.Types, "virtualMachines") {
-		vm, err = vmClient.Get(ctx, tokenClaims.ResourceID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if vm.VMID != vmID {
-			return nil, trace.AccessDenied("vm ID does not match")
-		}
-
-		// If the token is from a user-assigned managed identity, the resource ID is
-		// for the identity and we need to look the VM up by VM ID.
-	} else {
-		vm, err = vmClient.GetByVMID(ctx, vmID)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, trace.AccessDenied("no VM found with matching VM ID")
-			}
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return vm, nil
+	return tokenClaims, nil
 }
 
-func checkAzureAllowRules(vm *azure.VirtualMachine, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+func checkAzureAllowRules(claims *accessTokenClaims, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+	rid := claims.AzureResourceID
+	if rid == "" {
+		// xms_az_rid claim is omitted when the VM is assigned a System-Assigned Identity.
+		// The xms_mirid claim should be used instead.
+		rid = claims.ManangedIdentityResourceID
+	}
+
+	resourceID, err := arm.ParseResourceID(rid)
+	if err != nil {
+		return trace.Wrap(err, "failed to parse resource id from claims")
+	}
+
+	if !slices.Contains(resourceID.ResourceType.Types, "virtualMachines") {
+		return trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
+	}
+
 	for _, rule := range allowRules {
-		if rule.Subscription != vm.Subscription {
+		if rule.Subscription != resourceID.SubscriptionID {
 			continue
 		}
-		if !azureResourceGroupIsAllowed(rule.ResourceGroups, vm.ResourceGroup) {
+		if !azureResourceGroupIsAllowed(rule.ResourceGroups, resourceID.ResourceGroupName) {
 			continue
 		}
 		return nil
 	}
-	return trace.AccessDenied("instance %v did not match any allow rules in token %v", vm.Name, token)
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", resourceID.Name, token)
 }
 func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup string) bool {
 	if len(allowedResourceGroups) == 0 {
@@ -323,12 +311,12 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 		return trace.AccessDenied("this token does not support the Azure join method")
 	}
 
-	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
+	err = verifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	vm, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart)
+	claims, err := verifyToken(ctx, cfg, req.AccessToken, requestStart)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -338,7 +326,7 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 		return trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 
-	if err := checkAzureAllowRules(vm, token.GetName(), token.Spec.Azure.Allow); err != nil {
+	if err := checkAzureAllowRules(claims, token.GetName(), token.Spec.Azure.Allow); err != nil {
 		return trace.Wrap(err)
 	}
 

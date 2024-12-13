@@ -104,12 +104,16 @@ func withChallengeAzure(challenge string) azureChallengeResponseOption {
 }
 
 func vmResourceID(subscription, resourceGroup, name string) string {
-	return resourceID("virtualMachines", subscription, resourceGroup, name)
+	return resourceID("Microsoft.Compute/virtualMachines", subscription, resourceGroup, name)
+}
+
+func identityResourceID(subscription, resourceGroup, name string) string {
+	return resourceID("Microsoft.ManagedIdentity/userAssignedIdentities", subscription, resourceGroup, name)
 }
 
 func resourceID(resourceType, subscription, resourceGroup, name string) string {
 	return fmt.Sprintf(
-		"/subscriptions/%v/resourcegroups/%v/providers/Microsoft.Compute/%v/%v",
+		"/subscriptions/%v/resourcegroups/%v/providers/%v/%v",
 		subscription, resourceGroup, resourceType, name,
 	)
 }
@@ -131,7 +135,7 @@ func mockVerifyToken(err error) azureVerifyTokenFunc {
 	}
 }
 
-func makeToken(resourceID string, issueTime time.Time) (string, error) {
+func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.HS256,
 		Key:       []byte("test-key"),
@@ -149,9 +153,10 @@ func makeToken(resourceID string, issueTime time.Time) (string, error) {
 			Expiry:    jwt.NewNumericDate(issueTime.Add(time.Minute)),
 			ID:        "id",
 		},
-		ResourceID: resourceID,
-		TenantID:   "test-tenant-id",
-		Version:    "1.0",
+		ManangedIdentityResourceID: managedIdentityResourceID,
+		AzureResourceID:            azureResourceID,
+		TenantID:                   "test-tenant-id",
+		Version:                    "1.0",
 	}
 	raw, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	if err != nil {
@@ -189,28 +194,27 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 	isBadParameter := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
-	isNotFound := func(t require.TestingT, err error, _ ...any) {
-		require.True(t, trace.IsNotFound(err), "expected Not Found error, actual error: %v", err)
-	}
 
 	defaultSubscription := uuid.NewString()
 	defaultResourceGroup := "my-resource-group"
-	defaultName := "test-vm"
+	defaultVMName := "test-vm"
+	defaultIdentityName := "test-id"
 	defaultVMID := "my-vm-id"
-	defaultResourceID := vmResourceID(defaultSubscription, defaultResourceGroup, defaultName)
+	defaultVMResourceID := vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 
 	tests := []struct {
-		name                     string
-		tokenResourceID          string
-		tokenSubscription        string
-		tokenVMID                string
-		requestTokenName         string
-		tokenSpec                types.ProvisionTokenSpecV2
-		challengeResponseOptions []azureChallengeResponseOption
-		challengeResponseErr     error
-		certs                    []*x509.Certificate
-		verify                   azureVerifyTokenFunc
-		assertError              require.ErrorAssertionFunc
+		name                           string
+		tokenManagedIdentityResourceID string
+		tokenAzureResourceID           string
+		tokenSubscription              string
+		tokenVMID                      string
+		requestTokenName               string
+		tokenSpec                      types.ProvisionTokenSpecV2
+		challengeResponseOptions       []azureChallengeResponseOption
+		challengeResponseErr           error
+		certs                          []*x509.Certificate
+		verify                         azureVerifyTokenFunc
+		assertError                    require.ErrorAssertionFunc
 	}{
 		{
 			name:              "basic passing case",
@@ -380,16 +384,40 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			assertError: require.Error,
 		},
 		{
-			name:              "attested data and access token from different VMs",
-			requestTokenName:  "test-token",
-			tokenSubscription: defaultSubscription,
-			tokenVMID:         "some-other-vm-id",
+			name:                           "system-managed identity ok",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription: defaultSubscription,
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.NoError,
+		},
+		{
+			name:                           "system-managed identity with wrong subscription",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("alternate-subscription-id", defaultResourceGroup, defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
 						},
 					},
 				},
@@ -400,17 +428,18 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			assertError: isAccessDenied,
 		},
 		{
-			name:              "vm not found",
-			requestTokenName:  "test-token",
-			tokenSubscription: defaultSubscription,
-			tokenVMID:         defaultVMID,
-			tokenResourceID:   vmResourceID(defaultSubscription, "nonexistent-group", defaultName),
+			name:                           "system-managed identity with wrong resource group",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID(defaultSubscription, "nonexistent-group", defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription: defaultSubscription,
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
 						},
 					},
 				},
@@ -418,20 +447,22 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			},
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isNotFound,
+			assertError: isAccessDenied,
 		},
 		{
-			name:              "lookup vm by id",
-			requestTokenName:  "test-token",
-			tokenSubscription: defaultSubscription,
-			tokenVMID:         defaultVMID,
-			tokenResourceID:   resourceID("some.other.provider", defaultSubscription, defaultResourceGroup, defaultName),
+			name:                           "user-managed identity ok",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription: defaultSubscription,
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
 						},
 					},
 				},
@@ -442,17 +473,19 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:              "vm is in a different subscription than the token it provides",
-			requestTokenName:  "test-token",
-			tokenSubscription: defaultSubscription,
-			tokenVMID:         defaultVMID,
-			tokenResourceID:   resourceID("some.other.provider", "some-other-subscription", defaultResourceGroup, defaultName),
+			name:                           "user-managed identity with wrong subscription",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID("alternate-subscription-id", defaultResourceGroup, defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription: defaultSubscription,
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
 						},
 					},
 				},
@@ -460,7 +493,53 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			},
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: require.NoError,
+			assertError: isAccessDenied,
+		},
+		{
+			name:                           "user-managed identity with wrong resource group",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID(defaultSubscription, "nonexistent-group", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: isAccessDenied,
+		},
+		{
+			name:                           "invalid resource type",
+			requestTokenName:               "test-token",
+			tokenSubscription:              defaultSubscription,
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
+			tokenAzureResourceID:           identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: isBadParameter,
 		},
 	}
 
@@ -476,19 +555,19 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			rsID := tc.tokenResourceID
-			if rsID == "" {
-				rsID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultName)
+			miRID := tc.tokenManagedIdentityResourceID
+			if miRID == "" {
+				miRID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 			}
 
-			accessToken, err := makeToken(rsID, a.clock.Now())
+			accessToken, err := makeToken(miRID, tc.tokenAzureResourceID, a.clock.Now())
 			require.NoError(t, err)
 
 			vmClient := &mockAzureVMClient{
 				vms: map[string]*azure.VirtualMachine{
-					defaultResourceID: {
-						ID:            defaultResourceID,
-						Name:          defaultName,
+					defaultVMResourceID: {
+						ID:            defaultVMResourceID,
+						Name:          defaultVMName,
 						Subscription:  defaultSubscription,
 						ResourceGroup: defaultResourceGroup,
 						VMID:          defaultVMID,
