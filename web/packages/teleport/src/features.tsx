@@ -221,8 +221,8 @@ export class FeatureBots implements TeleportFeature {
     component: Bots,
   };
 
-  hasAccess(flags: FeatureFlags) {
-    return flags.listBots;
+  hasAccess() {
+    return true;
   }
 
   navigationItem = {
