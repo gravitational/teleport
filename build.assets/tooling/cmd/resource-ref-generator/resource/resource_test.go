@@ -1346,7 +1346,6 @@ func TestMakeFieldTableInfo(t *testing.T) {
 		description string
 		input       []rawField
 		expected    []Field
-		allDecls    map[PackageInfo]DeclarationInfo
 	}{
 		{
 			description: "angle brackets in GoDoc",
@@ -1360,11 +1359,6 @@ func TestMakeFieldTableInfo(t *testing.T) {
 					tags:        `json:"object_id"`,
 				},
 			},
-			allDecls: map[PackageInfo]DeclarationInfo{
-				PackageInfo{
-					DeclName:    "ObjectID",
-					PackageName: "mypkg",
-				}: DeclarationInfo{}},
 			expected: []Field{
 				{
 					Name:        "object_id",
@@ -1391,11 +1385,6 @@ func TestMakeFieldTableInfo(t *testing.T) {
 					tags:     "json:\"locking_mode\"",
 				},
 			},
-			allDecls: map[PackageInfo]DeclarationInfo{
-				PackageInfo{
-					DeclName:    "LockingMode",
-					PackageName: "mypkg",
-				}: DeclarationInfo{}},
 			expected: []Field{
 				{
 					Name:        "locking_mode",
@@ -1407,7 +1396,7 @@ func TestMakeFieldTableInfo(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			f, err := makeFieldTableInfo(c.input, c.allDecls)
+			f, err := makeFieldTableInfo(c.input)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, f)
 		})

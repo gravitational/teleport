@@ -217,7 +217,7 @@ func (e NotAGenDeclError) Error() string {
 // getRawTypes returns a representation of the type spec of decl to use for
 // further processing. Returns an error if there is either no type spec or more
 // than one.
-func getRawTypes(decl DeclarationInfo) (rawType, error) {
+func getRawTypes(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (rawType, error) {
 	gendecl, ok := decl.Decl.(*ast.GenDecl)
 	if !ok {
 		return rawType{}, NotAGenDeclError{}
@@ -254,7 +254,7 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 	// We have determined that decl is a struct type, so collect its fields.
 	var rawFields []rawField
 	for _, field := range str.Fields.List {
-		f, err := makeRawField(field, decl.PackageName)
+		f, err := makeRawField(field, decl.PackageName, allDecls)
 		if err != nil {
 			return rawType{}, err
 		}
@@ -324,12 +324,12 @@ func isByteSlice(t *ast.ArrayType) bool {
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
-func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
+func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]DeclarationInfo) (yamlKindNode, error) {
 	switch t := exp.(type) {
 	case *ast.StarExpr:
 		// Ignore the star, since YAML fields are unmarshaled as the
 		// values they point to.
-		return getYAMLTypeForExpr(t.X, pkg)
+		return getYAMLTypeForExpr(t.X, pkg, allDecls)
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
@@ -339,21 +339,26 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 		case "bool":
 			return yamlBool{}, nil
 		default:
+			info := PackageInfo{
+				DeclName:    t.Name,
+				PackageName: pkg,
+			}
+			if _, ok := allDecls[info]; !ok {
+				return nonYAMLKind{}, nil
+			}
+
 			return yamlCustomType{
-				name: makeSectionName(t.Name),
-				declarationInfo: PackageInfo{
-					DeclName:    t.Name,
-					PackageName: pkg,
-				},
+				name:            makeSectionName(t.Name),
+				declarationInfo: info,
 			}, nil
 		}
 	case *ast.MapType:
-		k, err := getYAMLTypeForExpr(t.Key, pkg)
+		k, err := getYAMLTypeForExpr(t.Key, pkg, allDecls)
 		if err != nil {
 			return nil, err
 		}
 
-		v, err := getYAMLTypeForExpr(t.Value, pkg)
+		v, err := getYAMLTypeForExpr(t.Value, pkg, allDecls)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +371,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 		if isByteSlice(t) {
 			return yamlBase64{}, nil
 		}
-		e, err := getYAMLTypeForExpr(t.Elt, pkg)
+		e, err := getYAMLTypeForExpr(t.Elt, pkg, allDecls)
 		if err != nil {
 			return nil, err
 		}
@@ -393,14 +398,14 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 
 // getYAMLType returns YAML type information for a struct field so we can print
 // information about it in the resource reference.
-func getYAMLType(field *ast.Field, pkg string) (yamlKindNode, error) {
-	return getYAMLTypeForExpr(field.Type, pkg)
+func getYAMLType(field *ast.Field, pkg string, allDecls map[PackageInfo]DeclarationInfo) (yamlKindNode, error) {
+	return getYAMLTypeForExpr(field.Type, pkg, allDecls)
 }
 
 // makeRawField translates an *ast.Field into a rawField for downstream
 // processing. packageName is the name of the package that includes this name in
 // a struct declaration.
-func makeRawField(field *ast.Field, packageName string) (rawField, error) {
+func makeRawField(field *ast.Field, packageName string, allDecls map[PackageInfo]DeclarationInfo) (rawField, error) {
 	doc := field.Doc.Text()
 	if len(field.Names) > 1 {
 		return rawField{}, fmt.Errorf("field %+v in %v contains more than one name", field, packageName)
@@ -412,7 +417,7 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 		name = field.Names[0].Name
 	}
 
-	tn, err := getYAMLType(field, packageName)
+	tn, err := getYAMLType(field, packageName, allDecls)
 	if err != nil {
 		return rawField{}, err
 	}
@@ -444,23 +449,12 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 }
 
 // makeFieldTableInfo assembles a slice of human-readable information about
-// fields within a Go struct to include within the resource reference. If a
-// field does not exist in allDecls, it formats the table data accordingly.
-func makeFieldTableInfo(fields []rawField, allDecls map[PackageInfo]DeclarationInfo) ([]Field, error) {
+// fields within a Go struct to include within the resource reference.
+func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
 		var desc string
 		var typ string
-
-		_, exists := allDecls[PackageInfo{
-			DeclName:    field.name,
-			PackageName: field.packageName,
-		}]
-
-		_, custom := field.kind.(yamlCustomType)
-		if !exists && custom {
-			field.kind = nonYAMLKind{}
-		}
 
 		desc = field.doc
 		typ = field.kind.formatForTable()
@@ -567,7 +561,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 				c.name,
 			)
 		}
-		e, err := getRawTypes(d)
+		e, err := getRawTypes(d, allDecls)
 		if err != nil && !errors.Is(err, NotAGenDeclError{}) {
 			return nil, err
 		}
@@ -607,7 +601,7 @@ func NamedImports(file *ast.File) map[string]string {
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
 // Looks up decl's fields in allDecls and methods in allMethods.
 func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl)
+	rs, err := getRawTypes(decl, allDecls)
 	if err != nil {
 		return nil, err
 	}
@@ -637,7 +631,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		PackageName: decl.PackageName,
 	}
 
-	fld, err := makeFieldTableInfo(fieldsToProcess, allDecls)
+	fld, err := makeFieldTableInfo(fieldsToProcess)
 	if err != nil {
 		return nil, err
 	}
