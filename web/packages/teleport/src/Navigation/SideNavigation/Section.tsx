@@ -46,7 +46,7 @@ export function DefaultSection({
   $active,
   section,
   isExpanded,
-  handleNavigation,
+  onNavigationItemClick,
   previousExpandedSection,
   stickyMode,
   toggleStickyMode,
@@ -55,7 +55,7 @@ export function DefaultSection({
   onExpandSection,
 }: SharedSectionProps & {
   currentView?: NavigationSubsection;
-  handleNavigation?: (route: string) => void;
+  onNavigationItemClick?: () => void;
   currentPageSection?: NavigationSection;
   stickyMode: boolean;
   toggleStickyMode: () => void;
@@ -67,11 +67,6 @@ export function DefaultSection({
         $active={$active}
         onMouseEnter={onExpandSection}
         onFocus={onExpandSection}
-        onClick={() => {
-          if (section.standalone) {
-            handleNavigation(section.subsections[0].route);
-          }
-        }}
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
       >
@@ -109,9 +104,8 @@ export function DefaultSection({
                   to={subsection.route}
                   exact={subsection.exact}
                   key={subsection.title}
-                  onClick={(e: React.MouseEvent) => {
-                    e.preventDefault();
-                    handleNavigation(subsection.route);
+                  onClick={() => {
+                    onNavigationItemClick();
                   }}
                 >
                   <subsection.icon size={16} />
