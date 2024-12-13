@@ -146,7 +146,6 @@ export function CreateDeviceStep({
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
-          // TODO(Joerger): Skip privilege token step, just pass in mfa response.
           tokenId: privilegeToken,
           deviceUsage: usage,
         });

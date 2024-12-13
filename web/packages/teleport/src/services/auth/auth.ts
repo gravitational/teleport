@@ -281,7 +281,6 @@ const auth = {
     mfaType?: DeviceType,
     totpCode?: string
   ): Promise<MfaChallengeResponse> {
-    throw new Error('big bad error');
     // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
     // to display a component, similar to the one used in useMfa. For now we just default to
     // whichever method we can succeed with first.

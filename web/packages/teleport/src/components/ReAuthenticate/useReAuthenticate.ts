@@ -31,37 +31,39 @@ import {
   MfaOption,
 } from 'teleport/services/mfa';
 
-export default function useReAuthenticate(props: ReauthProps): ReauthState {
+export default function useReAuthenticate({
+  challengeScope,
+  onMfaResponse,
+}: ReauthProps): ReauthState {
   const [challengeState, setChallengeState] = useState<challengeState>();
-  function clearChallenge() {
-    setChallengeState({ ...challengeState, challenge: null } as challengeState);
-  }
 
   const [getChallengeAttempt, getChallenge] = useAsync(
     useCallback(
       async (deviceUsage: DeviceUsage = 'mfa') => {
-        // If the challenge state is empty, or has different args,
+        // If the challenge state is empty, used, or has different args,
         // retrieve a new mfa challenge and set it in the state.
         if (!challengeState || challengeState.deviceUsage != deviceUsage) {
+          console.log('new challenge!');
           const challenge = await auth.getMfaChallenge({
-            scope: props.challengeScope,
+            scope: challengeScope,
           });
           setChallengeState({
             challenge,
             deviceUsage,
             mfaOptions: getMfaChallengeOptions(challenge),
+            used: false,
           });
         }
 
         return challengeState.challenge;
       },
-      [challengeState, setChallengeState]
+      [challengeState, setChallengeState, challengeScope]
     )
   );
 
   useEffect(() => {
     getChallenge();
-  }, [challengeState, setChallengeState]);
+  }, [getChallenge]);
 
   const [submitAttempt, submitWithMfa, setSubmitAttempt] = useAsync(
     useCallback(
@@ -70,30 +72,30 @@ export default function useReAuthenticate(props: ReauthProps): ReauthState {
         deviceUsage?: DeviceUsage,
         totpCode?: string
       ) => {
-        try {
-          const [challenge, err] = await getChallenge(deviceUsage);
-          if (err) throw err;
+        const [challenge, err] = await getChallenge(deviceUsage);
+        if (err) throw err;
 
-          const response = await auth.getMfaChallengeResponse(
-            challenge,
-            mfaType,
-            totpCode
-          );
-          return props.onMfaResponse(response);
+        const response = auth.getMfaChallengeResponse(
+          challenge,
+          mfaType,
+          totpCode
+        );
+        try {
+          await response;
         } catch (err) {
-          setSubmitAttempt({
-            data: null,
-            error: err,
-            status: 'error',
-            // make error user friendly.
-            statusText: getReAuthenticationErrorMessage(err),
-          });
-          throw err;
+          throw new Error(getReAuthenticationErrorMessage(err));
+        }
+
+        try {
+          return onMfaResponse(await response);
         } finally {
-          clearChallenge();
+          setChallengeState({
+            ...challengeState,
+            used: true,
+          });
         }
       },
-      []
+      [getChallenge, onMfaResponse, challengeState, setChallengeState]
     )
   );
 
@@ -131,19 +133,22 @@ type challengeState = {
   challenge: MfaAuthenticateChallenge;
   deviceUsage: DeviceUsage;
   mfaOptions: MfaOption[];
+  used: boolean;
 };
 
-function getReAuthenticationErrorMessage(err: Error): string {
-  if (err.message?.includes('attempt was made to use an object that is not')) {
+function getReAuthenticationErrorMessage(err: Error | string): string {
+  const errMsg = err instanceof Error ? err.message : err;
+
+  if (errMsg.includes('attempt was made to use an object that is not')) {
     // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
     return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
   }
 
-  if (err.message === 'invalid totp token') {
+  if (errMsg === 'invalid totp token') {
     // This message relies on the status message produced by the auth server in
     // lib/auth/Server.checkOTP function. Please keep these in sync.
     return 'Invalid authenticator code';
   }
 
-  return err.message;
+  return errMsg;
 }

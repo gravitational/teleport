@@ -22,7 +22,7 @@ import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -30,7 +30,7 @@ import {
   requiredField,
   requiredPassword,
 } from 'shared/components/Validation/rules';
-import { useAsync } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -61,18 +61,26 @@ export function ChangePasswordWizard({
   const [webauthnResponse, setWebauthnResponse] =
     useState<WebauthnAssertionResponse>();
 
-  const { getChallengeAttempt, submitWithMfa } = useReAuthenticate({
-    challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
-    onMfaResponse: mfaResponse => {
-      setWebauthnResponse(mfaResponse.webauthn_response);
-    },
-  });
+  const { challengeState, getChallengeAttempt, submitWithMfa, submitAttempt } =
+    useReAuthenticate({
+      challengeScope: MfaChallengeScope.CHANGE_PASSWORD,
+      onMfaResponse: mfaResponse => {
+        setWebauthnResponse(mfaResponse.webauthn_response);
+      },
+    });
 
-  const reauthOptions = getReauthOptions(
-    getChallengeAttempt.data[2],
-    hasPasswordless
-  );
-  const [reauthMethod, setReauthMethod] = useState(reauthOptions[0]?.value);
+  const [reauthOptions, setReauthOptions] =
+    useState<ReauthenticationOption[]>();
+  const [reauthMethod, setReauthMethod] = useState<ReauthenticationMethod>();
+
+  useEffect(() => {
+    const reauthOptions = getReauthOptions(
+      challengeState?.mfaOptions,
+      hasPasswordless
+    );
+    setReauthOptions(reauthOptions);
+    setReauthMethod(reauthOptions[0]?.value);
+  }, [challengeState.mfaOptions, hasPasswordless]);
 
   // Handle potential error states first.
   switch (getChallengeAttempt.status) {
@@ -105,6 +113,7 @@ export function ChangePasswordWizard({
         reauthMethod={reauthMethod}
         webauthnResponse={webauthnResponse}
         onReauthMethodChange={setReauthMethod}
+        submitAttempt={submitAttempt}
         submitWithMfa={submitWithMfa}
         onClose={onClose}
         onSuccess={onSuccess}
@@ -162,6 +171,7 @@ interface ReauthenticateStepProps {
     mfaType?: DeviceType,
     deviceUsage?: DeviceUsage
   ): Promise<[void, Error]>;
+  submitAttempt: Attempt<void>;
   onClose(): void;
 }
 
@@ -174,24 +184,23 @@ export function ReauthenticateStep({
   reauthMethod,
   onReauthMethodChange,
   submitWithMfa,
+  submitAttempt,
   onClose,
 }: ChangePasswordWizardStepProps) {
-  const [reauthAttempt, reauthenticate] = useAsync(
-    async (reauthMethod: ReauthenticationMethod) => {
-      switch (reauthMethod) {
-        case 'passwordless':
-          await submitWithMfa('webauthn', reauthMethod);
-          break;
-        case 'totp':
-          // totp is handled in the ChangePasswordStep
-          break;
-        default:
-          await submitWithMfa(reauthMethod);
-          break;
-      }
-      next();
+  const reauthenticate = async (reauthMethod: ReauthenticationMethod) => {
+    switch (reauthMethod) {
+      case 'passwordless':
+        await submitWithMfa('webauthn', reauthMethod);
+        break;
+      case 'totp':
+        // totp is handled in the ChangePasswordStep
+        break;
+      default:
+        await submitWithMfa(reauthMethod);
+        break;
     }
-  );
+    next();
+  };
 
   const onReauthenticate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -207,8 +216,8 @@ export function ReauthenticateStep({
           title="Verify Identity"
         />
       </Box>
-      {reauthAttempt.status === 'error' && (
-        <OutlineDanger>{reauthAttempt.statusText}</OutlineDanger>
+      {submitAttempt.status === 'error' && (
+        <OutlineDanger>{submitAttempt.statusText}</OutlineDanger>
       )}
       <Box mb={2}>Verification Method</Box>
       <form onSubmit={e => onReauthenticate(e)}>

@@ -18,6 +18,8 @@
 
 import Dialog from 'design/Dialog';
 
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
@@ -96,7 +98,8 @@ const stepProps = {
     MFA_OPTION_SSO_DEFAULT,
   ],
   onReauthMethodChange: () => {},
-  submitWithMfa: async () => {},
+  submitWithMfa: async () => [null, null],
+  submitAttempt: makeEmptyAttempt(),
 
   // ChangePasswordStepProps
   webauthnResponse: {} as WebauthnAssertionResponse,

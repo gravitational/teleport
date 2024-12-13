@@ -32,7 +32,7 @@ import Indicator from 'design/Indicator';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { DeviceType, MfaOption } from 'teleport/services/mfa';
+import { DeviceType } from 'teleport/services/mfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
   setPrivilegeToken(token: string): void;
@@ -85,13 +85,13 @@ export function ReauthenticateStep({
     // However the existing web register endpoint requires privilege token.
     // We have a new endpoint "/v1/webapi/users/privilege" which does not
     // require token, but can't be used until v19 for backwards compatibility.
-    if (mfaOptions && mfaOptions.length === 0) {
+    if (mfaOptions?.length === 0) {
       submitWithMfa();
       return;
     }
 
     setSelectedMfaOption(mfaOptions ? mfaOptions[0].value : null);
-  }, [mfaOptions, setSelectedMfaOption]);
+  }, [submitWithMfa, mfaOptions]);
 
   // Handle potential mfa challenge error states.
   switch (getChallengeAttempt.status) {
@@ -121,8 +121,6 @@ export function ReauthenticateStep({
     if (!validator.validate()) return;
     submitWithMfa();
   };
-
-  console.log(submitAttempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
