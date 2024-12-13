@@ -508,6 +508,7 @@ type Server struct {
 }
 `,
 			declSources: []string{`package mypkg
+// ServerImplementation is a remote service with a URL.
 type ServerImplementation interface{
   GetURL() string
 }
@@ -529,10 +530,19 @@ type ServerImplementation interface{
 						},
 						{
 							Name:        "Impl",
-							Description: "The implementation of the server",
-							Type:        "",
+							Description: "The implementation of the server.",
+							Type:        "[Server Implementation](#server-implementation)",
 						},
 					},
+				},
+				PackageInfo{
+					DeclName:    "ServerImplementation",
+					PackageName: "mypkg",
+				}: ReferenceEntry{
+					SectionName: "Server Implementation",
+					Description: "A remote service with a URL.",
+					SourcePath:  "myfile0.go",
+					Fields:      nil,
 				},
 			},
 		},
