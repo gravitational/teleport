@@ -593,7 +593,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 		Metadata: types.Metadata{
 			Name:        teleport.SystemIdentityCenterAccessRoleName,
 			Namespace:   apidefaults.Namespace,
-			Description: "Access AWS IdentityCenter resources",
+			Description: "Access AWS IAM Identity Center resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
 				types.OriginLabel:                  common.OriginAWSIdentityCenter,
