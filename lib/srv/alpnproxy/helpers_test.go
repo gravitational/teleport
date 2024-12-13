@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -125,7 +124,7 @@ func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 		Listener:          s.serverListener,
 		WebTLSConfig:      tlsConfig,
 		Router:            s.router,
-		Log:               logrus.New(),
+		Log:               utils.NewSlogLoggerForTests(),
 		AccessPoint:       s.accessPoint,
 		IdentityTLSConfig: tlsConfig,
 		ClusterName:       "root",
