@@ -462,12 +462,13 @@ type Label string
 			},
 		},
 		{
-			description: "struct type with an override and unprocessable field",
+			description: "struct type with an interface field",
 			source: `
 package mypkg
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
+  // The name of the server.
   Name string
   // Impl is the implementation of the server.
   Impl ServerImplementation
@@ -487,7 +488,18 @@ type ServerImplementation interface{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
-					Fields:      []Field{},
+					Fields: []Field{
+						{
+							Name:        "Name",
+							Description: "The name of the server.",
+							Type:        "string",
+						},
+						{
+							Name:        "Impl",
+							Description: "The implementation of the server",
+							Type:        "",
+						},
+					},
 				},
 			},
 		},
