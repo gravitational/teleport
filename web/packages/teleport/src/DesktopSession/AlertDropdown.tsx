@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Flex, Button, Card, ButtonIcon, H3 } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Notification } from 'shared/components/Notification';

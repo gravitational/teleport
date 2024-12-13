@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
 import { Info } from 'design/Alert';

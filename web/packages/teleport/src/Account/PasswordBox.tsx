@@ -18,7 +18,7 @@
 
 import { Box, Flex } from 'design';
 import { SingleRowBox } from 'design/MultiRowBox';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import * as Icon from 'design/Icon';
 

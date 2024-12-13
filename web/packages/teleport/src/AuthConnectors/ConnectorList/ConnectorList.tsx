@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 

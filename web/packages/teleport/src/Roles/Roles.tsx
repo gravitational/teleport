@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';

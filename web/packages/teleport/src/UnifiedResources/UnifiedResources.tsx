@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
