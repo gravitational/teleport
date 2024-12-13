@@ -313,7 +313,7 @@ describe('setActiveWorkspace', () => {
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
 
-  it('location is set to first document if it points to non-existing document when reopening documents', async () => {
+  it('sets location to first document if location points to non-existing document when reopening documents', async () => {
     const cluster = makeRootCluster();
     const testWorkspace: Workspace = {
       accessRequests: {
