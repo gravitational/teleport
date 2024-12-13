@@ -700,7 +700,7 @@ function optionsToModel(options: RoleOptions): {
     enhanced_recording,
     idp,
     pin_source_ip,
-    port_forwarding,
+    ssh_port_forwarding,
     ssh_file_copy,
 
     ...unsupported
@@ -756,7 +756,7 @@ function optionsToModel(options: RoleOptions): {
       !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
       !equalsDeep(idp, defaultOpts.idp) ||
       pin_source_ip !== defaultOpts.pin_source_ip ||
-      port_forwarding !== defaultOpts.port_forwarding ||
+      !equalsDeep(ssh_port_forwarding, defaultOpts.ssh_port_forwarding) ||
       ssh_file_copy !== defaultOpts.ssh_file_copy ||
       requireMFATypeOption === undefined ||
       createHostUserModeOption === undefined ||
