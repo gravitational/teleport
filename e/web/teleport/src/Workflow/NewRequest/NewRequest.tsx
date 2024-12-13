@@ -50,6 +50,7 @@ import {
   State,
   getResourceId,
   AccessRequestKind,
+  requestItems,
 } from './useNewRequest';
 import { AppRequestButton, RequestButton } from './RequestButton';
 
@@ -106,7 +107,7 @@ function NewRequest(props: State) {
     addedResources,
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
-    addOrRemoveResource,
+    addOrRemoveResources,
     updateAccessRequestKind,
     clearAddedResources,
     dryRunAttempt,
@@ -270,7 +271,7 @@ function NewRequest(props: State) {
                     <AppRequestButton
                       agent={resource}
                       addedResources={addedResources}
-                      addOrRemoveResource={addOrRemoveResource}
+                      addOrRemoveResources={addOrRemoveResources}
                     />
                   ) : (
                     <RequestButton
@@ -285,10 +286,12 @@ function NewRequest(props: State) {
                         if (resource.kind === 'node') {
                           resourceName = resource.hostname;
                         }
-                        addOrRemoveResource(
-                          resource.kind,
-                          getResourceId(resource, clusterId),
-                          resourceName
+                        addOrRemoveResources(
+                          requestItems(
+                            resource.kind,
+                            getResourceId(resource, clusterId),
+                            resourceName
+                          )
                         );
                       }}
                     />
@@ -325,7 +328,9 @@ function NewRequest(props: State) {
         <Roles
           requestable={requestableRoles}
           requested={new Set(Object.keys(addedResources.role))}
-          onToggleRole={role => addOrRemoveResource('role', role)}
+          onToggleRole={role =>
+            addOrRemoveResources(requestItems('role', role))
+          }
         />
       )}
       <Transition
@@ -346,7 +351,7 @@ function NewRequest(props: State) {
               void fetchUsage();
             }}
             toggleResource={({ kind, id, name }) =>
-              addOrRemoveResource(kind, id, name)
+              addOrRemoveResources(requestItems(kind, id, name))
             }
             transitionState={transitionState}
             reset={clearAddedResources}

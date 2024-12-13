@@ -1,19 +1,21 @@
-import { ButtonBorder, ButtonPrimary, Flex } from 'design';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { components, MenuListProps } from 'react-select';
+import styled from 'styled-components';
+import { ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
 import Select from 'shared/components/Select';
 import { HoverTooltip } from 'design/Tooltip';
-import styled from 'styled-components';
 import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
 
-import {
-  RequestableResourceKind,
-  ResourceMap,
-} from 'shared/components/AccessRequests/NewRequest';
+import { ResourceMap } from 'shared/components/AccessRequests/NewRequest';
 
 import {
   CheckableOptionComponent,
   Option,
 } from 'shared/components/AccessRequests/NewRequest/CheckableOption';
+
+import { requestItems } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+
+import type { RequestItem } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
 function getButtonText(addText: string, requestStarted: boolean): string {
   if (addText) {
@@ -73,7 +75,7 @@ export function AppRequestButton({
   agent,
   addedResources,
   disabled = false,
-  addOrRemoveResource,
+  addOrRemoveResources,
   addText,
   requestStarted,
 }: {
@@ -82,10 +84,9 @@ export function AppRequestButton({
   addedResources: ResourceMap;
   addText?: string;
   requestStarted?: boolean;
-  addOrRemoveResource: (
-    kind: RequestableResourceKind,
-    resourceId: string,
-    resourceName?: string
+  addOrRemoveResources: (
+    items: RequestItem[],
+    action?: 'add' | 'remove'
   ) => void;
 }) {
   if (agent.subKind == AppSubKind.AwsIcAccount) {
@@ -93,7 +94,7 @@ export function AppRequestButton({
       <IdentityCenterRequestButton
         agent={agent}
         addedResources={addedResources}
-        addOrRemoveResource={addOrRemoveResource}
+        addOrRemoveResources={addOrRemoveResources}
       />
     );
   }
@@ -112,7 +113,13 @@ export function AppRequestButton({
       <RequestButton
         isAgentAdded={isAppAdded}
         onClick={() =>
-          addOrRemoveResource(resourceKind, agent.name, agent.friendlyName)
+          addOrRemoveResources([
+            {
+              kind: resourceKind,
+              resourceId: agent.name,
+              resourceName: agent.friendlyName,
+            },
+          ])
         }
         addText={addText}
         disabled={disabled}
@@ -136,10 +143,14 @@ export function AppRequestButton({
 
   function handleSelect(option: Option) {
     if (selectedUserGroup !== null && selectedUserGroup !== option.value) {
-      addOrRemoveResource('user_group', selectedUserGroup);
-      addOrRemoveResource('user_group', option.value, option.label);
+      addOrRemoveResources(requestItems('user_group', selectedUserGroup));
+      addOrRemoveResources(
+        requestItems('user_group', option.value, option.label)
+      );
     } else {
-      addOrRemoveResource('user_group', option.value, option.label);
+      addOrRemoveResources(
+        requestItems('user_group', option.value, option.label)
+      );
     }
   }
 
@@ -227,14 +238,13 @@ type AccountAssignmentOption = Option & {
 export function IdentityCenterRequestButton({
   agent,
   addedResources,
-  addOrRemoveResource,
+  addOrRemoveResources,
 }: {
   agent: App;
   addedResources: ResourceMap;
-  addOrRemoveResource: (
-    kind: RequestableResourceKind,
-    resourceId: string,
-    resourceName?: string
+  addOrRemoveResources: (
+    items: RequestItem[],
+    action?: 'add' | 'remove'
   ) => void;
 }) {
   const options = agent.permissionSets
@@ -243,10 +253,12 @@ export function IdentityCenterRequestButton({
 
   const handleSelect = (options: AccountAssignmentOption[]) => {
     options.forEach(option => {
-      addOrRemoveResource(
-        'aws_ic_account_assignment',
-        option.value,
-        option.friendlyName
+      addOrRemoveResources(
+        requestItems(
+          'aws_ic_account_assignment',
+          option.value,
+          option.friendlyName
+        )
       );
     });
   };
@@ -256,6 +268,26 @@ export function IdentityCenterRequestButton({
       ? Boolean(addedResources.aws_ic_account_assignment[aaOpt.value])
       : false
   );
+
+  const [checked, setChecked] = useState(false);
+  function handleCheck() {
+    const req: RequestItem[] = [];
+    options.forEach(option => {
+      req.push({
+        kind: 'aws_ic_account_assignment',
+        resourceId: option.value,
+        resourceName: option.friendlyName,
+      });
+    });
+    addOrRemoveResources(req, checked ? 'remove' : 'add');
+  }
+
+  useEffect(() => {
+    const allAdded = options.every(
+      ({ value }) => addedResources.aws_ic_account_assignment[value]
+    );
+    setChecked(allAdded);
+  }, [options, addedResources]);
 
   return (
     <HoverTooltip tipContent="Select Permission Set(s)">
@@ -274,6 +306,13 @@ export function IdentityCenterRequestButton({
         onChange={handleSelect}
         components={{
           Option: CheckableOptionComponent,
+          MenuList: (props: MenuListProps) => (
+            <MenuList
+              props={props}
+              checked={checked}
+              handleCheck={handleCheck}
+            />
+          ),
         }}
       />
     </HoverTooltip>
@@ -294,3 +333,25 @@ function makeAssignmentOption(
     friendlyName: `"${ps.name}" on "${accountName}"`,
   };
 }
+
+const MenuList = ({
+  props,
+  checked,
+  handleCheck,
+}: {
+  props: MenuListProps;
+  checked: boolean;
+  handleCheck: () => void;
+}) => {
+  return (
+    <components.MenuList {...props}>
+      <Flex alignItems="center" py="8px" px="12px">
+        <input type="checkbox" checked={checked} onChange={handleCheck} />{' '}
+        <Text ml={1} bold>
+          Select All
+        </Text>
+      </Flex>
+      {props.children}
+    </components.MenuList>
+  );
+};

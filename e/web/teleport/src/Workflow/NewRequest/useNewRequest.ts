@@ -245,43 +245,52 @@ export function useNewRequest(ctx: Ctx) {
   );
 
   /**
-   * addOrRemoveResource adds the resource if it doesn't exist already in the map.
-   * Else removes it.
-   *
-   * "resourceName" is optional for most kinds, if not provided,
-   * it is assumed that "resourceId" is the same as "resourceName".
+   * addOrRemoveResources adds or removes a list of resource from
+   * resource request cart. It adds item if it does not exist and deletes
+   * item if it already exist in a ResourceMap. This behavior can be
+   * overridden with a declarative action field.
+   * @param items is a list of items to be added or removed
+   * @param action defines add or remove action.
    */
-  function addOrRemoveResource(
-    kind: RequestableResourceKind,
-    resourceId: string,
-    /**
-     * resourceName can refer to:
-     *  - node's "hostname": used to refer to a friendlier readable name
-     */
-    resourceName?: string
+  function addOrRemoveResources(
+    items: RequestItem[],
+    action?: 'add' | 'remove'
   ) {
     const newResources: ResourceMap = deepCopyResourceMap(addedResources);
-    const { id, val } = getResourceIdAndVal({
-      resourceKind: kind,
-      resourceName: resourceId,
-      subResourceName: resourceName,
-      teleportClusterName: clusterId,
-    });
-    if (newResources[kind][id]) {
-      delete newResources[kind][id];
-      // Delete all related namespaces as well.
-      if (kind === 'kube_cluster') {
-        const kubeNamespaceUris = Object.keys(newResources['namespace']);
-        kubeNamespaceUris.forEach(uri => {
-          const { resourceName } = parseResourceIdUri(uri).params;
-          if (resourceName === id) {
-            delete newResources['namespace'][uri];
+
+    items.forEach(item => {
+      const { id, val } = getResourceIdAndVal({
+        resourceKind: item.kind,
+        resourceName: item.resourceId,
+        subResourceName: item.resourceName,
+        teleportClusterName: clusterId,
+      });
+
+      switch (action) {
+        case 'add':
+          newResources[item.kind][id] = val;
+          break;
+        case 'remove':
+          delete newResources[item.kind][id];
+          break;
+        default:
+          if (newResources[item.kind][id]) {
+            delete newResources[item.kind][id];
+            // Delete all related namespaces as well.
+            if (item.kind === 'kube_cluster') {
+              const kubeNamespaceUris = Object.keys(newResources['namespace']);
+              kubeNamespaceUris.forEach(uri => {
+                const { resourceName } = parseResourceIdUri(uri).params;
+                if (resourceName === id) {
+                  delete newResources['namespace'][uri];
+                }
+              });
+            }
+          } else {
+            newResources[item.kind][id] = val;
           }
-        });
       }
-    } else {
-      newResources[kind][id] = val;
-    }
+    });
 
     setAddedResources(newResources);
   }
@@ -382,7 +391,7 @@ export function useNewRequest(ctx: Ctx) {
     updateAccessRequestKind,
     dryRunAttempt,
     addedResources,
-    addOrRemoveResource,
+    addOrRemoveResources,
     clearAddedResources,
     setAddedResources,
     requestableRoles,
@@ -447,3 +456,31 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
 }
 
 type ResourceDefinition = SharedUnifiedResource['resource'] | KubeResource;
+
+/**
+ * RequestItem defines type for a resource
+ * to be added to Resource Access Request.
+ */
+export type RequestItem = {
+  kind: RequestableResourceKind;
+  resourceId: string;
+  /**
+   * resourceName can refer to:
+   *  - node's "hostname": used to refer to a friendlier readable name.
+   * resourceName is optional for most kinds, if not provided,
+   * it is assumed that "resourceId" is the same as "resourceName".
+   */
+  resourceName?: string;
+};
+
+/**
+ * requestItems is a helper function to convert a single RequestItem to
+ * a list of RequestItem.
+ */
+export function requestItems(
+  kind: RequestableResourceKind,
+  resourceId: string,
+  resourceName?: string
+): RequestItem[] {
+  return [{ kind, resourceId, resourceName }];
+}

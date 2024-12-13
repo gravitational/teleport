@@ -27,6 +27,7 @@ import {
   deepCopyResourceMap,
   getResourceId,
   useNewRequest,
+  requestItems,
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import {
   AppRequestButton,
@@ -44,7 +45,7 @@ export function UnifiedResourcesE() {
   // TODO (avatus): extract the necessary parts of useNewRequest and useRequestCheckout
   // into a new hook that can be shared between web and Connect
   const {
-    addOrRemoveResource,
+    addOrRemoveResources,
     addedResources,
     clearAddedResources,
     setAddedResources,
@@ -83,7 +84,7 @@ export function UnifiedResourcesE() {
       return (
         <AppRequestButton
           agent={resource}
-          addOrRemoveResource={addOrRemoveResource}
+          addOrRemoveResources={addOrRemoveResources}
           addedResources={addedResources}
           requestStarted={requestStarted}
         />
@@ -99,10 +100,12 @@ export function UnifiedResourcesE() {
             if (resource.kind === 'node') {
               resourceName = resource.hostname;
             }
-            addOrRemoveResource(
-              resource.kind,
-              getResourceId(resource, clusterId),
-              resourceName
+            addOrRemoveResources(
+              requestItems(
+                resource.kind,
+                getResourceId(resource, clusterId),
+                resourceName
+              )
             );
           }}
           disabled={false}
@@ -196,7 +199,7 @@ export function UnifiedResourcesE() {
                 clearAttempt={clearAttempt}
                 createAttempt={createAttempt}
                 toggleResource={({ kind, id, name }) =>
-                  addOrRemoveResource(kind, id, name)
+                  addOrRemoveResources(requestItems(kind, id, name))
                 }
                 reset={cancelCheckout}
                 onClose={clearAttempt}

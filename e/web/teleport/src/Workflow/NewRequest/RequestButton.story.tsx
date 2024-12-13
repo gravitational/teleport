@@ -1,55 +1,46 @@
 import { Flex } from 'design';
-import { getEmptyResourceState } from 'shared/components/AccessRequests/NewRequest/resource';
 import { App, AppSubKind } from 'teleport/services/apps';
+import { MemoryRouter } from 'react-router';
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { useNewRequest } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { IdentityCenterRequestButton as ICButton } from './RequestButton';
 
 export default {
-  title:
-    'TeleportE/AccessRequests/RequestButton/IdentityCenterAccountRequestButton',
+  title: 'TeleportE/AccessRequests/RequestButton',
 };
 
-export function Default() {
+export function IdentityCenterAccountRequestButton() {
+  const ctx = createTeleportContextE();
   return (
-    <Flex
-      mt={6}
-      flexDirection="column"
-      alignItems="center"
-      justifyContent={'center'}
-    >
-      <Flex>
-        <ICButton
-          agent={account1}
-          addedResources={getEmptyResourceState()}
-          addOrRemoveResource={() => null}
-        />
-      </Flex>
-    </Flex>
+    <MemoryRouter initialEntries={[{ pathname: '' }]}>
+      <ContextProvider ctx={ctx}>
+        <Flex
+          mt={6}
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Flex>
+            <Button ctx={ctx} />
+          </Flex>
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 
-export function PermissionSelected() {
-  const selectedResource = getEmptyResourceState();
+function Button({ ctx }: { ctx: TeleportEContext }) {
+  const { addOrRemoveResources, addedResources } = useNewRequest(ctx);
   return (
-    <Flex
-      mt={6}
-      flexDirection="column"
-      alignItems="center"
-      justifyContent={'center'}
-    >
-      <Flex>
-        <ICButton
-          agent={account1}
-          addedResources={{
-            ...selectedResource,
-            aws_ic_account_assignment: {
-              'goteleport-local--administratoraccess': 'AdministratorAccess',
-            },
-          }}
-          addOrRemoveResource={() => null}
-        />
-      </Flex>
-    </Flex>
+    <ICButton
+      agent={account1}
+      addedResources={addedResources}
+      addOrRemoveResources={addOrRemoveResources}
+    />
   );
 }
 
