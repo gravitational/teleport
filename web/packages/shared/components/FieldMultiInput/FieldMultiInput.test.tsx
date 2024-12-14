@@ -17,7 +17,7 @@
  */
 
 import userEvent from '@testing-library/user-event';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { act, render, screen } from 'design/utils/testing';
 

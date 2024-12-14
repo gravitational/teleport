@@ -37,6 +37,8 @@ message UserTask {
   teleport.header.v1.Metadata metadata = 4;
   // The configured properties of UserTask.
   UserTaskSpec spec = 5;
+  // The current status for this UserTask.
+  UserTaskStatus status = 6;
 }
 
 // UserTaskSpec contains the properties of the UserTask.
@@ -60,6 +62,12 @@ message UserTaskSpec {
   // DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster.
   // Present when TaskType is discover-eks.
   DiscoverEKS discover_eks = 6;
+}
+
+// UserTaskStatus contains the current status for the UserTask.
+message UserTaskStatus {
+  // LastStateChange is the timestamp when the UserTask state was last modified.
+  google.protobuf.Timestamp last_state_change = 1;
 }
 
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.

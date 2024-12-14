@@ -26,6 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -1085,8 +1086,12 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close channel", "error", err)
+		}
 		return
 	}
+	scx.AddCloser(ch)
 	scx.RemoteClient = s.remoteClient
 	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
@@ -1120,7 +1125,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}
 
-	if err := utils.ProxyConn(ctx, ch, conn); err != nil {
+	if err := utils.ProxyConn(ctx, ch, conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
 		s.logger.WarnContext(ctx, "Failed proxying data for port forwarding connection", "error", err)
 	}
 }
