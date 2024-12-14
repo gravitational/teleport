@@ -107,7 +107,7 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		},
 	}
 
-	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
+	return trace.Wrap(vnet.RunService(cf.Context, config))
 }
 
 type vnetInstallServiceCommand struct {
