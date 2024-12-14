@@ -33,6 +33,7 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client/db/postgres/repl/testdata"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -338,7 +339,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		}
 	}(tc)
 
-	r, err := New(tc.clientConn, tc.serverConn, tc.route)
+	instance, err := New(ctx, &dbrepl.NewREPLConfig{Client: tc.clientConn, ServerConn: tc.serverConn, Route: tc.route})
 	require.NoError(t, err)
 
 	if !cfg.skipREPLRun {
@@ -347,7 +348,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		runCtx, cancelRun := context.WithCancel(ctx)
 		runErrChan := make(chan error, 1)
 		go func() {
-			runErrChan <- r.Run(runCtx)
+			runErrChan <- instance.Run(runCtx)
 		}()
 		t.Cleanup(func() {
 			cancelRun()
@@ -363,6 +364,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		})
 	}
 
+	r, _ := instance.(*REPL)
 	return r, tc
 }
 

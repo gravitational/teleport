@@ -108,6 +108,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -1069,8 +1070,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.DatabaseREPLRegistry == nil {
-		// TODO(gabrielcorado): register PostgreSQL REPL.
-		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{})
+		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
+			defaults.ProtocolPostgres: pgrepl.New,
+		})
 	}
 
 	var cloudLabels labels.Importer
