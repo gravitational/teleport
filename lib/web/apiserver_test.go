@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -210,6 +211,9 @@ type webSuiteConfig struct {
 
 	// clock to use for all server components
 	clock clockwork.FakeClock
+
+	// databaseREPLGetter allows setting custom database REPLs.
+	databaseREPLGetter dbrepl.REPLRegistry
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -509,6 +513,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		DatabaseREPLRegistry:  cfg.databaseREPLGetter,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -7437,6 +7442,7 @@ func TestOverwriteDatabase(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "user", nil /* roles */)
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, env.server.ClusterName(), nil)
 
 	initDb, err := types.NewDatabaseV3(types.Metadata{
 		Name: "postgres",
@@ -7477,7 +7483,8 @@ func TestOverwriteDatabase(t *testing.T) {
 
 				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
 				require.NoError(t, err)
-				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+
+				require.Equal(t, webui.MakeDatabase(backendDb, accessChecker, proxy.handler.handler.cfg.DatabaseREPLRegistry, false), gotDb)
 			},
 		},
 		{
@@ -8390,6 +8397,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return &proxyClientCert, nil
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		DatabaseREPLRegistry:  &mockDatabaseREPLRegistry{repl: map[string]dbrepl.REPLNewFunc{}},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
