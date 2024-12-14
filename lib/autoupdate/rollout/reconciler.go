@@ -350,7 +350,7 @@ func (r *reconciler) makeGroupsStatus(ctx context.Context, schedules *autoupdate
 			LastUpdateReason: updateReasonCreated,
 			ConfigDays:       group.Days,
 			ConfigStartHour:  group.StartHour,
-			ConfigWaitDays:   group.WaitDays,
+			ConfigWaitHours:  group.WaitHours,
 		}
 	}
 	return groups, nil
@@ -388,7 +388,7 @@ func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentA
 		Name:      defaultCMCGroupName,
 		Days:      weekdays,
 		StartHour: int32(upgradeWindow.UTCStartHour),
-		WaitDays:  0,
+		WaitHours: 0,
 	}, nil
 
 }
@@ -398,6 +398,6 @@ func defaultGroup() *autoupdate.AgentAutoUpdateGroup {
 		Name:      defaultGroupName,
 		Days:      defaultUpdateDays,
 		StartHour: defaultStartHour,
-		WaitDays:  0,
+		WaitHours: 0,
 	}
 }
