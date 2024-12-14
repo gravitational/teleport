@@ -33,6 +33,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -576,6 +577,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 func Test_makeGroupsStatus(t *testing.T) {
 	now := time.Now()
+	ctx := context.Background()
 
 	tests := []struct {
 		name      string
@@ -680,7 +682,15 @@ func Test_makeGroupsStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := makeGroupsStatus(tt.schedules, now)
+			// We craft a mock client always answering there's no cmc.
+			// It's not the point of this test to check the cmc client usage so we don't count the number of calls here.
+			// CMC-specific tests happen in TestDefaultConfigGroup().
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{{
+				result: nil,
+				err:    trace.NotFound("no cmc"),
+			}}})
+			r := reconciler{clt: clt}
+			result, err := r.makeGroupsStatus(ctx, tt.schedules, now)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, result)
 		})
@@ -734,7 +744,8 @@ func Test_reconciler_computeStatus(t *testing.T) {
 			},
 		},
 	}
-	newGroups, err := makeGroupsStatus(schedules, clock.Now())
+	r := reconciler{}
+	newGroups, err := r.makeGroupsStatus(ctx, schedules, clock.Now())
 	require.NoError(t, err)
 	newStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
 		Groups: newGroups,
@@ -860,6 +871,100 @@ func Test_reconciler_computeStatus(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.expectedStatus, result, protocmp.Transform()))
 			require.Equal(t, tt.expectedStrategyCalls, strategy.calls)
+		})
+	}
+}
+
+func TestDefaultConfigGroup(t *testing.T) {
+	ctx := context.Background()
+	testStartHour := 16
+
+	tests := []struct {
+		name           string
+		cmcAnswer      callAnswer[*types.ClusterMaintenanceConfigV1]
+		expectedResult *autoupdate.AgentAutoUpdateGroup
+		expectError    require.ErrorAssertionFunc
+	}{
+		{
+			name: "no CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.NotFound("no cmc"),
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no upgrade window",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: nil,
+					},
+				}, nil,
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     nil,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      []string{"*"},
+				StartHour: int32(testStartHour),
+				WaitDays:  0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "CMC with weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     everyWeekdayButSunday,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      everyWeekdayButSunday,
+				StartHour: int32(testStartHour),
+				WaitDays:  0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "unexpected error getting CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.ConnectionProblem(trace.Errorf("oh no"), "connection failed"),
+			},
+			expectedResult: nil,
+			expectError:    require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: loading fixtures.
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{tt.cmcAnswer}})
+			r := &reconciler{clt: clt}
+			// Test execution.
+			result, err := r.defaultConfigGroup(ctx)
+			tt.expectError(t, err)
+			require.Equal(t, tt.expectedResult, result)
+			// Test validation: the mock client should be empty.
+			clt.checkIfEmpty(t)
 		})
 	}
 }

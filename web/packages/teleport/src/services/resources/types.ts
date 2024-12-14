@@ -351,7 +351,7 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  port_forwarding: boolean;
+  ssh_port_forwarding: SSHPortForwarding;
   record_session: {
     default: SessionRecordingMode;
     ssh?: SessionRecordingMode;
@@ -363,6 +363,15 @@ export type RoleOptions = {
   require_session_mfa?: RequireMFAType;
   create_host_user_mode?: CreateHostUserMode;
   create_db_user_mode?: CreateDBUserMode;
+};
+
+export type SSHPortForwarding = {
+  local: {
+    enabled: boolean;
+  };
+  remote: {
+    enabled: boolean;
+  };
 };
 
 export type RequireMFAType =

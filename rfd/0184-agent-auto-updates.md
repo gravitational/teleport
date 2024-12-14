@@ -1300,7 +1300,7 @@ An alert will eventually fire, warning the user about the stuck update.
 > [!NOTE]
 > In the first version, canary selection will happen randomly. As most instances are running the ssh_service and not
 > the other ones, we are less likely to catch an issue in a less common service.
-> An optimisation would be to try to pick canaries maximizing the service coverage.
+> An optimization would be to try to pick canaries maximizing the service coverage.
 > This would make the test more robust and provide better availability guarantees.
 
 #### Updating a group
