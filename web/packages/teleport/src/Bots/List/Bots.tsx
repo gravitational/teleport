@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
 import { HoverTooltip } from 'shared/components/ToolTip';
-import { Alert, Box, ButtonPrimary, Indicator } from 'design';
+import { Alert, Flex, Box, ButtonPrimary, Indicator, Text } from 'design';
 
 import {
   FeatureBox,
@@ -129,8 +129,10 @@ export function Bots() {
       <FeatureBox>
         {!canListBots && (
           <Alert kind="info" mt={4}>
-            You do not have permission to access Bots. Missing role permissions:{' '}
-            <code>bot.list</code>
+            <Flex gap={1}>
+              You do not have permission to access Bots. Missing role
+              permissions: <Text bold>bot.list</Text>
+            </Flex>
           </Alert>
         )}
         <EmptyState />
