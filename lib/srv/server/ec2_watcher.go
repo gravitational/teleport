@@ -32,7 +32,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/labels"
 )
 
@@ -189,7 +189,7 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 }
 
 // EC2ClientGetter gets an AWS EC2 client for the given region.
-type EC2ClientGetter func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error)
+type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
 func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client EC2ClientGetter, discoveryConfig string) ([]Fetcher, error) {
@@ -198,7 +198,7 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
 			ec2Client, err := getEC2Client(ctx, region,
-				config.WithCredentialsMaybeIntegration(matcher.Integration),
+				awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
 			)
 			if err != nil {
 				return nil, trace.Wrap(err)
