@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import Dialog from 'design/Dialog';
 
-import { http, HttpResponse, delay } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import cfg from 'teleport/config';
 
@@ -35,6 +31,10 @@ import {
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,
 } from 'teleport/services/mfa';
+
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
+
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import {
   AddAuthDeviceWizardStepProps,
@@ -67,7 +67,10 @@ export function ReauthenticateLimitedOptions() {
   return (
     <ReauthenticateStep
       {...stepProps}
-      mfaChallengeOptions={[{ value: 'totp', label: 'Authenticator App' }]}
+      reauthState={{
+        ...stepProps.reauthState,
+        mfaOptions: [{ value: 'totp', label: 'Authenticator App' }],
+      }}
     />
   );
 }
@@ -170,14 +173,12 @@ const stepProps: AddAuthDeviceWizardStepProps = {
   usage: 'passwordless' as DeviceUsage,
 
   // Reauth props
-  reauthAttempt: {} as Attempt,
-  clearReauthAttempt: () => {},
-  mfaChallengeOptions: [
-    MFA_OPTION_WEBAUTHN,
-    MFA_OPTION_TOTP,
-    MFA_OPTION_SSO_DEFAULT,
-  ],
-  submitWithMfa: async () => {},
+  reauthState: {
+    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
+    submitWithMfa: async () => null,
+    submitAttempt: makeEmptyAttempt(),
+    clearSubmitAttempt: () => {},
+  } as ReauthState,
 
   // Create props
   mfaRegisterOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP],

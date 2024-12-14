@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, waitFor } from 'design/utils/testing';
 import { within } from '@testing-library/react';
+import { render, screen, waitFor } from 'design/utils/testing';
 
 import userEvent from '@testing-library/user-event';
 
@@ -27,9 +27,9 @@ import TeleportContext from 'teleport/teleportContext';
 import { AccountPage as Account } from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { PasswordState } from 'teleport/services/user';
 import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
+import { PasswordState } from 'teleport/services/user';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;

@@ -17,15 +17,14 @@
  */
 
 import { render, screen } from 'design/utils/testing';
-import React from 'react';
 
 import { waitFor } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import TeleportContext from 'teleport/teleportContext';
 import { ContextProvider } from 'teleport';
-import MfaService from 'teleport/services/mfa';
 import auth from 'teleport/services/auth';
+import MfaService from 'teleport/services/mfa';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
 

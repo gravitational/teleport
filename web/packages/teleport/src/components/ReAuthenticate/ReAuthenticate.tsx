@@ -50,20 +50,23 @@ export type Props = ReauthProps & {
 
 export default function Container(props: Props) {
   const state = useReAuthenticate(props);
-  return <ReAuthenticate onClose={props.onClose} {...state} />;
+  return <ReAuthenticate onClose={props.onClose} reauthState={state} />;
 }
 
-export type State = ReauthState & {
+export type State = {
+  reauthState: ReauthState;
   onClose: () => void;
 };
 
 export function ReAuthenticate({
   onClose,
-  initAttempt,
-  mfaOptions,
-  submitWithMfa,
-  submitAttempt,
-  clearSubmitAttempt,
+  reauthState: {
+    initAttempt,
+    mfaOptions,
+    submitWithMfa,
+    submitAttempt,
+    clearSubmitAttempt,
+  },
 }: State) {
   const [otpCode, setOtpToken] = useState('');
   const [mfaOption, setMfaOption] = useState<MfaOption>();

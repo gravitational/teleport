@@ -16,24 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import Dialog from 'design/Dialog';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import {
   MFA_OPTION_SSO_DEFAULT,
   MFA_OPTION_TOTP,
+  MFA_OPTION_WEBAUTHN,
   WebauthnAssertionResponse,
 } from 'teleport/services/mfa';
+
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 
 import {
   ChangePasswordStep,
   ChangePasswordWizardStepProps,
-  REAUTH_OPTION_PASSKEY,
-  REAUTH_OPTION_WEBAUTHN,
   ReauthenticateStep,
 } from './ChangePasswordWizard';
 
@@ -91,15 +91,15 @@ const stepProps = {
   onSuccess() {},
 
   // ReauthenticateStepProps
-  reauthOptions: [
-    REAUTH_OPTION_PASSKEY,
-    REAUTH_OPTION_WEBAUTHN,
-    MFA_OPTION_TOTP,
-    MFA_OPTION_SSO_DEFAULT,
-  ],
-  onReauthMethodChange: () => {},
-  submitWithPasswordless: async () => {},
-  submitWithMfa: async () => {},
+  hasPasswordless: true,
+  setReauthMethod: () => {},
+  reauthState: {
+    initAttempt: { status: 'success' },
+    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
+    submitWithMfa: async () => null,
+    submitAttempt: makeEmptyAttempt(),
+    clearSubmitAttempt: () => {},
+  } as ReauthState,
 
   // ChangePasswordStepProps
   webauthnResponse: {} as WebauthnAssertionResponse,
