@@ -353,21 +353,40 @@ export function newAccessSpec(kind: AccessSpecKind): AppAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
   switch (kind) {
     case 'node':
-      return { kind: 'node', labels: [], logins: [] };
+      return {
+        kind: 'node',
+        labels: [],
+        logins: [stringToOption('{{internal.logins}}')],
+      };
     case 'kube_cluster':
-      return { kind: 'kube_cluster', groups: [], labels: [], resources: [] };
+      return {
+        kind: 'kube_cluster',
+        groups: [stringToOption('{{internal.kubernetes_groups}}')],
+        labels: [],
+        resources: [],
+      };
     case 'app':
       return {
         kind: 'app',
         labels: [],
-        awsRoleARNs: [],
-        azureIdentities: [],
-        gcpServiceAccounts: [],
+        awsRoleARNs: ['{{internal.aws_role_arns}}'],
+        azureIdentities: ['{{internal.azure_identities}}'],
+        gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
       };
     case 'db':
-      return { kind: 'db', labels: [], names: [], users: [], roles: [] };
+      return {
+        kind: 'db',
+        labels: [],
+        names: [stringToOption('{{internal.db_names}}')],
+        users: [stringToOption('{{internal.db_users}}')],
+        roles: [stringToOption('{{internal.db_roles}}')],
+      };
     case 'windows_desktop':
-      return { kind: 'windows_desktop', labels: [], logins: [] };
+      return {
+        kind: 'windows_desktop',
+        labels: [],
+        logins: [stringToOption('{{internal.windows_logins}}')],
+      };
     default:
       kind satisfies never;
   }
@@ -681,7 +700,7 @@ function optionsToModel(options: RoleOptions): {
     enhanced_recording,
     idp,
     pin_source_ip,
-    port_forwarding,
+    ssh_port_forwarding,
     ssh_file_copy,
 
     ...unsupported
@@ -737,7 +756,7 @@ function optionsToModel(options: RoleOptions): {
       !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
       !equalsDeep(idp, defaultOpts.idp) ||
       pin_source_ip !== defaultOpts.pin_source_ip ||
-      port_forwarding !== defaultOpts.port_forwarding ||
+      !equalsDeep(ssh_port_forwarding, defaultOpts.ssh_port_forwarding) ||
       ssh_file_copy !== defaultOpts.ssh_file_copy ||
       requireMFATypeOption === undefined ||
       createHostUserModeOption === undefined ||

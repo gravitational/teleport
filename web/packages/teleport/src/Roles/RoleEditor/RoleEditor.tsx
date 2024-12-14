@@ -27,8 +27,6 @@ import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import DeleteRole from '../DeleteRole';
-
 import {
   roleEditorModelToRole,
   newRole,
@@ -49,7 +47,6 @@ export type RoleEditorProps = {
   originalRole?: RoleWithYaml;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
-  onDelete?(): Promise<void>;
 };
 
 /**
@@ -61,7 +58,6 @@ export const RoleEditor = ({
   originalRole,
   onCancel,
   onSave,
-  onDelete,
 }: RoleEditorProps) => {
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
@@ -89,8 +85,6 @@ export const RoleEditor = ({
   const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
     standardModel.roleModel.requiresReset ? EditorTab.Yaml : EditorTab.Standard
   );
-
-  const [deleting, setDeleting] = useState(false);
 
   // Converts YAML representation to a standard editor model.
   const [parseAttempt, parseYaml] = useAsync(async () => {
@@ -188,7 +182,6 @@ export const RoleEditor = ({
           <Box mt={3} mx={3}>
             <EditorHeader
               role={originalRole?.object}
-              onDelete={() => setDeleting(true)}
               selectedEditorTab={selectedEditorTab}
               onEditorTabChange={index => onTabChange(index, validator)}
               isProcessing={isProcessing}
@@ -235,13 +228,6 @@ export const RoleEditor = ({
                 originalRole={originalRole}
               />
             </Flex>
-          )}
-          {deleting && (
-            <DeleteRole
-              name={originalRole.object.metadata.name}
-              onClose={() => setDeleting(false)}
-              onDelete={onDelete}
-            />
           )}
         </Flex>
       )}

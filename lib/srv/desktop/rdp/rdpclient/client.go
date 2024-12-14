@@ -291,6 +291,12 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// [username] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	username := C.CString(c.username)
+	defer C.free(unsafe.Pointer(username))
+
 	// [addr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -328,6 +334,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
+			go_username:      username,
 			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,

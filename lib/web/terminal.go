@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -126,6 +127,10 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 				teleport.ComponentKey: teleport.ComponentWebsocket,
 				"session_id":          cfg.SessionData.ID.String(),
 			}),
+			logger: cfg.Logger.With(
+				teleport.ComponentKey, teleport.ComponentWebsocket,
+				"session_id", cfg.SessionData.ID.String(),
+			),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,
 			localAccessPoint:   cfg.LocalAccessPoint,
@@ -152,6 +157,8 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 // TerminalHandlerConfig contains the configuration options necessary to
 // correctly set up the TerminalHandler
 type TerminalHandlerConfig struct {
+	// Logger specifies the logger.
+	Logger *slog.Logger
 	// Term is the initial PTY size.
 	Term session.TerminalParams
 	// SessionCtx is the context for the users web session.
@@ -205,6 +212,10 @@ type TerminalHandlerConfig struct {
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
+	if t.Logger == nil {
+		t.Logger = slog.Default().With(teleport.ComponentKey, teleport.ComponentWebsocket)
+	}
+
 	// Make sure whatever session is requested is a valid session id.
 	if !t.SessionData.ID.IsZero() {
 		_, err := session.ParseID(t.SessionData.ID.String())
@@ -259,6 +270,8 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 type sshBaseHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
+	// logger holds the structured logger.
+	logger *slog.Logger
 	// ctx is a web session context for the currently logged-in user.
 	ctx *SessionContext
 	// userAuthClient is used to fetch nodes and sessions from the backend via the users' identity.
@@ -470,7 +483,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.logger, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
