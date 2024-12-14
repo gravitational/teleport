@@ -22,6 +22,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 
 import { ResourceIconName } from 'design/ResourceIcon';
 import { Icon } from 'design/Icon';
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
@@ -37,6 +38,8 @@ export type UnifiedResourceApp = {
   friendlyName?: string;
   samlApp: boolean;
   requiresRequest?: boolean;
+  subKind?: AppSubKind;
+  permissionSets?: PermissionSet[];
 };
 
 export interface UnifiedResourceDatabase {
