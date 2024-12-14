@@ -75,15 +75,18 @@ type vnetAdminSetupCommand struct {
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
+
+	installServiceCmd *vnetInstallServiceCommand
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
-		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
+		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.").Hidden(),
 	}
 	cmd.Flag("socket", "socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.installServiceCmd = newVnetInstallServiceCommand(cmd.CmdClause)
 	return cmd
 }
 
@@ -108,4 +111,21 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 	}
 
 	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
+}
+
+type vnetInstallServiceCommand struct {
+	*kingpin.CmdClause
+	username string
+}
+
+func newVnetInstallServiceCommand(parent *kingpin.CmdClause) *vnetInstallServiceCommand {
+	cmd := &vnetInstallServiceCommand{
+		CmdClause: parent.Command("install-service", "Install the VNet service.").Hidden(),
+	}
+	cmd.Flag("username", "username of the user that the service should be installed for.").StringVar(&cmd.username)
+	return cmd
+}
+
+func (c *vnetInstallServiceCommand) run() error {
+	return trace.Wrap(vnet.InstallService(c.username))
 }
