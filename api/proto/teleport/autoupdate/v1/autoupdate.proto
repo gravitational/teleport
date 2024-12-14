@@ -82,7 +82,7 @@ message AgentAutoUpdateGroup {
   int32 start_hour = 3;
   // wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
   // This field must be positive.
-  int64 wait_hours = 5;
+  int32 wait_hours = 5;
 }
 
 // AutoUpdateVersion is a resource singleton with version required for
@@ -204,7 +204,7 @@ message AutoUpdateAgentRolloutStatusGroup {
   int32 config_start_hour = 7;
   // config_wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
   // This field must be positive.
-  int64 config_wait_hours = 9;
+  int32 config_wait_hours = 9;
 }
 
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
