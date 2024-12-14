@@ -159,12 +159,8 @@ func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */, h.cfg.DatabaseREPLRegistry.IsSupported(database.GetProtocol())), nil
+	return webui.MakeDatabase(database, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
@@ -272,7 +268,12 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */, h.cfg.DatabaseREPLRegistry.IsSupported(database.GetProtocol())), nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webui.MakeDatabase(database, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
 }
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.

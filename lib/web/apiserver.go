@@ -3078,9 +3078,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
-	var dbNames, dbUsers []string
-	hasFetchedDBUsersAndNames := false
-
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
@@ -3092,14 +3089,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
 		case types.DatabaseServer:
-			if !hasFetchedDBUsersAndNames {
-				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				hasFetchedDBUsersAndNames = true
-			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest, h.cfg.DatabaseREPLRegistry.IsSupported(r.GetDatabase().GetProtocol()))
+			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)

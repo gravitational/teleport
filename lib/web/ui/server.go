@@ -332,7 +332,13 @@ type DatabaseInteractiveChecker interface {
 }
 
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool, supportsInteractive bool) Database {
+func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	dbNames := accessChecker.EnumerateDatabaseNames(database)
+	var dbUsers []string
+	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+		dbUsers = res.Allowed()
+	}
+
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
@@ -343,11 +349,11 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 		Type:                database.GetType(),
 		Labels:              uiLabels,
 		DatabaseUsers:       dbUsers,
-		DatabaseNames:       dbNames,
+		DatabaseNames:       dbNames.Allowed(),
 		Hostname:            stripProtocolAndPort(database.GetURI()),
 		URI:                 database.GetURI(),
 		RequiresRequest:     requiresRequest,
-		SupportsInteractive: supportsInteractive,
+		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
 	}
 
 	if database.IsAWSHosted() {
@@ -368,19 +374,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		dbNames := accessChecker.EnumerateDatabaseNames(database)
-		var dbUsers []string
-		if res, err := accessChecker.EnumerateDatabaseUsers(database); err != nil {
-			dbUsers = res.Allowed()
-		}
-
-		db := MakeDatabase(
-			database,
-			dbNames.Allowed(),
-			dbUsers,
-			false, /* requiresRequest */
-			interactiveChecker.IsSupported(database.GetProtocol()),
-		)
+		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 
