@@ -24,7 +24,7 @@ import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -76,13 +76,17 @@ export function AddAuthDeviceWizard({
   const [privilegeToken, setPrivilegeToken] = useState();
   const [credential, setCredential] = useState<Credential>(null);
 
-  const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
-    useReAuthenticate({
-      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
-      onMfaResponse: mfaResponse => {
-        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
-      },
-    });
+  const reauthState = useReAuthenticate({
+    challengeScope: MfaChallengeScope.MANAGE_DEVICES,
+    onMfaResponse: mfaResponse =>
+      // TODO(Joerger): Instead of getting a privilege token, we should get
+      //   // a register challenge with the mfa response directly. For good UX, this would
+      //   // require some refactoring to the flow so the user can choose a device type before
+      //   // completing an mfa check and getting an otp/webauthn register challenge, or
+      //   // allowing the backend to return a flexible register challenge
+      //   await auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
+      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken),
+  });
 
   // Choose a new device type from the options available for the given 2fa type.
   // irrelevant if usage === 'passkey'.
@@ -91,32 +95,23 @@ export function AddAuthDeviceWizard({
     registerMfaOptions[0].value
   );
 
-  // Attempt to get an MFA challenge for an existing device. If the challenge is
-  // empty, the user has no existing device (e.g. SSO user) and can register their
-  // first device without re-authentication.
-  const [reauthMfaOptions, getMfaOptions] = useAsync(async () => {
-    const reauthMfaOptions = await getMfaChallengeOptions();
-
-    // registering first device does not require reauth, just get a privilege token.
-    //
-    // TODO(Joerger): v19.0.0
-    // Registering first device does not require a privilege token anymore,
-    // but the existing web register endpoint requires privilege token.
-    // We have a new endpoint "/v1/webapi/users/privilege" which does not
-    // require token, but can't be used until v19 for backwards compatibility.
-    if (reauthMfaOptions.length === 0) {
-      await auth.createPrivilegeToken().then(setPrivilegeToken);
-    }
-
-    return reauthMfaOptions;
-  });
-
+  // If the user has no mfa devices registered, they can create a privilege token
+  // without an mfa response.
+  //
+  // TODO(Joerger): v19.0.0
+  // A user without devices can register their first device without a privilege token
+  // too, but the existing web register endpoint requires privilege token.
+  // We have a new endpoint "/v1/webapi/users/devices" which does not
+  // require token, but can't be used until v19 for backwards compatibility.
+  // Once in use, we can leave privilege token empty here.
   useEffect(() => {
-    getMfaOptions();
-  }, []);
+    if (reauthState.mfaOptions?.length === 0) {
+      auth.createPrivilegeToken().then(setPrivilegeToken);
+    }
+  }, [reauthState.mfaOptions]);
 
   // Handle potential error states first.
-  switch (reauthMfaOptions.status) {
+  switch (reauthState.initAttempt.status) {
     case 'processing':
       return (
         <Box textAlign="center" m={10}>
@@ -124,7 +119,7 @@ export function AddAuthDeviceWizard({
         </Box>
       );
     case 'error':
-      return <Alert children={reauthMfaOptions.statusText} />;
+      return <Alert children={reauthState.initAttempt.statusText} />;
     case 'success':
       break;
     default:
@@ -141,16 +136,13 @@ export function AddAuthDeviceWizard({
       <StepSlider
         flows={wizardFlows}
         currFlow={
-          reauthMfaOptions.data.length > 0
+          reauthState.mfaOptions.length > 0
             ? 'withReauthentication'
             : 'withoutReauthentication'
         }
         // Step properties
         mfaRegisterOptions={registerMfaOptions}
-        mfaChallengeOptions={reauthMfaOptions.data}
-        reauthAttempt={attempt}
-        clearReauthAttempt={clearAttempt}
-        submitWithMfa={submitWithMfa}
+        reauthState={reauthState}
         usage={usage}
         privilegeToken={privilegeToken}
         credential={credential}

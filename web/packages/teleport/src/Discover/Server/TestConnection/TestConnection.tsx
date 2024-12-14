@@ -87,7 +87,7 @@ export function TestConnection(props: AgentStepProps) {
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res => testConnection(selectedOpt.value, res)}
+          onMfaResponse={async res => testConnection(selectedOpt.value, res)}
           onClose={cancelMfaDialog}
           challengeScope={MfaChallengeScope.USER_SESSION}
         />

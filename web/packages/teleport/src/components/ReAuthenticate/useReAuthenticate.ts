@@ -16,112 +16,141 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { useCallback, useEffect, useState } from 'react';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
-  getMfaChallengeOptions as getChallengeOptions,
   DeviceType,
+  DeviceUsage,
+  getMfaChallengeOptions,
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
   MfaOption,
 } from 'teleport/services/mfa';
 
-export default function useReAuthenticate(props: ReauthProps): ReauthState {
-  // Note that attempt state "success" is not used or required.
-  // After the user submits, the control is passed back
-  // to the caller who is responsible for rendering the `ReAuthenticate`
-  // component.
-  const { attempt, setAttempt } = useAttempt('');
+export default function useReAuthenticate({
+  challengeScope,
+  onMfaResponse,
+}: ReauthProps): ReauthState {
+  const [mfaOptions, setMfaOptions] = useState<MfaOption[]>();
+  const [challengeState, setChallengeState] = useState<challengeState>();
 
-  const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>(null);
-
-  // Provide a custom error handler to catch a webauthn frontend error that occurs
-  // on Firefox and replace it with a more helpful error message.
-  const handleError = (err: Error) => {
-    if (err.message.includes('attempt was made to use an object that is not')) {
-      setAttempt({
-        status: 'failed',
-        statusText:
-          'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.',
-      });
-      return;
-    } else {
-      setAttempt({ status: 'failed', statusText: err.message });
-      return;
-    }
-  };
-
-  async function getMfaChallenge() {
-    if (challenge) {
-      return challenge;
-    }
-
-    return auth.getMfaChallenge({ scope: props.challengeScope }).then(chal => {
-      setMfaChallenge(chal);
-      return chal;
+  const [initAttempt, init] = useAsync(async () => {
+    const challenge = await auth.getMfaChallenge({
+      scope: challengeScope,
     });
-  }
 
-  function clearMfaChallenge() {
-    setMfaChallenge(null);
-  }
+    setChallengeState({ challenge, deviceUsage: 'mfa' });
+    setMfaOptions(getMfaChallengeOptions(challenge));
+  });
 
-  function getMfaChallengeOptions() {
-    return getMfaChallenge().then(getChallengeOptions);
-  }
+  useEffect(() => {
+    init();
+  }, []);
 
-  function submitWithMfa(mfaType?: DeviceType, totp_code?: string) {
-    setAttempt({ status: 'processing' });
-    return getMfaChallenge()
-      .then(chal => auth.getMfaChallengeResponse(chal, mfaType, totp_code))
-      .then(props.onMfaResponse)
-      .finally(clearMfaChallenge)
-      .catch(handleError);
-  }
+  const getChallenge = useCallback(
+    async (deviceUsage: DeviceUsage = 'mfa') => {
+      if (challengeState?.deviceUsage === deviceUsage) {
+        return challengeState.challenge;
+      }
 
-  function submitWithPasswordless() {
-    setAttempt({ status: 'processing' });
-    // Always get a new passwordless challenge, the challenge stored in state is for mfa
-    // and will also be overwritten in the backend by the passwordless challenge.
-    return auth
-      .getMfaChallenge({
-        scope: props.challengeScope,
-        userVerificationRequirement: 'required',
-      })
-      .then(chal => auth.getMfaChallengeResponse(chal, 'webauthn'))
-      .then(props.onMfaResponse)
-      .finally(clearMfaChallenge)
-      .catch(handleError);
-  }
+      // If the challenge state is empty, used, or has different args,
+      // retrieve a new mfa challenge and set it in the state.
+      const challenge = await auth.getMfaChallenge({
+        scope: challengeScope,
+        userVerificationRequirement:
+          deviceUsage === 'passwordless' ? 'required' : 'discouraged',
+      });
+      setChallengeState({
+        challenge,
+        deviceUsage,
+      });
+      return challenge;
+    },
+    [challengeState, challengeScope]
+  );
 
-  function clearAttempt() {
-    setAttempt({ status: '' });
+  const [submitAttempt, submitWithMfa, setSubmitAttempt] = useAsync(
+    useCallback(
+      async (
+        mfaType?: DeviceType,
+        deviceUsage?: DeviceUsage,
+        totpCode?: string
+      ) => {
+        const challenge = await getChallenge(deviceUsage);
+
+        let response: MfaChallengeResponse;
+        try {
+          response = await auth.getMfaChallengeResponse(
+            challenge,
+            mfaType,
+            totpCode
+          );
+        } catch (err) {
+          throw new Error(getReAuthenticationErrorMessage(err));
+        }
+
+        try {
+          await onMfaResponse(response);
+        } finally {
+          // once onMfaResponse is called, assume the challenge
+          // has been consumed and clear the state.
+          setChallengeState(null);
+        }
+      },
+      [getChallenge, onMfaResponse]
+    )
+  );
+
+  function clearSubmitAttempt() {
+    setSubmitAttempt(makeEmptyAttempt());
   }
 
   return {
-    attempt,
-    clearAttempt,
-    getMfaChallenge,
-    getMfaChallengeOptions,
+    initAttempt,
+    mfaOptions,
     submitWithMfa,
-    submitWithPasswordless,
+    submitAttempt,
+    clearSubmitAttempt,
   };
 }
 
 export type ReauthProps = {
   challengeScope: MfaChallengeScope;
-  onMfaResponse(res: MfaChallengeResponse): void;
+  onMfaResponse(res: MfaChallengeResponse): Promise<void>;
 };
 
 export type ReauthState = {
-  attempt: Attempt;
-  clearAttempt: () => void;
-  getMfaChallenge: () => Promise<MfaAuthenticateChallenge>;
-  getMfaChallengeOptions: () => Promise<MfaOption[]>;
-  submitWithMfa: (mfaType?: DeviceType, totp_code?: string) => Promise<void>;
-  submitWithPasswordless: () => Promise<void>;
+  initAttempt: Attempt<any>;
+  mfaOptions: MfaOption[];
+  submitWithMfa: (
+    mfaType?: DeviceType,
+    deviceUsage?: DeviceUsage,
+    totpCode?: string
+  ) => Promise<[void, Error]>;
+  submitAttempt: Attempt<void>;
+  clearSubmitAttempt: () => void;
 };
+
+type challengeState = {
+  challenge: MfaAuthenticateChallenge;
+  deviceUsage: DeviceUsage;
+};
+
+function getReAuthenticationErrorMessage(err: Error): string {
+  if (err.message.includes('attempt was made to use an object that is not')) {
+    // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
+    return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
+  }
+
+  if (err.message === 'invalid totp token') {
+    // This message relies on the status message produced by the auth server in
+    // lib/auth/Server.checkOTP function. Please keep these in sync.
+    return 'Invalid authenticator code';
+  }
+
+  return err.message;
+}

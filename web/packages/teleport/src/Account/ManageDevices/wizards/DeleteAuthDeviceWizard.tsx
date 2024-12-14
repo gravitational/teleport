@@ -20,15 +20,11 @@ import { Alert, OutlineDanger } from 'design/Alert/Alert';
 import { ButtonSecondary, ButtonWarning } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { useEffect, useState } from 'react';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
+import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
-
-import { useAsync } from 'shared/hooks/useAsync';
 
 import Indicator from 'design/Indicator';
 
@@ -60,29 +56,19 @@ export function DeleteAuthDeviceWizard({
 }: DeleteAuthDeviceWizardProps) {
   const [privilegeToken, setPrivilegeToken] = useState('');
 
-  const { attempt, clearAttempt, getMfaChallengeOptions, submitWithMfa } =
-    useReAuthenticate({
-      challengeScope: MfaChallengeScope.MANAGE_DEVICES,
-      onMfaResponse: mfaResponse => {
-        // TODO(Joerger): v19.0.0
-        // Devices can be deleted with an MFA response, so exchanging it for a
-        // privilege token adds an unnecessary API call. The device deletion
-        // endpoint requires a token, but the new endpoint "DELETE: /webapi/mfa/devices"
-        // can be used after v19 backwards compatibly.
-        auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
-      },
-    });
-
-  const [challengeOptions, getChallengeOptions] = useAsync(async () => {
-    return getMfaChallengeOptions();
+  const reauthState = useReAuthenticate({
+    challengeScope: MfaChallengeScope.MANAGE_DEVICES,
+    onMfaResponse: mfaResponse =>
+      // TODO(Joerger): v19.0.0
+      // Devices can be deleted with an MFA response, so exchanging it for a
+      // privilege token adds an unnecessary API call. The device deletion
+      // endpoint requires a token, but the new endpoint "DELETE: /webapi/mfa/devices"
+      // does not and can be used in v19 backwards compatibly.
+      auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken),
   });
 
-  useEffect(() => {
-    getChallengeOptions();
-  }, []);
-
   // Handle potential error states first.
-  switch (challengeOptions.status) {
+  switch (reauthState.initAttempt.status) {
     case 'processing':
       return (
         <Box textAlign="center" m={10}>
@@ -90,7 +76,7 @@ export function DeleteAuthDeviceWizard({
         </Box>
       );
     case 'error':
-      return <Alert children={challengeOptions.statusText} />;
+      return <Alert children={reauthState.initAttempt.statusText} />;
     case 'success':
       break;
     default:
@@ -108,10 +94,7 @@ export function DeleteAuthDeviceWizard({
         flows={wizardFlows}
         currFlow="default"
         // Step properties
-        reauthAttempt={attempt}
-        clearReauthAttempt={clearAttempt}
-        mfaChallengeOptions={challengeOptions.data}
-        submitWithMfa={submitWithMfa}
+        reauthState={reauthState}
         deviceToDelete={deviceToDelete}
         privilegeToken={privilegeToken}
         onClose={onClose}

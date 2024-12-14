@@ -16,34 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
 import {
-  Flex,
   Box,
-  Text,
   ButtonPrimary,
   ButtonSecondary,
+  Flex,
   Indicator,
+  Text,
 } from 'design';
+import { Alert, Danger } from 'design/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import { Alert, Danger } from 'design/Alert';
-import Validation from 'shared/components/Validation';
-import { requiredToken } from 'shared/components/Validation/rules';
+import React, { useEffect, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-
-import { useAsync } from 'shared/hooks/useAsync';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredToken } from 'shared/components/Validation/rules';
 
 import { MfaOption } from 'teleport/services/mfa';
 
 import useReAuthenticate, {
-  ReauthState,
   ReauthProps,
+  ReauthState,
 } from './useReAuthenticate';
 
 export type Props = ReauthProps & {
@@ -61,26 +59,21 @@ export type State = ReauthState & {
 
 export function ReAuthenticate({
   onClose,
-  attempt,
-  clearAttempt,
-  getMfaChallengeOptions,
+  initAttempt,
+  mfaOptions,
   submitWithMfa,
+  submitAttempt,
+  clearSubmitAttempt,
 }: State) {
   const [otpCode, setOtpToken] = useState('');
   const [mfaOption, setMfaOption] = useState<MfaOption>();
 
-  const [challengeOptions, getChallengeOptions] = useAsync(async () => {
-    const mfaOptions = await getMfaChallengeOptions();
-    setMfaOption(mfaOptions[0]);
-    return mfaOptions;
-  });
-
   useEffect(() => {
-    getChallengeOptions();
-  }, []);
+    if (mfaOptions?.length) setMfaOption(mfaOptions[0]);
+  }, [mfaOptions]);
 
   // Handle potential error states first.
-  switch (challengeOptions.status) {
+  switch (initAttempt.status) {
     case 'processing':
       return (
         <Box textAlign="center" m={10}>
@@ -88,16 +81,20 @@ export function ReAuthenticate({
         </Box>
       );
     case 'error':
-      return <Alert children={challengeOptions.statusText} />;
+      return <Alert children={initAttempt.statusText} />;
     case 'success':
       break;
     default:
       return null;
   }
 
-  function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
+  function onReauthenticate(
+    e: React.MouseEvent<HTMLButtonElement>,
+    validator: Validator
+  ) {
     e.preventDefault();
-    submitWithMfa(mfaOption.value, otpCode);
+    if (!validator.validate()) return;
+    submitWithMfa(mfaOption.value, 'mfa', otpCode);
   }
 
   return (
@@ -119,9 +116,9 @@ export function ReAuthenticate({
                 two-factor devices before performing this action.
               </Text>
             </DialogHeader>
-            {attempt.status === 'failed' && (
+            {submitAttempt.status === 'error' && (
               <Danger mt={2} width="100%">
-                {attempt.statusText}
+                {submitAttempt.statusText}
               </Danger>
             )}
             <DialogContent>
@@ -130,15 +127,15 @@ export function ReAuthenticate({
                   width="60%"
                   label="Two-factor Type"
                   value={mfaOption}
-                  options={challengeOptions.data}
+                  options={mfaOptions}
                   onChange={(o: MfaOption) => {
                     setMfaOption(o);
-                    clearAttempt();
+                    clearSubmitAttempt();
                   }}
                   data-testid="mfa-select"
                   mr={3}
                   mb={0}
-                  isDisabled={attempt.status === 'processing'}
+                  isDisabled={submitAttempt.status === 'processing'}
                   elevated={true}
                 />
                 <Box width="40%">
@@ -151,7 +148,7 @@ export function ReAuthenticate({
                       value={otpCode}
                       onChange={e => setOtpToken(e.target.value)}
                       placeholder="123 456"
-                      readonly={attempt.status === 'processing'}
+                      readonly={submitAttempt.status === 'processing'}
                       mb={0}
                     />
                   )}
@@ -160,8 +157,8 @@ export function ReAuthenticate({
             </DialogContent>
             <DialogFooter>
               <ButtonPrimary
-                onClick={e => validator.validate() && onSubmit(e)}
-                disabled={attempt.status === 'processing'}
+                onClick={e => onReauthenticate(e, validator)}
+                disabled={submitAttempt.status === 'processing'}
                 mr={3}
                 mt={3}
                 type="submit"

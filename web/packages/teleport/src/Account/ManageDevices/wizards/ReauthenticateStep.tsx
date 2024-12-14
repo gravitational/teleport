@@ -20,24 +20,19 @@ import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import React, { useState, FormEvent } from 'react';
+import { StepComponentProps, StepHeader } from 'design/StepSlider';
+import React, { FormEvent, useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { StepComponentProps, StepHeader } from 'design/StepSlider';
 
 import Box from 'design/Box';
 
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
+import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { DeviceType } from 'teleport/services/mfa';
-import { MfaOption } from 'teleport/services/mfa';
 
 export type ReauthenticateStepProps = StepComponentProps & {
-  reauthAttempt: Attempt;
-  clearReauthAttempt(): void;
-  mfaChallengeOptions: MfaOption[];
-  submitWithMfa(mfaType?: DeviceType, otpCode?: string): Promise<void>;
+  reauthState: ReauthState;
   onClose(): void;
 };
 
@@ -46,14 +41,11 @@ export function ReauthenticateStep({
   refCallback,
   stepIndex,
   flowLength,
-  mfaChallengeOptions,
-  reauthAttempt,
-  clearReauthAttempt,
-  submitWithMfa,
+  reauthState: { mfaOptions, submitWithMfa, submitAttempt, clearSubmitAttempt },
   onClose,
 }: ReauthenticateStepProps) {
   const [otpCode, setOtpCode] = useState('');
-  const [mfaOption, setMfaOption] = useState(mfaChallengeOptions[0].value);
+  const [mfaOption, setMfaOption] = useState(mfaOptions[0].value);
 
   const onOtpCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
     setOtpCode(e.target.value);
@@ -65,10 +57,10 @@ export function ReauthenticateStep({
   ) => {
     e.preventDefault();
     if (!validator.validate()) return;
-    submitWithMfa(mfaOption, otpCode).then(next);
+    submitWithMfa(mfaOption, 'mfa', otpCode).then(([, err]) => {
+      if (!err) next();
+    });
   };
-
-  const errorMessage = getReauthenticationErrorMessage(reauthAttempt);
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
@@ -79,14 +71,16 @@ export function ReauthenticateStep({
           title="Verify Identity"
         />
       </Box>
-      {errorMessage && <OutlineDanger>{errorMessage}</OutlineDanger>}
+      {submitAttempt.status === 'error' && (
+        <OutlineDanger>{submitAttempt.statusText}</OutlineDanger>
+      )}
       {mfaOption && <Box mb={2}>Multi-factor type</Box>}
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onReauthenticate(e, validator)}>
             <RadioGroup
               name="mfaOption"
-              options={mfaChallengeOptions}
+              options={mfaOptions}
               value={mfaOption}
               autoFocus
               flexDirection="row"
@@ -94,7 +88,7 @@ export function ReauthenticateStep({
               mb={4}
               onChange={o => {
                 setMfaOption(o as DeviceType);
-                clearReauthAttempt();
+                clearSubmitAttempt();
               }}
             />
             {mfaOption === 'totp' && (
@@ -106,7 +100,7 @@ export function ReauthenticateStep({
                 value={otpCode}
                 placeholder="123 456"
                 onChange={onOtpCodeChanged}
-                readonly={reauthAttempt.status === 'processing'}
+                readonly={submitAttempt.status === 'processing'}
               />
             )}
             <Flex gap={2}>
@@ -129,16 +123,4 @@ export function ReauthenticateStep({
       </Validation>
     </div>
   );
-}
-
-function getReauthenticationErrorMessage(attempt: Attempt): string {
-  if (attempt.status === 'failed') {
-    // This message relies on the status message produced by the auth server in
-    // lib/auth/Server.checkOTP function. Please keep these in sync.
-    if (attempt.statusText === 'invalid totp token') {
-      return 'Invalid authenticator code';
-    } else {
-      return attempt.statusText;
-    }
-  }
 }
