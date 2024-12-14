@@ -75,8 +75,6 @@ type vnetAdminSetupCommand struct {
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
-
-	installServiceCmd *vnetInstallServiceCommand
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -86,7 +84,6 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
-	cmd.installServiceCmd = newVnetInstallServiceCommand(cmd.CmdClause)
 	return cmd
 }
 
