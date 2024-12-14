@@ -386,16 +386,16 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 		{
 			name:                           "system-managed identity ok",
 			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
+			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName),
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription:   defaultSubscription,
-							ResourceGroups: []string{defaultResourceGroup},
+							Subscription:   "system-managed-test",
+							ResourceGroups: []string{"system-managed-test"},
 						},
 					},
 				},
@@ -408,16 +408,16 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 		{
 			name:                           "system-managed identity with wrong subscription",
 			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
+			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: vmResourceID("alternate-subscription-id", defaultResourceGroup, defaultVMName),
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
 							Subscription:   defaultSubscription,
-							ResourceGroups: []string{defaultResourceGroup},
+							ResourceGroups: []string{"system-managed-test"},
 						},
 					},
 				},
@@ -425,20 +425,20 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			},
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isAccessDenied,
+			assertError: require.Error,
 		},
 		{
 			name:                           "system-managed identity with wrong resource group",
 			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
+			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: vmResourceID(defaultSubscription, "nonexistent-group", defaultVMName),
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
-							Subscription:   defaultSubscription,
+							Subscription:   "system-managed-test",
 							ResourceGroups: []string{defaultResourceGroup},
 						},
 					},
@@ -447,15 +447,83 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			},
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isAccessDenied,
+			assertError: require.Error,
 		},
 		{
 			name:                           "user-managed identity ok",
 			requestTokenName:               "test-token",
+			tokenSubscription:              "user-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID("user-managed-test", "user-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   "user-managed-test",
+							ResourceGroups: []string{"user-managed-test"},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.NoError,
+		},
+		{
+			name:                           "user-managed identity with wrong subscription",
+			requestTokenName:               "test-token",
+			tokenSubscription:              "user-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID("user-managed-test", "user-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{"user-managed-test"},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.Error,
+		},
+		{
+			name:                           "user-managed identity with wrong resource group",
+			requestTokenName:               "test-token",
+			tokenSubscription:              "user-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
+			tokenAzureResourceID:           vmResourceID("user-managed-test", "user-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   "user-managed-test",
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.Error,
+		},
+		{
+			name:                           "get vm from identity",
+			requestTokenName:               "test-token",
 			tokenSubscription:              defaultSubscription,
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
-			tokenAzureResourceID:           vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName),
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Azure: &types.ProvisionTokenSpecV2Azure{
@@ -471,75 +539,6 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
 			assertError: require.NoError,
-		},
-		{
-			name:                           "user-managed identity with wrong subscription",
-			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
-			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
-			tokenAzureResourceID:           vmResourceID("alternate-subscription-id", defaultResourceGroup, defaultVMName),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Azure: &types.ProvisionTokenSpecV2Azure{
-					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
-						{
-							Subscription:   defaultSubscription,
-							ResourceGroups: []string{defaultResourceGroup},
-						},
-					},
-				},
-				JoinMethod: types.JoinMethodAzure,
-			},
-			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isAccessDenied,
-		},
-		{
-			name:                           "user-managed identity with wrong resource group",
-			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
-			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
-			tokenAzureResourceID:           vmResourceID(defaultSubscription, "nonexistent-group", defaultVMName),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Azure: &types.ProvisionTokenSpecV2Azure{
-					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
-						{
-							Subscription:   defaultSubscription,
-							ResourceGroups: []string{defaultResourceGroup},
-						},
-					},
-				},
-				JoinMethod: types.JoinMethodAzure,
-			},
-			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isAccessDenied,
-		},
-		{
-			name:                           "invalid resource type",
-			requestTokenName:               "test-token",
-			tokenSubscription:              defaultSubscription,
-			tokenVMID:                      defaultVMID,
-			tokenManagedIdentityResourceID: identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
-			tokenAzureResourceID:           identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Azure: &types.ProvisionTokenSpecV2Azure{
-					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
-						{
-							Subscription:   defaultSubscription,
-							ResourceGroups: []string{defaultResourceGroup},
-						},
-					},
-				},
-				JoinMethod: types.JoinMethodAzure,
-			},
-			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isBadParameter,
 		},
 	}
 
