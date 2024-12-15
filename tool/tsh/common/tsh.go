@@ -426,6 +426,8 @@ type CLIConf struct {
 	// GlobalTshConfigPath is a path to global TSH config. Can be overridden with TELEPORT_GLOBAL_TSH_CONFIG.
 	GlobalTshConfigPath string
 
+	// LocalProxyInterface is the interface used by local proxy listener.
+	LocalProxyInterface string
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
@@ -934,24 +936,28 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("port", "Specifies the source port used by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyApp.Flag("interface", "Specifies the listen interface used by the proxy app listener").Default("localhost").StringVar(&cf.LocalProxyInterface)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("interface", "Specifies the listen interface used by the proxy listener").Default("localhost").StringVar(&cf.LocalProxyInterface)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAzure.Flag("interface", "Specifies the listen interface used by the proxy listener").Default("localhost").StringVar(&cf.LocalProxyInterface)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
 
 	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
 	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("interface", "Specifies the listen interface used by the proxy listener").Default("localhost").StringVar(&cf.LocalProxyInterface)
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
 
