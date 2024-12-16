@@ -170,6 +170,13 @@ func (c *FnCache) Shutdown(ctx context.Context) {
 	}
 }
 
+// Remove purges a specific item in the cache.
+func (c *FnCache) Remove(key any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, key)
+}
+
 // RemoveExpired purges any items from the cache which have exceeded their TTL.
 func (c *FnCache) RemoveExpired() {
 	c.mu.Lock()
