@@ -121,14 +121,13 @@ func (c *Capture) saveOneLinkToPCAP(filename string, port int, sender, receiver 
 	buffer := &bytes.Buffer{}
 	for _, packet := range packets {
 		// assign indicator or skip packet.
-		indicator := ""
-		if packet.Direction == sender.direction {
+		var indicator string
+		switch packet.Direction {
+		case sender.direction:
 			indicator = "I"
-		}
-		if packet.Direction == receiver.direction {
+		case receiver.direction:
 			indicator = "O"
-		}
-		if indicator == "" {
+		default:
 			continue
 		}
 
