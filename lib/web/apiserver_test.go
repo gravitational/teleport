@@ -8261,7 +8261,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ClusterName: clustername,
 		AccessPoint: authServer.Auth(),
 		LockWatcher: proxyLockWatcher,
-		Logger:      log,
 	})
 	require.NoError(t, err)
 
