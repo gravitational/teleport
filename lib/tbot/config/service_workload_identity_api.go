@@ -39,7 +39,7 @@ type WorkloadIdentityAPIService struct {
 	Attestors workloadattest.Config `yaml:"attestors"`
 	// WorkloadIdentity is the selector for the WorkloadIdentity resource that
 	// will be used to issue WICs.
-	WorkloadIdentitySelector WorkloadIdentitySelector `yaml:"workload_identity"`
+	WorkloadIdentity WorkloadIdentitySelector `yaml:"workload_identity"`
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.

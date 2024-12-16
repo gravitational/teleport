@@ -1,0 +1,5 @@
+type: workload-identity
+workload_identity:
+  name: my-workload-identity
+destination:
+  type: memory
