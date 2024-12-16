@@ -2,7 +2,10 @@ import React from 'react';
 import { fireEvent, userEvent, render, screen } from 'design/utils/testing';
 
 import { Option } from 'shared/components/Select';
-import Validation, { useValidation } from 'shared/components/Validation';
+import Validation, {
+  useValidation,
+  Validator,
+} from 'shared/components/Validation';
 
 import { waitFor } from '@testing-library/react';
 
@@ -93,7 +96,7 @@ describe('invite form', () => {
     props.recipientsValue.push(makeUserOption('bob@example.com'));
     props.selectedRoles.push(ROLES[0]);
 
-    let validator = null;
+    let validator: Validator | null = null;
     const Button = () => {
       validator = useValidation();
       return (
@@ -113,11 +116,11 @@ describe('invite form', () => {
 
     fireEvent.click(screen.getByTestId('validate'));
 
-    expect(validator.valid).toBe(true);
+    expect(validator.state.valid).toBe(true);
   });
 
   test('requires some data', async () => {
-    let validator = null;
+    let validator: Validator | null = null;
     const Button = () => {
       validator = useValidation();
       return <button role="button" onClick={() => validator.validate()} />;
@@ -134,7 +137,7 @@ describe('invite form', () => {
 
     await userEvent.click(screen.getByRole('button'));
 
-    expect(validator.valid).toBe(false);
+    expect(validator.state.valid).toBe(false);
     expect(
       screen.getByText('At least one address is required')
     ).toBeInTheDocument();
@@ -146,7 +149,7 @@ describe('invite form', () => {
   test('does not allow duplicate users', async () => {
     props.recipientsValue.push(makeUserOption('alice@example.com'));
 
-    let validator = null;
+    let validator: Validator | null = null;
     const Button = () => {
       validator = useValidation();
       return (
@@ -165,7 +168,7 @@ describe('invite form', () => {
 
     await userEvent.click(screen.getByTestId('validate'));
 
-    expect(validator.valid).toBe(false);
+    expect(validator.state.valid).toBe(false);
     expect(
       screen.getByText('User already exists: alice@example.com')
     ).toBeInTheDocument();
@@ -174,7 +177,7 @@ describe('invite form', () => {
   test('requires an email-like username', async () => {
     props.recipientsValue.push(makeUserOption('alice'));
 
-    let validator = null;
+    let validator: Validator | null = null;
     const Button = () => {
       validator = useValidation();
       return (
@@ -193,7 +196,7 @@ describe('invite form', () => {
 
     await userEvent.click(screen.getByTestId('validate'));
 
-    expect(validator.valid).toBe(false);
+    expect(validator.state.valid).toBe(false);
     expect(screen.getByText('Email is invalid: alice')).toBeInTheDocument();
   });
 });
