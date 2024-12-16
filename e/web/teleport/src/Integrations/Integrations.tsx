@@ -39,7 +39,7 @@ export function Integrations(props: State) {
 
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
         {hasItems && (
           <IntegrationsAddButton
