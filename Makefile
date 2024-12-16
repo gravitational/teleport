@@ -1828,3 +1828,7 @@ create-github-release:
 	--latest=$(LATEST) \
 	--verify-tag \
 	-F - <<< "$$NOTES"
+
+.PHONY: go-mod-tidy-all
+go-mod-tidy-all:
+	find . -type "f" -name "go.mod" -execdir go mod tidy \;
