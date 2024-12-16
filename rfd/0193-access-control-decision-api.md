@@ -224,11 +224,11 @@ the specific access did not merit the use of any new controls).
 
 In general, the decision flow for deciding how to handle back compat across the PDP/PEP boundary will be as follows:
 
-- If possible, implement new features s.t. it is safe for older PEPs to ignore them (any new features that strictly increase
-privilege can fall under this bucket).
+- If possible, implement new features s.t. it is safe for older PEPs to ignore them (any new feature that can be modeled 
+as strictly increase privilege can fall under this bucket).
 
-- If not safe to ignore, implement new features s.t. relevant controls can be enforced at the control-plane or via existing permit fields (abstractions
-like scoped RBAC, updated server label selector syntax, and similar all meet this criteria).
+- If not safe to ignore, implement new features s.t. relevant controls can be enforced at the control-plane or via existing permit fields
+(abstractions like scoped RBAC, updated server label selector syntax, and similar all meet this criteria).
 
 - If none of the above, add a new feature assertion enum variant and update PDP logic to append the new feature assertion to permits if and
 only if the specific permit in question requires the new controls be enforced (since said new controls will almost certainly necessitate a
@@ -237,6 +237,40 @@ new permit field, decided when to append the feature assertion should be trivial
 With the above decision flow/procedures observed, new access-control features should generally be safe to backport just like any other
 (from a cross-version API compatibility perspective, backend resource versioning is outside the scope of this RFD).
 
+To better illustrate the above flow, lets take a look at some hypothetical new features and how they might be tackled:
+
+**Example 1: Local/Remote Port Forwarding Controls**
+
+Say that we wanted to implement a new SSH access RBAC control that allowed administrators to specify wether to allow
+local/remote port forwarding specifically rather than the current all or nothing `port_forwarding` control. Step one is
+to decide if there is a way we can model this new control as something that can be safely ignored (e.g. by modeling it as
+a privilege increase). Since the current `SSHAccessPermit` represents the ability to perform port forwarding as a single
+boolean field, we can just add two new boolean fields (`local_forwarding` and `remote_forwarding`) and set them to true
+as-needed, leaving the legacy forwarding field false unless local and remote are both true. In this manner, we can be
+certain that outdated agents will simply fail to grant the new privilege without granting any unintended privileges.
+No further compat work is needed.
+
+**Example 2: Server Access Rate Limit**
+
+Say we want to introduce a global rate limit control for server access attempts (e.g. prevent a user from performing more
+than 10 ssh attempts per minute across the cluster). Step one is to decide if we can model this new control as something that
+can be safely ignored. Since we don't have an older more strict variation of this behavior to fallback on, we cannot. Step two
+is to decide if we can enforce the control at the control-plane. This we can do. Since the control-plane is always inline somewhere
+during an ssh access attempt, we can enforce the rate limit by injecting deny decisions for all attempts that exceed the limit
+(note: care needs to be taken to ensure we ignore "dry run" queries, like those from `tctl` for this kind of control).
+
+**Example 3: BPF Killswitch**
+
+Say we want to introduce a feature that causes teleport to kill ongoing ssh sessions if certain BPF events are detected associated
+with that session (e.g. a `session.command` event whose path doesn't match some allow regex) and generate a notification for admins
+to come investigate. Step one is to decide if we can model this new control as something that can be safely ignored. Since there isn't
+an existing less-permissive behavior that makes a sensible fallback, we cannot. Step two is to decide if we can enforce the control
+at the control-plane. BPF recording does not currently work in a manner that would make this practical. This leaves us with one option:
+we need to ensure that outdated agents don't handle ssh access attempts that require the new control. To achieve this, we would do two
+things. First, we would add a new `ENFORCEMENT_FEATURE_BPF_KILLSWITCH` variant to the `EnforcementFeature` enum. Second, we would update
+the `EvaluateSSHAccess` method to append the new feature assertion to the permit's metadata whenever the permit contains a non-empty
+`bpf_killswitch` field. With these done, we can safely backport the feature like any other and be confident that outdated agents will
+not allow users to escape the control.
 
 ### Phased Implementation
 
