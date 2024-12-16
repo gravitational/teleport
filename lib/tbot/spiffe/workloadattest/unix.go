@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // UnixAttestation holds the Unix process information retrieved from the
@@ -66,15 +68,15 @@ func NewUnixAttestor() *UnixAttestor {
 }
 
 // Attest attests a process id to a Unix process.
-func (a *UnixAttestor) Attest(ctx context.Context, pid int) (UnixAttestation, error) {
+func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsUnix, error) {
 	p, err := process.NewProcessWithContext(ctx, int32(pid))
 	if err != nil {
-		return UnixAttestation{}, trace.Wrap(err, "getting process")
+		return nil, trace.Wrap(err, "getting process")
 	}
 
-	att := UnixAttestation{
+	att := &workloadidentityv1pb.WorkloadAttrsUnix{
 		Attested: true,
-		PID:      pid,
+		Pid:      int32(pid),
 	}
 	// On Linux:
 	// Real, effective, saved, and file system GIDs
@@ -82,19 +84,19 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (UnixAttestation, er
 	// Effective, effective, saved GIDs
 	gids, err := p.Gids()
 	if err != nil {
-		return UnixAttestation{}, trace.Wrap(err, "getting gids")
+		return nil, trace.Wrap(err, "getting gids")
 	}
 	// We generally want to select the effective GID.
 	switch len(gids) {
 	case 0:
 		// error as none returned
-		return UnixAttestation{}, trace.BadParameter("no gids returned")
+		return nil, trace.BadParameter("no gids returned")
 	case 1:
 		// Only one GID - this is unusual but let's take it.
-		att.GID = int(gids[0])
+		att.Gid = gids[0]
 	default:
 		// Take the index 1 entry as this is effective
-		att.GID = int(gids[1])
+		att.Gid = gids[1]
 	}
 
 	// On Linux:
@@ -103,19 +105,19 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (UnixAttestation, er
 	// Effective
 	uids, err := p.Uids()
 	if err != nil {
-		return UnixAttestation{}, trace.Wrap(err, "getting uids")
+		return nil, trace.Wrap(err, "getting uids")
 	}
 	// We generally want to select the effective GID.
 	switch len(uids) {
 	case 0:
 		// error as none returned
-		return UnixAttestation{}, trace.BadParameter("no uids returned")
+		return nil, trace.BadParameter("no uids returned")
 	case 1:
 		// Only one UID, we expect this on Darwin to be the Effective UID
-		att.UID = int(uids[0])
+		att.Uid = uids[0]
 	default:
 		// Take the index 1 entry as this is Effective UID on Linux
-		att.UID = int(uids[1])
+		att.Uid = uids[1]
 	}
 
 	return att, nil
