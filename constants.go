@@ -698,6 +698,11 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// SystemIdentityCenterAccessRoleName specifies the name of a system role
+	// that grants a user access to AWS Identity Center resources via
+	// Access Requests.
+	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
