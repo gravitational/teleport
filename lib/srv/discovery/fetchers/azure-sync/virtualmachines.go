@@ -28,7 +28,6 @@ import (
 )
 
 func (a *Fetcher) fetchVirtualMachines(ctx context.Context) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
-	// Fetch the VMs
 	vms, err := a.vmClient.ListVirtualMachines(ctx, "*")
 	if err != nil {
 		return nil, trace.Wrap(err)
