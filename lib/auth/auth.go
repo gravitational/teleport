@@ -644,6 +644,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
+		Emitter:     as.emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
