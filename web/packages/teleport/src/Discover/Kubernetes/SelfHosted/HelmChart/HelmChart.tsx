@@ -52,8 +52,8 @@ import {
   ResourceKind,
   TextIcon,
   useShowHint,
-} from '../../Shared';
-import type { AgentStepProps } from '../../types';
+} from '../../../Shared';
+import type { AgentStepProps } from '../../../types';
 
 export default function Container(props: AgentStepProps) {
   const [namespace, setNamespace] = useState('');
