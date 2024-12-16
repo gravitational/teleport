@@ -71,7 +71,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			s.submitFetchersEvent(kubeIntegrationFetchers)
 			return kubeIntegrationFetchers
 		},
-		Log:            s.LegacyLogger.WithField("kind", types.KindKubernetesCluster),
+		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,

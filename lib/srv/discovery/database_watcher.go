@@ -68,7 +68,7 @@ func (s *Server) startDatabaseWatchers() error {
 	watcher, err := common.NewWatcher(s.ctx,
 		common.WatcherConfig{
 			FetchersFn:     s.getAllDatabaseFetchers,
-			Log:            s.LegacyLogger.WithField("kind", types.KindDatabase),
+			Logger:         s.Log.With("kind", types.KindDatabase),
 			DiscoveryGroup: s.DiscoveryGroup,
 			Interval:       s.PollInterval,
 			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),

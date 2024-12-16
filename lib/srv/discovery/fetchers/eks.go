@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"path"
 	"slices"
 	"strings"
@@ -37,7 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -100,7 +100,7 @@ type EKSFetcherConfig struct {
 	// FilterLabels are the filter criteria.
 	FilterLabels types.Labels
 	// Log is the logger.
-	Log logrus.FieldLogger
+	Logger *slog.Logger
 	// SetupAccessForARN is the ARN to setup access for.
 	SetupAccessForARN string
 	// Clock is the clock.
@@ -120,8 +120,8 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing FilterLabels field")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:eks")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "fetcher:eks")
 	}
 
 	if c.Clock == nil {
@@ -133,7 +133,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 
 // MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
 // by their reliance on the integration.
-func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) (kubeFetchers []common.Fetcher, _ error) {
+func MakeEKSFetchersFromAWSMatchers(logger *slog.Logger, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) (kubeFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
 		var matcherAssumeRole types.AssumeRole
 		if matcher.AssumeRole != nil {
@@ -152,13 +152,17 @@ func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSCli
 							Integration:         matcher.Integration,
 							KubeAppDiscovery:    matcher.KubeAppDiscovery,
 							FilterLabels:        matcher.Tags,
-							Log:                 log,
+							Logger:              logger,
 							SetupAccessForARN:   matcher.SetupAccessForARN,
 							DiscoveryConfigName: discoveryConfigName,
 						},
 					)
 					if err != nil {
-						log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
+						logger.WarnContext(context.Background(), "Could not initialize EKS fetcher, skipping",
+							"error", err,
+							"region", region,
+							"labels", matcher.Tags,
+							"assume_role", matcherAssumeRole.RoleARN)
 						continue
 					}
 					kubeFetchers = append(kubeFetchers, fetcher)
@@ -178,7 +182,7 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	fetcher := &eksFetcher{EKSFetcherConfig: cfg}
 
 	if err := fetcher.setCallerIdentity(context.Background()); err != nil {
-		cfg.Log.WithError(err).Warn("Failed to set caller identity.")
+		cfg.Logger.WarnContext(context.Background(), "Failed to set caller identity", "error", err)
 	}
 
 	// If the fetcher SetupAccessForARN isn't set, use the caller identity.
@@ -290,11 +294,11 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 					// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels
 					// or if the cluster is not yet active.
 					if trace.IsCompareFailed(err) {
-						a.Log.WithError(err).Debugf("Cluster %q did not match the filtering criteria.", clusterName)
+						a.Logger.DebugContext(groupCtx, "Cluster did not match the filtering criteria", "error", err, "cluster", clusterName)
 						// never return an error otherwise we will impact discovery process
 						return nil
 					} else if err != nil {
-						a.Log.WithError(err).Warnf("Failed to discover EKS cluster %q.", clusterName)
+						a.Logger.WarnContext(groupCtx, "Failed to discover EKS cluster", "error", err, "cluster", clusterName)
 						// never return an error otherwise we will impact discovery process
 						return nil
 					}
@@ -360,7 +364,7 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 
 	switch st := aws.StringValue(rsp.Cluster.Status); st {
 	case eks.ClusterStatusUpdating, eks.ClusterStatusActive:
-		a.Log.WithField("cluster_name", clusterName).Debugf("EKS cluster status is valid: %s", st)
+		a.Logger.DebugContext(ctx, "EKS cluster status is valid", "status", st, "cluster", clusterName)
 	default:
 		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
 	}
@@ -391,8 +395,11 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		}
 		return cluster, nil
 	default:
-		a.Log.Infof("EKS cluster %q does not support access bootstrap due to its authentication mode %q. Skipping access setup. Access for ARN %q must be manually configured.",
-			clusterName, st, a.SetupAccessForARN)
+		a.Logger.InfoContext(ctx, "EKS cluster must be configured manually due to its authentication mode",
+			"cluster", clusterName,
+			"authentication_mode", st,
+			"access_arn", a.SetupAccessForARN,
+		)
 		return cluster, nil
 	}
 }
@@ -433,9 +440,11 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 	switch {
 	case trace.IsAccessDenied(err):
 		// Access denied means that the principal does not have access to setup access entries for the cluster.
-		a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-			aws.StringValue(cluster.Name),
-			eksDiscoveryPermissions)
+		a.Logger.WarnContext(ctx, "Access denied to setup access for EKS cluster, ensure the required permissions are set",
+			"error", err,
+			"cluster", aws.StringValue(cluster.Name),
+			"required_permissions", eksDiscoveryPermissions,
+		)
 		return nil
 	case err == nil:
 		// If the access entry exists and the principal has access to the cluster, check if the teleportKubernetesGroup is part of the Kubernetes group.
@@ -448,9 +457,11 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 		// This temporary access is granted to the identity that the Discovery service fetcher is running as (callerIdentity). If a role is assumed, the callerIdentity is the assumed role.
 		if err := a.temporarilyGainAdminAccessAndCreateRole(ctx, client, cluster); trace.IsAccessDenied(err) {
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
-			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-				aws.StringValue(cluster.Name),
-				eksDiscoveryPermissions)
+			a.Logger.WarnContext(ctx, "Access denied to setup access for EKS cluster, ensure the required permissions are set",
+				"error", err,
+				"cluster", aws.StringValue(cluster.Name),
+				"required_permissions", eksDiscoveryPermissions,
+			)
 			return nil
 		} else if err != nil {
 			return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
@@ -460,9 +471,11 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 		err = a.upsertAccessEntry(ctx, client, cluster)
 		if trace.IsAccessDenied(err) {
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
-			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
-				aws.StringValue(cluster.Name),
-				eksDiscoveryPermissions)
+			a.Logger.WarnContext(ctx, "Access denied to setup access for EKS cluster, ensure the required permissions are set",
+				"error", err,
+				"cluster", aws.StringValue(cluster.Name),
+				"required_permissions", eksDiscoveryPermissions,
+			)
 			return nil
 		}
 		return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
@@ -505,7 +518,10 @@ func (a *eksFetcher) temporarilyGainAdminAccessAndCreateRole(ctx context.Context
 					}),
 			)
 			if err != nil {
-				a.Log.WithError(err).Warnf("Failed to delete access entry for EKS cluster %q", aws.StringValue(cluster.Name))
+				a.Logger.WarnContext(ctx, "Failed to delete access entry for EKS cluster",
+					"error", err,
+					"cluster", aws.StringValue(cluster.Name),
+				)
 			}
 		}()
 
