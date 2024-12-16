@@ -5,6 +5,7 @@ import { isAbortError } from 'shared/utils/abortError';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
@@ -370,6 +371,21 @@ export function useNewRequest(ctx: Ctx) {
       const name = kind === 'node' ? resource.hostname : key;
       newMap[kind][key] = name;
     });
+
+    resources.forEach(({ resource }) => {
+      if (
+        resource.kind === 'app' &&
+        resource.subKind === AppSubKind.AwsIcAccount
+      ) {
+        addOrRemoveIdentityCenterAssignments(
+          resource.name,
+          resource.permissionSets,
+          newMap
+        );
+        delete newMap['app'][resource.name];
+      }
+    });
+
     setAddedResources(newMap);
   };
 
@@ -456,6 +472,28 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
 }
 
 type ResourceDefinition = SharedUnifiedResource['resource'] | KubeResource;
+
+/**
+ * addOrRemoveIdentityCenterAssignments adds or removes assignments
+ * based on permission sets available to an Identity Center account app.
+ * @param resourceName is name of the app resource.
+ * @param permSets is a list of permission sets.
+ * @param newResources is a ResourceMap of access request cart.
+ */
+export function addOrRemoveIdentityCenterAssignments(
+  resourceName: string,
+  permSets: PermissionSet[],
+  newResources: ResourceMap
+) {
+  permSets.forEach(ps => {
+    if (newResources['aws_ic_account_assignment'][ps.assignmentId]) {
+      delete newResources['aws_ic_account_assignment'][ps.assignmentId];
+    } else {
+      newResources['aws_ic_account_assignment'][ps.assignmentId] =
+        `"${ps.name}" on "${resourceName}"`;
+    }
+  });
+}
 
 /**
  * RequestItem defines type for a resource

@@ -21,12 +21,14 @@ import {
   SharedUnifiedResource,
   getResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
+import { AppSubKind } from 'teleport/services/apps';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
   deepCopyResourceMap,
   getResourceId,
   useNewRequest,
+  addOrRemoveIdentityCenterAssignments,
   requestItems,
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import {
@@ -136,6 +138,21 @@ export function UnifiedResourcesE() {
         newResources[resource.kind][resourceId] = resourceName;
       }
     });
+
+    data.forEach(({ resource }) => {
+      if (
+        resource.kind === 'app' &&
+        resource.subKind === AppSubKind.AwsIcAccount
+      ) {
+        addOrRemoveIdentityCenterAssignments(
+          resource.name,
+          resource.permissionSets,
+          newResources
+        );
+        delete newResources['app'][resource.name];
+      }
+    });
+
     setAddedResources(newResources);
   }
 
