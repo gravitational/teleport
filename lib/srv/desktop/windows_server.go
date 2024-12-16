@@ -1230,6 +1230,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	var activeDirectorySID string
 	if !desktop.NonAD() && os.Getenv("SKIP_LDAP_SID") != "true" {
 		domain := s.cfg.LDAPConfig.DomainDN()
+		username := username
 		if strings.Contains(username, "@") {
 			parts := strings.SplitN(username, "@", 2)
 			username = parts[0]
