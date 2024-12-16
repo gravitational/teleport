@@ -37,7 +37,8 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
 
         return auth
           .getMfaChallengeResponse(mfaChallenge, mfaType)
-          .then(res => emitterSender.sendChallengeResponse(res));
+          .then(res => emitterSender.sendChallengeResponse(res))
+          .then(() => setMfaChallenge(null));
       },
       [mfaChallenge]
     )

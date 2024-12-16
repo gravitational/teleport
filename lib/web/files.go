@@ -83,9 +83,12 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.mfaResponse = query.Get("webauthn")
 	}
 
-	mfaResponse, err := client.ParseMFAChallengeResponse([]byte(req.mfaResponse))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var mfaResponse *proto.MFAAuthenticateResponse
+	if req.mfaResponse != "" {
+		var err error
+		if mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.mfaResponse)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Send an error if only one of these params has been sent. Both should exist or not exist together

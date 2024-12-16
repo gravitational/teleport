@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Indicator, Box } from 'design';
+import { Box, Indicator } from 'design';
 
 import {
-  FileTransferActionBar,
   FileTransfer,
-  FileTransferRequests,
+  FileTransferActionBar,
   FileTransferContextProvider,
+  FileTransferRequests,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
@@ -39,8 +39,8 @@ import Document from '../Document';
 import { useConsoleContext } from '../consoleContextProvider';
 
 import { Terminal, TerminalRef } from './Terminal';
-import useSshSession from './useSshSession';
 import { useFileTransfer } from './useFileTransfer';
+import useSshSession from './useSshSession';
 
 export default function DocumentSshWrapper(props: PropTypes) {
   return (
@@ -57,12 +57,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
   const mfa = useMfa(tty);
-  const {
-    getMfaResponseAttempt,
-    getDownloader,
-    getUploader,
-    fileTransferRequests,
-  } = useFileTransfer(tty, session, doc, mfa.mfaRequired);
+  const ft = useFileTransfer(tty, session, doc, mfa.mfaRequired);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -110,21 +105,19 @@ function DocumentSsh({ doc, visible }: PropTypes) {
               <FileTransferRequests
                 onDeny={handleFileTransferDecision}
                 onApprove={handleFileTransferDecision}
-                requests={fileTransferRequests}
+                requests={ft.fileTransferRequests}
               />
             }
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
             errorText={
-              getMfaResponseAttempt.status === 'failed'
-                ? getMfaResponseAttempt.statusText
-                : null
+              ft.mfaAttempt.status === 'error' ? ft.mfaAttempt.statusText : null
             }
             afterClose={handleCloseFileTransfer}
             transferHandlers={{
-              getDownloader,
-              getUploader,
+              getDownloader: ft.getDownloader,
+              getUploader: ft.getUploader,
             }}
           />
         </>
@@ -143,7 +136,15 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      {mfa.mfaChallenge && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      {mfa.mfaChallenge && <AuthnDialog {...mfa} onCancel={closeDocument} />}
+      {ft.mfaChallenge && (
+        <AuthnDialog
+          mfaChallenge={ft.mfaChallenge}
+          submitMfa={ft.submitMfa}
+          submitAttempt={ft.submitMfaAttempt}
+          onCancel={ft.clearMfaChallenge}
+        />
+      )}
       {status === 'initialized' && terminal}
     </Document>
   );

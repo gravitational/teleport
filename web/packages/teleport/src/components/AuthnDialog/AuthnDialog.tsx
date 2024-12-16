@@ -25,11 +25,17 @@ import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
-import { MfaState } from 'teleport/lib/useMfa';
+import { Attempt } from 'shared/hooks/useAsync';
+import { DeviceType, MfaAuthenticateChallenge } from 'teleport/services/mfa';
 
-export default function AuthnDialog({ mfa, onCancel }: Props) {
-  let hasMultipleOptions =
-    mfa.mfaChallenge.ssoChallenge && mfa.mfaChallenge.webauthnPublicKey;
+export default function AuthnDialog({
+  mfaChallenge,
+  submitMfa,
+  submitAttempt,
+  onCancel,
+}: Props) {
+  const hasMultipleOptions =
+    mfaChallenge.ssoChallenge && mfaChallenge.webauthnPublicKey;
 
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
@@ -40,9 +46,9 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
         </ButtonIcon>
       </Flex>
       <DialogContent mb={5}>
-        {mfa.submitAttempt.status === 'error' && (
+        {submitAttempt.status === 'error' && (
           <Danger data-testid="danger-alert" mt={2} width="100%">
-            {mfa.submitAttempt.statusText}
+            {submitAttempt.statusText}
           </Danger>
         )}
         <Text color="text.slightlyMuted">
@@ -52,28 +58,28 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
         </Text>
       </DialogContent>
       <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
-        {mfa.mfaChallenge.ssoChallenge && (
+        {mfaChallenge.ssoChallenge && (
           <ButtonSecondary
             size="extra-large"
-            onClick={() => mfa.submitMfa('sso')}
+            onClick={() => submitMfa('sso')}
             gap={2}
             block
           >
             <SSOIcon
               type={guessProviderType(
-                mfa.mfaChallenge.ssoChallenge.device.displayName ||
-                  mfa.mfaChallenge.ssoChallenge.device.connectorId,
-                mfa.mfaChallenge.ssoChallenge.device.connectorType
+                mfaChallenge.ssoChallenge.device.displayName ||
+                  mfaChallenge.ssoChallenge.device.connectorId,
+                mfaChallenge.ssoChallenge.device.connectorType
               )}
             />
-            {mfa.mfaChallenge.ssoChallenge.device.displayName ||
-              mfa.mfaChallenge.ssoChallenge.device.connectorId}
+            {mfaChallenge.ssoChallenge.device.displayName ||
+              mfaChallenge.ssoChallenge.device.connectorId}
           </ButtonSecondary>
         )}
-        {mfa.mfaChallenge.webauthnPublicKey && (
+        {mfaChallenge.webauthnPublicKey && (
           <ButtonSecondary
             size="extra-large"
-            onClick={() => mfa.submitMfa('webauthn')}
+            onClick={() => submitMfa('webauthn')}
             gap={2}
             block
           >
@@ -87,6 +93,8 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
 }
 
 export type Props = {
-  mfa: MfaState;
+  mfaChallenge: MfaAuthenticateChallenge;
+  submitMfa: (mfaType?: DeviceType) => Promise<any>;
+  submitAttempt: Attempt<any>;
   onCancel: () => void;
 };
