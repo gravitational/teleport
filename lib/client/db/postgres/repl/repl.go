@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/asciitable"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -44,13 +45,13 @@ type REPL struct {
 	commands   map[string]*command
 }
 
-func New(client io.ReadWriteCloser, serverConn net.Conn, route clientproto.RouteToDatabase) (*REPL, error) {
+func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
 	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", hostnamePlaceholder))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	config.User = route.Username
-	config.Database = route.Database
+	config.User = cfg.Route.Username
+	config.Database = cfg.Route.Database
 	config.ConnectTimeout = defaults.DatabaseConnectTimeout
 	config.RuntimeParams = map[string]string{
 		applicationNameParamName: applicationNameParamValue,
@@ -63,15 +64,15 @@ func New(client io.ReadWriteCloser, serverConn net.Conn, route clientproto.Route
 		return []string{hostnamePlaceholder}, nil
 	}
 	config.DialFunc = func(_ context.Context, _, _ string) (net.Conn, error) {
-		return serverConn, nil
+		return cfg.ServerConn, nil
 	}
 
 	return &REPL{
 		connConfig: config,
-		client:     client,
-		serverConn: serverConn,
-		route:      route,
-		term:       term.NewTerminal(client, ""),
+		client:     cfg.Client,
+		serverConn: cfg.ServerConn,
+		route:      cfg.Route,
+		term:       term.NewTerminal(cfg.Client, ""),
 		commands:   initCommands(),
 	}, nil
 }

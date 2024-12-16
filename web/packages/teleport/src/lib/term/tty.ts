@@ -116,6 +116,12 @@ class Tty extends EventEmitterMfaSender {
     this.socket.send(bytearray);
   }
 
+  sendDbConnectData(data: DbConnectData) {
+    const encoded = this._proto.encodeDbConnectData(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   _sendFileTransferRequest(message: string) {
     const encoded = this._proto.encodeFileTransferRequest(message);
     const bytearray = new Uint8Array(encoded);
@@ -298,6 +304,14 @@ export type KubeExecData = {
   container: string;
   command: string;
   isInteractive: boolean;
+};
+
+export type DbConnectData = {
+  serviceName: string;
+  protocol: string;
+  dbName: string;
+  dbUser: string;
+  dbRoles: string[];
 };
 
 export default Tty;

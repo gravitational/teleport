@@ -446,7 +446,7 @@ const ActionCell = ({
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING Tokens are defined using{' '}
       <Link
         color="text.main"
         target="_blank"
