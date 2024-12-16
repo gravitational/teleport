@@ -31,9 +31,14 @@ func IsEnabled() (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
-	if !strings.HasPrefix(teleportPath, teleportOptDir) {
+	updaterBasePath := filepath.Clean(teleportOptDir) + "/"
+	absPath, err := filepath.Abs(teleportPath)
+	if err != nil {
+		return false, trace.Wrap(err, "cannot get absolute path for Teleport binary")
+	}
+	if !strings.HasPrefix(absPath, updaterBasePath) {
 		return false, nil
 	}
 	systemDir := filepath.Join(teleportOptDir, systemNamespace)
-	return !strings.HasPrefix(teleportPath, systemDir), nil
+	return !strings.HasPrefix(absPath, systemDir), nil
 }
