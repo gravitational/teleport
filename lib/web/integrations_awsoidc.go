@@ -323,6 +323,7 @@ func fetchRelevantAWSRegions(ctx context.Context, authClient databaseGetter, dis
 			ResourceType: types.KindDatabaseService,
 			Limit:        defaults.MaxIterationLimit,
 			StartKey:     nextPageKey,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
 		}
 		page, err := client.GetResourcePage[types.DatabaseService](ctx, authClient, req)
 		if err != nil {
@@ -458,8 +459,15 @@ func matchingLabelsFromDeployedService(deployedDatabaseService *integrationv1.De
 		return nil, trace.BadParameter("unexpected command size, expected at least 3 args, got %d", len(commandArgs))
 	}
 
-	// The --config-string flag's value is the last argument.
-	teleportConfigString := commandArgs[len(commandArgs)-1]
+	// The command should have a --config-string flag and then the teleport's base64 encoded configuration as argument
+	teleportConfigStringFlagIdx := slices.Index(commandArgs, "--config-string")
+	if teleportConfigStringFlagIdx == -1 {
+		return nil, trace.BadParameter("missing --config-string flag in container command")
+	}
+	if len(commandArgs) < teleportConfigStringFlagIdx+1 {
+		return nil, trace.BadParameter("missing --config-string argument in container command")
+	}
+	teleportConfigString := commandArgs[teleportConfigStringFlagIdx+1]
 
 	labelMatchers, err := deployserviceconfig.ParseResourceLabelMatchers(teleportConfigString)
 	if err != nil {
