@@ -42,14 +42,15 @@ available to be used when configuring rules for `tbot`'s Workload API service:
 | `unix.uid`        | The effective user ID of the attested workload.                              |
 | `unix.gid`        | The effective primary group ID of the attested workload.                     |
 
-### Support for non-standard /proc mounting
+### Support for non-standard procfs mounting
 
 To resolve information about a process from the PID, the Unix Workload Attestor
-reads information from the `/proc` filesystem.
+reads information from the procfs filesystem. By default, it expects procfs to
+be mounted at `/proc`.
 
-In some cases, the `/proc` filesystem may not be mounted at the default
-location. If this is the case, you can configure the Unix Workload Attestor to
-read from a different location by setting the `HOST_PROC` environment variable.
+If procfs is mounted at a different location, you must configure the Unix
+Workload Attestor to read from that alternative location by setting the
+`HOST_PROC` environment variable.
 
 This is a sensitive configuration option, and you should ensure that it is
 set correctly or not set at all. If misconfigured, an attacker could provide
