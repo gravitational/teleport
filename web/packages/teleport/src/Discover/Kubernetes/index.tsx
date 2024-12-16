@@ -24,8 +24,8 @@ import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
 import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
-import { HelmChart } from './HelmChart';
 import { KubeWrapper } from './KubeWrapper';
+import { HelmChart } from './SelfHosted';
 import { SetupAccess } from './SetupAccess';
 import { TestConnection } from './TestConnection';
 
