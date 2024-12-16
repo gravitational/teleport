@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Text, Box, ButtonSecondary, Link } from 'design';
+import { Text, Box, ButtonSecondary, Link, ButtonPrimary } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -26,9 +26,12 @@ import Dialog, {
 } from 'design/Dialog';
 import { DbProtocol } from 'shared/services/databases';
 
+import { NewTab as NewTabIcon } from 'design/Icon';
+
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { generateTshLoginCommand } from 'teleport/lib/util';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import cfg from 'teleport/config';
 
 export default function ConnectDialog({
   username,
@@ -38,6 +41,7 @@ export default function ConnectDialog({
   authType,
   accessRequestId,
   dbProtocol,
+  supportsInteractive,
 }: Props) {
   // For dynamodb and clickhouse-http protocols, the command is `tsh proxy db --tunnel` instead of `tsh db connect`.
   let connectCommand =
@@ -72,6 +76,12 @@ export default function ConnectDialog({
       dbNameFlag = ' [--db-name=<name>]';
   }
 
+  const onConnect = () => {
+    const url = cfg.getDbConnectRoute({ clusterId, serviceName: dbName });
+    openNewTab(url);
+    onClose();
+  };
+
   return (
     <Dialog
       dialogCss={() => ({
@@ -86,6 +96,17 @@ export default function ConnectDialog({
         <DialogTitle>Connect To Database</DialogTitle>
       </DialogHeader>
       <DialogContent minHeight="240px" flex="0 0 auto">
+        {supportsInteractive && (
+          <Box borderBottom={1} mb={4} pb={4}>
+            <Text mb={3} bold>
+              Open Teleport-authenticated session in the browser:
+            </Text>
+            <ButtonPrimary size="large" gap={2} onClick={onConnect}>
+              Connect in the browser
+              <NewTabIcon />
+            </ButtonPrimary>
+          </Box>
+        )}
         <Box mb={4}>
           <Text bold as="span">
             Step 1
@@ -148,4 +169,5 @@ export type Props = {
   clusterId: string;
   authType: AuthType;
   accessRequestId?: string;
+  supportsInteractive?: boolean;
 };
