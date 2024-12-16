@@ -593,8 +593,8 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 		input    CreateHostUserMode
 		expected string
 	}{
-		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "\"off\""},
-		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: "\"\""},
+		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: `"off"`},
+		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: `""`},
 		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
 		{input: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, expected: "insecure-drop"},
 	} {
@@ -606,15 +606,15 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 
 func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
-		expected CreateHostUserMode
 		input    any
+		expected CreateHostUserMode
 	}{
-		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "\"keep\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: 3},
-		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: 1},
-		{expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, input: 4},
+		{input: `"off"`, expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: `""`, expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED},
+		{input: `"keep"`, expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: 3, expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: 1, expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: 4, expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP},
 	} {
 		var got CreateHostUserMode
 		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
@@ -625,19 +625,62 @@ func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
 
 func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 	for _, tc := range []struct {
-		expected CreateHostUserMode
 		input    string
+		expected CreateHostUserMode
 	}{
-		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
-		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
-		{expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, input: "insecure-drop"},
+		{input: `"off"`, expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: "off", expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: `""`, expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED},
+		{input: "keep", expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: "insecure-drop", expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP},
 	} {
 		var got CreateHostUserMode
 		err := yaml.Unmarshal([]byte(tc.input), &got)
 		require.NoError(t, err)
 		require.Equal(t, tc.expected, got)
+	}
+}
+
+func TestUnmarshallCreateDatabaseUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected CreateDatabaseUserMode
+	}{
+		{input: `""`, expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED},
+		{input: `"off"`, expected: CreateDatabaseUserMode_DB_USER_MODE_OFF},
+		{input: `"keep"`, expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP},
+		{input: `"best_effort_drop"`, expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP},
+		{input: 0, expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED},
+		{input: 1, expected: CreateDatabaseUserMode_DB_USER_MODE_OFF},
+		{input: 2, expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP},
+		{input: 3, expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP},
+	} {
+		var got CreateDatabaseUserMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
+func TestUnmarshallCreateDatabaseUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected CreateDatabaseUserMode
+	}{
+		{input: `""`, expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED},
+		{input: `"off"`, expected: CreateDatabaseUserMode_DB_USER_MODE_OFF},
+		{input: "off", expected: CreateDatabaseUserMode_DB_USER_MODE_OFF},
+		{input: `"keep"`, expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP},
+		{input: `"best_effort_drop"`, expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP},
+		{input: 0, expected: CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED},
+		{input: 1, expected: CreateDatabaseUserMode_DB_USER_MODE_OFF},
+		{input: 2, expected: CreateDatabaseUserMode_DB_USER_MODE_KEEP},
+		{input: 3, expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP},
+	} {
+		var got CreateDatabaseUserMode
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
 	}
 }
 
