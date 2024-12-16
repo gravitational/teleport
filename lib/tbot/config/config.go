@@ -399,6 +399,18 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case WorkloadIdentityOutputType:
+			v := &WorkloadIdentityOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityAPIServiceType:
+			v := &WorkloadIdentityAPIService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
