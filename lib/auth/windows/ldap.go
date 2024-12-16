@@ -275,9 +275,10 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				res, err3 := conn.SearchWithPaging(req, searchPageSize)
 				if err3 == nil {
 					return res.Entries, nil
+				} else if len(referrals) < 10 {
+					newReferrals := extractReferrals(err3)
+					referrals = append(referrals, newReferrals...)
 				}
-				newReferrals := extractReferrals(err3)
-				referrals = append(referrals, newReferrals...)
 			}
 		}
 		return nil, trace.Wrap(fmt.Errorf("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ",")))
