@@ -220,7 +220,6 @@ export function Roles(props: State) {
             onClose={resources.disregard}
             resources={resources}
             onSave={handleSave}
-            onDelete={handleDelete}
           />
         )}
         <Box

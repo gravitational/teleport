@@ -909,7 +909,7 @@ This persistence must remain over:
 
 To achieve this persistence, the JoinAttributes protobuf message will be
 encoded using `protojson.Marshal` and stored within the X509 certificate using
-a new extension - `1.3.9999.2.21`. When unmarshalling, unknown fields should be
+a new extension - `1.3.9999.2.21`. When unmarshaling, unknown fields should be
 ignored to ensure forwards compatibility.
 
 The GenerateUserCert RPC will be modified to propagate the JoinAttributes,
@@ -1302,7 +1302,7 @@ perform benchmarks and performance improvements with growing magnitudes of
 scale in mind.
 
 The flexible templating mechanism is intended to limit the number of Roles,
-Bots and WorkloadIdentitys used for large-scale deployment. For example,
+Bots and WorkloadIdentities used for large-scale deployment. For example,
 thousands of CI workflows can share the same Bot and WorkloadIdentity.
 Where possible, we can mitigate the need for growing numbers of WorkloadIdentity
 resources by adding more advanced templating and authorization rule
