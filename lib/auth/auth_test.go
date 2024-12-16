@@ -2646,7 +2646,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		sshPublicKey:   sshPubKey,
 		tlsPublicKey:   tlsPubKey,
-		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		activeRequests: []string{requestID},
 		deviceExtensions: DeviceExtensions{
 			DeviceID:     deviceID,
 			AssetTag:     "assettag1",

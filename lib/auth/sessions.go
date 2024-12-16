@@ -291,7 +291,7 @@ func (a *Server) newWebSession(
 		tlsPublicKey:   tlsPublicKeyPEM,
 		checker:        checker,
 		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		activeRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
@@ -560,7 +560,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		checker:        checker,
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		activeRequests: req.AccessRequests,
 		// Set the app session ID in the certificate - used in auditing from the App Service.
 		appSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
