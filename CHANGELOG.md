@@ -1,5 +1,26 @@
 # Changelog
 
+## 17.0.6 (12/12/24)
+
+* Fixed bug causing users to see notifications for their own access requests in some cases. [#50076](https://github.com/gravitational/teleport/pull/50076)
+* Improved the cluster initialization process's ability to recovery from errors. [#49966](https://github.com/gravitational/teleport/pull/49966)
+
+## 17.0.5 (12/11/24)
+
+* Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50078](https://github.com/gravitational/teleport/pull/50078)
+* Fixed `tsh ssh -Y` when jumping between multiple servers. [#50031](https://github.com/gravitational/teleport/pull/50031)
+* Reduced Auth memory consumption when agents join using the azure join method. [#49998](https://github.com/gravitational/teleport/pull/49998)
+* Our OSS OS packages (rpm, deb, etc) now have up-to-date metadata. [#49962](https://github.com/gravitational/teleport/pull/49962)
+* `tsh` correctly respects the --no-allow-passwordless flag. [#49933](https://github.com/gravitational/teleport/pull/49933)
+* The web session authorization dialog in Teleport Connect is now a dedicated tab, which properly shows a re-login dialog when the local session is expired. [#49931](https://github.com/gravitational/teleport/pull/49931)
+* Added an interactive mode for `tctl auth rotate`. [#49896](https://github.com/gravitational/teleport/pull/49896)
+* Fixed a panic when the auth server does not provide a license expiry. [#49876](https://github.com/gravitational/teleport/pull/49876)
+
+Enterprise:
+* Fixed a panic occurring during SCIM push operations when resource.metadata is empty. [#5654](https://github.com/gravitational/teleport.e/pull/5654)
+* Improved "IP mismatch" audit entries for device trust web. [#5642](https://github.com/gravitational/teleport.e/pull/5642)
+* Fixed assigning suggested reviewers in the edge case when the user already has access to the requested resources. [#5629](https://github.com/gravitational/teleport.e/pull/5629)
+
 ## 17.0.4 (12/5/2024)
 
 * Fixed a bug introduced in 17.0.3 breaking in-cluster joining on some Kubernetes clusters. [#49841](https://github.com/gravitational/teleport/pull/49841)
@@ -27,6 +48,7 @@ Enterprise:
 * Jamf Service sync audit events are attributed to "Jamf Service".
 * Users can now see a list of their enrolled devices on their Account page.
 * Add support for Entra ID groups being members of other groups using Nested Access Lists.
+* Added support for requiring reason for Access Requests (with a new role.spec.allow.request.reason.mode setting).
 
 ## 17.0.2 (11/25/2024)
 

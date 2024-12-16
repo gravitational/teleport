@@ -2945,6 +2945,38 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding.
+  SSHLocalPortForwarding Local = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "local,omitempty"
+  ];
+  // Allow remote port forwarding.
+  SSHRemotePortForwarding Remote = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "remote,omitempty"
+  ];
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2959,11 +2991,9 @@ message RoleOptions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // PortForwarding defines if the certificate will have
-  // "permit-port-forwarding"
-  // in the certificate. PortForwarding is "yes" if not set,
-  // that's why this is a pointer
+  // Deprecated: Use SSHPortForwarding instead
   BoolValue PortForwarding = 3 [
+    deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
     (gogoproto.customtype) = "BoolOption"
@@ -3130,6 +3160,12 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  SSHPortForwarding SSHPortForwarding = 32 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
+  ];
 }
 
 message RecordSession {
@@ -3358,6 +3394,18 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

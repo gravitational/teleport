@@ -235,6 +235,9 @@ export const eventCodes = {
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
+  WORKLOAD_IDENTITY_CREATE: `WID001I`,
+  WORKLOAD_IDENTITY_UPDATE: `WID002I`,
+  WORKLOAD_IDENTITY_DELETE: `WID003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -1323,6 +1326,18 @@ export type RawEvents = {
   [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
   [eventCodes.BOT_UPDATED]: RawEvent<typeof eventCodes.BOT_UPDATED, HasName>;
   [eventCodes.BOT_DELETED]: RawEvent<typeof eventCodes.BOT_DELETED, HasName>;
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
+    HasName
+  >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName

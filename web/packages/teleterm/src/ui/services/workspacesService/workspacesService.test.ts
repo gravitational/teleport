@@ -218,6 +218,7 @@ describe('state persistence', () => {
                 id: '',
                 token: '',
                 redirectUri: '',
+                username: '',
               },
             },
           ],

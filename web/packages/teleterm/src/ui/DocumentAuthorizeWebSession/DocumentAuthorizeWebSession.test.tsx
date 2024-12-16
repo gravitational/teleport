@@ -40,10 +40,11 @@ const doc: types.DocumentAuthorizeWebSession = {
     redirectUri: '',
     token: '',
     id: '',
+    username: 'alice',
   },
 };
 
-test('authorize button is disabled when device is not trusted', async () => {
+test('warning is visible and authorize button is disabled when device is not trusted', async () => {
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: false }),
   });
@@ -61,6 +62,29 @@ test('authorize button is disabled when device is not trusted', async () => {
   );
 
   expect(await screen.findByText(/This device is not trusted/)).toBeVisible();
+  expect(await screen.findByText(/Authorize Session/)).toBeDisabled();
+});
+
+test('warning is visible and authorize button is disabled when requested user is not logged in', async () => {
+  const rootCluster = makeRootCluster({
+    loggedInUser: makeLoggedInUser({ isDeviceTrusted: true, name: 'bob' }),
+  });
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
+        <DocumentAuthorizeWebSession doc={doc} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(
+    await screen.findByText(/Requested user is not logged in/)
+  ).toBeVisible();
   expect(await screen.findByText(/Authorize Session/)).toBeDisabled();
 });
 

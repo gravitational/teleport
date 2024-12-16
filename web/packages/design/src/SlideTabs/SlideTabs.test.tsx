@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { screen } from '@testing-library/react';
 
 import { render, userEvent } from 'design/utils/testing';

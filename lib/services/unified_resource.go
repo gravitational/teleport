@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -1015,36 +1014,35 @@ func makePaginatedIdentityCenterAccount(resourceKind string, resource types.Reso
 		}
 	}
 
-	protoResource := &proto.PaginatedResource{
-		Resource: &proto.PaginatedResource_AppServer{
-			AppServer: &types.AppServerV3{
-				Kind:     types.KindAppServer,
+	appServer := &types.AppServerV3{
+		Kind:     types.KindAppServer,
+		Version:  types.V3,
+		Metadata: resource.GetMetadata(),
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind:     types.KindApp,
+				SubKind:  types.KindIdentityCenterAccount,
 				Version:  types.V3,
-				Metadata: resource.GetMetadata(),
-				Spec: types.AppServerSpecV3{
-					App: &types.AppV3{
-						Kind:    types.KindApp,
-						SubKind: types.KindIdentityCenterAccount,
-						Version: types.V3,
-						Metadata: types.Metadata{
-							Name:        acct.Spec.Name,
-							Description: acct.Spec.Description,
-							Labels:      maps.Clone(acct.Metadata.Labels),
-						},
-						Spec: types.AppSpecV3{
-							URI:        acct.Spec.StartUrl,
-							PublicAddr: acct.Spec.StartUrl,
-							AWS: &types.AppAWS{
-								ExternalID: acct.Spec.Id,
-							},
-							IdentityCenter: &types.AppIdentityCenter{
-								AccountID:      acct.Spec.Id,
-								PermissionSets: pss,
-							},
-						},
+				Metadata: types.Metadata153ToLegacy(acct.Metadata),
+				Spec: types.AppSpecV3{
+					URI:        acct.Spec.StartUrl,
+					PublicAddr: acct.Spec.StartUrl,
+					AWS: &types.AppAWS{
+						ExternalID: acct.Spec.Id,
+					},
+					IdentityCenter: &types.AppIdentityCenter{
+						AccountID:      acct.Spec.Id,
+						PermissionSets: pss,
 					},
 				},
 			},
+		},
+	}
+	appServer.Metadata.Description = acct.Spec.Name
+
+	protoResource := &proto.PaginatedResource{
+		Resource: &proto.PaginatedResource_AppServer{
+			AppServer: appServer,
 		},
 		RequiresRequest: requiresRequest,
 	}

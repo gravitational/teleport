@@ -73,6 +73,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
+|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.allow.account_assignments items
 
@@ -245,6 +247,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
+|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.deny.account_assignments items
 
@@ -402,12 +406,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |mfa_verification_interval|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
-|port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
+|port_forwarding|boolean|Deprecated: Use SSHPortForwarding instead|
 |record_session|[object](#specoptionsrecord_session)|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|
 |request_access|string|RequestAccess defines the request strategy (optional|note|always) where optional is the default.|
 |request_prompt|string|RequestPrompt is an optional message which tells users what they aught to request.|
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
+|ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
 
 ### spec.options.cert_extensions items
 
@@ -437,4 +442,23 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |default|string|Default indicates the default value for the services.|
 |desktop|boolean|Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|
 |ssh|string|SSH indicates the session mode used on SSH sessions.|
+
+### spec.options.ssh_port_forwarding
+
+|Field|Type|Description|
+|---|---|---|
+|local|[object](#specoptionsssh_port_forwardinglocal)|Allow local port forwarding.|
+|remote|[object](#specoptionsssh_port_forwardingremote)|Allow remote port forwarding.|
+
+### spec.options.ssh_port_forwarding.local
+
+|Field|Type|Description|
+|---|---|---|
+|enabled|boolean||
+
+### spec.options.ssh_port_forwarding.remote
+
+|Field|Type|Description|
+|---|---|---|
+|enabled|boolean||
 

@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.4
+VERSION=17.0.6
 
 DOCKER_IMAGE ?= teleport
 
@@ -590,6 +590,7 @@ build-archive: | $(RELEASE_DIR)
 		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
+		build.assets/LICENSE-community \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz

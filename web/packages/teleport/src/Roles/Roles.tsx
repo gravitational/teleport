@@ -17,13 +17,18 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, Flex, H3, Indicator, Link } from 'design';
+import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
-import { useAsync } from 'shared/hooks/useAsync';
-import { Danger } from 'design/Alert';
-import { useTheme } from 'styled-components';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import { HoverTooltip } from 'design/Tooltip';
+
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
+
+import styled from 'styled-components';
 
 import {
   FeatureBox,
@@ -35,18 +40,14 @@ import useTeleport from 'teleport/useTeleport';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, Role, RoleResource } from 'teleport/services/resources';
-import useResources, {
-  State as ResourcesState,
-} from 'teleport/components/useResources';
-import { yamlService } from 'teleport/services/yaml';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import { RoleWithYaml, RoleResource } from 'teleport/services/resources';
+import useResources from 'teleport/components/useResources';
 
 import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
 import { useRoles, State } from './useRoles';
-import { RoleEditor } from './RoleEditor';
 import templates from './templates';
+import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
 
 export function RolesContainer() {
   const ctx = useTeleport();
@@ -59,6 +60,18 @@ const useNewRoleEditor = storageService.getUseNewRoleEditor();
 export function Roles(props: State) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  function addNotification(content: string, severity: NotificationSeverity) {
+    setNotifications(notifications => [
+      ...notifications,
+      { id: crypto.randomUUID(), content, severity },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -82,6 +95,13 @@ export function Roles(props: State) {
     const response: RoleResource = await (resources.status === 'creating'
       ? create(role)
       : update(resources.item.name, role));
+
+    addNotification(
+      resources.status === 'creating'
+        ? `Role ${response.name} has been created`
+        : `Role ${response.name} has been updated`,
+      'success'
+    );
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -135,13 +155,9 @@ export function Roles(props: State) {
       ...p,
       agents: p.agents.filter(r => r.id !== resources.item.id),
     }));
-  }
-
-  function handleRoleEditorDelete() {
-    const id = resources.item?.id;
-    if (id) {
-      resources.remove(id);
-    }
+    // The new editor doesn't use `resources` to delete, so we need to close it
+    // by resetting the state here.
+    resources.disregard();
   }
 
   const canCreate = rolesAcl.create;
@@ -195,41 +211,42 @@ export function Roles(props: State) {
           />
         </Box>
 
-        {/* New editor or descriptive text, depending on state. */}
-        {useNewRoleEditor &&
-        (resources.status === 'creating' || resources.status === 'editing') ? (
-          <RoleEditorAdapter
+        {/* New editor. */}
+        {useNewRoleEditor && (
+          <RoleEditorDialog
+            open={
+              resources.status === 'creating' || resources.status === 'editing'
+            }
+            onClose={resources.disregard}
             resources={resources}
             onSave={handleSave}
-            onDelete={handleRoleEditorDelete}
           />
-        ) : (
-          <Box
-            ml="auto"
-            width="240px"
-            color="text.main"
-            style={{ flexShrink: 0 }}
-          >
-            <H3 mb={3}>Role-based access control</H3>
-            <P mb={3}>
-              Teleport Role-based access control (RBAC) provides fine-grained
-              control over who can access resources and in which contexts. A
-              Teleport role can be assigned automatically based on user identity
-              when used with single sign-on (SSO).
-            </P>
-            <P>
-              Learn more in{' '}
-              <Link
-                color="text.main"
-                target="_blank"
-                href="https://goteleport.com/docs/access-controls/guides/role-templates/"
-              >
-                the cluster management (RBAC)
-              </Link>{' '}
-              section of online documentation.
-            </P>
-          </Box>
         )}
+        <Box
+          ml="auto"
+          width="240px"
+          color="text.main"
+          style={{ flexShrink: 0 }}
+        >
+          <H3 mb={3}>Role-based access control</H3>
+          <P mb={3}>
+            Teleport Role-based access control (RBAC) provides fine-grained
+            control over who can access resources and in which contexts. A
+            Teleport role can be assigned automatically based on user identity
+            when used with single sign-on (SSO).
+          </P>
+          <P>
+            Learn more in{' '}
+            <Link
+              color="text.main"
+              target="_blank"
+              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            >
+              the cluster management (RBAC)
+            </Link>{' '}
+            section of online documentation.
+          </P>
+        </Box>
       </Flex>
 
       {/* Old editor. */}
@@ -255,74 +272,18 @@ export function Roles(props: State) {
           onDelete={handleDelete}
         />
       )}
+
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+          />
+        ))}
+      </NotificationContainer>
     </FeatureBox>
-  );
-}
-
-/**
- * This component is responsible for converting from the `Resource`
- * representation of a role to a more accurate `RoleWithYaml` structure. The
- * conversion is asynchronous and it's performed on the server side.
- */
-function RoleEditorAdapter({
-  resources,
-  onSave,
-  onDelete,
-}: {
-  resources: ResourcesState;
-  onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
-  onDelete: () => void;
-}) {
-  const theme = useTheme();
-  const [convertAttempt, convertToRole] = useAsync(
-    async (yaml: string): Promise<RoleWithYaml | null> => {
-      if (resources.status === 'creating' || !resources.item) {
-        return null;
-      }
-      return {
-        yaml,
-        object: await yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
-          yaml,
-        }),
-      };
-    }
-  );
-
-  const originalContent = resources.item?.content ?? '';
-  useEffect(() => {
-    convertToRole(originalContent);
-  }, [originalContent]);
-
-  return (
-    <Flex
-      flexDirection="column"
-      p={4}
-      borderLeft={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
-      width="700px"
-    >
-      {convertAttempt.status === 'processing' && (
-        <Flex
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          flex="1"
-        >
-          <Indicator />
-        </Flex>
-      )}
-      {convertAttempt.status === 'error' && (
-        <Danger>{convertAttempt.statusText}</Danger>
-      )}
-      {convertAttempt.status === 'success' && (
-        <RoleEditor
-          originalRole={convertAttempt.data}
-          onCancel={resources.disregard}
-          onSave={onSave}
-          onDelete={onDelete}
-        />
-      )}
-    </Flex>
   );
 }
 
@@ -341,3 +302,9 @@ function Directions() {
     </>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;

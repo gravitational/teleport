@@ -62,7 +62,7 @@
     "prettier": "^3.3.3",
     "react-select-event": "^5.5.1",
     "storybook": "^8.3.4",
-    "typescript": "^5.6.2",
+    "typescript": "^5.7.2",
     "vite": "^5.4.8"
   },
   "dependencies": {
@@ -101,3 +101,4 @@
   },
   "packageManager": "pnpm@9.9.0"
 }
+

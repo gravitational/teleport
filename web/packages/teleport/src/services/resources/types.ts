@@ -351,13 +351,41 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  port_forwarding: boolean;
+  ssh_port_forwarding: SSHPortForwarding;
   record_session: {
-    default: string;
+    default: SessionRecordingMode;
+    ssh?: SessionRecordingMode;
     desktop: boolean;
   };
   ssh_file_copy: boolean;
+  client_idle_timeout?: string;
+  disconnect_expired_cert?: boolean;
+  require_session_mfa?: RequireMFAType;
+  create_host_user_mode?: CreateHostUserMode;
+  create_db_user_mode?: CreateDBUserMode;
 };
+
+export type SSHPortForwarding = {
+  local: {
+    enabled: boolean;
+  };
+  remote: {
+    enabled: boolean;
+  };
+};
+
+export type RequireMFAType =
+  | boolean
+  | 'hardware_key'
+  | 'hardware_key_touch'
+  | 'hardware_key_pin'
+  | 'hardware_key_touch_and_pin';
+
+export type CreateHostUserMode = '' | 'off' | 'keep' | 'insecure-drop';
+
+export type CreateDBUserMode = '' | 'off' | 'keep' | 'best_effort_drop';
+
+export type SessionRecordingMode = '' | 'strict' | 'best_effort';
 
 export type RoleWithYaml = {
   object: Role;

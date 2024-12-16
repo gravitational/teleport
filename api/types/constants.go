@@ -1296,6 +1296,8 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`

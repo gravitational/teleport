@@ -56,7 +56,7 @@ enterprise: false
 # roles `App` and `Kube`.
 authToken: ""
 
-# joinParams -- controls how the Teleport agent joins the Teleport cluster.
+# joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
 #
 # This value serves the same purpose as [`authToken`](#authToken) but supports
@@ -98,7 +98,7 @@ joinParams:
 ################################################################
 
 # kubeClusterName(string) -- sets the name used for the Kubernetes cluster proxied by
-# the Teleport agent. This name will be shown to Teleport users connecting to
+# the Teleport Agent. This name will be shown to Teleport users connecting to
 # the cluster.
 #
 # This setting is required if the chart `roles` contains `kube`.
@@ -320,7 +320,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -748,7 +748,7 @@ podSecurityPolicy:
 labels: {}
 
 # highAvailability -- contains settings controlling the availability of the
-# Teleport agent deployed by the chart.
+# Teleport Agent deployed by the chart.
 #
 # The availability can be increased by:
 # - running more replicas with `replicaCount`
@@ -876,24 +876,25 @@ adminClusterRoleBinding:
 # Values that you shouldn't need to change.
 ################################################################
 
-# image(string) -- sets the container image used for Teleport OSS agent pods
-# created by the chart.
+# image(string) -- sets the container image used for Teleport Community Edition
+# Agent pods created by the chart.
 #
-# You can override this to use your own Teleport image rather than a Teleport-published image.
+# You can override this to use your own Teleport image rather than a
+# Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
-#   When using the Teleport Kube Agent Updater, you must ensure the image is
-#   available before the updater version target gets updated and Kubernetes tries
-#   to pull the image.
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# When using the Teleport Kube Agent Updater, you must ensure the
+# image is available before the updater version target gets updated and
+# Kubernetes tries to pull the image.
 #
-#   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic updates by default.
+# For this reason, it is strongly discouraged to set a custom image when using
+# automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport`. Those images will be
-# removed with teleport 15.
+# Since version 13, hardened distroless images are used by default.  You can use
+# the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport`. Those images will be removed with
+# teleport 15.
 #
 # This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 # When running an enterprise version, you must use
