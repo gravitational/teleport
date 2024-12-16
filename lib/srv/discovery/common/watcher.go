@@ -177,9 +177,9 @@ func (w *Watcher) fetchAndSend() {
 				// Add the integration name to the static labels for each resource.
 				fetcherLabels[types.TeleportInternalDiscoveryIntegrationName] = lFetcher.IntegrationName()
 			}
-			if lFetcher.DiscoveryConfigName() != "" {
+			if lFetcher.GetDiscoveryConfigName() != "" {
 				// Add the discovery config name to the static labels of each resource.
-				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.DiscoveryConfigName()
+				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.GetDiscoveryConfigName()
 			}
 
 			if w.cfg.DiscoveryGroup != "" {

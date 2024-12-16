@@ -97,16 +97,17 @@ func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...O
 }
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azureClientGetter) []Fetcher {
+func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azureClientGetter, discoveryConfigName string) []Fetcher {
 	ret := make([]Fetcher, 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:           matcher,
-					Subscription:      subscription,
-					ResourceGroup:     resourceGroup,
-					AzureClientGetter: clients,
+					Matcher:             matcher,
+					Subscription:        subscription,
+					ResourceGroup:       resourceGroup,
+					AzureClientGetter:   clients,
+					DiscoveryConfigName: discoveryConfigName,
 				})
 				ret = append(ret, fetcher)
 			}
@@ -116,29 +117,32 @@ func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azur
 }
 
 type azureFetcherConfig struct {
-	Matcher           types.AzureMatcher
-	Subscription      string
-	ResourceGroup     string
-	AzureClientGetter azureClientGetter
+	Matcher             types.AzureMatcher
+	Subscription        string
+	ResourceGroup       string
+	AzureClientGetter   azureClientGetter
+	DiscoveryConfigName string
 }
 
 type azureInstanceFetcher struct {
-	AzureClientGetter azureClientGetter
-	Regions           []string
-	Subscription      string
-	ResourceGroup     string
-	Labels            types.Labels
-	Parameters        map[string]string
-	ClientID          string
+	AzureClientGetter   azureClientGetter
+	Regions             []string
+	Subscription        string
+	ResourceGroup       string
+	Labels              types.Labels
+	Parameters          map[string]string
+	ClientID            string
+	DiscoveryConfigName string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	ret := &azureInstanceFetcher{
-		AzureClientGetter: cfg.AzureClientGetter,
-		Regions:           cfg.Matcher.Regions,
-		Subscription:      cfg.Subscription,
-		ResourceGroup:     cfg.ResourceGroup,
-		Labels:            cfg.Matcher.ResourceTags,
+		AzureClientGetter:   cfg.AzureClientGetter,
+		Regions:             cfg.Matcher.Regions,
+		Subscription:        cfg.Subscription,
+		ResourceGroup:       cfg.ResourceGroup,
+		Labels:              cfg.Matcher.ResourceTags,
+		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
 
 	if cfg.Matcher.Params != nil {
@@ -155,6 +159,10 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 
 func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
 	return nil, trace.NotImplemented("not implemented for azure fetchers")
+}
+
+func (f *azureInstanceFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.

@@ -104,10 +104,10 @@ func TestSSMInstaller(t *testing.T) {
 				Instances: []EC2Instance{
 					{InstanceID: "instance-id-1", InstanceName: "my-instance-name"},
 				},
-				DocumentName:    document,
-				Params:          map[string]string{"token": "abcdefg"},
-				IntegrationName: "aws-integration",
-				DiscoveryConfig: "dc001",
+				DocumentName:        document,
+				Params:              map[string]string{"token": "abcdefg"},
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
 				SSM: &mockSSMClient{
 					commandOutput: &ssm.SendCommandOutput{
 						Command: &ssm.Command{
@@ -129,8 +129,8 @@ func TestSSMInstaller(t *testing.T) {
 				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
-				IntegrationName: "aws-integration",
-				DiscoveryConfig: "dc001",
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
 				SSMRunEvent: &events.SSMRun{
 					Metadata: events.Metadata{
 						Type: libevent.SSMRunEvent,
