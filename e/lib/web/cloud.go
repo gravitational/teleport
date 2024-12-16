@@ -168,10 +168,11 @@ func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ct
 	return web.OK(), nil
 }
 
-// ReadProtoJSON reads a proto request and unmarshals it
-// into passed interface{} obj
+// readProtoJSON reads a protojson-encoded request and unmarshals it
+// into val.
 func (p *Plugin) readProtoJSON(r *http.Request, val googleproto.Message) error {
 	// Check content type to mitigate CSRF attack.
+	// (Form POST requests don't support application/json payloads.)
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
 		p.Logger.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)

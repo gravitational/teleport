@@ -100,7 +100,6 @@ func TestAWSICCreatePlugin(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			form := maps.Clone(tc.form)
-			form.Set("csrf_token", aPack.csrfToken)
 			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
 			require.NoError(t, err)
 			require.Equal(t, tc.statusCode, resp.Code())
@@ -167,7 +166,6 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 }
 
 func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
-
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ctx := wSuite.ctx
@@ -187,7 +185,6 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		createPluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin")
 
 		form := installRequestURLValues(t, testServer.URL, "" /* key to remove */)
-		form.Set("csrf_token", aPack.csrfToken)
 		resp, err := aPack.clt.PostForm(wSuite.ctx, createPluginEndpoint, form)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
@@ -247,7 +244,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 
 	t.Run("cleanup after plugin is deleted", func(t *testing.T) {
 		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
-		installAWSICPlugin(t, ctx, aPack.clt, testServer.URL, aPack.csrfToken)
+		installAWSICPlugin(t, ctx, aPack.clt, testServer.URL)
 		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
 
 		deletePluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
@@ -440,11 +437,10 @@ func installRequestURLValues(t *testing.T, testServerURL, keyToRemove string) ur
 	return urlVals
 }
 
-func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, testServerURL, csrfToken string) {
+func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, testServerURL string) {
 	t.Helper()
 	installPluginEndPoint := clt.Endpoint("enterprise", "plugin")
 	form := maps.Clone(installRequestValidURLValues(t, testServerURL))
-	form.Set("csrf_token", csrfToken)
 	resp, err := clt.PostForm(ctx, installPluginEndPoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())

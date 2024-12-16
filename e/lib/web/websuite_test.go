@@ -423,6 +423,7 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 
 	clt := s.client(t)
 
+	// TODO(zmb3): remove CSRF cookie when OSS stops caring about it
 	const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 	rawSess, err := s.login(clt, csrfToken, web.CreateSessionReq{
 		User:              user,
@@ -548,6 +549,7 @@ func (s *webSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebC
 	return &TestWebClient{wc}
 }
 
+// TODO(zmb3): remove csrfToken when OSS stops caring about it
 func (s *webSuite) login(clt *TestWebClient, csrfToken string, reqData web.CreateSessionReq) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)

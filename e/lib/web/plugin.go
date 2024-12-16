@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -305,9 +304,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	//		OAuth provider for OAuth registration. OAuth plugins are created after successful callback from
 	// 		OAuth provider with pluginCallbackHandle.
 	//  -	For non-OAuth plugins: it creates plugin and responds with plugin status.
-	h.POST("/enterprise/plugin", h.WithAuthCookieAndCSRF(p.createPluginHandle))
+	h.POST("/enterprise/plugin", h.WithAuth(p.createPluginHandle))
 	// pluginCallbackHandle handles OAuth callback and creates plugin.
-	h.GET("/enterprise/plugins/callback/:type", h.WithAuthCookieAndCSRF(p.pluginCallbackHandle))
+	h.GET("/enterprise/plugins/callback/:type", h.WithSession(p.pluginCallbackHandle))
 	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
 	// get enrolled plugins
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
@@ -618,14 +617,9 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	})
 }
 
-// withCloud checks against CSRF attacks and provides an initiliazed instance of the cloud client API for public requests.
+// withCloud provides an initialized instance of the cloud client API for public requests.
 func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-		if err := csrf.VerifyHTTPHeader(r); err != nil {
-			p.Logger.WarnContext(r.Context(), "unable to validate CSRF token", "error", err)
-			return nil, trace.AccessDenied("access denied")
-		}
-
 		client, err := p.getAuthClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
