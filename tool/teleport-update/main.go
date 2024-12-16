@@ -101,7 +101,7 @@ func Run(args []string) int {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
-		Short('n').StringVar(&ccfg.InstallSuffix)
+		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
