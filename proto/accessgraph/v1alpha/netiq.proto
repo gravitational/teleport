@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // NetIQResourceList is a request that contains resources to be sync.
@@ -45,7 +47,6 @@ message NetIQObject {
     NetIQUser user = 6;
     // resource_role_assignement represents a resource assignment to a role.
     NetIQResourceAssignmentRef resource_role_ref = 7;
-
     //role_member_ref represents a member being member of a role.
     NetIQMemberAssignmentRef role_member_ref = 8;
   }
@@ -121,6 +122,10 @@ message NetIQRoleRef {
   string child_role_id = 1;
   // parent_role_id is the universal identifier for the role that is parent to child_role_id.
   string parent_role_id = 2;
+  // level is the level of the role.
+  int32 level = 3;
+  // request_description is the description of the request.
+  string request_description = 4;
 }
 
 // NetIQGroupMember represents a NetIQ user.
@@ -141,12 +146,42 @@ message NetIQResourceAssignmentRef {
   string role_id = 1;
   // resource_id is the universal identifier for the resource that is assigned to role_id.
   string resource_id = 2;
+  // mapping_description is the description of the mapping.
+  string mapping_description = 4;
+  // status_code is the status code of the role assignment.
+  uint32 status_code = 5;
 }
 
 // NetIQMemberAssignmentRef represents a NetIQ resource assignment reference.
 message NetIQMemberAssignmentRef {
   // role_id is the group id of a role that user_id is member of.
   string role_id = 1;
-  // user_id is the universal identifier for the user that is member of role_id.
-  string user_id = 2;
+  // dn is the universal identifier for the user that is member of role_id.
+  string dn = 2;
+  // recipient_type identifies the recipient provenance.
+  RoleRecipientType recipient_type = 3;
+  // recipient_type_subcontainer is the sub container of the recipient type.
+  string recipient_type_subcontainer = 4;
+  // status_code is the status code of the role assignment.
+  uint32 status_code = 5;
+  // StatusDstatus_displayisplay is the display of the status.
+  string status_display = 6;
+  // effective_date is the effective date of the role assignment.
+  google.protobuf.Timestamp effective_date = 7;
+  // expiry_date is the expiry date of the role assignment.
+  google.protobuf.Timestamp expiry_date = 8;
+  // description is the description of the role assignment.
+  string description = 9;
+  // grant is a flag that determines whether the role assignment is granted.
+  bool grant = 10;
+}
+
+// RoleRecipientType is the type of the recipient.
+enum RoleRecipientType {
+  // ROLE_RECIPIENT_TYPE_UNSPECIFIED is a unspecified role recipient type.
+  ROLE_RECIPIENT_TYPE_UNSPECIFIED = 0;
+  // ROLE_RECIPIENT_TYPE_USER represents a user being member of a role.
+  ROLE_RECIPIENT_TYPE_USER = 1;
+  // ROLE_RECIPIENT_TYPE_GROUP represents a group being member of a role.
+  ROLE_RECIPIENT_TYPE_GROUP = 2;
 }
