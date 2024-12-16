@@ -1,4 +1,4 @@
-.version: &version "16.4.11"
+.version: &version "16.4.12-dev.azure-fix.1"
 
 name: teleport-operator
 apiVersion: v2
