@@ -629,7 +629,7 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 		}
 	}
 
-	s.logger.InfoContext(ctx, "Reconciling Okta and Teleport Accounts",
+	s.logger.InfoContext(ctx, "Reconciling Okta and Teleport users",
 		"okta_user_count", len(oktaUsers),
 		"teleport_user_count", len(teleportUsers),
 	)

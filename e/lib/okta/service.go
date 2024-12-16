@@ -715,6 +715,16 @@ func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.Pl
 	return nil, trace.NotFound("Okta API token")
 }
 
+// SelectOAuthClientID searches the supplied list of credentials for a credential containing Okta
+// OAuth client ID. Returns a NotFound error if no such credential exists.
+func SelectOAuthClientID(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	creds, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeOktaOauth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return creds, nil
+}
+
 func selectCredsByPurposeLabel(staticCredentials []types.PluginStaticCredentials, purposeLabel string) (types.PluginStaticCredentials, error) {
 	for _, cred := range staticCredentials {
 		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
