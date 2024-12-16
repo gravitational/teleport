@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package awsconfig
 
 import (
 	"context"
@@ -33,14 +33,14 @@ func (m *mockCredentialProvider) Retrieve(ctx context.Context) (aws.Credentials,
 	return m.cred, nil
 }
 
-func TestGetAWSConfigIntegration(t *testing.T) {
+func TestGetConfigIntegration(t *testing.T) {
 	t.Parallel()
 	dummyIntegration := "integration-test"
 	dummyRegion := "test-region-123"
 
 	t.Run("without an integration credential provider, must return missing credential provider error", func(t *testing.T) {
 		ctx := context.Background()
-		_, err := GetAWSConfig(ctx, dummyRegion, WithCredentialsMaybeIntegration(dummyIntegration))
+		_, err := GetConfig(ctx, dummyRegion, WithCredentialsMaybeIntegration(dummyIntegration))
 		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		require.ErrorContains(t, err, "missing aws integration credential provider")
 	})
@@ -48,9 +48,9 @@ func TestGetAWSConfigIntegration(t *testing.T) {
 	t.Run("with an integration credential provider, must return the credentials", func(t *testing.T) {
 		ctx := context.Background()
 
-		cfg, err := GetAWSConfig(ctx, dummyRegion,
+		cfg, err := GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(dummyIntegration),
-			WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
+			WithIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
 				if region == dummyRegion && integration == dummyIntegration {
 					return &mockCredentialProvider{
 						cred: aws.Credentials{
@@ -69,9 +69,9 @@ func TestGetAWSConfigIntegration(t *testing.T) {
 	t.Run("with an integration credential provider, but using an empty integration falls back to ambient credentials", func(t *testing.T) {
 		ctx := context.Background()
 
-		_, err := GetAWSConfig(ctx, dummyRegion,
+		_, err := GetConfig(ctx, dummyRegion,
 			WithCredentialsMaybeIntegration(""),
-			WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
+			WithIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
 				require.Fail(t, "this function should not be called")
 				return nil, nil
 			}))
@@ -81,9 +81,9 @@ func TestGetAWSConfigIntegration(t *testing.T) {
 	t.Run("with an integration credential provider, but using ambient credentials", func(t *testing.T) {
 		ctx := context.Background()
 
-		_, err := GetAWSConfig(ctx, dummyRegion,
+		_, err := GetConfig(ctx, dummyRegion,
 			WithAmbientCredentials(),
-			WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
+			WithIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
 				require.Fail(t, "this function should not be called")
 				return nil, nil
 			}))
@@ -93,8 +93,8 @@ func TestGetAWSConfigIntegration(t *testing.T) {
 	t.Run("with an integration credential provider, but no credential source", func(t *testing.T) {
 		ctx := context.Background()
 
-		_, err := GetAWSConfig(ctx, dummyRegion,
-			WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
+		_, err := GetConfig(ctx, dummyRegion,
+			WithIntegrationCredentialProvider(func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error) {
 				require.Fail(t, "this function should not be called")
 				return nil, nil
 			}))

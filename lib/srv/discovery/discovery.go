@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -119,7 +119,7 @@ type Config struct {
 	// GetEC2Client gets an AWS EC2 client for the given region.
 	GetEC2Client server.EC2ClientGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
-	GetSSMClient func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error)
+	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
 	// When true, ambient credentials (used by the Cloud SDKs) are not used.
 	IntegrationOnlyCredentials bool
@@ -224,7 +224,7 @@ kubernetes matchers are present.`)
 		c.CloudClients = cloudClients
 	}
 	if c.GetEC2Client == nil {
-		c.GetEC2Client = func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		c.GetEC2Client = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 			cfg, err := c.getAWSConfig(ctx, region, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -233,7 +233,7 @@ kubernetes matchers are present.`)
 		}
 	}
 	if c.GetSSMClient == nil {
-		c.GetSSMClient = func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error) {
+		c.GetSSMClient = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 			cfg, err := c.getAWSConfig(ctx, region, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -296,8 +296,8 @@ kubernetes matchers are present.`)
 	return nil
 }
 
-func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...config.AWSOptionsFn) (aws.Config, error) {
-	opts = append(opts, config.WithAWSIntegrationCredentialProvider(func(ctx context.Context, region, integrationName string) (aws.CredentialsProvider, error) {
+func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (aws.Config, error) {
+	opts = append(opts, awsconfig.WithIntegrationCredentialProvider(func(ctx context.Context, region, integrationName string) (aws.CredentialsProvider, error) {
 		integration, err := c.AccessPoint.GetIntegration(ctx, integrationName)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -316,7 +316,7 @@ func (c *Config) getAWSConfig(ctx context.Context, region string, opts ...config
 		})
 		return cred, trace.Wrap(err)
 	}))
-	cfg, err := config.GetAWSConfig(ctx, region, opts...)
+	cfg, err := awsconfig.GetConfig(ctx, region, opts...)
 	return cfg, trace.Wrap(err)
 }
 
@@ -1066,7 +1066,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 	// TODO(gavin): support assume_role_arn for ec2.
 	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
-		config.WithCredentialsMaybeIntegration(instances.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(instances.Integration),
 	)
 	if err != nil {
 		return trace.Wrap(err)
