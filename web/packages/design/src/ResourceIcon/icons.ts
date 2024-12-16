@@ -210,6 +210,7 @@ import notion from './assets/notion.svg';
 import oasisopen from './assets/oasisopen.svg';
 import oktaDark from './assets/okta-dark.svg';
 import oktaLight from './assets/okta-light.svg';
+import oktaAlt from './assets/okta-alt.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
 import oneloginDark from './assets/onelogin-dark.svg';
 import oneloginLight from './assets/onelogin-light.svg';
@@ -497,6 +498,7 @@ export {
   oasisopen,
   oktaDark,
   oktaLight,
+  oktaAlt,
   onehundredonedomain,
   oneloginDark,
   oneloginLight,
