@@ -56,10 +56,12 @@ lint:
     PACKAGE_DIRECTORY_MATCH:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
     PACKAGE_VERSION_SUFFIX:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
     RPC_REQUEST_STANDARD_NAME:
       - proto/teleport/lib/teleterm/v1/service.proto

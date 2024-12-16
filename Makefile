@@ -539,6 +539,7 @@ build-archive: | $(RELEASE_DIR)
 		build.assets/install\
 		README.md \
 		CHANGELOG.md \
+		build.assets/LICENSE-community \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
@@ -1508,6 +1509,7 @@ endif
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
+	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
@@ -1724,10 +1726,10 @@ rustup-install-target-toolchain: rustup-set-version
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
-CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
 .PHONY: changelog
 changelog:
-	@go run $(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+	@go run github.com/gravitational/shared-workflows/tools/changelog@latest \
+		--base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
@@ -1741,12 +1743,14 @@ changelog:
 #
 # For more information on release notes generation see: 
 #   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
-RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release:
-	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$( \
+		go run github.com/gravitational/shared-workflows/tools/release-notes@latest \
+			--labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md \
+	) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \

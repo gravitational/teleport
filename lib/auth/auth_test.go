@@ -601,6 +601,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -634,6 +635,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -678,6 +680,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -710,6 +713,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -741,6 +745,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -773,6 +778,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -4187,4 +4193,66 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 2)
 	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
+}
+
+func TestServer_GetAnonymizationKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		testModules *modules.TestModules
+		license     *license.License
+		want        string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name: "returns CloudAnonymizationKey if present",
+			testModules: &modules.TestModules{
+				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
+			},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "cloud-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns license AnonymizationKey if no Cloud Key is present",
+			testModules: &modules.TestModules{},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "license-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns clusterID if no cloud key nor license key is present",
+			testModules: &modules.TestModules{},
+			license:     &license.License{},
+			want:        "cluster-id",
+			errCheck:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:       t.TempDir(),
+				Clock:     clockwork.NewFakeClock(),
+				ClusterID: "cluster-id",
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			testTLSServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
+
+			modules.SetTestModules(t, tt.testModules)
+
+			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
+
+			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			tt.errCheck(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

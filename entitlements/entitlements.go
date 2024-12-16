@@ -50,13 +50,14 @@ const (
 	SessionLocks           EntitlementKind = "SessionLocks"
 	UpsellAlert            EntitlementKind = "UpsellAlert"
 	UsageReporting         EntitlementKind = "UsageReporting"
+	LicenseAutoUpdate      EntitlementKind = "LicenseAutoUpdate"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
 	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting,
+	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting, LicenseAutoUpdate,
 }
 
 // BackfillFeatures ensures entitlements are backwards compatible.

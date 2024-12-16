@@ -560,6 +560,13 @@ const (
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
 
+	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
+	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -995,6 +1002,16 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportInternalDiscoveryIntegrationName is the label used to store the name of the integration
+	// whose credentials were used to discover the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryIntegrationName = TeleportInternalLabelPrefix + "discovery-integration-name"
+
+	// TeleportInternalDiscoveryConfigName is the label used to store the name of the discovery config
+	// whose matchers originated the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
 
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not

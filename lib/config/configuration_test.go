@@ -1980,11 +1980,6 @@ func TestLicenseFile(t *testing.T) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 
-	// the license file should be empty by default, as we can only fill
-	// in the default (<datadir>/license.pem) after we know what the
-	// data dir is supposed to be
-	require.Empty(t, cfg.Auth.LicenseFile)
-
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
 			fc := new(FileConfig)
@@ -1996,6 +1991,12 @@ func TestLicenseFile(t *testing.T) {
 			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
 		})
 	}
+}
+
+func TestLicenseFileNoConfig(t *testing.T) {
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, Configure(new(CommandLineFlags), cfg, false /* legacy app flags */))
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
@@ -3670,9 +3671,9 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}

@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 
@@ -51,8 +51,10 @@ test('render disabled', async () => {
     </MemoryRouter>
   );
 
-  expect(screen.getByText(/lacking permission/i)).toBeInTheDocument();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/request additional permissions/i)
+  ).not.toBeInTheDocument();
 
   const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).not.toHaveAttribute('href');
@@ -61,6 +63,13 @@ test('render disabled', async () => {
   // so "toBeDisabled" interprets it as false.
   // eslint-disable-next-line jest-dom/prefer-enabled-disabled
   expect(tile).toHaveAttribute('disabled');
+
+  // Disabled states have badges on them. Test it renders on hover.
+  const badge = screen.getByText(/lacking permission/i);
+  await userEvent.hover(badge);
+  expect(
+    screen.getByText(/request additional permissions/i)
+  ).toBeInTheDocument();
 });
 
 test('dont render External Audit Storage for enterprise unless it is cloud', async () => {

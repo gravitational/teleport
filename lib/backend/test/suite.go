@@ -789,7 +789,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 func testLocking(t *testing.T, newBackend Constructor) {
 	tok1 := "token1"
 	tok2 := "token2"
-	ttl := 5 * time.Second
+	ttl := 30 * time.Second
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)

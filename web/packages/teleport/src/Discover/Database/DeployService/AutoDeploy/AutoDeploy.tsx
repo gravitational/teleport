@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import {
   Box,
   ButtonSecondary,
@@ -60,6 +60,9 @@ import {
   Header,
   AlternateInstructionButton,
 } from '../../../Shared';
+import awsEcsLight from '../../aws-ecs-light.svg';
+import awsEcsDark from '../../aws-ecs-dark.svg';
+import awsEcsBblp from '../../aws-ecs-bblp.svg';
 
 import { DeployServiceProp } from '../DeployService';
 
@@ -242,7 +245,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <header>
-                <H3>Step 3 (Optional)</H3>
+                <H3>Step 3</H3>
               </header>
               <SelectSecurityGroups
                 selectedSecurityGroups={selectedSecurityGroups}
@@ -339,6 +342,11 @@ const Heading = ({
   region: string;
   wantAutoDiscover: boolean;
 }) => {
+  const theme = useTheme();
+  let img = theme.type === 'light' ? awsEcsLight : awsEcsDark;
+  if (theme.isCustomTheme && theme.name === 'bblp') {
+    img = awsEcsBblp;
+  }
   return (
     <>
       <Header>Automatically Deploy a Database Service</Header>
@@ -348,19 +356,23 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
+      </HeaderSubtitle>
+      <Box mb={5} mt={-3}>
+        <Box minWidth="500px" maxWidth="998px">
+          <img src={img} width="100%" />
+        </Box>
         {!wantAutoDiscover && (
           <>
             <br />
-            <br />
-            Want to deploy a database service manually from one of your existing
-            servers?{' '}
+            Do you want to deploy a database service manually from one of your
+            existing servers?{' '}
             <AlternateInstructionButton
               onClick={toggleDeployMethod}
               disabled={togglerDisabled}
             />
           </>
         )}
-      </HeaderSubtitle>
+      </Box>
     </>
   );
 };
@@ -529,6 +541,16 @@ const DeployHints = ({
               </AlternateInstructionButton>
             </li>
           </ul>
+          <Text>
+            Refer to the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/#troubleshooting"
+            >
+              troubleshooting documentation
+            </Link>{' '}
+            for more details.
+          </Text>
         </Flex>
       </HintBox>
     );

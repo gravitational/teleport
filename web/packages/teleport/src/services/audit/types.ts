@@ -143,6 +143,7 @@ export const eventCodes = {
   OIDC_CONNECTOR_DELETED: 'T8101I',
   OIDC_CONNECTOR_UPDATED: 'T8102I',
   PORTFORWARD_FAILURE: 'T3003E',
+  PORTFORWARD_STOP: 'T3003S',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
   PRIVILEGE_TOKEN_CREATED: 'T6002I',
@@ -251,6 +252,9 @@ export const eventCodes = {
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
+  WORKLOAD_IDENTITY_CREATE: `WID001I`,
+  WORKLOAD_IDENTITY_UPDATE: `WID002I`,
+  WORKLOAD_IDENTITY_DELETE: `WID003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -409,6 +413,7 @@ export type RawEvents = {
     typeof eventCodes.OIDC_CONNECTOR_UPDATED
   >;
   [eventCodes.PORTFORWARD]: RawEvent<typeof eventCodes.PORTFORWARD>;
+  [eventCodes.PORTFORWARD_STOP]: RawEvent<typeof eventCodes.PORTFORWARD_STOP>;
   [eventCodes.PORTFORWARD_FAILURE]: RawEvent<
     typeof eventCodes.PORTFORWARD_FAILURE,
     {
@@ -583,6 +588,11 @@ export type RawEvents = {
     typeof eventCodes.SESSION_START,
     {
       sid: string;
+      kubernetes_cluster: string;
+      proto: string;
+      server_hostname: string;
+      server_addr: string;
+      server_id: string;
     }
   >;
   [eventCodes.SESSION_REJECT]: RawEvent<
@@ -1369,6 +1379,18 @@ export type RawEvents = {
   [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
   [eventCodes.BOT_UPDATED]: RawEvent<typeof eventCodes.BOT_UPDATED, HasName>;
   [eventCodes.BOT_DELETED]: RawEvent<typeof eventCodes.BOT_DELETED, HasName>;
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
+    HasName
+  >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName

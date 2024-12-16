@@ -236,6 +236,7 @@ export const StyledSelect = styled.div<StyledSelectProps>`
   }
 
   .react-select__menu {
+    z-index: 10;
     margin-top: 0px;
     // If the component is on an elevated platform (such as a dialog), use a lighter background.
     background-color: ${props =>

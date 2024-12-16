@@ -142,7 +142,7 @@ function disabledStates(
     };
   }
 
-  if (cfg.isCloud && !item.endpointPublicAddress) {
+  if (cfg.isCloud && !item.endpointPublicAccess) {
     return {
       disabled: true,
       disabledText:

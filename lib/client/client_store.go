@@ -20,6 +20,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"time"
@@ -82,21 +83,37 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
-var (
-	// ErrNoCredentials is returned by the client store when a specific key is not found.
-	// This error can be used to determine whether a client should retrieve new credentials,
-	// like how it is used with lib/client.RetryWithRelogin.
-	ErrNoCredentials = &trace.NotFoundError{Message: "no credentials"}
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
+}
 
-	// ErrNoProfile is returned by the client store when a specific profile is not found.
-	// This error can be used to determine whether a client should retrieve new credentials,
-	// like how it is used with lib/client.RetryWithRelogin.
-	ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
-)
+// ErrNoProfile is returned by the client store when a specific profile is not found.
+var ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
+
+// noCredentialsError is returned by the client store when a specific key is not found.
+// It unwraps to the original error to allow checks for underlying error types.
+// Use [IsNoCredentialsError] instead of checking for this type directly.
+type noCredentialsError struct {
+	wrappedError error
+}
+
+func newNoCredentialsError(wrappedError error) *noCredentialsError {
+	return &noCredentialsError{wrappedError}
+}
+
+func (e *noCredentialsError) Error() string {
+	return fmt.Sprintf("no credentials: %v", e.wrappedError)
+}
+
+func (e *noCredentialsError) Unwrap() error {
+	return e.wrappedError
+}
 
 // IsNoCredentialsError returns whether the given error implies that the user should retrieve new credentials.
 func IsNoCredentialsError(err error) bool {
-	return errors.Is(err, ErrNoCredentials) || errors.Is(err, ErrNoProfile)
+	return errors.As(err, new(*noCredentialsError)) || errors.Is(err, ErrNoProfile)
 }
 
 // GetKey gets the requested key with trusted the requested certificates. The key's
@@ -106,7 +123,7 @@ func IsNoCredentialsError(err error) bool {
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
 	if trace.IsNotFound(err) {
-		return nil, trace.Wrap(ErrNoCredentials, err.Error())
+		return nil, newNoCredentialsError(err)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,8 +211,9 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				Username:    profile.Username,
 				Cluster:     profile.SiteName,
 				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now to show that the keys are not available.
+				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
 				ValidUntil:              time.Now(),
+				GetKeyRingError:         err,
 				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 			}, nil
 		}

@@ -355,6 +355,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 }
 
 .c15 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #4A5688;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -866,6 +867,7 @@ exports[`render re-authentication dialog 1`] = `
 }
 
 .c14 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #4A5688;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);

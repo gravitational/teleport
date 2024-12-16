@@ -1468,6 +1468,13 @@ message SubmitEventRequest {
   // PostHog timestamp
   google.protobuf.Timestamp timestamp = 2;
 
+  // teleport_version is the version of the Teleport auth server that submitted
+  // the event, without the "v" prefix.
+  // For example: 16.4.7
+  //
+  // PostHog property: tp.teleport_version
+  string teleport_version = 95;
+
   // the event being submitted
   oneof event {
     UserLoginEvent user_login = 3;
@@ -1613,6 +1620,8 @@ message SubmitEventRequest {
     SessionRecordingAccessEvent session_recording_access = 93;
 
     UserTaskStateEvent user_task_state = 94;
+
+    // note that 95 is used for "teleport_version" above.
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

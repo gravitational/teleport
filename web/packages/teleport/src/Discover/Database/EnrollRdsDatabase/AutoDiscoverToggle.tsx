@@ -38,12 +38,12 @@ export function AutoDiscoverToggle({
         disabled={disabled}
       >
         <Box ml={2} mr={1}>
-          Auto-enroll all databases for the selected region
+          Auto-enroll all databases for the selected VPC
         </Box>
         <ToolTipInfo>
           Auto-enroll will automatically identify all RDS databases (e.g.
-          PostgreSQL, MySQL, Aurora) from the selected region and register them
-          as database resources in your infrastructure.
+          PostgreSQL, MySQL, Aurora) from the selected VPC and register them as
+          database resources in your infrastructure.
         </ToolTipInfo>
       </Toggle>
     </Box>

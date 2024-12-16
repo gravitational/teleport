@@ -121,7 +121,7 @@ export function SingleEnrollment({
           }
         );
 
-      // Abort early if there were no rds dbs for the selected region.
+      // Abort early if there were no rds dbs for the selected region/vpc.
       if (fetchedDbs.length <= 0) {
         onFetchAttempt({ status: 'success' });
         setTableData({ ...data, fetchStatus: 'disabled' });

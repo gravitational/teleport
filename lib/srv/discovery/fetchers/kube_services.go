@@ -54,6 +54,8 @@ type KubeAppsFetcherConfig struct {
 	Log logrus.FieldLogger
 	// ProtocolChecker inspects port to find your whether they are HTTP/HTTPS or not.
 	ProtocolChecker ProtocolChecker
+	// DiscoveryConfig is the name of the discovery config which originated the resource.
+	DiscoveryConfig string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -100,7 +102,7 @@ func isInternalKubeService(s v1.Service) bool {
 		s.GetNamespace() == metav1.NamespacePublic
 }
 
-func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
+func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) ([]v1.Service, error) {
 	var result []v1.Service
 	nextToken := ""
 	namespaceFilter := func(ns string) bool {
@@ -123,6 +125,17 @@ func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) 
 				// Namespace is not in the list of namespaces to fetch or it's an internal service
 				continue
 			}
+
+			// Skip service if it has type annotation and it's not the expected type.
+			if v, ok := s.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != discoveryType {
+				continue
+			}
+
+			// If the service is marked with the ignore annotation, skip it.
+			if v := s.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
+				continue
+			}
+
 			match, _, err := services.MatchLabels(f.FilterLabels, s.Labels)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -148,7 +161,7 @@ const (
 
 // Get fetches Kubernetes apps from the cluster
 func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	kubeServices, err := f.getServices(ctx)
+	kubeServices, err := f.getServices(ctx, types.KubernetesMatchersApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,7 +170,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	// Both services and ports inside services are processed in parallel to minimize time.
 	// We also set limit to prevent potential spike load on a cluster in case there are a lot of services.
 	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(10)
+	g.SetLimit(20)
 
 	// Convert services to resources
 	var (
@@ -166,17 +179,6 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	)
 	for _, service := range kubeServices {
 		service := service
-
-		// Skip service if it has type annotation and it's not 'app'
-		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != types.KubernetesMatchersApp {
-			continue
-		}
-
-		// If the service is marked with the ignore annotation, skip it.
-		if v := service.GetAnnotations()[types.DiscoveryAppIgnore]; v == "true" {
-			continue
-		}
-
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
@@ -233,6 +235,15 @@ func (f *KubeAppFetcher) Cloud() string {
 	return ""
 }
 
+func (f *KubeAppFetcher) IntegrationName() string {
+	// KubeAppFetcher does not have an integration.
+	return ""
+}
+
+func (f *KubeAppFetcher) DiscoveryConfigName() string {
+	return f.DiscoveryConfig
+}
+
 func (f *KubeAppFetcher) FetcherType() string {
 	return types.KubernetesMatchersApp
 }
@@ -245,9 +256,9 @@ func (f *KubeAppFetcher) String() string {
 // by protocol checker. It is used when no explicit annotation for port's protocol was provided.
 //   - If port's AppProtocol specifies `http` or `https` we return it
 //   - If port's name is `https` or number is 443 we return `https`
+//   - If port's name is `http` or number is 80 or 8080, we return `http`
 //   - If protocol checker is available it will perform HTTP request to the service fqdn trying to find out protocol. If it
 //     gives us result `http` or `https` we return it
-//   - If port's name is `http` or number is 80 or 8080, we return `http`
 func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
 		switch p := strings.ToLower(*port.AppProtocol); p {
@@ -256,8 +267,17 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 		}
 	}
 
-	if port.Port == 443 || strings.EqualFold(port.Name, protoHTTPS) {
+	if strings.EqualFold(port.Name, protoHTTPS) || strings.EqualFold(port.TargetPort.StrVal, protoHTTPS) ||
+		port.Port == 443 || port.NodePort == 443 || port.TargetPort.IntVal == 443 {
+
 		return protoHTTPS
+	}
+
+	if strings.EqualFold(port.Name, protoHTTP) || strings.EqualFold(port.TargetPort.StrVal, protoHTTP) ||
+		port.Port == 80 || port.NodePort == 80 || port.TargetPort.IntVal == 80 ||
+		port.Port == 8080 || port.NodePort == 8080 || port.TargetPort.IntVal == 8080 {
+
+		return protoHTTP
 	}
 
 	if pc != nil {
@@ -265,10 +285,6 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 		if result != protoTCP {
 			return result
 		}
-	}
-
-	if port.Port == 80 || port.Port == 8080 || strings.EqualFold(port.Name, protoHTTP) {
-		return protoHTTP
 	}
 
 	return protoTCP
@@ -316,7 +332,9 @@ func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
 	p := &ProtoChecker{
 		InsecureSkipVerify: insecureSkipVerify,
 		client: &http.Client{
-			Timeout: 5 * time.Second,
+			// This is a best-effort scenario, where teleport tries to guess which protocol is being used.
+			// Ideally it should either be inferred by the Service's ports or explicitly configured by using annotations on the service.
+			Timeout: 500 * time.Millisecond,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: insecureSkipVerify,

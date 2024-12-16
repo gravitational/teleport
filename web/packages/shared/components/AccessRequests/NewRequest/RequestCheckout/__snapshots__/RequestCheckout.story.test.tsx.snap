@@ -99,6 +99,7 @@ exports[`failed state 1`] = `
 .c18 {
   box-sizing: border-box;
   margin-bottom: -16px;
+  margin-top: 8px;
   width: 100%;
 }
 
@@ -623,6 +624,7 @@ exports[`failed state 1`] = `
 }
 
 .c22 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -936,6 +938,7 @@ exports[`failed state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -1111,7 +1114,7 @@ exports[`failed state 1`] = `
                       >
                         <label
                           class="c21"
-                          for="app-name"
+                          for="app-name-undefined"
                         >
                           Namespaces
                         </label>
@@ -1144,7 +1147,7 @@ exports[`failed state 1`] = `
                                       autocapitalize="none"
                                       autocomplete="off"
                                       autocorrect="off"
-                                      id="app-name"
+                                      id="app-name-undefined"
                                       spellcheck="false"
                                       style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                                       tabindex="0"
@@ -1693,6 +1696,7 @@ exports[`loaded state 1`] = `
 .c17 {
   box-sizing: border-box;
   margin-bottom: -16px;
+  margin-top: 8px;
   width: 100%;
 }
 
@@ -2274,6 +2278,7 @@ exports[`loaded state 1`] = `
 }
 
 .c21 .react-select__menu {
+  z-index: 10;
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
@@ -2591,6 +2596,7 @@ exports[`loaded state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -2760,7 +2766,7 @@ exports[`loaded state 1`] = `
                       >
                         <label
                           class="c20"
-                          for="app-name"
+                          for="app-name-undefined"
                         >
                           Namespaces
                         </label>
@@ -2793,7 +2799,7 @@ exports[`loaded state 1`] = `
                                       autocapitalize="none"
                                       autocomplete="off"
                                       autocorrect="off"
-                                      id="app-name"
+                                      id="app-name-undefined"
                                       spellcheck="false"
                                       style="box-sizing: content-box; width: 2px; border: 0px; opacity: 1; outline: 0; padding: 0px;"
                                       tabindex="0"
@@ -3732,6 +3738,7 @@ exports[`success state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"

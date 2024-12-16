@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -1062,8 +1063,12 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	if err != nil {
 		s.log.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			s.log.Warnf("Failed to close channel: %v", err)
+		}
 		return
 	}
+	scx.AddCloser(ch)
 	scx.RemoteClient = s.remoteClient
 	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
@@ -1095,8 +1100,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 		scx.WithError(err).Warn("Failed to emit port forward event.")
 	}
 
-	if err := utils.ProxyConn(ctx, ch, conn); err != nil {
-		s.log.WithError(err).Warn("Pailed proxying data for port forwarding connection.")
+	if err := utils.ProxyConn(ctx, ch, conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+		s.log.WithError(err).Warn("Failed proxying data for port forwarding connection.")
 	}
 }
 
@@ -1447,7 +1452,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	}
 
 	// if SFTP was requested, check that
-	if subsystem.subsytemName == teleport.SFTPSubsystem {
+	if subsystem.subsystemName == teleport.SFTPSubsystem {
 		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
@@ -1457,7 +1462,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServerMetadata(),
+				ServerMetadata: serverContext.GetServer().TargetMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
@@ -1468,7 +1473,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsytemName,
+			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
 		return trace.Wrap(err)
@@ -1478,7 +1483,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	go func() {
 		err := subsystem.Wait()
 		serverContext.SendSubsystemResult(srv.SubsystemResult{
-			Name: subsystem.subsytemName,
+			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
 	}()

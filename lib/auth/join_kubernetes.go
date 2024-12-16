@@ -31,7 +31,7 @@ import (
 )
 
 type k8sTokenReviewValidator interface {
-	Validate(context.Context, string) (*kubernetestoken.ValidationResult, error)
+	Validate(ctx context.Context, token, clusterName string) (*kubernetestoken.ValidationResult, error)
 }
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubernetestoken.ValidationResult, error)
@@ -52,14 +52,15 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		)
 	}
 
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Switch to join method subtype token validation.
 	var result *kubernetestoken.ValidationResult
 	switch token.Spec.Kubernetes.Type {
 	case types.KubernetesJoinTypeStaticJWKS:
-		clusterName, err := a.GetDomainName()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		result, err = a.k8sJWKSValidator(
 			a.clock.Now(),
 			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
@@ -70,7 +71,7 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
 		}
 	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
-		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken)
+		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken, clusterName)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with in_cluster")
 		}

@@ -24,6 +24,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -525,4 +527,143 @@ func newKubeCluster(t *testing.T, name string, labels map[string]string) types.K
 
 func sortKubeResourceSlice(resources []types.KubernetesResource) {
 	sort.Slice(resources, func(i, j int) bool { return resources[i].Name < resources[j].Name })
+}
+
+func TestAccessCheckerHostUsersShell(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	expectedShell := "bash"
+	secondaryShell := "zsh"
+	localCluster := "cluster"
+
+	roleSet := NewRoleSet(
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: expectedShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: secondaryShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+	)
+
+	accessInfo := &AccessInfo{
+		Roles: []string{"default-shell"},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, localCluster, roleSet)
+	hui, err := accessChecker.HostUsers(serverStub{})
+	require.NoError(t, err)
+
+	// the first value for shell encountered while checking roles should be used, which means
+	// secondaryShell should never be the result here
+	require.Equal(t, expectedShell, hui.Shell)
+}
+
+type serverStub struct {
+	types.Server
+}
+
+func (serverStub) GetKind() string {
+	return types.KindNode
+}
+
+func TestAccessCheckerWorkloadIdentity(t *testing.T) {
+	localCluster := "cluster"
+
+	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "no-labels",
+		},
+	}
+	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "foo-labeled",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+	}
+
+	roleNoLabels := newRole(func(rv *types.RoleV6) {})
+	roleWildcard := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+	})
+	roleFooLabel := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{"foo": {"bar"}}
+	})
+	tests := []struct {
+		name         string
+		roleSet      RoleSet
+		resource     *workloadidentityv1pb.WorkloadIdentity
+		requireError require.ErrorAssertionFunc
+	}{
+		{
+			name: "wildcard role, no labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     noLabelsWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "wildcard role, labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, tt.roleSet)
+			err := accessChecker.CheckAccess(
+				types.Resource153ToResourceWithLabels(tt.resource),
+				AccessState{},
+			)
+			tt.requireError(t, err)
+		})
+	}
 }

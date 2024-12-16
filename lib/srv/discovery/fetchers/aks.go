@@ -152,6 +152,14 @@ func (a *aksFetcher) Cloud() string {
 	return types.CloudAzure
 }
 
+func (a *aksFetcher) IntegrationName() string {
+	return ""
+}
+
+func (a *aksFetcher) DiscoveryConfigName() string {
+	return ""
+}
+
 func (a *aksFetcher) FetcherType() string {
 	return types.AzureMatcherKubernetes
 }

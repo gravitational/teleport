@@ -22,6 +22,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import { act } from '@testing-library/react';
 
 import {
+  makeAcl,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
@@ -116,7 +117,7 @@ function setupAppContext(): {
 } {
   const cluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({
-      acl: {
+      acl: makeAcl({
         tokens: {
           create: true,
           list: true,
@@ -125,7 +126,7 @@ function setupAppContext(): {
           delete: true,
           use: true,
         },
-      },
+      }),
     }),
   });
   const appContext = new MockAppContext({

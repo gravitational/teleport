@@ -179,11 +179,12 @@ export default class Modal extends React.Component {
       hideBackdrop,
       open,
       className,
+      keepInDOMAfterClose,
     } = this.props;
 
     const childProps = {};
 
-    if (!open) {
+    if (!open && !keepInDOMAfterClose) {
       return null;
     }
 
@@ -196,6 +197,7 @@ export default class Modal extends React.Component {
         data-testid="portal"
       >
         <StyledModal
+          hiddenInDom={!open}
           modalCss={modalCss}
           data-testid="Modal"
           ref={this.handleModalRef}
@@ -225,6 +227,11 @@ Modal.propTypes = {
    * A single child content element.
    */
   children: PropTypes.element,
+  /**
+   * Prevent unmounting the component and its children from the DOM when closed.
+   * Instead, hides it with CSS.
+   */
+  keepInDOMAfterClose: PropTypes.bool,
   /**
    * A node, component instance, or function that returns either.
    * The `container` will have the portal children appended to it.
@@ -298,6 +305,7 @@ Modal.propTypes = {
 };
 
 Modal.defaultProps = {
+  keepInDOMAfterClose: false,
   disableAutoFocus: false,
   disableBackdropClick: false,
   disableEnforceFocus: false,
@@ -339,5 +347,6 @@ const StyledModal = styled.div`
   bottom: 0;
   top: 0;
   left: 0;
-  ${props => props.modalCss && props.modalCss(props)}
+  ${props => props.hiddenInDom && `display: none;`};
+  ${props => props.modalCss?.(props)}
 `;

@@ -212,7 +212,7 @@ function AgentSetup() {
     setDownloadAgentAttempt,
     agentProcessState,
   } = useConnectMyComputerContext();
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
 
   // The verify agent step checks if we can execute the binary. This triggers OS-level checks, such
@@ -281,8 +281,8 @@ function AgentSetup() {
           throw error;
         }
 
-        // Now that the node has joined the server, let's refresh all open DocumentCluster instances
-        // to show the new node.
+        // Now that the node has joined the server, let's refresh open DocumentCluster
+        // instances in the workspace to show the new node.
         requestResourcesRefresh();
       }, [startAgent, requestResourcesRefresh])
     );

@@ -80,4 +80,11 @@ const sample = {
   fetch: async () => ({ items: roles, startKey: '' }),
   remove: () => null,
   save: () => null,
+  rolesAcl: {
+    list: true,
+    create: true,
+    remove: true,
+    edit: true,
+    read: true,
+  },
 };

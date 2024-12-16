@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -83,35 +84,65 @@ func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error)
 // Kubernetes TokenRequest API endpoint.
 type TokenReviewValidator struct {
 	mu sync.Mutex
-	// client is protected by mu and should only be accessed via the getClient
-	// method.
+	// client and clusterAudiences are protected by mu and should only be
+	// accessed via the getClient method.
 	client kubernetes.Interface
+	// clusterAudiences contains the default Kubernetes cluster audiences.
+	// This field is populated when getting the Kube client and returned by
+	// getClient.
+	// A nil value indicates that the cluster doesn't support audiences.
+	clusterAudiences []string
 }
 
-// getClient allows the lazy initialisation of the Kubernetes client
-func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
+// getClient allows the lazy initialisation of the Kubernetes client and clusterAudiences
+func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interface, []string, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.client != nil {
-		return v.client, nil
+		return v.client, v.clusterAudiences, nil
 	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes config")
+		return nil, nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes config")
 	}
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes client")
+		return nil, nil, trace.WrapWithMessage(err, "failed to initialize in-cluster Kubernetes client")
+	}
+
+	// We extract the audiences from our own token. This allows us to detect the default Kubernetes audiences.
+	audiences, err := unsafeGetTokenAudiences(config.BearerToken)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "doing a self-review")
 	}
 
 	v.client = client
-	return client, nil
+	v.clusterAudiences = audiences
+	return client, audiences, nil
+}
+
+// unsafeGetTokenAudiences extracts the audience from the mounted token.
+// THIS FUNCTION DOES NOT VALIDATE THE TOKEN SIGNATURE.
+// Bound tokens always have audiences and the list will not be empty.
+// Legacy tokens don't have audiences, the result will be an empty list and no error.
+func unsafeGetTokenAudiences(token string) ([]string, error) {
+	jwt, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	claims := &ServiceAccountClaims{}
+	err = jwt.UnsafeClaimsWithoutVerification(claims)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims.Audience, nil
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
-func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ValidationResult, error) {
-	client, err := v.getClient()
+func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName string) (*ValidationResult, error) {
+	client, audiences, err := v.getClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,6 +152,21 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Val
 			Token: token,
 		},
 	}
+
+	// In-cluster used to only allow tokens with the kubernetes audience but people
+	// kept confusing it with the JWKS kube join method and set the cluster name
+	// as the audience. To avoid his common footgun we now allow tokens whose
+	// audience is the teleport cluster name.
+	//
+	// We do this only if the Kubernetes cluster supports audiences.
+	// Earlier Kube versions don't have audience
+	// support, in this case, we just do a regular token review.
+	if len(audiences) > 0 {
+		// We deduplicate because the Teleport cluster name could be one of the default audiences
+		// And I really don't want to discover if sending the same audience multiple times is valid for Kubernetes.
+		review.Spec.Audiences = utils.Deduplicate(append([]string{clusterName}, audiences...))
+	}
+
 	options := metav1.CreateOptions{}
 
 	reviewResult, err := client.AuthenticationV1().TokenReviews().Create(ctx, review, options)

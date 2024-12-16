@@ -230,15 +230,33 @@ log_important() {
 log_cleanup_message() {
     log_only "This script does not overwrite any existing settings or Teleport installations."
     log_only "Please clean up by running any of the following steps as necessary:"
+    if is_using_systemd; then
+        log_only "- stop teleport's service"
+        log_only "  - systemctl stop teleport"
+    fi
     log_only "- stop any running Teleport processes"
     log_only "  - pkill -f teleport"
     log_only "- remove any data under ${TELEPORT_DATA_DIR}, along with the directory itself"
     log_only "  - rm -rf ${TELEPORT_DATA_DIR}"
     log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
     log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
-    log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
-    for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
-    log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    if check_exists apt; then
+        log_only "- remove teleport package"
+        log_only "  - apt remove teleport"
+    elif check_exists yum; then
+        log_only "- remove teleport package"
+        log_only "  - yum remove teleport"
+    elif check_exists dnf; then
+        log_only "- remove teleport package"
+        log_only "  - dnf remove teleport"
+    elif check_exists zypper; then
+        log_only "- remove teleport package"
+        log_only "  - zypper remove teleport"
+    else
+        log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
+        for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
+        log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    fi
     if is_macos_host; then
         log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
         log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"

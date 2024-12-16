@@ -114,7 +114,14 @@ export class MockTshClient implements TshdClient {
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
-  authenticateWebDevice = () => new MockedUnaryCall({});
+  authenticateWebDevice = () =>
+    new MockedUnaryCall({
+      confirmationToken: {
+        id: '123456789',
+        token: '7c8e7438-abe1-4cbc-b3e6-bd233bba967c',
+      },
+    });
+  startHeadlessWatcher = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {

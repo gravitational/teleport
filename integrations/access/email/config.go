@@ -64,6 +64,10 @@ type Config struct {
 	Delivery         DeliveryConfig          `toml:"delivery"`
 	RoleToRecipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log              logger.Config           `toml:"log"`
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // LoadConfig reads the config file, initializes a new Config struct object, and returns it.

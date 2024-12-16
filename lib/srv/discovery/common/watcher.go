@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -62,6 +63,8 @@ type WatcherConfig struct {
 	DiscoveryGroup string
 	// Origin is used to specify what type of origin watcher's resources are
 	Origin string
+	// PreFetchHookFn is called before starting a new fetch cycle.
+	PreFetchHookFn func()
 }
 
 // CheckAndSetDefaults validates the config.
@@ -102,6 +105,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &Watcher{
 		cfg:        config,
 		ctx:        ctx,
@@ -139,6 +143,10 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
+	if w.cfg.PreFetchHookFn != nil {
+		w.cfg.PreFetchHookFn()
+	}
+
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
 		fetchersLock        sync.Mutex
@@ -163,23 +171,35 @@ func (w *Watcher) fetchAndSend() {
 				return nil
 			}
 
+			fetcherLabels := make(map[string]string, 0)
+
+			if lFetcher.IntegrationName() != "" {
+				// Add the integration name to the static labels for each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryIntegrationName] = lFetcher.IntegrationName()
+			}
+			if lFetcher.DiscoveryConfigName() != "" {
+				// Add the discovery config name to the static labels of each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.DiscoveryConfigName()
+			}
+
+			if w.cfg.DiscoveryGroup != "" {
+				// Add the discovery group name to the static labels of each resource.
+				fetcherLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
+			}
+
+			// Set the origin label to provide information where resource comes from
+			fetcherLabels[types.OriginLabel] = w.cfg.Origin
+			if c := lFetcher.Cloud(); c != "" {
+				fetcherLabels[types.CloudLabel] = c
+			}
+
 			for _, r := range resources {
 				staticLabels := r.GetStaticLabels()
 				if staticLabels == nil {
 					staticLabels = make(map[string]string)
 				}
 
-				if w.cfg.DiscoveryGroup != "" {
-					// Add the discovery group name to the static labels of each resource.
-					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
-				}
-
-				// Set the origin label to provide information where resource comes from
-				staticLabels[types.OriginLabel] = w.cfg.Origin
-				if c := lFetcher.Cloud(); c != "" {
-					staticLabels[types.CloudLabel] = c
-				}
-
+				maps.Copy(staticLabels, fetcherLabels)
 				r.SetStaticLabels(staticLabels)
 			}
 

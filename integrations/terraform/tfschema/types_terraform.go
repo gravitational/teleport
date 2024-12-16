@@ -1773,6 +1773,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
 									Optional:    true,
 								},
+								"kubernetes_resources": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
+										Description: "kind specifies the Kubernetes Resource type.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
+									Optional:    true,
+								},
 								"max_duration": {
 									Description: "MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.",
 									Optional:    true,
@@ -1961,6 +1970,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Allow is the set of conditions evaluated to grant access.",
@@ -2206,6 +2224,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
 									Optional:    true,
 								},
+								"kubernetes_resources": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
+										Description: "kind specifies the Kubernetes Resource type.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
+									Optional:    true,
+								},
 								"max_duration": {
 									Description: "MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.",
 									Optional:    true,
@@ -2394,6 +2421,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.",
@@ -16539,6 +16575,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 															}
 														}
 													}
+													{
+														a, ok := tf.Attrs["kubernetes_resources"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.KubernetesResources = make([]github_com_gravitational_teleport_api_types.RequestKubernetesResource, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																		} else {
+																			var t github_com_gravitational_teleport_api_types.RequestKubernetesResource
+																			if !v.Null && !v.Unknown {
+																				tf := v
+																				obj := &t
+																				{
+																					a, ok := tf.Attrs["kind"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.kind"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.Kind = t
+																						}
+																					}
+																				}
+																			}
+																			obj.KubernetesResources[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
 												}
 											}
 										}
@@ -17838,6 +17919,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -18343,6 +18448,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																	t = github_com_gravitational_teleport_api_types.Duration(v.Value)
 																}
 																obj.MaxDuration = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["kubernetes_resources"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.KubernetesResources = make([]github_com_gravitational_teleport_api_types.RequestKubernetesResource, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																		} else {
+																			var t github_com_gravitational_teleport_api_types.RequestKubernetesResource
+																			if !v.Null && !v.Unknown {
+																				tf := v
+																				obj := &t
+																				{
+																					a, ok := tf.Attrs["kind"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.kind"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.Kind = t
+																						}
+																					}
+																				}
+																			}
+																			obj.KubernetesResources[k] = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -19642,6 +19792,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
 											}
 										}
 									}
@@ -21704,6 +21878,84 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 															v.Value = time.Duration(obj.MaxDuration)
 															v.Unknown = false
 															tf.Attrs["max_duration"] = v
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["kubernetes_resources"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["kubernetes_resources"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources))
+																	}
+																}
+																if obj.KubernetesResources != nil {
+																	o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																	if len(obj.KubernetesResources) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources))
+																	}
+																	for k, a := range obj.KubernetesResources {
+																		v, ok := tf.Attrs["kubernetes_resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																				AttrTypes: o.AttrTypes,
+																				Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																			}
+																		} else {
+																			if v.Attrs == nil {
+																				v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																			}
+																		}
+																		{
+																			obj := a
+																			tf := &v
+																			{
+																				t, ok := tf.AttrTypes["kind"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.kind"})
+																				} else {
+																					v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.Request.kubernetes_resources.kind", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.Kind) == ""
+																					}
+																					v.Value = string(obj.Kind)
+																					v.Unknown = false
+																					tf.Attrs["kind"] = v
+																				}
+																			}
+																		}
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.KubernetesResources) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["kubernetes_resources"] = c
+															}
 														}
 													}
 												}
@@ -23977,6 +24229,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -24870,6 +25153,84 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 															v.Value = time.Duration(obj.MaxDuration)
 															v.Unknown = false
 															tf.Attrs["max_duration"] = v
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["kubernetes_resources"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["kubernetes_resources"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources))
+																	}
+																}
+																if obj.KubernetesResources != nil {
+																	o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																	if len(obj.KubernetesResources) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesResources))
+																	}
+																	for k, a := range obj.KubernetesResources {
+																		v, ok := tf.Attrs["kubernetes_resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																				AttrTypes: o.AttrTypes,
+																				Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																			}
+																		} else {
+																			if v.Attrs == nil {
+																				v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																			}
+																		}
+																		{
+																			obj := a
+																			tf := &v
+																			{
+																				t, ok := tf.AttrTypes["kind"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.kind"})
+																				} else {
+																					v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.Request.kubernetes_resources.kind", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.Kind) == ""
+																					}
+																					v.Value = string(obj.Kind)
+																					v.Unknown = false
+																					tf.Attrs["kind"] = v
+																				}
+																			}
+																		}
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.KubernetesResources) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["kubernetes_resources"] = c
+															}
 														}
 													}
 												}
@@ -27141,6 +27502,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												c.Unknown = false
 												tf.Attrs["spiffe"] = c
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
 										}
 									}
 								}

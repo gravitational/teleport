@@ -134,7 +134,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
     // cluster fails, we don't want to stop the user on the failed modal – we want to open the
     // workspace and show an error state within the workspace.
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
@@ -155,7 +155,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
       { abort: abortSignal }
     );
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
@@ -273,25 +273,37 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
 
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
   /**
-   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
-   * errors and instead wants to depend on the notifications service.
+   * Synchronizes the cluster state and starts a headless watcher for it.
+   * It shows errors as notifications.
    */
-  async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
+  async syncAndWatchRootClusterWithErrorHandling(
+    clusterUri: uri.RootClusterUri
+  ) {
+    const cluster = this.findCluster(clusterUri);
+    const clusterName =
+      cluster?.name || routing.parseClusterUri(clusterUri).params.rootClusterId;
+
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
-      const cluster = this.findCluster(clusterUri);
-      const clusterName =
-        cluster?.name ||
-        routing.parseClusterUri(clusterUri).params.rootClusterId;
-
       this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
+        description: e.message,
+      });
+      // only start the watcher if the cluster was synchronized successfully.
+      return;
+    }
+
+    try {
+      await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
+    } catch (e) {
+      this.notificationsService.notifyError({
+        title: `Could not start headless requests watcher for ${clusterName}`,
         description: e.message,
       });
     }
@@ -328,9 +340,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       );
     });
 
+    // Sync root clusters and resume headless watchers for any active login sessions.
     clusters
       .filter(c => c.connected)
-      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      .forEach(c => this.syncAndWatchRootClusterWithErrorHandling(c.uri));
   }
 
   async syncGatewaysAndCatchErrors() {

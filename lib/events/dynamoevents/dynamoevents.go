@@ -466,11 +466,17 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			l.
-				WithError(err).
-				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
-				Error("Conflict on event session_id and event_index")
-			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
+			if err2 := l.handleConditionError(ctx, err, sessionID, in); err2 != nil {
+				// Only log about the original conflict if updating
+				// the session information fails.
+				l.
+					WithError(err).
+					WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
+					Error("Conflict on event session_id and event_index")
+				return trace.Wrap(err2)
+			}
+
+			return nil
 		}
 
 		return err

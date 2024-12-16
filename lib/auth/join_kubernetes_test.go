@@ -35,7 +35,7 @@ type mockK8STokenReviewValidator struct {
 	tokens map[string]*kubernetestoken.ValidationResult
 }
 
-func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token string) (*kubernetestoken.ValidationResult, error) {
+func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token, _ string) (*kubernetestoken.ValidationResult, error) {
 	result, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken

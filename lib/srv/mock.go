@@ -240,7 +240,12 @@ func (m *mockServer) GetInfo() types.Server {
 }
 
 func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{}
+	return apievents.ServerMetadata{
+		ServerID:        "123",
+		ForwardedBy:     "abc",
+		ServerHostname:  "testHost",
+		ServerNamespace: "testNamespace",
+	}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

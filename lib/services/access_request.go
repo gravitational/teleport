@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sort"
@@ -58,6 +59,11 @@ const (
 	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
+
+	// InvalidKubernetesKindAccessRequest is used in part of error messages related to
+	// `request.kubernetes_resources` config. It's also used to determine if a returned error
+	// contains this string (in tests and tsh) to customize error messages shown to user.
+	InvalidKubernetesKindAccessRequest = `your Teleport role's "request.kubernetes_resources" field`
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -114,7 +120,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 	}
 	if len(invalidClusters) > 0 {
 		return trace.NotFound("access request contains invalid or unknown cluster names: %v",
-			strings.Join(invalidClusters, ", "))
+			strings.Join(apiutils.Deduplicate(invalidClusters), ", "))
 	}
 	return nil
 }
@@ -275,10 +281,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	return &caps, nil
 }
 
-// applicableSearchAsRoles prunes the search_as_roles and only returns those
-// applications for the given list of resourceIDs.
-func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
-	// First, collect all possible search_as_roles.
+// allowedSearchAsRoles returns all allowed `allow.request.search_as_roles` for the user that are
+// not in the `deny.request.search_as_roles`. It does not filter out any roles that should not be
+// allowed based on requests.
+func (m *RequestValidator) allowedSearchAsRoles() ([]string, error) {
 	var rolesToRequest []string
 	for _, roleName := range m.Roles.AllowSearch {
 		if !m.CanSearchAsRole(roleName) {
@@ -290,9 +296,19 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
 	}
 
+	return rolesToRequest, nil
+}
+
+// applicableSearchAsRoles prunes the search_as_roles and only returns those
+// applicable for the given list of resourceIDs.
+func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	rolesToRequest, err := m.allowedSearchAsRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
-	var err error
 	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,9 +1044,20 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	userState     UserState
 	requireReason bool
-	autoRequest   bool
-	prompt        string
-	opts          struct {
+	// Used to enforce that the configuration found in the static
+	// role that defined the search_as_role, is respected.
+	// An empty map or list means nothing was configured.
+	kubernetesResource struct {
+		// allow is a map from the user's allowed search_as_roles to the list of
+		// kubernetes resource kinds the user is allowed to request with that role.
+		allow map[string][]types.RequestKubernetesResource
+		// deny is the list of kubernetes resource kinds the user is explicitly
+		// denied from requesting.
+		deny []types.RequestKubernetesResource
+	}
+	autoRequest bool
+	prompt      string
+	opts        struct {
 		expandVars bool
 	}
 	Roles struct {
@@ -1080,6 +1107,8 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		m.Annotations.Allow = make(map[singleAnnotation]annotationMatcher)
 		m.Annotations.Deny = make(map[singleAnnotation]struct{})
 	}
+
+	m.kubernetesResource.allow = make(map[string][]types.RequestKubernetesResource)
 
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
@@ -1152,6 +1181,17 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		}
+	}
+
+	// Verify that each requested role allows requesting every requested kube resource kind.
+	if len(req.GetRequestedResourceIDs()) > 0 && len(req.GetRoles()) > 0 {
+		// If there were pruned roles, then the request will be rejected.
+		// A pruned role meant that role did not allow requesting to all of requested kube resource.
+		prunedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(req.GetRequestedResourceIDs(), req.GetRoles())
+		if len(prunedRoles) != len(req.GetRoles()) {
+			return getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, true /* requestedRoles */)
+		}
+
 	}
 
 	if m.opts.expandVars {
@@ -1494,6 +1534,29 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 	return expanded, nil
 }
 
+// setAllowRequestKubeResourceLookup goes through each search as roles and sets it with the allowed roles.
+// Multiple allow request.kubernetes_resources found for a role will be merged, except when an empty configuration
+// is encountered. In this case, empty configuration will override configured request field
+// (which results in allowing anything).
+func setAllowRequestKubeResourceLookup(allowKubernetesResources []types.RequestKubernetesResource, searchAsRoles []string, lookup map[string][]types.RequestKubernetesResource) {
+	if len(allowKubernetesResources) == 0 {
+		// Empty configuration overrides any configured request.kubernetes_resources field.
+		for _, searchAsRoles := range searchAsRoles {
+			lookup[searchAsRoles] = []types.RequestKubernetesResource{}
+		}
+		return
+	}
+
+	for _, searchAsRole := range searchAsRoles {
+		currentAllowedResources, exists := lookup[searchAsRole]
+		if exists && len(currentAllowedResources) == 0 {
+			// Already allowed to access all kube resource kinds.
+			continue
+		}
+		lookup[searchAsRole] = append(currentAllowedResources, allowKubernetesResources...)
+	}
+}
+
 // push compiles a role's configuration into the request validator.
 // All of the requesting user's statically assigned roles must be pushed
 // before validation begins.
@@ -1507,6 +1570,12 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+
+	setAllowRequestKubeResourceLookup(allow.KubernetesResources, allow.SearchAsRoles, m.kubernetesResource.allow)
+
+	if len(deny.KubernetesResources) > 0 {
+		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deny.KubernetesResources...)
+	}
 
 	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
@@ -1591,6 +1660,70 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 
 	req.SetRoles(rolesToRequest)
 	return nil
+}
+
+// pruneRequestedRolesNotMatchingKubernetesResourceKinds will filter out the kubernetes kinds from the requested resource IDs (kube_cluster and its subresources)
+// disregarding whether it's leaf or root cluster request, and for each requested role, ensures that all requested kube resource kind are allowed by the role.
+// Roles not matching with every kind requested, will be pruned from the requested roles.
+//
+// Returns pruned roles, and a map of requested roles with allowed kinds (with denied applied), used to help aid user in case a request gets rejected,
+// lets user know which kinds are allowed for each requested roles.
+func (m *RequestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceIDs []types.ResourceID, requestedRoles []string) ([]string, map[string][]string) {
+	// Filter for the kube_cluster and its subresource kinds.
+	requestedKubeKinds := make(map[string]struct{})
+	for _, resourceID := range requestedResourceIDs {
+		if resourceID.Kind == types.KindKubernetesCluster || slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) {
+			requestedKubeKinds[resourceID.Kind] = struct{}{}
+		}
+	}
+
+	if len(requestedKubeKinds) == 0 {
+		return requestedRoles, nil
+	}
+
+	goodRolesLookup := make(map[string]struct{})
+	mappedRequestedRolesToAllowedKinds := make(map[string][]string)
+	for _, requestedRoleName := range requestedRoles {
+		allowedKinds, deniedKinds := getKubeResourceKinds(m.kubernetesResource.allow[requestedRoleName]), getKubeResourceKinds(m.kubernetesResource.deny)
+
+		// Any resource is allowed.
+		if len(allowedKinds) == 0 && len(deniedKinds) == 0 {
+			goodRolesLookup[requestedRoleName] = struct{}{}
+			continue
+		}
+
+		// All supported kube kinds are allowed when there was nothing configured.
+		if len(allowedKinds) == 0 {
+			allowedKinds = types.KubernetesResourcesKinds
+			allowedKinds = append(allowedKinds, types.KindKubernetesCluster)
+		}
+
+		// Filter out denied kinds from the allowed kinds
+		if len(deniedKinds) > 0 && len(allowedKinds) > 0 {
+			allowedKinds = getAllowedKubeResourceKinds(allowedKinds, deniedKinds)
+		}
+
+		mappedRequestedRolesToAllowedKinds[requestedRoleName] = allowedKinds
+
+		roleIsDenied := false
+		for requestedKubeKind := range requestedKubeKinds {
+			if !slices.Contains(allowedKinds, requestedKubeKind) {
+				roleIsDenied = true
+				continue
+			}
+		}
+
+		if !roleIsDenied {
+			goodRolesLookup[requestedRoleName] = struct{}{}
+		}
+	}
+
+	goodRoles := make([]string, 0, len(goodRolesLookup))
+	for key := range goodRolesLookup {
+		goodRoles = append(goodRoles, key)
+	}
+
+	return goodRoles, mappedRequestedRolesToAllowedKinds
 }
 
 // thresholdCollector is a helper that assembles the Thresholds array for a request.
@@ -1900,17 +2033,40 @@ func UnmarshalAccessRequestAllowedPromotion(data []byte) (*types.AccessRequestAl
 	return &accessListIDs, nil
 }
 
-// pruneResourceRequestRoles takes an access request and does one of two things:
-//  1. If it is a role request, returns it unchanged.
-//  2. If it is a resource request, all available `search_as_roles` for the user
-//     should have been populated on the request by `ValidateAccessReqeustForUser`.
-//     This function will attempt to prune these roles to a minimal necessary set
-//     based on the following rules:
-//     - If a role does not grant access to any resources in the set, it is pruned.
-//     - If the request includes a LoginHint, access to a node with that login
-//     should be satisfied by exactly 1 role. The first such role will be
-//     requested, all others will be pruned unless they are necessary to access
-//     a different resource in the set.
+func getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds map[string][]string, requestedRoles bool) error {
+	allowedStr := ""
+	for roleName, allowedKinds := range mappedRequestedRolesToAllowedKinds {
+		if len(allowedStr) > 0 {
+			allowedStr = fmt.Sprintf("%s, %s: %v", allowedStr, roleName, allowedKinds)
+		} else {
+			allowedStr = fmt.Sprintf("%s: %v", roleName, allowedKinds)
+		}
+	}
+
+	requestWord := "requestable"
+	if requestedRoles {
+		requestWord = "requested"
+	}
+
+	// This error must be in sync with web UI's RequestCheckout.tsx ("checkSupportForKubeResources").
+	// Web UI relies on the exact format of this error message to determine what kube kinds are
+	// supported since web UI does not support all kube resources at this time.
+	return trace.BadParameter(`%s did not allow requesting to some or all of the requested `+
+		`Kubernetes resources. allowed kinds for each %s roles: %v`,
+		InvalidKubernetesKindAccessRequest, requestWord, allowedStr)
+}
+
+// pruneResourceRequestRoles takes a list of requested resource IDs and
+// a list of candidate roles to request, and returns a "pruned" list of roles.
+//
+// Candidate roles are *always* pruned when the user is not allowed to
+// request the role with all requested resources.
+//
+// A best-effort attempt is made to prune roles that would not allow
+// access to any of the requested resources, this is skipped when any
+// resource is in a leaf cluster.
+//
+// If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
@@ -1920,6 +2076,12 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	if len(resourceIDs) == 0 {
 		// This is not a resource request, nothing to do
 		return roles, nil
+	}
+
+	var mappedRequestedRolesToAllowedKinds map[string][]string
+	roles, mappedRequestedRolesToAllowedKinds = m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, roles)
+	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
+		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
 
 	clusterNameResource, err := m.getter.GetClusterName()
@@ -1961,6 +2123,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		if len(kubernetesResources) > 0 {
 			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 		}
+
 		for _, role := range allRoles {
 			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
@@ -2040,6 +2203,37 @@ func countAllowedLogins(role types.Role) int {
 		delete(allowed, d)
 	}
 	return len(allowed)
+}
+
+// getKubeResourceKinds just extracts the kinds from the list.
+// If a wildcard is present, then all supported resource types are returned.
+func getKubeResourceKinds(kubernetesResources []types.RequestKubernetesResource) []string {
+	var kinds []string
+	for _, rm := range kubernetesResources {
+		if rm.Kind == types.Wildcard {
+			return types.KubernetesResourcesKinds
+		}
+		kinds = append(kinds, rm.Kind)
+	}
+	return kinds
+}
+
+// getAllowedKubeResourceKinds returns only the allowed kinds that were not in the
+// denied list.
+func getAllowedKubeResourceKinds(allowedKinds []string, deniedKinds []string) []string {
+	allowedLookup := make(map[string]struct{}, len(allowedKinds))
+	for _, kind := range allowedKinds {
+		allowedLookup[kind] = struct{}{}
+	}
+	for _, kind := range deniedKinds {
+		delete(allowedLookup, kind)
+	}
+
+	allowed := make([]string, 0, len(allowedLookup))
+	for key := range allowedLookup {
+		allowed = append(allowed, key)
+	}
+	return allowed
 }
 
 func (m *RequestValidator) roleAllowsResource(

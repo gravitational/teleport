@@ -101,6 +101,7 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr str
 
 			dstHost, dstPort, err := SplitHostPort(conn.RemoteAddr().String())
 			if err != nil {
+				conn.Close()
 				logger.WithError(err).Warn("failed to parse addr")
 				return
 			}
@@ -112,6 +113,7 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr str
 				OrigPort: dstPort,
 			}
 			if err := req.CheckAndSetDefaults(); err != nil {
+				conn.Close()
 				logger.WithError(err).Warn("failed to create forwarded tcpip request")
 				return
 			}
@@ -119,6 +121,7 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr str
 
 			ch, rch, err := sshConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
 			if err != nil {
+				conn.Close()
 				logger.WithError(err).Warn("failed to open channel")
 				continue
 			}

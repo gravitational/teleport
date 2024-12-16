@@ -112,6 +112,7 @@ func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
+		req.TeleportVersion = teleport.Version
 		t.usageReporter.AddEventsToQueue(&req)
 	}
 }
@@ -122,20 +123,16 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
 
-	if anonymizationKey == "" {
-		return nil, trace.BadParameter("anonymization key is required")
-	}
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if anonymizer == nil {
+		return nil, trace.BadParameter("missing anonymizer")
 	}
 
-	err = metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

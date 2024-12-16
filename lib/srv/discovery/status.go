@@ -43,6 +43,8 @@ import (
 // The status will be updated with the following matchers:
 // - AWS Sync (TAG) status
 // - AWS EC2 Auto Discover status
+// - AWS RDS Auto Discover status
+// - AWS EKS Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
 	// Those are discarded because there's no Status to update.
@@ -60,7 +62,13 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	discoveryConfigStatus = s.awsSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 	// Merge AWS EC2 Instances (auto discovery) status
-	discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeEC2IntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+	discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
+	// Merge AWS RDS databases (auto discovery) status
+	discoveryConfigStatus = s.awsRDSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
+	// Merge AWS EKS clusters (auto discovery) status
+	discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
@@ -196,17 +204,31 @@ func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existi
 	return existingStatus
 }
 
+func newAWSResourceStatusCollector(resourceType string) awsResourcesStatus {
+	return awsResourcesStatus{
+		resourceType: resourceType,
+	}
+}
+
 // awsResourcesStatus contains all the status for AWS Matchers grouped by DiscoveryConfig for a specific matcher type.
 type awsResourcesStatus struct {
 	mu sync.RWMutex
 	// awsResourcesResults maps the DiscoveryConfig name and integration to a summary of discovered/enrolled resources.
 	awsResourcesResults map[awsResourceGroup]awsResourceGroupResult
+	resourceType        string
 }
 
 // awsResourceGroup is the key for the summary
 type awsResourceGroup struct {
 	discoveryConfig string
 	integration     string
+}
+
+func awsResourceGroupFromLabels(labels map[string]string) awsResourceGroup {
+	return awsResourceGroup{
+		discoveryConfig: labels[types.TeleportInternalDiscoveryConfigName],
+		integration:     labels[types.TeleportInternalDiscoveryIntegrationName],
+	}
 }
 
 // awsResourceGroupResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
@@ -223,7 +245,7 @@ func (d *awsResourcesStatus) reset() {
 	d.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
 }
 
-func (ars *awsResourcesStatus) mergeEC2IntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	ars.mu.RLock()
 	defer ars.mu.RUnlock()
 
@@ -235,15 +257,25 @@ func (ars *awsResourcesStatus) mergeEC2IntoGlobalStatus(discoveryConfigName stri
 		// Update global discovered resources count.
 		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(groupResult.found)
 
-		// Update counters specific to AWS EC2 resources discovered.
+		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
 			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
 		}
-		existingIntegrationResources.AwsEc2 = &discoveryconfigv1.ResourcesDiscoveredSummary{
+
+		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
 			Found:    uint64(groupResult.found),
 			Enrolled: uint64(groupResult.enrolled),
 			Failed:   uint64(groupResult.failed),
+		}
+
+		switch ars.resourceType {
+		case types.AWSMatcherEC2:
+			existingIntegrationResources.AwsEc2 = resourcesSummary
+		case types.AWSMatcherRDS:
+			existingIntegrationResources.AwsRds = resourcesSummary
+		case types.AWSMatcherEKS:
+			existingIntegrationResources.AwsEks = resourcesSummary
 		}
 		existingStatus.IntegrationDiscoveredResources[group.integration] = existingIntegrationResources
 	}

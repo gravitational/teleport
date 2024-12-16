@@ -138,6 +138,7 @@ type testPack struct {
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
+	workloadIdentity        *local.WorkloadIdentityService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -350,6 +351,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.spiffeFederations = spiffeFederationsSvc
 
+	workloadIdentitySvc, err := local.NewWorkloadIdentityService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.workloadIdentity = workloadIdentitySvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -428,6 +435,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -836,6 +844,7 @@ func TestCompletenessInit(t *testing.T) {
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
 			AutoUpdateService:       p.autoUpdateService,
+			WorkloadIdentity:        p.workloadIdentity,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -917,6 +926,7 @@ func TestCompletenessReset(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1124,6 +1134,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1216,6 +1227,7 @@ func initStrategy(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3454,6 +3466,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindWorkloadIdentity:        types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 	}
 
 	for name, cfg := range cases {
@@ -4004,7 +4017,9 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
-		ToolsAutoupdate: true,
+		Tools: &autoupdate.AutoUpdateConfigSpecTools{
+			Mode: update.ToolsUpdateModeEnabled,
+		},
 	})
 	require.NoError(t, err)
 	return r
@@ -4014,7 +4029,9 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
-		ToolsVersion: "1.2.3",
+		Tools: &autoupdate.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
 	})
 	require.NoError(t, err)
 	return r

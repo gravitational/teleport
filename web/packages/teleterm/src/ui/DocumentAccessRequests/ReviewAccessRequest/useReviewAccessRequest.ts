@@ -192,11 +192,13 @@ function getRequestFlags(
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
 
+  const canReview = !ownRequest && isPendingState && user.acl.reviewRequests;
+
   return {
     canAssume,
     isAssumed,
     canDelete,
-    canReview: !ownRequest && isPendingState,
+    canReview,
     isPromoted,
     ownRequest,
   };

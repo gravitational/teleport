@@ -12,7 +12,7 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/
+* Architecture: https://goteleport.com/docs/reference/architecture/architecture
 * Getting Started: https://goteleport.com/docs/getting-started/
 
 <div align="center">
@@ -405,4 +405,4 @@ The remainder of the source code in this repository is available under the
 from source must comply with the terms of this license.
 
 Teleport Community Edition builds distributed on http://goteleport.com/download
-are available under a [modified Apache 2.0 license](./LICENSE-community).
+are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).

@@ -20,6 +20,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -78,6 +79,10 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
+
+	// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+	// used to interact with a YubiKey private key.
+	SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -89,6 +94,10 @@ type FSKeyStore struct {
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If nil, a default CLI prompt is used.
+	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -110,6 +119,12 @@ func (fs *FSKeyStore) userKeyPath(idx KeyIndex) string {
 // tlsCertPath returns the TLS certificate path given KeyIndex.
 func (fs *FSKeyStore) tlsCertPath(idx KeyIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCertPathFuture returns the future TLS certificate path used in Teleport v17 and
+// newer given KeyIndex.
+func (fs *FSKeyStore) tlsCertPathFuture(idx KeyIndex) string {
+	return keypaths.TLSCertPathFuture(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // sshDir returns the SSH certificate path for the given KeyIndex.
@@ -150,6 +165,12 @@ func (fs *FSKeyStore) databaseCertPath(idx KeyIndex, dbname string) string {
 // kubeCertPath returns the TLS certificate path for the given KeyIndex and kube cluster name.
 func (fs *FSKeyStore) kubeCertPath(idx KeyIndex, kubename string) string {
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+}
+
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	fs.CustomHardwareKeyPrompt = prompt
 }
 
 // AddKey adds the given key to the store.
@@ -306,6 +327,33 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	return nil
 }
 
+// FutureCertPathError will be returned when [(*FSKeyStore).GetKeyRing] does not
+// find a user TLS certificate at the expected path used in v16- but does find
+// one at the future path used in Teleport v17+.
+type FutureCertPathError struct {
+	wrappedError            error
+	expectedPath, foundPath string
+}
+
+func newFutureCertPathError(wrappedError error, expectedPath, foundPath string) *FutureCertPathError {
+	return &FutureCertPathError{
+		wrappedError: wrappedError,
+		expectedPath: expectedPath,
+		foundPath:    foundPath,
+	}
+}
+
+// Error implements the error interface.
+func (e *FutureCertPathError) Error() string {
+	return fmt.Sprintf(
+		"user TLS certificate was found at unsupported v17+ path (expected path: %s, found path: %s)",
+		e.expectedPath, e.foundPath)
+}
+
+func (e *FutureCertPathError) Unwrap() error {
+	return e.wrappedError
+}
+
 // GetKey returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
 func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
@@ -322,10 +370,16 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			if _, statErr := os.Stat(fs.tlsCertPathFuture(idx)); statErr == nil {
+				return nil, newFutureCertPathError(err, fs.tlsCertPath(idx), fs.tlsCertPathFuture(idx))
+			}
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
+	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -665,3 +719,7 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 
 	return sshCerts, nil
 }
+
+// SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// Does nothing.
+func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}

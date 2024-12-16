@@ -42,6 +42,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+const (
+	testClusterName = "teleport.example.com"
+)
+
 var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:namespace", "system:authenticated"}
 
 var boundTokenKubernetesVersion = version.Info{
@@ -57,7 +61,7 @@ var legacyTokenKubernetesVersion = version.Info{
 }
 
 // tokenReviewMock creates a testing.ReactionFunc validating the tokenReview request and answering it
-func tokenReviewMock(t *testing.T, reviewResult *v1.TokenReview) func(ctest.Action) (bool, runtime.Object, error) {
+func tokenReviewMock(t *testing.T, reviewResult *v1.TokenReview, expectedAudiences []string) func(ctest.Action) (bool, runtime.Object, error) {
 	return func(action ctest.Action) (bool, runtime.Object, error) {
 		createAction, ok := action.(ctest.CreateAction)
 		require.True(t, ok)
@@ -66,6 +70,7 @@ func tokenReviewMock(t *testing.T, reviewResult *v1.TokenReview) func(ctest.Acti
 		require.True(t, ok)
 
 		require.Equal(t, reviewResult.Spec.Token, reviewRequest.Spec.Token)
+		require.ElementsMatch(t, expectedAudiences, reviewRequest.Spec.Audiences)
 		return true, reviewResult, nil
 	}
 }
@@ -91,13 +96,82 @@ func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
 	return &c.discovery
 }
 
+const (
+	// The tokens below are test data to validate that we can extract audiences properly from tokens coming from
+	// different Kubernetes clusters versions.
+	// Those tokens are only test data and don't provide access to anything. The Kube clusters who generated them
+	// are long gone.
+	// If your scanner brought you here, please save everyone's time and DO NOT REPORT accidentally committed tokens.
+
+	// this token has no audience
+	testDataLegacyToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRVdTJXUGNPLUthZjk2c3ZJcXhFWlBsRHUyUUx5cWxrUm1qT0s2VG9XQTAifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6InRlc3RzYS10b2tlbi1namZxYiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJ0ZXN0c2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiIwYWY0YTc4Zi04ZjEwLTQ2ODUtYWMyOS1jYWUwODY1OWJjYWUiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDp0ZXN0c2EifQ.Y683lBdmc5e0wvL3BPXj4hVkYXiu7M4bn2w1tvqIdrXdat3Fnqlv5Qgih3RS1VRETXDOMp3_CA8Jv7Nqe_PSIrBPvLStRYvvRByWDWY3PvYDfFxeARKj0E_AQnFkXQxEN21eXkJi3k0i93uhGGNvUr5bNpk7buMbD2UKt-y8N7sQmTIQ6nPdjaC3YHn32-MHpAquqwbTqXhETPrvk9RjSzE4jszcd_P1Gi7BdZoHPErnCc5XaEVBJnHiWsZCsJDL00nAaAS_Ru8TsIdX_z1pyp91sigxfvFrGwhns3oXq54rrhpBuloPwmDW0gWDAV-qjje5MPFuaiov431ocKrOsg\n"
+	// audience is defaultKubeAudiences
+	testDataBoundTokenKubeAudiences = "eyJhbGciOiJSUzI1NiIsImtpZCI6InY2VnNnUmdpVS1DNlZWaUVjLV9Wb1dCR2dpZVEtblV0RDFXQjVfY3JOckEifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiLCJrM3MiXSwiZXhwIjoxNzY0OTQ3Mzc3LCJpYXQiOjE3MzM0MTEzNzcsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiMjE4Y2I0ZGQtMzQyNS00Yzc0LThiODktNTRiNzIzNGRiMDE4Iiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwibm9kZSI6eyJuYW1lIjoiazNkLWszcy1kZWZhdWx0LXNlcnZlci0wIiwidWlkIjoiZWMwMTUzZGUtMThiOC00OTk3LTg4ZGQtNjFiYzVmZTkzYThiIn0sInBvZCI6eyJuYW1lIjoiaHVnby10ZXN0LXBvZCIsInVpZCI6ImIxNjliZTdkLWNkYTItNGNhNy04ODVmLWMxNzJiMzZhNjUzNyJ9LCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiZGVmYXVsdCIsInVpZCI6IjQxMzgxNWFiLWNjZjctNDI4YS1iNjA4LTllNGUyYmU1OTc2ZiJ9LCJ3YXJuYWZ0ZXIiOjE3MzM0MTQ5ODR9LCJuYmYiOjE3MzM0MTEzNzcsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpkZWZhdWx0OmRlZmF1bHQifQ.Cs3mekFZzEOk1Gj_w0seURuYC92aY5Xy9WdNz5LtyL0L0eKNnzTV5MNWHgAas--t8ABcvHtcbdS1-XSemqyDfn_GcNJXeZa88bX1PKyG-XdDuqfn40DRxrBXR_sim_2WUGJM2oNh6C6irHzUOQFU0Wmx4oWY3pZ_BSFUlDi3xKnPv-TFWroBVmtc_wLAbCBl5gZF1KngAgMlbdX0szBEwzewkeoFhDTh3OoNWRaRpJL7_YeZsBkKPGY107fFMDXIKmZtd6qyU8-yp3Wwn_1qwucfllNmru8_bncqN18RuDOoQyFej4R93NwntyfzGy1wQexR363QFd7veSgtBS7nJQ"
+	// audience is customKubeAudiences
+	testDataBoundTokenCustomAudiences = "eyJhbGciOiJSUzI1NiIsImtpZCI6InY2VnNnUmdpVS1DNlZWaUVjLV9Wb1dCR2dpZVEtblV0RDFXQjVfY3JOckEifQ.eyJhdWQiOlsidGVsZXBvcnQuZXhhbXBsZS5jb20iXSwiZXhwIjoxNzMzNDE2MDEyLCJpYXQiOjE3MzM0MTI0MDUsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiZDE5Yjk2ZjctMTgyYy00ODVjLThkYWYtNzdkMTRhYzA4NmNlIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJkZWZhdWx0Iiwibm9kZSI6eyJuYW1lIjoiazNkLWszcy1kZWZhdWx0LXNlcnZlci0wIiwidWlkIjoiZWMwMTUzZGUtMThiOC00OTk3LTg4ZGQtNjFiYzVmZTkzYThiIn0sInBvZCI6eyJuYW1lIjoiaHVnby10ZXN0LXBvZCIsInVpZCI6Ijc1ZTIwMmFjLTAwZWMtNDVmZC05ZGViLTgwM2JkODA0YjMxNSJ9LCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiZGVmYXVsdCIsInVpZCI6IjQxMzgxNWFiLWNjZjctNDI4YS1iNjA4LTllNGUyYmU1OTc2ZiJ9fSwibmJmIjoxNzMzNDEyNDA1LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkZWZhdWx0In0.QwhCSQzDrXBNjZU6X642FC_fzglaT80ldCFTXQEwR6IdPvPntjbSAZq8yN6arngctgM6wEh3buc7kq0awmytgF2hbeSRN6PEeRbVvKaAClnCPTzlJYnDq4FOYezqSBZ7jVCW3cNxeU0QCNwj5w8Xy1uxCJu24iWov-ElyxqiCkpa9FjiquOu4kHq9OErXe5ZmXmTDOILnQBzsZnbg-sBKTX-mNAHro8DwQCfFtPmW27iySaScIegqwZNHXbZJDWZYDB2uj3xuHzX75amgPWpfqUq4JaNkf-xlldaH3SdZa5hlL9zvV9e9Dwgqlnergq6EpEZNHmCPb9birQFn46n_w"
+)
+
+var (
+	defaultKubeAudiences = []string{"https://kubernetes.default.svc.cluster.local", "k3s"}
+	customKubeAudiences  = []string{testClusterName}
+)
+
+func TestGetTokenAudiences(t *testing.T) {
+	tests := []struct {
+		name              string
+		token             string
+		expectedAudiences []string
+		expectErr         require.ErrorAssertionFunc
+	}{
+		{
+			name:              "legacy token with no audience",
+			token:             testDataLegacyToken,
+			expectedAudiences: nil,
+			expectErr:         require.NoError,
+		},
+		{
+			name:              "modern bound token with default kube audience",
+			token:             testDataBoundTokenKubeAudiences,
+			expectedAudiences: defaultKubeAudiences,
+			expectErr:         require.NoError,
+		},
+		{
+			name:              "modern bound token with custom audience",
+			token:             testDataBoundTokenCustomAudiences,
+			expectedAudiences: customKubeAudiences,
+			expectErr:         require.NoError,
+		},
+		{
+			name:              "broken token",
+			token:             "asdfghjkl",
+			expectedAudiences: nil,
+			expectErr:         require.Error,
+		},
+		{
+			name:              "no token",
+			token:             "",
+			expectedAudiences: nil,
+			expectErr:         require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := unsafeGetTokenAudiences(tt.token)
+			tt.expectErr(t, err)
+			assert.Equal(t, tt.expectedAudiences, result)
+		})
+	}
+}
+
 func TestIDTokenValidator_Validate(t *testing.T) {
 	tests := []struct {
-		token         string
-		review        *v1.TokenReview
-		kubeVersion   *version.Info
-		wantResult    *ValidationResult
-		expectedError error
+		token             string
+		review            *v1.TokenReview
+		kubeVersion       *version.Info
+		wantResult        *ValidationResult
+		clusterAudiences  []string
+		expectedAudiences []string
+		expectedError     error
 	}{
 		{
 			token: "valid",
@@ -125,6 +199,39 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
+			// As the cluster doesn't have default audiences, we should not set
+			// the cluster name in the tokenReview request audiences.
+			expectedAudiences: nil,
+		},
+		{
+			token: "valid-with-cluster-audiences",
+			review: &v1.TokenReview{
+				Spec: v1.TokenReviewSpec{
+					Token: "valid-with-cluster-audiences",
+				},
+				Status: v1.TokenReviewStatus{
+					Authenticated: true,
+					User: v1.UserInfo{
+						Username: "system:serviceaccount:namespace:my-service-account",
+						UID:      "sa-uuid",
+						Groups:   userGroups,
+						Extra: map[string]v1.ExtraValue{
+							"authentication.kubernetes.io/pod-name": {"podA"},
+							"authentication.kubernetes.io/pod-uid":  {"podA-uuid"},
+						},
+					},
+				},
+			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
+				// Raw will be filled in during test run to value of review
+			},
+			kubeVersion:      &boundTokenKubernetesVersion,
+			expectedError:    nil,
+			clusterAudiences: defaultKubeAudiences,
+			// We check that the cluster name got added to the default kube cluster audiences
+			expectedAudiences: append([]string{testClusterName}, defaultKubeAudiences...),
 		},
 		{
 			token: "valid-not-bound",
@@ -235,11 +342,12 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			}
 
 			client := newFakeClientset(tt.kubeVersion)
-			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review))
+			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review, tt.expectedAudiences))
 			v := TokenReviewValidator{
-				client: client,
+				client:           client,
+				clusterAudiences: tt.clusterAudiences,
 			}
-			result, err := v.Validate(context.Background(), tt.token)
+			result, err := v.Validate(context.Background(), tt.token, testClusterName)
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
 				return

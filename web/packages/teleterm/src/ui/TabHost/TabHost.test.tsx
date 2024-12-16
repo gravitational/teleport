@@ -27,6 +27,7 @@ import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 function getMockDocuments(): Document[] {
   return [
@@ -81,7 +82,9 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+      <ResourcesContextProvider>
+        <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+      </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 

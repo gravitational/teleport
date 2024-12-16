@@ -38,23 +38,23 @@ type remoteSubsystem struct {
 	log *log.Entry
 
 	serverContext *srv.ServerContext
-	subsytemName  string
+	subsystemName string
 
 	ctx     context.Context
 	errorCh chan error
 }
 
 // parseRemoteSubsystem returns *remoteSubsystem which can be used to run a subsystem on a remote node.
-func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContext *srv.ServerContext) *remoteSubsystem {
+func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverContext *srv.ServerContext) *remoteSubsystem {
 	return &remoteSubsystem{
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.ComponentRemoteSubsystem,
 			teleport.ComponentFields: map[string]string{
-				"name": subsytemName,
+				"name": subsystemName,
 			},
 		}),
 		serverContext: serverContext,
-		subsytemName:  subsytemName,
+		subsystemName: subsystemName,
 		ctx:           ctx,
 		errorCh:       make(chan error, 3),
 	}
@@ -79,10 +79,10 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 
 	// request the subsystem from the remote node. if successful, the user can
 	// interact with the remote subsystem with stdin, stdout, and stderr.
-	err = session.RequestSubsystem(ctx, r.subsytemName)
+	err = session.RequestSubsystem(ctx, r.subsystemName)
 	if err != nil {
 		// emit an event to the audit log with the reason remote execution failed
-		r.emitAuditEvent(err)
+		r.emitAuditEvent(ctx, err)
 
 		return trace.Wrap(err)
 	}
@@ -127,13 +127,12 @@ func (r *remoteSubsystem) Wait() error {
 	}
 
 	// emit an event to the audit log with the result of execution
-	r.emitAuditEvent(lastErr)
+	r.emitAuditEvent(r.ctx, lastErr)
 
 	return lastErr
 }
 
-func (r *remoteSubsystem) emitAuditEvent(err error) {
-	srv := r.serverContext.GetServer()
+func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	subsystemEvent := &apievents.Subsystem{
 		Metadata: apievents.Metadata{
 			Type: events.SubsystemEvent,
@@ -143,7 +142,8 @@ func (r *remoteSubsystem) emitAuditEvent(err error) {
 			LocalAddr:  r.serverContext.RemoteClient.LocalAddr().String(),
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
 		},
-		Name: r.subsytemName,
+		Name:           r.subsystemName,
+		ServerMetadata: r.serverContext.GetServer().TargetMetadata(),
 	}
 
 	if err != nil {
@@ -153,7 +153,7 @@ func (r *remoteSubsystem) emitAuditEvent(err error) {
 		subsystemEvent.Code = events.SubsystemCode
 	}
 
-	if err := srv.EmitAuditEvent(srv.Context(), subsystemEvent); err != nil {
+	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {
 		r.log.WithError(err).Warn("Failed to emit subsystem audit event.")
 	}
 }

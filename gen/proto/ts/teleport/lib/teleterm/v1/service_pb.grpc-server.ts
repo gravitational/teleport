@@ -90,6 +90,8 @@ import { ListDatabaseUsersResponse } from "./service_pb";
 import { ListDatabaseUsersRequest } from "./service_pb";
 import { GetDatabasesResponse } from "./service_pb";
 import { GetDatabasesRequest } from "./service_pb";
+import { StartHeadlessWatcherResponse } from "./service_pb";
+import { StartHeadlessWatcherRequest } from "./service_pb";
 import { ListLeafClustersRequest } from "./service_pb";
 import { ListClustersResponse } from "./service_pb";
 import { ListClustersRequest } from "./service_pb";
@@ -131,6 +133,13 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListLeafClusters(teleport.lib.teleterm.v1.ListLeafClustersRequest) returns (teleport.lib.teleterm.v1.ListClustersResponse);
      */
     listLeafClusters: grpc.handleUnaryCall<ListLeafClustersRequest, ListClustersResponse>;
+    /**
+     * StartHeadlessWatcher starts a headless watcher.
+     * If the watcher is already running, it is restarted.
+     *
+     * @generated from protobuf rpc: StartHeadlessWatcher(teleport.lib.teleterm.v1.StartHeadlessWatcherRequest) returns (teleport.lib.teleterm.v1.StartHeadlessWatcherResponse);
+     */
+    startHeadlessWatcher: grpc.handleUnaryCall<StartHeadlessWatcherRequest, StartHeadlessWatcherResponse>;
     /**
      * GetDatabases returns a filtered and paginated list of databases
      *
@@ -441,6 +450,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => ListLeafClustersRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListClustersResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListLeafClustersRequest.toBinary(value))
+    },
+    startHeadlessWatcher: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher",
+        originalName: "StartHeadlessWatcher",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => StartHeadlessWatcherResponse.fromBinary(bytes),
+        requestDeserialize: bytes => StartHeadlessWatcherRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(StartHeadlessWatcherResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(StartHeadlessWatcherRequest.toBinary(value))
     },
     getDatabases: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetDatabases",

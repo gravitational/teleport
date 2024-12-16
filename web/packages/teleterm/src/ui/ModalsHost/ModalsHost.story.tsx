@@ -21,9 +21,10 @@ import React from 'react';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
-  DialogClusterLogout,
   DialogDocumentsReopen,
   ModalsService,
+  DialogHardwareKeyTouch,
+  DialogHardwareKeyPin,
 } from 'teleterm/ui/services/modals';
 
 import ModalsHost from './ModalsHost';
@@ -32,10 +33,22 @@ export default {
   title: 'Teleterm/ModalsHost',
 };
 
-const clusterLogoutDialog: DialogClusterLogout = {
-  kind: 'cluster-logout',
-  clusterUri: '/clusters/foo',
-  clusterTitle: 'Foo',
+const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
+  kind: 'hardware-key-touch',
+  req: {
+    rootClusterUri: '/clusters/foo',
+  },
+  onCancel: () => {},
+};
+
+const hardwareKeyPinDialog: DialogHardwareKeyPin = {
+  kind: 'hardware-key-pin',
+  req: {
+    rootClusterUri: '/clusters/foo',
+    pinOptional: false,
+  },
+  onSuccess: () => {},
+  onCancel: () => {},
 };
 
 const documentsReopenDialog: DialogDocumentsReopen = {
@@ -46,7 +59,7 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   onCancel: () => {},
 };
 
-const importantDialog = clusterLogoutDialog;
+const importantDialog = hardwareKeyTouchDialog;
 const regularDialog = documentsReopenDialog;
 
 export const RegularModal = () => {
@@ -81,6 +94,21 @@ export const ImportantAndRegularModal = () => {
   const modalsService = new ModalsService();
   modalsService.openRegularDialog(regularDialog);
   modalsService.openImportantDialog(importantDialog);
+
+  const appContext = new MockAppContext();
+  appContext.modalsService = modalsService;
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <ModalsHost />
+    </MockAppContextProvider>
+  );
+};
+
+export const TwoImportantModals = () => {
+  const modalsService = new ModalsService();
+  modalsService.openImportantDialog(importantDialog);
+  modalsService.openImportantDialog(hardwareKeyPinDialog);
 
   const appContext = new MockAppContext();
   appContext.modalsService = modalsService;

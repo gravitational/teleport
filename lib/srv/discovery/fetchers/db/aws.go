@@ -64,6 +64,10 @@ type awsFetcherConfig struct {
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	// Might be empty when the fetcher is using static matchers:
+	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+	DiscoveryConfig string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -165,6 +169,16 @@ func (f *awsFetcher) applyAssumeRole(db types.Database) {
 // Cloud returns the cloud the fetcher is operating.
 func (f *awsFetcher) Cloud() string {
 	return types.CloudAWS
+}
+
+// IntegrationName returns the integration name whose credentials are used to fetch the resources.
+func (f *awsFetcher) IntegrationName() string {
+	return f.cfg.Integration
+}
+
+// DiscoveryConfigName returns the discovery config name whose matchers are used to fetch the resources.
+func (f *awsFetcher) DiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfig
 }
 
 // ResourceType identifies the resource type the fetcher is returning.

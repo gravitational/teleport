@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useImperativeHandle, forwardRef, createRef } from 'react';
 import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { act } from '@testing-library/react';
@@ -30,7 +31,10 @@ import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb'
 
 import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import {
+  ResourcesContextProvider,
+  useResourcesContext,
+} from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
@@ -38,14 +42,15 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   makeRootCluster,
   rootClusterUri,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import * as uri from 'teleterm/ui/uri';
 
 const mio = mockIntersectionObserver();
 
-const tests = [
+test.each([
   {
     name: 'fetches only available resources if cluster does not support access requests',
     conditions: {
@@ -166,9 +171,7 @@ const tests = [
       includeRequestable: false,
     },
   },
-];
-
-test.each(tests)('$name', async testCase => {
+])('$name', async testCase => {
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
@@ -269,4 +272,120 @@ test.each(tests)('$name', async testCase => {
     },
     new AbortController().signal
   );
+});
+
+test.each([
+  {
+    name: 'refreshes resources when the document cluster URI matches the requested cluster URI',
+    conditions: {
+      documentClusterUri: '/clusters/teleport-local',
+    },
+    expect: {
+      resourcesRefreshed: true,
+    },
+  },
+  {
+    name: 'refreshes resources when the document cluster URI is a leaf of the requested cluster URI',
+    conditions: {
+      documentClusterUri: '/clusters/teleport-local/leaves/leaf',
+    },
+    expect: {
+      resourcesRefreshed: true,
+    },
+  },
+])('$name', async testCase => {
+  const doc = makeDocumentCluster({
+    clusterUri: testCase.conditions.documentClusterUri,
+  });
+  const rootCluster = makeRootCluster({
+    uri: uri.routing.ensureRootClusterUri(doc.clusterUri),
+  });
+  const serverResource = makeServer();
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(rootCluster.uri, rootCluster);
+  });
+
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootCluster.uri;
+    draftState.workspaces[rootCluster.uri] = {
+      localClusterUri: rootCluster.uri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
+    };
+  });
+
+  jest
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
+    .mockResolvedValue({
+      resources: [
+        {
+          kind: 'server',
+          resource: serverResource,
+          requiresRequest: false,
+        },
+      ],
+      nextKey: '',
+    });
+
+  const ref = createRef<{
+    requestResourcesRefresh: () => void;
+  }>();
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
+            <UnifiedResources
+              clusterUri={doc.clusterUri}
+              docUri={doc.uri}
+              queryParams={doc.queryParams}
+            />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  act(mio.enterAll);
+
+  // Wait for resources to render.
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  expect(
+    appContext.resourcesService.listUnifiedResources
+  ).toHaveBeenCalledTimes(1);
+
+  act(() => ref.current.requestResourcesRefresh());
+
+  // Wait for resources to (potentially) re-render.
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  expect(
+    appContext.resourcesService.listUnifiedResources
+    // When resources are refreshed, we have two calls to the API.
+  ).toHaveBeenCalledTimes(testCase.expect.resourcesRefreshed ? 2 : 1);
+});
+
+const Refresher = forwardRef<
+  {
+    requestResourcesRefresh: () => void;
+  },
+  {
+    rootClusterUri: uri.RootClusterUri;
+  }
+>((props, ref) => {
+  const resourcesContext = useResourcesContext(props.rootClusterUri);
+  useImperativeHandle(ref, () => ({
+    requestResourcesRefresh: resourcesContext.requestResourcesRefresh,
+  }));
+  return null;
 });

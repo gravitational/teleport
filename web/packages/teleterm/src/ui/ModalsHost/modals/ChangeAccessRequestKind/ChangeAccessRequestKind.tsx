@@ -27,13 +27,16 @@ import { Cross } from 'design/Icon';
 export function ChangeAccessRequestKind({
   onCancel,
   onConfirm,
+  hidden,
 }: {
   onCancel(): void;
   onConfirm(): void;
+  hidden?: boolean;
 }) {
   return (
     <DialogConfirmation
-      open={true}
+      open={!hidden}
+      keepInDOMAfterClose
       onClose={onCancel}
       dialogCss={() => ({
         maxWidth: '400px',

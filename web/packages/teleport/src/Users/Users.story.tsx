@@ -149,4 +149,12 @@ const sample = {
   EmailPasswordReset: null,
   showMauInfo: false,
   onDismissUsersMauNotice: () => null,
+  canEditUsers: true,
+  usersAcl: {
+    read: true,
+    edit: false,
+    remove: true,
+    list: true,
+    create: true,
+  },
 };

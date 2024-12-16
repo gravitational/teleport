@@ -109,11 +109,13 @@ This is merged with chart-scoped values and takes precedence in case of conflict
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 auth:
   # But we override the `postStart` value specifically for auth pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 ```
 
@@ -193,11 +195,13 @@ For example, to override the [`postStart`](#postStart) value only for Teleport P
 and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 proxy:
   # But we override the `postStart` value specifically for proxy pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 
   # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
@@ -616,6 +620,22 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   enterprise: true
   ```
 
+### `licenseSecretName`
+
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `license`      |
+
+`licenseSecretName` controls Kubernetes secret name for the Enterprise license.
+
+By using this value you will update the Kubernetes volume specification to mount Secret based volume to the container using custom name.
+
+`values.yaml` example:
+
+  ```yaml
+  licenseSecretName: enterprise-license
+  ```
+
 ## `installCRDs`
 
 | Type   | Default value |
@@ -639,6 +659,63 @@ the same Kubernetes cluster or installing the CRDs on your own you should not ha
 
 ## `operator`
 
+### `operator.annotations.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      deployment:
+        kubernetes.io/annotation: value
+  ```
+
+### `operator.annotations.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      pod:
+        kubernetes.io/annotation: value
+  ```
+
+### `operator.annotations.serviceAccount`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      serviceAccount:
+        kubernetes.io/annotation: value
+  ```
+
 ### `operator.enabled`
 
 | Type   | Default value |
@@ -655,7 +732,7 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
 
   ```yaml
   operator:
-   enabled: true
+    enabled: true
   ```
 
 ### `operator.image`
@@ -674,6 +751,44 @@ This setting requires [`operator.enabled`](#operatorenabled).
   ```yaml
   operator:
     image: my.docker.registry/teleport-operator-image-name
+  ```
+
+### `operator.labels.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    labels:
+      deployment:
+        label: value
+  ```
+
+### `operator.labels.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels which should be applied to the `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    labels:
+      pod:
+        label: value
   ```
 
 ### `operator.resources`
@@ -1772,6 +1887,14 @@ is true.
 | `object` | `{}`          |
 
 `extraLabels.job` are labels to set on the Job run by the Helm hook.
+
+### `extraLabels.jobPod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.jobPod` are labels to set on the Pods created by the Job run by the Helm hook.
 
 ### `extraLabels.persistentVolumeClaim`
 

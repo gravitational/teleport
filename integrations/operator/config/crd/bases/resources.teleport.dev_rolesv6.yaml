@@ -329,6 +329,21 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
@@ -559,6 +574,17 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               deny:
                 description: Deny is the set of conditions evaluated to deny access.
@@ -855,6 +881,21 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
@@ -1085,6 +1126,17 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               options:
                 description: Options is for OpenSSH options like agent forwarding.

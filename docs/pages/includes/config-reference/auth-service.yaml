@@ -58,7 +58,7 @@ teleport:
         # consume the retention period via a query parameter in the audit_events_uri. See the examples below
         # for how to configure the retention period for other backends.
         # Firestore: firestore://events_table_name?eventRetentionPeriod=10d
-        # Postgres: postgresql://user_name@database-address/teleport_audit?retention_period=10d
+        # Postgres: postgresql://user_name@database-address/teleport_audit#retention_period=240h
         retention_period: 365d
 
         # minimum/maximum read capacity in units
@@ -342,8 +342,7 @@ auth_service:
     routing_strategy: unambiguous_match
 
     # License file to start auth server with. Note that this setting is ignored
-    # in the Teleport Community Edition and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
+    # in the Teleport Community Edition and is required only for Teleport Enterprise.
     #
     # The path can be either absolute or relative to the configured `data_dir`
     # and should point to the license file obtained from Teleport Download

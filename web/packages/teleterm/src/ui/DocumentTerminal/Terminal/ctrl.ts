@@ -19,6 +19,10 @@
 import '@xterm/xterm/css/xterm.css';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import {
+  SearchAddon,
+  TerminalSearcher,
+} from 'shared/components/TerminalSearch';
 import { debounce } from 'shared/utils/highbar';
 
 import { WindowsPty } from 'teleterm/services/pty';
@@ -37,10 +41,11 @@ type Options = {
   openContextMenu(e: MouseEvent): void;
 };
 
-export default class TtyTerminal {
+export default class TtyTerminal implements TerminalSearcher {
   public term: Terminal;
   private el: HTMLElement;
   private fitAddon = new FitAddon();
+  private searchAddon = new SearchAddon();
   private resizeHandler: IDisposable;
   private debouncedResize: () => void;
   private logger = new Logger('lib/term/terminal');
@@ -49,6 +54,7 @@ export default class TtyTerminal {
     AppConfig,
     'terminal.rightClick' | 'terminal.copyOnSelect'
   >;
+  private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
   constructor(
     private ptyProcess: IPtyProcess,
@@ -67,6 +73,13 @@ export default class TtyTerminal {
       this.requestResize.bind(this),
       WINDOW_RESIZE_DEBOUNCE_DELAY
     );
+  }
+
+  registerCustomKeyEventHandler(customHandler: (e: KeyboardEvent) => boolean) {
+    this.customKeyEventHandlers.add(customHandler);
+    return {
+      unregister: () => this.customKeyEventHandlers.delete(customHandler),
+    };
   }
 
   open(): void {
@@ -91,6 +104,7 @@ export default class TtyTerminal {
       windowOptions: {
         setWinSizeChars: true,
       },
+      allowProposedApi: true, // required for customizing SearchAddon properties
     });
 
     this.term.onSelectionChange(() => {
@@ -100,12 +114,13 @@ export default class TtyTerminal {
     });
 
     this.term.loadAddon(this.fitAddon);
+    this.term.loadAddon(this.searchAddon);
 
     this.registerResizeHandler();
 
     this.term.open(this.el);
 
-    this.term.attachCustomKeyEventHandler(e => {
+    this.registerCustomKeyEventHandler(e => {
       const action = this.keyboardShortcutsService.getShortcutAction(e);
       const isKeyDown = e.type === 'keydown';
       if (action === 'terminalCopy' && isKeyDown && this.term.hasSelection()) {
@@ -123,6 +138,17 @@ export default class TtyTerminal {
         return false;
       }
 
+      return true;
+    });
+
+    this.term.attachCustomKeyEventHandler(e => {
+      for (const eventHandler of this.customKeyEventHandlers) {
+        if (!eventHandler(e)) {
+          // The event was handled, we can return early.
+          return false;
+        }
+      }
+      // The event wasn't handled, pass it to xterm.
       return true;
     });
 
@@ -192,6 +218,10 @@ export default class TtyTerminal {
 
   focus() {
     this.term.focus();
+  }
+
+  getSearchAddon() {
+    return this.searchAddon;
   }
 
   requestResize(): void {

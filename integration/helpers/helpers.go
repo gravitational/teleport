@@ -129,10 +129,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	}
 
 	// Create an exec.Command and tell it where to find the SSH agent.
-	cmd, err := exec.Command(sshpath, execArgs...), nil
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	cmd := exec.Command(sshpath, execArgs...)
 	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
 
 	return cmd, nil

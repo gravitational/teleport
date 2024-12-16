@@ -80,7 +80,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 
 	// only allow self subject access reviews for the service that proxies the
 	// request to the kubernetes API server.
-	if f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+	if sess.isLocalKubernetesCluster {
 		if err := f.validateSelfSubjectAccessReview(sess, w, req); trace.IsAccessDenied(err) {
 			return nil, nil
 		} else if err != nil {

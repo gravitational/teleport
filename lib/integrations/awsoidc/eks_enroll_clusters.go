@@ -552,12 +552,13 @@ func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Config
 	var err error
 	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
 	// effect, so we could get errors when trying to access cluster right after giving us permissions to do so.
-	for attempt := 1; attempt <= 3; attempt++ {
+	// From real scenarios, we've seen this taking as long as 30 seconds.
+	for attempt := 1; attempt <= 6; attempt++ {
 		listCmd := action.NewList(actionConfig)
 		releases, err = listCmd.Run()
 		if err != nil {
 			select {
-			case <-time.After(time.Duration(attempt) * time.Second):
+			case <-time.After(10 * time.Second):
 			case <-ctx.Done():
 				return false, trace.NewAggregate(err, ctx.Err())
 			}

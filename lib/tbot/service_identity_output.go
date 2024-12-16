@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -251,7 +250,7 @@ type alpnTester interface {
 func renderSSHConfig(
 	ctx context.Context,
 	log *slog.Logger,
-	proxyPing *webclient.PingResponse,
+	proxyPing *proxyPingResponse,
 	clusterNames []string,
 	dest bot.Destination,
 	certAuthGetter certAuthGetter,
@@ -267,11 +266,16 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return trace.Wrap(err, "determining proxy web addr")
+	}
+
+	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(
 			"proxy %+v has no usable public address: %v",
-			proxyPing.Proxy.SSH.PublicAddr, err,
+			proxyAddr, err,
 		)
 	}
 
@@ -318,7 +322,6 @@ func renderSSHConfig(
 	knownHostsPath := filepath.Join(absDestPath, ssh.KnownHostsName)
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
-
 	sshConf := openssh.NewSSHConfig(getOpenSSHVersion, nil)
 
 	if getEnv(sshConfigProxyModeEnv) == "legacy" {
@@ -344,7 +347,7 @@ func renderSSHConfig(
 		connUpgradeRequired := false
 		if proxyPing.Proxy.TLSRoutingEnabled {
 			connUpgradeRequired, err = alpnTester.isUpgradeRequired(
-				ctx, proxyPing.Proxy.SSH.PublicAddr, botCfg.Insecure,
+				ctx, proxyAddr, botCfg.Insecure,
 			)
 			if err != nil {
 				return trace.Wrap(err, "determining if ALPN upgrade is required")

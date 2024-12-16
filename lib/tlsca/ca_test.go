@@ -331,6 +331,28 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 				assertStringOID(t, want.CredentialID, DeviceCredentialIDExtensionOID, subj, "CredentialID mismatch")
 			},
 		},
+		{
+			name: "user type: sso",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "sso",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
+		{
+			name: "user type: local",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "local",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

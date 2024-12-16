@@ -21,6 +21,7 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -52,6 +53,64 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+type IntegrationWithSummary struct {
+	*Integration
+	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	// AWSEKS contains the summary for the AWS EKS resources for this integration.
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+}
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+type ResourceTypeSummary struct {
+	// RulesCount is the number of enrollment rules that are using this integration.
+	// A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+	// If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+	// Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+	// Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+	// Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+	RulesCount int `json:"rulesCount,omitempty"`
+	// ResourcesFound contains the count of resources found by this integration.
+	ResourcesFound int `json:"resourcesFound,omitempty"`
+	// ResourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+	ResourcesEnrollmentFailed int `json:"resourcesEnrollmentFailed,omitempty"`
+	// ResourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
+	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
+	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+	// Only applicable for AWS RDS resource summary.
+	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
+}
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+type IntegrationDiscoveryRule struct {
+	// ResourceType indicates the type of resource that this rule targets.
+	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+	// Example: ec2, rds, eks
+	ResourceType string `json:"resourceType,omitempty"`
+	// Region where this rule applies to.
+	Region string `json:"region,omitempty"`
+	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
+	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
+	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
+	// LastSync contains the time when this rule was used.
+	// If empty, it indicates that the rule is not being used.
+	LastSync *time.Time `json:"lastSync,omitempty"`
+}
+
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+type IntegrationDiscoveryRules struct {
+	// Rules is the list of integration rules.
+	Rules []IntegrationDiscoveryRule `json:"rules"`
+	// NextKey is the position to resume listing rules.
+	NextKey string `json:"nextKey,omitempty"`
 }
 
 // Integration describes Integration fields

@@ -692,21 +692,26 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 
 	clustersList := make([]*integrationpb.EKSCluster, 0, len(listEKSClustersResp.Clusters))
 	for _, cluster := range listEKSClustersResp.Clusters {
-		clusterPb := &integrationpb.EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     cluster.Labels,
-			JoinLabels: cluster.JoinLabels,
-			Status:     cluster.Status,
-		}
-		clustersList = append(clustersList, clusterPb)
+		clustersList = append(clustersList, convertEKSCluster(cluster))
 	}
 
 	return &integrationpb.ListEKSClustersResponse{
 		Clusters:  clustersList,
 		NextToken: listEKSClustersResp.NextToken,
 	}, nil
+}
+
+func convertEKSCluster(clusterService awsoidc.EKSCluster) *integrationpb.EKSCluster {
+	return &integrationpb.EKSCluster{
+		Name:                 clusterService.Name,
+		Region:               clusterService.Region,
+		Arn:                  clusterService.Arn,
+		Labels:               clusterService.Labels,
+		JoinLabels:           clusterService.JoinLabels,
+		Status:               clusterService.Status,
+		EndpointPublicAccess: clusterService.EndpointPublicAccess,
+		AuthenticationMode:   clusterService.AuthenticationMode,
+	}
 }
 
 // ListSubnets returns a list of AWS VPC subnets.

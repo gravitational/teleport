@@ -21,6 +21,8 @@ import TeleportContext from 'teleport/teleportContext';
 import type { UrlListRolesParams } from 'teleport/config';
 
 export function useRoles(ctx: TeleportContext) {
+  const rolesAcl = ctx.storeUser.getRoleAccess();
+
   function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
       return ctx.resourceService.createRole(yaml);
@@ -41,6 +43,7 @@ export function useRoles(ctx: TeleportContext) {
     fetch,
     save,
     remove,
+    rolesAcl,
   };
 }
 

@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -1317,6 +1318,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
   // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
+  // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
+  ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1407,6 +1410,11 @@ message ProvisionTokenSpecV2GitHub {
   // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
   // for more information about customized issuer values.
   string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
+  // StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitHub Actions in GHES instances that are not reachable by the
+  // Teleport Auth Service.
+  string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
@@ -1655,6 +1663,49 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
   // and provide standard JWKS endpoints.
   string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
+message ProvisionTokenSpecV2Bitbucket {
+  // Rule is a set of properties the Bitbucket-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // WorkspaceUUID is the UUID of the workspace for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
+
+    // RepositoryUUID is the UUID of the repository for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
+
+    // DeploymentEnvironmentUUID is the UUID of the deployment environment
+    // targeted by this pipelines run, if any. These values may be found in the
+    // "Pipelines -> OpenID Connect -> Deployment environments" section of the
+    // repository settings.
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
+
+    // BranchName is the name of the branch on which this pipeline executed.
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is a Bitbucket-specified audience value for this token. It is
+  // unique to each Bitbucket repository, and must be set to the value as
+  // written in the Pipelines -> OpenID Connect section of the repository
+  // settings.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC
+  // tokens. It is unique to each Bitbucket repository, and must be set to the
+  // value as written in the Pipelines -> OpenID Connect section of the
+  // repository settings.
+  string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2658,6 +2709,14 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// RequestKubernetesResource is the Kubernetes resource identifier used
+// in access request settings.
+// Modeled after existing message KubernetesResource.
+message RequestKubernetesResource {
+  // kind specifies the Kubernetes Resource type.
+  string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+}
+
 // ResourceID is a unique identifier for a teleport resource.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
@@ -3229,6 +3288,18 @@ message RoleConditions {
   reserved "SAMLIdPServiceProviderLabels";
   reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
   reserved "SAMLIdPServiceProviderLabelsExpression";
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3385,6 +3456,15 @@ message AccessRequestConditions {
   int64 MaxDuration = 7 [
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
+  ];
+
+  // kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". This field can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  repeated RequestKubernetesResource kubernetes_resources = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
 }
 
@@ -4047,19 +4127,6 @@ message WebSessionSpecV2 {
   // If during login a device is required and DeviceWebToken is nil, then it's
   // likely the user needs to enroll their device to avoid impacting access.
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
-}
-
-// TrustedDeviceRequirement indicates whether access may be hindered by the lack
-// of a trusted device.
-enum TrustedDeviceRequirement {
-  // Device requirement not determined.
-  // Does not mean that a device is not required, only that the necessary data
-  // was not considered.
-  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
-  // Trusted device not required.
-  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
-  // Trusted device required by either cluster mode or user roles.
-  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -6226,6 +6293,11 @@ message PluginEntraIDSyncSettings {
   // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the Entra integration when utilized.
   string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
 }
 
 // EntraIDCredentialsSource defines the credentials source for Entra ID.
@@ -7382,6 +7454,12 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // PollInterval is the frequency at which to poll for AWS resources
+  google.protobuf.Duration PollInterval = 2 [
+    (gogoproto.jsontag) = "poll_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.

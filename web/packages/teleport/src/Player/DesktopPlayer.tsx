@@ -69,7 +69,7 @@ export const DesktopPlayer = ({
     clusterId,
   });
 
-  const isError = playerStatus === StatusEnum.ERROR;
+  const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;

@@ -622,11 +622,14 @@ const (
 //
 // The URL's are formed this way to help isolate the path params reserved for the app
 // launchers route, where order and existence of previous params matter for this route.
-func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req launcherURLParams) string {
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launcherURLParams) string {
+	if req.requiresAppRedirect {
+		addr = req.publicAddr
+	}
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyPublicAddr,
-		Path:   fmt.Sprintf("/web/launch/%s", hostname),
+		Path:   fmt.Sprintf("/web/launch/%s", addr),
 	}
 
 	// Presence of a stateToken means we are beginning an app auth exchange.
@@ -639,7 +642,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		v.Add("required-apps", req.requiredAppFQDNs)
 		u.RawQuery = v.Encode()
 
-		urlPath := []string{"web", "launch", hostname}
+		urlPath := []string{"web", "launch", addr}
 
 		// The order and existence of previous params matter.
 		//

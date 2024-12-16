@@ -274,7 +274,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(
+  async setActiveWorkspace(
     clusterUri: RootClusterUri,
     /**
      * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
@@ -316,7 +316,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return Promise.resolve({ isAtDesiredWorkspace: true });
     }
 
-    const cluster = this.clustersService.findCluster(clusterUri);
+    let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
       this.notificationsService.notifyError({
         title: 'Could not set cluster as active',
@@ -326,6 +326,21 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
       return Promise.resolve({ isAtDesiredWorkspace: false });
+    }
+
+    if (cluster.profileStatusError) {
+      await this.clustersService.syncRootClustersAndCatchErrors();
+      // Update the cluster.
+      cluster = this.clustersService.findCluster(clusterUri);
+      // If the problem persists (because, for example, the user still hasn't
+      // connected the hardware key) show a notification and return early.
+      if (cluster.profileStatusError) {
+        this.notificationsService.notifyError({
+          title: 'Could not set cluster as active',
+          description: cluster.profileStatusError,
+        });
+        return { isAtDesiredWorkspace: false };
+      }
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -405,7 +420,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             currentDocuments: workspaceDefaultState.documents,
           })
             ? {
-                location: persistedWorkspace.location,
+                location: getLocationToRestore(
+                  persistedWorkspaceDocuments,
+                  persistedWorkspace.location
+                ),
                 documents: persistedWorkspaceDocuments,
               }
             : undefined,
@@ -545,10 +563,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
+      const documentsToPersist = getDocumentsToPersist(
+        workspace.previous?.documents || workspace.documents
+      );
+
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
-        documents: workspace.previous?.documents || workspace.documents,
+        documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
@@ -566,6 +588,7 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
@@ -590,3 +613,20 @@ const unifiedResourcePreferencesSchema = z
 type UnifiedResourcePreferencesSchemaAsRequired = Required<
   z.infer<typeof unifiedResourcePreferencesSchema>
 >;
+
+function getDocumentsToPersist(documents: Document[]): Document[] {
+  return (
+    documents
+      // We don't persist 'doc.authorize_web_session' because we don't want to store
+      // a session token and id on disk.
+      // Moreover, the user would not be able to authorize a session at a later time anyway.
+      .filter(d => d.kind !== 'doc.authorize_web_session')
+  );
+}
+
+function getLocationToRestore(
+  documents: Document[],
+  location: DocumentUri
+): DocumentUri | undefined {
+  return documents.find(d => d.uri === location) ? location : documents[0]?.uri;
+}

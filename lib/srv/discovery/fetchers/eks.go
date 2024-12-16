@@ -87,6 +87,10 @@ type EKSFetcherConfig struct {
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
+	// DiscoveryConfig is the name of the discovery config which originated the resource.
+	// Might be empty when the fetcher is using static matchers:
+	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+	DiscoveryConfig string
 	// KubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for the
 	// discovered cluster. We don't use this information for fetching itself, but we need it for
 	// correct enrollment of the clusters returned from this fetcher.
@@ -129,7 +133,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 
 // MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
 // by their reliance on the integration.
-func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers []common.Fetcher, _ error) {
+func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) (kubeFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
 		var matcherAssumeRole types.AssumeRole
 		if matcher.AssumeRole != nil {
@@ -150,6 +154,7 @@ func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSCli
 							FilterLabels:      matcher.Tags,
 							Log:               log,
 							SetupAccessForARN: matcher.SetupAccessForARN,
+							DiscoveryConfig:   discoveryConfig,
 						},
 					)
 					if err != nil {
@@ -318,6 +323,14 @@ func (a *eksFetcher) FetcherType() string {
 
 func (a *eksFetcher) Cloud() string {
 	return types.CloudAWS
+}
+
+func (a *eksFetcher) IntegrationName() string {
+	return a.Integration
+}
+
+func (a *eksFetcher) DiscoveryConfigName() string {
+	return a.DiscoveryConfig
 }
 
 func (a *eksFetcher) String() string {

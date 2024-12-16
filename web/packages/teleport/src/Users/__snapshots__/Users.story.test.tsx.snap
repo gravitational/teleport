@@ -12,22 +12,22 @@ exports[`success state 1`] = `
   margin-bottom: 24px;
 }
 
-.c19 {
+.c8 {
   box-sizing: border-box;
 }
 
-.c15 {
+.c16 {
   box-sizing: border-box;
   margin-bottom: 4px;
   width: 100%;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c8 {
+.c9 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -55,16 +55,16 @@ exports[`success state 1`] = `
   width: 240px;
 }
 
-.c8:hover,
-.c8:focus {
+.c9:hover,
+.c9:focus {
   background: #B29DFF;
 }
 
-.c8:active {
+.c9:active {
   background: #C5B6FF;
 }
 
-.c8:disabled {
+.c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -208,7 +208,7 @@ exports[`success state 1`] = `
   margin: 0px;
 }
 
-.c18 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -241,9 +241,10 @@ exports[`success state 1`] = `
 .c4 {
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 
-.c16 {
+.c17 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -369,7 +370,7 @@ exports[`success state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c9 {
+.c10 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -387,7 +388,7 @@ exports[`success state 1`] = `
   padding-left: 1px;
 }
 
-.c14 {
+.c15 {
   position: relative;
   height: 100%;
   right: 0;
@@ -397,7 +398,7 @@ exports[`success state 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c13 {
+.c14 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -408,7 +409,7 @@ exports[`success state 1`] = `
   border-radius: 0 200px 200px 0;
 }
 
-.c11 {
+.c12 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -418,13 +419,13 @@ exports[`success state 1`] = `
   max-width: 725px;
 }
 
-.c10 {
+.c11 {
   border-radius: 200px;
   width: 100%;
   height: 40px;
 }
 
-.c12 {
+.c13 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -451,47 +452,53 @@ exports[`success state 1`] = `
       >
         Users
       </div>
-      <button
-        class="c8"
-        kind="primary"
-        width="240px"
+      <div
+        class="c8 c1"
       >
-        Create New User
-      </button>
+        <button
+          class="c9"
+          data-testid="create_new_users_button"
+          disabled=""
+          kind="primary"
+          width="240px"
+        >
+          Create New User
+        </button>
+      </div>
     </div>
     <nav
-      class="c9"
+      class="c10"
     >
       <div
-        class="c10"
+        class="c11"
       >
         <form
-          class="c11"
+          class="c12"
         >
           <input
-            class="c12"
+            class="c13"
             name="searchValue"
             placeholder="Search..."
             value=""
           />
           <div
-            class="c13"
+            class="c14"
           >
             <div
-              class="c14"
+              class="c15"
             />
           </div>
         </form>
       </div>
       <div
-        class="c15 c16"
+        class="c16 c17"
         width="100%"
       >
         <div
-          class="c17 c1"
+          class="c18 c1"
         >
           <div
-            class="c18"
+            class="c19"
             font-weight="500"
             style="white-space: nowrap; letter-spacing: 0.15px;"
           >
@@ -511,7 +518,7 @@ exports[`success state 1`] = `
           </div>
         </div>
         <div
-          class="c19 c1"
+          class="c8 c1"
         >
           <button
             class="c20 c21"
@@ -654,7 +661,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -704,7 +711,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -729,7 +736,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -779,7 +786,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -835,7 +842,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -884,7 +891,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -921,7 +928,7 @@ exports[`success state 1`] = `
           </td>
           <td>
             <div
-              class="c19 c25"
+              class="c8 c25"
             >
               <div
                 class="c26"
@@ -955,17 +962,17 @@ exports[`success state 1`] = `
       </tbody>
     </table>
     <nav
-      class="c9"
+      class="c10"
     >
       <div
-        class="c15 c16"
+        class="c16 c17"
         width="100%"
       >
         <div
-          class="c17 c1"
+          class="c18 c1"
         >
           <div
-            class="c18"
+            class="c19"
             font-weight="500"
             style="white-space: nowrap; letter-spacing: 0.15px;"
           >
@@ -985,7 +992,7 @@ exports[`success state 1`] = `
           </div>
         </div>
         <div
-          class="c19 c1"
+          class="c8 c1"
         >
           <button
             class="c20 c21"

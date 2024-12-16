@@ -22,6 +22,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from 'react';
+import styled from 'styled-components';
 import { Flex } from 'design';
 import { ITheme } from '@xterm/xterm';
 
@@ -33,10 +34,6 @@ import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
 import StyledXterm from '../../StyledXterm';
 
-export interface TerminalRef {
-  focus(): void;
-}
-
 export interface TerminalProps {
   tty: Tty;
   fontFamily: string;
@@ -44,6 +41,8 @@ export interface TerminalProps {
   // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
   // This is equivalent to replacing each '\n' with '\r\n'.
   convertEol?: boolean;
+  // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
+  terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -73,14 +72,19 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
     termCtrl.open();
 
-    termCtrl.term.attachCustomKeyEventHandler(event => {
+    const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;
       }
+
+      return true;
     });
 
-    return () => termCtrl.destroy();
+    return () => {
+      unregister();
+      termCtrl.destroy();
+    };
     // do not re-initialize xterm when theme changes, use specialized handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -98,7 +102,26 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       style={{ overflow: 'auto' }}
       data-testid="terminal"
     >
+      <TerminalAddonsContainer>
+        {termCtrlRef.current && props.terminalAddons?.(termCtrlRef.current)}
+      </TerminalAddonsContainer>
       <StyledXterm ref={elementRef} />
     </Flex>
   );
 });
+
+const TerminalAddonsContainer = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 500px;
+`;
+
+export interface TerminalRef {
+  focus(): void;
+}

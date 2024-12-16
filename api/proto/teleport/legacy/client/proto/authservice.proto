@@ -561,6 +561,8 @@ message Features {
   // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
   // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
   bool AccessMonitoringConfigured = 36;
+  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
+  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement

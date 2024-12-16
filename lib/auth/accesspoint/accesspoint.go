@@ -103,6 +103,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
+	WorkloadIdentity        cache.WorkloadIdentityReader
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
 }
@@ -198,6 +199,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Users:                   cfg.Users,
 		WebSession:              cfg.WebSession,
 		WebToken:                cfg.WebToken,
+		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
 	}
 

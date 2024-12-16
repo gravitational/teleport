@@ -598,7 +598,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	t.Run("Azure method", func(t *testing.T) {
 		subID := uuid.NewString()
 		resourceGroup := "rg"
-		rsID := resourceID(subID, resourceGroup, "test-vm")
+		rsID := vmResourceID(subID, resourceGroup, "test-vm")
 		vmID := "vmID"
 
 		accessToken, err := makeToken(rsID, a.clock.Now())
@@ -618,13 +618,20 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, a.UpsertToken(ctx, azureToken))
 
-		vmClient := &mockAzureVMClient{vm: &azure.VirtualMachine{
-			ID:            rsID,
-			Name:          "test-vm",
-			Subscription:  subID,
-			ResourceGroup: resourceGroup,
-			VMID:          vmID,
-		}}
+		vmClient := &mockAzureVMClient{
+			vms: map[string]*azure.VirtualMachine{
+				rsID: {
+					ID:            rsID,
+					Name:          "test-vm",
+					Subscription:  subID,
+					ResourceGroup: resourceGroup,
+					VMID:          vmID,
+				},
+			},
+		}
+		getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
+			subID: vmClient,
+		})
 
 		tlsConfig, err := fixtures.LocalTLSConfig()
 		require.NoError(t, err)
@@ -666,7 +673,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 				AccessToken:  accessToken,
 			}
 			return req, nil
-		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClient(vmClient))
+		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClientGetter(getVMClient))
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})

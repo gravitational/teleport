@@ -46,7 +46,9 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -442,6 +444,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -467,6 +470,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
+	tconf.DebugService.Enabled = false
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -735,6 +739,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	}
 	tconf.Auth.Enabled = false
 	tconf.Proxy.Enabled = false
+	tconf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -777,6 +782,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
+	conf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -827,6 +833,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Testing.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
+			cfg.DebugService.Enabled = false
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -892,6 +899,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
 	conf.SSH.Enabled = false
+	conf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -954,6 +962,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 	conf.Apps.Enabled = false
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = false
+	conf.DebugService.Enabled = false
 
 	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
 	if err := EnableKube(t, conf, clusterName); err != nil {
@@ -1029,6 +1038,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1122,6 +1132,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 	tconf.FileDescriptors = cfg.FileDescriptors
 	// apply options
 	for _, o := range opts {
@@ -1760,4 +1771,52 @@ func (i *TeleInstance) StopAll() error {
 
 	i.Log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
+}
+
+// WaitForNodeCount waits for a certain number of nodes in the provided cluster
+// to be visible to the Proxy. This should be called prior to any client dialing
+// of nodes to be sure that the node is registered and routable.
+func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, count int) error {
+	const (
+		deadline     = time.Second * 30
+		iterWaitTime = time.Second
+	)
+
+	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
+		site, err := i.Tunnel.GetSite(cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Validate that the site cache contains the expected count.
+		accessPoint, err := site.CachingAccessPoint()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		nodes, err := accessPoint.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(nodes) != count {
+			return trace.BadParameter("cache contained %v nodes, but wanted to find %v nodes", len(nodes), count)
+		}
+
+		// Validate that the site watcher contains the expected count.
+		watcher, err := site.NodeWatcher()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if watcher.NodeCount() != count {
+			return trace.BadParameter("node watcher contained %v nodes, but wanted to find %v nodes", watcher.NodeCount(), count)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
