@@ -87,19 +87,19 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 
 type vnetInstallServiceCommand struct {
 	*kingpin.CmdClause
+	parent   *vnetAdminSetupCommand
 	username string
 	home     string
 }
 
-func newVnetInstallServiceCommand(parent *kingpin.CmdClause) *vnetInstallServiceCommand {
+func newVnetInstallServiceCommand(parent *vnetAdminSetupCommand) *vnetInstallServiceCommand {
 	cmd := &vnetInstallServiceCommand{
 		CmdClause: parent.Command("install-service", "Install the VNet service.").Hidden(),
 	}
 	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
-	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
 func (c *vnetInstallServiceCommand) run() error {
-	return trace.Wrap(vnet.InstallService(c.username, c.home))
+	return trace.Wrap(vnet.InstallService(c.username, c.parent.home))
 }

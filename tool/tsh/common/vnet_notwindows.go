@@ -22,14 +22,13 @@ package common
 import (
 	"runtime"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 )
 
 type vnetInstallServiceCommand struct {
 }
 
-func newVnetInstallServiceCommand(parent *kingpin.CmdClause) *vnetInstallServiceCommand {
+func newVnetInstallServiceCommand(parent any) *vnetInstallServiceCommand {
 	return nil
 }
 

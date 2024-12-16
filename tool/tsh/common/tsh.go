@@ -1245,7 +1245,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	vnetCmd := newVnetCommand(app)
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
-	vnetInstallServiceCmd := newVnetInstallServiceCommand(vnetAdminSetupCmd.CmdClause)
+	vnetInstallServiceCmd := newVnetInstallServiceCommand(vnetAdminSetupCmd)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
 	gitCmd := newGitCommands(app)
