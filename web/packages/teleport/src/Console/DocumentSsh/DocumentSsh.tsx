@@ -32,7 +32,8 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 import * as stores from 'teleport/Console/stores';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfa, useMfaTty } from 'teleport/lib/useMfa';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import Document from '../Document';
 
@@ -56,8 +57,15 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
-  const mfa = useMfa(tty);
-  const ft = useFileTransfer(tty, session, doc, mfa.mfaRequired);
+
+  const ttyMfa = useMfaTty(tty);
+  const ftMfa = useMfa({
+    isMfaRequired: ttyMfa.required,
+    req: {
+      scope: MfaChallengeScope.USER_SESSION,
+    },
+  });
+  const ft = useFileTransfer(tty, session, doc, ftMfa);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -71,7 +79,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, mfa.mfaChallenge]);
+  }, [visible, ftMfa.challenge]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -111,13 +119,9 @@ function DocumentSsh({ doc, visible }: PropTypes) {
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
-            errorText={
-              ft.mfaAttempt.status === 'error' ? ft.mfaAttempt.statusText : null
-            }
             afterClose={handleCloseFileTransfer}
             transferHandlers={{
-              getDownloader: ft.getDownloader,
-              getUploader: ft.getUploader,
+              ...ft,
             }}
           />
         </>
@@ -136,15 +140,14 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      {mfa.mfaChallenge && <AuthnDialog {...mfa} onCancel={closeDocument} />}
-      {ft.mfaChallenge && (
-        <AuthnDialog
-          mfaChallenge={ft.mfaChallenge}
-          submitMfa={ft.submitMfa}
-          submitAttempt={ft.submitMfaAttempt}
-          onCancel={ft.clearMfaChallenge}
-        />
-      )}
+      <AuthnDialog
+        {...ttyMfa}
+        resetAttempt={() => {
+          ttyMfa.resetAttempt();
+          closeDocument();
+        }}
+      />
+      <AuthnDialog {...ftMfa} />
       {status === 'initialized' && terminal}
     </Document>
   );

@@ -52,7 +52,7 @@ describe('AuthnDialog', () => {
 
   test('renders single option dialog', () => {
     const mfa = makeMockState({
-      mfaChallenge: {
+      challenge: {
         ssoChallenge: mockSsoChallenge,
       },
     });
@@ -68,7 +68,7 @@ describe('AuthnDialog', () => {
 
   test('renders multi option dialog', () => {
     const mfa = makeMockState({
-      mfaChallenge: {
+      challenge: {
         ssoChallenge: mockSsoChallenge,
         webauthnPublicKey: {
           challenge: new ArrayBuffer(1),
@@ -90,7 +90,7 @@ describe('AuthnDialog', () => {
   test('displays error text when provided', () => {
     const errorText = 'Authentication failed';
     const mfa = makeMockState({
-      mfaChallenge: {},
+      challenge: {},
       submitAttempt: {
         status: 'error',
         statusText: errorText,
@@ -106,27 +106,27 @@ describe('AuthnDialog', () => {
 
   test('sso button renders with callback', async () => {
     const mfa = makeMockState({
-      mfaChallenge: {
+      challenge: {
         ssoChallenge: mockSsoChallenge,
       },
-      submitMfa: jest.fn(),
+      submit: jest.fn(),
     });
     render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
     const ssoButton = screen.getByText('Okta');
     fireEvent.click(ssoButton);
-    expect(mfa.submitMfa).toHaveBeenCalledTimes(1);
+    expect(mfa.submit).toHaveBeenCalledTimes(1);
   });
 
   test('webauthn button renders with callback', async () => {
     const mfa = makeMockState({
-      mfaChallenge: {
+      challenge: {
         webauthnPublicKey: { challenge: new ArrayBuffer(0) },
       },
-      submitMfa: jest.fn(),
+      submit: jest.fn(),
     });
     render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
     const webauthn = screen.getByText('Passkey or MFA Device');
     fireEvent.click(webauthn);
-    expect(mfa.submitMfa).toHaveBeenCalledTimes(1);
+    expect(mfa.submit).toHaveBeenCalledTimes(1);
   });
 });

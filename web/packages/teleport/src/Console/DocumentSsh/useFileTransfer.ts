@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFileTransferContext } from 'shared/components/FileTransfer';
 
 import { DocumentSsh } from 'teleport/Console/stores';
@@ -24,14 +24,9 @@ import { EventType } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import { Session } from 'teleport/services/session';
 
-import { useAsync } from 'shared/hooks/useAsync';
 import cfg from 'teleport/config';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import {
-  DeviceType,
-  MfaAuthenticateChallenge,
-  MfaChallengeResponse,
-} from 'teleport/services/mfa';
+
+import { MfaState } from 'teleport/lib/useMfa';
 
 import { useConsoleContext } from '../consoleContextProvider';
 
@@ -59,7 +54,7 @@ export const useFileTransfer = (
   tty: Tty,
   session: Session,
   currentDoc: DocumentSsh,
-  addMfaToScpUrls: boolean
+  mfa: MfaState
 ) => {
   const { filesStore } = useFileTransferContext();
   const startTransfer = filesStore.start;
@@ -70,60 +65,13 @@ export const useFileTransfer = (
   >([]);
   const { clusterId, serverId, login } = currentDoc;
 
-  const [mfaChallenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
-  const mfaResponsePromise =
-    useRef<PromiseWithResolvers<MfaChallengeResponse>>();
-
-  const clearMfaChallenge = () => {
-    setMfaChallenge(null);
-  };
-
-  const [mfaAttempt, getMfaResponse] = useAsync(
-    useCallback(async () => {
-      const challenge = await auth.getMfaChallenge({
-        scope: MfaChallengeScope.USER_SESSION,
-        isMfaRequiredRequest: {
-          node: {
-            node_name: serverId,
-            login: login,
-          },
-        },
-      });
-      if (!challenge) return;
-
-      setMfaChallenge(challenge);
-      mfaResponsePromise.current = Promise.withResolvers();
-      const mfaResponse = await mfaResponsePromise.current.promise;
-      return mfaResponse;
-    }, [setMfaChallenge, clearMfaChallenge, mfaResponsePromise])
-  );
-
-  const [submitMfaAttempt, submitMfa] = useAsync(
-    useCallback(
-      async (mfaType?: DeviceType) => {
-        try {
-          const resp = auth.getMfaChallengeResponse(mfaChallenge, mfaType);
-          mfaResponsePromise.current.resolve(resp);
-        } catch (err) {
-          mfaResponsePromise.current.reject(err);
-          throw err;
-        }
-      },
-      [mfaChallenge, mfaResponsePromise]
-    )
-  );
-
   const download = useCallback(
     async (
       location: string,
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      let mfaResponse: MfaChallengeResponse;
-      if (addMfaToScpUrls) {
-        [mfaResponse] = await getMfaResponse();
-      }
-
+      const mfaResponse = await mfa.getChallengeResponse();
       const url = cfg.getScpUrl({
         location,
         clusterId,
@@ -144,7 +92,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().download(url, abortController);
     },
-    [clusterId, login, serverId, addMfaToScpUrls]
+    [clusterId, login, serverId, mfa]
   );
 
   const upload = useCallback(
@@ -154,10 +102,7 @@ export const useFileTransfer = (
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      let mfaResponse: MfaChallengeResponse;
-      if (addMfaToScpUrls) {
-        [mfaResponse] = await getMfaResponse();
-      }
+      const mfaResponse = await mfa.getChallengeResponse();
 
       const url = cfg.getScpUrl({
         location,
@@ -178,7 +123,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().upload(url, file, abortController);
     },
-    [clusterId, serverId, login, addMfaToScpUrls]
+    [clusterId, serverId, login, mfa]
   );
 
   /*
@@ -317,11 +262,6 @@ export const useFileTransfer = (
   }
 
   return {
-    mfaAttempt,
-    mfaChallenge,
-    clearMfaChallenge,
-    submitMfa,
-    submitMfaAttempt,
     fileTransferRequests,
     getUploader,
     getDownloader,

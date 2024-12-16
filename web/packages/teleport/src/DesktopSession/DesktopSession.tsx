@@ -184,11 +184,12 @@ export function DesktopSession(props: State) {
 const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
   return (
     <AuthnDialog
-      mfa={mfa}
-      onCancel={() => {
-        mfa.submitAttempt.status = 'failed';
-        mfa.submitAttempt.statusText =
-          'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.';
+      {...mfa}
+      replaceErrorText={
+        'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
+      }
+      resetAttempt={() => {
+        mfa.resetAttempt();
       }}
     />
   );
@@ -294,7 +295,7 @@ const nextScreenState = (
 
   // Otherwise, calculate a new screen state.
   const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.mfaChallenge;
+  const showMfa = webauthn.challenge;
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
     tdpConnection.status === 'failed' || // TDP connection failed

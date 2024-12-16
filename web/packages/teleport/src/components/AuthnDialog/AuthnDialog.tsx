@@ -26,68 +26,87 @@ import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
 import { Attempt } from 'shared/hooks/useAsync';
+import { MfaState } from 'teleport/lib/useMfa';
 import { DeviceType, MfaAuthenticateChallenge } from 'teleport/services/mfa';
 
+type AuthnDialogProps = MfaState & {
+  replaceErrorText?: string;
+};
+
 export default function AuthnDialog({
-  mfaChallenge,
-  submitMfa,
-  submitAttempt,
-  onCancel,
-}: Props) {
-  const hasMultipleOptions =
-    mfaChallenge.ssoChallenge && mfaChallenge.webauthnPublicKey;
+  options,
+  challenge,
+  submit,
+  attempt,
+  resetAttempt,
+  replaceErrorText,
+}: AuthnDialogProps) {
+  // Only show the dialog when we are in a processing or error state.
+  if (attempt.status === '' || attempt.status === 'success') return;
+
+  // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
+  const onlyTotpAvailable = options?.length === 1 && challenge?.totpChallenge;
 
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <H2>Verify Your Identity</H2>
-        <ButtonIcon data-testid="close-dialog" onClick={onCancel}>
+        <ButtonIcon data-testid="close-dialog" onClick={resetAttempt}>
           <Cross color="text.slightlyMuted" />
         </ButtonIcon>
       </Flex>
       <DialogContent mb={5}>
-        {submitAttempt.status === 'error' && (
+        {onlyTotpAvailable && (
           <Danger data-testid="danger-alert" mt={2} width="100%">
-            {submitAttempt.statusText}
+            {
+              'totp is not currently supported for this action, please register a security key to continue'
+            }
+          </Danger>
+        )}
+        {attempt.status === 'error' && (
+          <Danger data-testid="danger-alert" mt={2} width="100%">
+            {replaceErrorText || attempt.statusText}
           </Danger>
         )}
         <Text color="text.slightlyMuted">
-          {hasMultipleOptions
+          {options?.length > 1
             ? 'Select one of the following methods to verify your identity:'
             : 'Select the method below to verify your identity:'}
         </Text>
       </DialogContent>
-      <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
-        {mfaChallenge.ssoChallenge && (
-          <ButtonSecondary
-            size="extra-large"
-            onClick={() => submitMfa('sso')}
-            gap={2}
-            block
-          >
-            <SSOIcon
-              type={guessProviderType(
-                mfaChallenge.ssoChallenge.device.displayName ||
-                  mfaChallenge.ssoChallenge.device.connectorId,
-                mfaChallenge.ssoChallenge.device.connectorType
-              )}
-            />
-            {mfaChallenge.ssoChallenge.device.displayName ||
-              mfaChallenge.ssoChallenge.device.connectorId}
-          </ButtonSecondary>
-        )}
-        {mfaChallenge.webauthnPublicKey && (
-          <ButtonSecondary
-            size="extra-large"
-            onClick={() => submitMfa('webauthn')}
-            gap={2}
-            block
-          >
-            <FingerprintSimple />
-            Passkey or MFA Device
-          </ButtonSecondary>
-        )}
-      </Flex>
+      {challenge && (
+        <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
+          {challenge.ssoChallenge && (
+            <ButtonSecondary
+              size="extra-large"
+              onClick={() => submit('sso')}
+              gap={2}
+              block
+            >
+              <SSOIcon
+                type={guessProviderType(
+                  challenge.ssoChallenge.device.displayName ||
+                    challenge.ssoChallenge.device.connectorId,
+                  challenge.ssoChallenge.device.connectorType
+                )}
+              />
+              {challenge.ssoChallenge.device.displayName ||
+                challenge.ssoChallenge.device.connectorId}
+            </ButtonSecondary>
+          )}
+          {challenge.webauthnPublicKey && (
+            <ButtonSecondary
+              size="extra-large"
+              onClick={() => submit('webauthn')}
+              gap={2}
+              block
+            >
+              <FingerprintSimple />
+              Passkey or MFA Device
+            </ButtonSecondary>
+          )}
+        </Flex>
+      )}
     </Dialog>
   );
 }
