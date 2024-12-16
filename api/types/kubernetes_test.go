@@ -30,7 +30,7 @@ func TestKubeClustersSorter(t *testing.T) {
 		servers := make([]KubeCluster, len(testVals))
 		for i := 0; i < len(testVals); i++ {
 			var err error
-			servers[i], err = NewKubernetesClusterV3FromLegacyCluster("_", &KubernetesCluster{
+			servers[i], err = NewKubernetesClusterV3FromLegacyCluster("", &KubernetesCluster{
 				Name: testVals[i],
 			})
 			require.NoError(t, err)

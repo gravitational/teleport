@@ -108,6 +108,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -620,6 +622,11 @@ type TeleportProcess struct {
 	// storage is a server local storage
 	storage *storage.ProcessStorage
 
+	// rotationCache is a TTL cache for GetRotation, since it might get called
+	// frequently if the agent is heartbeating multiple resources. Keys are
+	// [types.SystemRole], values are [*types.Rotation].
+	rotationCache *utils.FnCache
+
 	// id is a process id - used to identify different processes
 	// during in-process reloads.
 	id string
@@ -1063,8 +1070,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	// full heartbeat announces are on average every 2/3 * 6/7 of the default
+	// announce TTL, so we pick a slightly shorter TTL here
+	const rotationCacheTTL = apidefaults.ServerAnnounceTTL / 2
+	rotationCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         rotationCacheTTL,
+		Clock:       cfg.Clock,
+		Context:     supervisor.ExitContext(),
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.PluginRegistry == nil {
 		cfg.PluginRegistry = plugin.NewRegistry()
+	}
+
+	if cfg.DatabaseREPLRegistry == nil {
+		cfg.DatabaseREPLRegistry = dbrepl.NewREPLGetter(map[string]dbrepl.REPLNewFunc{
+			defaults.ProtocolPostgres: pgrepl.New,
+		})
 	}
 
 	var cloudLabels labels.Importer
@@ -1155,6 +1181,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		connectors:             make(map[types.SystemRole]*Connector),
 		importedDescriptors:    cfg.FileDescriptors,
 		storage:                storage,
+		rotationCache:          rotationCache,
 		id:                     processID,
 		log:                    cfg.Log,
 		logger:                 cfg.Logger,
@@ -2435,7 +2462,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
 	})
 
-	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock)
+	agentRolloutController, err := rollout.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod)
 	if err != nil {
 		return trace.Wrap(err, "creating the rollout controller")
 	}
@@ -2548,11 +2575,13 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WebSession = services.Identity.WebSessions()
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
+	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
+	cfg.GitServers = services.GitServers
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2599,6 +2628,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
+	cfg.GitServers = client.GitServerClient()
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2753,13 +2783,22 @@ func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfi
 	}, clt)
 }
 
-// GetRotation returns the process rotation.
+// GetRotation returns the process rotation. The result is internally cached for
+// a few minutes, so anything that must get the latest possible version should
+// use process.storage.GetState directly, instead (writes to the state that this
+// process knows about will invalidate the cache, however).
 func (process *TeleportProcess) GetRotation(role types.SystemRole) (*types.Rotation, error) {
-	state, err := process.storage.GetState(context.TODO(), role)
+	rotation, err := utils.FnCacheGet(process.ExitContext(), process.rotationCache, role, func(ctx context.Context) (*types.Rotation, error) {
+		state, err := process.storage.GetState(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &state.Spec.Rotation, nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &state.Spec.Rotation, nil
+	return rotation, nil
 }
 
 func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
@@ -2965,7 +3004,7 @@ func (process *TeleportProcess) initSSH() error {
 			LockEnforcer:   lockWatcher,
 			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client},
 			Component:      teleport.ComponentNode,
-			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id, "sessionctrl")),
 			TracerProvider: process.TracingProvider,
 			ServerID:       serverID,
 		})
@@ -4405,6 +4444,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				FIPS:                  cfg.FIPS,
 				Emitter:               streamEmitter,
 				Log:                   process.log,
+				Logger:                process.logger,
 				LockWatcher:           lockWatcher,
 				PeerClient:            peerClient,
 				NodeWatcher:           nodeWatcher,
@@ -4466,7 +4506,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockEnforcer:   lockWatcher,
 		Emitter:        asyncEmitter,
 		Component:      teleport.ComponentProxy,
-		Logger:         process.log.WithField(teleport.ComponentKey, "sessionctrl"),
+		Logger:         process.logger.With(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
 		ServerID:       serverID,
 	})
@@ -4559,7 +4599,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       cfg.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.GracefulExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4607,7 +4647,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webConfig := web.Config{
 			Proxy:                     tsrv,
 			AuthServers:               cfg.AuthServerAddresses()[0],
-			DomainName:                cfg.Hostname,
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              cfg.Proxy.WebAddr,
@@ -4641,6 +4680,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
+			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4923,7 +4963,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ServerID:       serverID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.log,
+		Logger:         process.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4931,7 +4971,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	transportService, err := transportv1.NewService(transportv1.ServerConfig{
 		FIPS:   cfg.FIPS,
-		Logger: process.log.WithField(teleport.ComponentKey, "transport"),
+		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
 		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
 			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
@@ -5141,7 +5181,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServerID:       process.Config.HostUUID,
 			Emitter:        asyncEmitter,
 			EmitterContext: process.ExitContext(),
-			Logger:         process.log,
+			Logger:         process.logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5270,7 +5310,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			clusterName,
 			utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 			proxySigner,
-			process.log,
 			process.TracingProvider.Tracer(teleport.ComponentProxy))
 
 		alpnRouter.Add(alpnproxy.HandlerDecs{
@@ -6023,7 +6062,7 @@ func (process *TeleportProcess) initApps() {
 			ServerID:            process.Config.HostUUID,
 			Emitter:             asyncEmitter,
 			EmitterContext:      process.ExitContext(),
-			Logger:              process.log,
+			Logger:              process.logger,
 			MonitorCloseChannel: process.Config.Apps.MonitorCloseChannel,
 		})
 		if err != nil {
@@ -6695,7 +6734,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 
 	tlsConf := serverTLSConfig.Clone()
 	tlsConf.NextProtos = []string{string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolProxyGRPCSecure)}
-	tlsConf = copyAndConfigureTLS(tlsConf, process.log, cfg.accessPoint, clusterName)
+	tlsConf = copyAndConfigureTLS(tlsConf, process.logger, cfg.accessPoint, clusterName)
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlsConf),
 		UserGetter:           authMiddleware,
@@ -6749,7 +6788,7 @@ type initSecureGRPCServerCfg struct {
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
+func copyAndConfigureTLS(config *tls.Config, log *slog.Logger, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate

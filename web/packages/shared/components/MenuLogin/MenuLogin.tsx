@@ -141,6 +141,9 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           open={isOpen}
           onClose={onClose}
           getContentAnchorEl={null}
+          // The list of logins is updated asynchronously, so Popover inside Menu needs to account
+          // for LoginItemList changing in size.
+          updatePositionOnChildResize
         >
           <LoginItemList
             getLoginItemsAttempt={getLoginItemsAttempt}
@@ -210,6 +213,8 @@ function getLoginItemListContent(
     case 'processing':
       return (
         <Indicator
+          // Without this margin, <Indicator> would cause a scroll bar to pop up and hide repeatedly.
+          m={1}
           css={`
             align-self: center;
           `}

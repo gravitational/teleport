@@ -103,6 +103,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
 	types.KindDatabaseObject:        {},
+	types.KindGitServer:             {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -199,6 +200,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindPluginStaticCredentials},
+		{Kind: types.KindGitServer},
+		{Kind: types.KindWorkloadIdentity},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -256,6 +259,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -552,6 +556,8 @@ type Cache struct {
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
+	gitServersCache              *local.GitServerService
+	workloadIdentityCache        workloadIdentityCacher
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -734,6 +740,9 @@ type Config struct {
 	SPIFFEFederations SPIFFEFederationReader
 	// StaticHostUsers is the static host user service.
 	StaticHostUsers services.StaticHostUser
+	// WorkloadIdentity is the upstream Workload Identities service that we're
+	// caching
+	WorkloadIdentity WorkloadIdentityReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -788,6 +797,8 @@ type Config struct {
 	IdentityCenter services.IdentityCenter
 	// PluginStaticCredentials is the plugin static credentials services
 	PluginStaticCredentials services.PluginStaticCredentials
+	// GitServers is the Git server service.
+	GitServers services.GitServerGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1002,6 +1013,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1028,6 +1045,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	gitServersCache, err := local.NewGitServerService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1081,6 +1104,8 @@ func New(config Config) (*Cache, error) {
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
+		gitServersCache:              gitServersCache,
+		workloadIdentityCache:        workloadIdentityCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),

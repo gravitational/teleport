@@ -17,16 +17,13 @@
  */
 
 import { Info } from 'design/Alert/Alert';
-import { ButtonSecondary, Text } from 'design';
+import { Text } from 'design';
 
-export const RequiresResetToStandard = ({ reset }: { reset(): void }) => (
+export const RequiresResetToStandard = () => (
   <Info>
     <Text>
-      Some fields were not readable by the standard editor. To continue editing,
-      go back to YAML editor or reset the affected fields to standard settings.
+      This role is too complex to be edited in the standard editor. To continue
+      editing, go back to YAML editor.
     </Text>
-    <ButtonSecondary size="large" my={2} onClick={reset}>
-      Reset to Standard Settings
-    </ButtonSecondary>
   </Info>
 );

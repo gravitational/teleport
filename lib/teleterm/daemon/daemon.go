@@ -1131,10 +1131,14 @@ func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.
 	}
 	devicesClient := proxyClient.CurrentCluster().DevicesClient()
 
-	ceremony := dtauthn.NewCeremony()
-	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
-		Id:    req.DeviceWebToken.Id,
-		Token: req.DeviceWebToken.Token,
+	var confirmationToken *devicepb.DeviceConfirmationToken
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		ceremony := dtauthn.NewCeremony()
+		confirmationToken, err = ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+			Id:    req.DeviceWebToken.Id,
+			Token: req.DeviceWebToken.Token,
+		})
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

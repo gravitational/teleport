@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -390,6 +390,9 @@ type awsOptions struct {
 
 	// maxRetries is the maximum number of retries to use for the session.
 	maxRetries *int
+
+	// withoutSessionCache disables the session cache for the AWS session.
+	withoutSessionCache bool
 }
 
 func (a *awsOptions) checkAndSetDefaults() error {
@@ -418,6 +421,13 @@ func WithAssumeRole(roleARN, externalID string) AWSOptionsFn {
 	return func(options *awsOptions) {
 		options.assumeRoleARN = roleARN
 		options.assumeRoleExternalID = externalID
+	}
+}
+
+// WithoutSessionCache disables the session cache for the AWS session.
+func WithoutSessionCache() AWSOptionsFn {
+	return func(options *awsOptions) {
+		options.withoutSessionCache = true
 	}
 }
 
@@ -487,7 +497,7 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	}
 	var err error
 	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(region, options)
+		options.baseSession, err = c.getAWSSessionForRegion(ctx, region, options)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -767,17 +777,12 @@ func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.
 }
 
 // getAWSSessionForRegion returns AWS session for the specified region.
-func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*awssession.Session, error) {
+func (c *cloudClients) getAWSSessionForRegion(ctx context.Context, region string, opts awsOptions) (*awssession.Session, error) {
 	if err := opts.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cacheKey := awsSessionCacheKey{
-		region:      region,
-		integration: opts.integration,
-	}
-
-	sess, err := utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
 		if opts.credentialsSource == credentialsSourceIntegration {
 			if c.awsIntegrationSessionProviderFn == nil {
 				return nil, trace.BadParameter("missing aws integration session provider")
@@ -790,6 +795,30 @@ func (c *cloudClients) getAWSSessionForRegion(region string, opts awsOptions) (*
 
 		logrus.Debugf("Initializing AWS session for region %v using environment credentials.", region)
 		session, err := awsAmbientSessionProvider(ctx, region)
+		return session, trace.Wrap(err)
+	}
+
+	if opts.withoutSessionCache {
+		sess, err := createSession(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if opts.customRetryer != nil || opts.maxRetries != nil {
+			return sess.Copy(&aws.Config{
+				Retryer:    opts.customRetryer,
+				MaxRetries: opts.maxRetries,
+			}), nil
+		}
+		return sess, trace.Wrap(err)
+	}
+
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: opts.integration,
+	}
+
+	sess, err := utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		session, err := createSession(ctx)
 		return session, trace.Wrap(err)
 	})
 	if err != nil {
@@ -810,6 +839,16 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		return nil, trace.Wrap(err)
 	}
 
+	createSession := func(ctx context.Context) (*awssession.Session, error) {
+		stsClient := sts.New(options.baseSession)
+		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+	}
+
+	if options.withoutSessionCache {
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
+	}
+
 	cacheKey := awsSessionCacheKey{
 		region:      region,
 		integration: options.integration,
@@ -817,8 +856,8 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 		externalID:  options.assumeRoleExternalID,
 	}
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		stsClient := sts.New(options.baseSession)
-		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
+		session, err := createSession(ctx)
+		return session, trace.Wrap(err)
 	})
 }
 

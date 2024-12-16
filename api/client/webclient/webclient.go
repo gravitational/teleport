@@ -47,6 +47,15 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+const (
+	// AgentUpdateGroupParameter is the parameter used to specify the updater
+	// group when doing a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified group. e.g. some groups might need to update
+	// before others.
+	AgentUpdateGroupParameter = "group"
+)
+
 // Config specifies information when building requests with the
 // webclient.
 type Config struct {
@@ -183,7 +192,7 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	}
 	if cfg.UpdateGroup != "" {
 		endpoint.RawQuery = url.Values{
-			"group": []string{cfg.UpdateGroup},
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
 		}.Encode()
 	}
 
@@ -232,7 +241,7 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	}
 	if cfg.UpdateGroup != "" {
 		endpoint.RawQuery = url.Values{
-			"group": []string{cfg.UpdateGroup},
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
 		}.Encode()
 	}
 	if cfg.ConnectorName != "" {

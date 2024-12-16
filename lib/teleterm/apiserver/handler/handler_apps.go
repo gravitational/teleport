@@ -38,6 +38,11 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
 
+	tcpPorts := make([]*api.PortRange, 0, len(app.GetTCPPorts()))
+	for _, portRange := range app.GetTCPPorts() {
+		tcpPorts = append(tcpPorts, &api.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+	}
+
 	return &api.App{
 		Uri:          clusterApp.URI.String(),
 		EndpointUri:  app.GetURI(),
@@ -50,6 +55,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		FriendlyName: types.FriendlyName(app),
 		SamlApp:      false,
 		Labels:       apiLabels,
+		TcpPorts:     tcpPorts,
 	}
 }
 

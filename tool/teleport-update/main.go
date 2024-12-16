@@ -80,6 +80,8 @@ type cliConfig struct {
 	InstallSuffix string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
+	// UpdateNow forces an immediate update.
+	UpdateNow bool
 }
 
 func Run(args []string) int {
@@ -136,6 +138,8 @@ func Run(args []string) int {
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
 	updateCmd := app.Command("update", "Update the agent to the latest version, if a new version is available.")
+	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
+		Short('n').BoolVar(&ccfg.UpdateNow)
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
@@ -345,7 +349,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	if err := updater.Update(ctx); err != nil {
+	if err := updater.Update(ctx, ccfg.UpdateNow); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

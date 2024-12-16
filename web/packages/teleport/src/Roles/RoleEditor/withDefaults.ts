@@ -52,7 +52,7 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
   },
 });
 
-const optionsWithDefaults = (
+export const optionsWithDefaults = (
   options?: DeepPartial<RoleOptions>
 ): RoleOptions => {
   const defaults = defaultOptions();
@@ -67,6 +67,15 @@ const optionsWithDefaults = (
       saml: {
         ...defaults.idp.saml,
         ...options?.idp?.saml,
+      },
+    },
+
+    ssh_port_forwarding: {
+      local: {
+        ...defaults.ssh_port_forwarding.local,
+      },
+      remote: {
+        ...defaults.ssh_port_forwarding.remote,
       },
     },
 
@@ -92,7 +101,14 @@ export const defaultOptions = (): RoleOptions => ({
   },
   max_session_ttl: '30h0m0s',
   pin_source_ip: false,
-  port_forwarding: true,
+  ssh_port_forwarding: {
+    local: {
+      enabled: false,
+    },
+    remote: {
+      enabled: false,
+    },
+  },
   record_session: {
     default: 'best_effort',
     desktop: true,

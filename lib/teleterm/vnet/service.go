@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -159,7 +160,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
-	processManager, err := vnet.SetupAndRun(ctx, &vnet.SetupAndRunConfig{
+	processManager, err := vnet.Run(ctx, &vnet.RunConfig{
 		AppProvider:        appProvider,
 		ClusterConfigCache: s.clusterConfigCache,
 	})
@@ -379,12 +380,20 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
 	appURI := clusterURI.AppendApp(routeToApp.Name)
 
+	apiteletermRouteToApp := apiteleterm.RouteToApp{
+		Name:        routeToApp.Name,
+		PublicAddr:  routeToApp.PublicAddr,
+		ClusterName: routeToApp.ClusterName,
+		Uri:         routeToApp.URI,
+		TargetPort:  routeToApp.TargetPort,
+	}
+
 	reloginReq := &apiteleterm.ReloginRequest{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
 			VnetCertExpired: &apiteleterm.VnetCertExpired{
 				TargetUri:  appURI.String(),
-				PublicAddr: routeToApp.GetPublicAddr(),
+				RouteToApp: &apiteletermRouteToApp,
 			},
 		},
 	}
@@ -411,8 +420,12 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 					TargetUri:  appURI.String(),
-					PublicAddr: routeToApp.PublicAddr,
-					Error:      err.Error(),
+					RouteToApp: &apiteletermRouteToApp,
+					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
+						CertReissueError: &apiteleterm.CertReissueError{
+							Error: err.Error(),
+						},
+					},
 				},
 			},
 		})
@@ -467,6 +480,51 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 	}()
 
 	return nil
+}
+
+// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+// because the provided port does not match any of the TCP ports in the app spec.
+func (p *appProvider) OnInvalidLocalPort(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp, tcpPorts types.PortRanges) {
+	// If something is wrong with the Electron app to the point that it stopped accepting RPCs, return
+	// quickly rather than being blocked on sending a notification.
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	appURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(routeToApp.Name)
+	apiteletermRouteToApp := apiteleterm.RouteToApp{
+		Name:        routeToApp.Name,
+		PublicAddr:  routeToApp.PublicAddr,
+		ClusterName: routeToApp.ClusterName,
+		Uri:         routeToApp.URI,
+		TargetPort:  routeToApp.TargetPort,
+	}
+
+	invalidLocalPort := &apiteleterm.InvalidLocalPort{}
+	// Send ports only if there's less than 10 ranges. A bigger number would be difficult to show in
+	// the UI.
+	if len(tcpPorts) <= 10 {
+		apiTCPPorts := make([]*apiteleterm.PortRange, 0, len(tcpPorts))
+		for _, portRange := range tcpPorts {
+			apiTCPPorts = append(apiTCPPorts, &apiteleterm.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+		}
+		invalidLocalPort.TcpPorts = apiTCPPorts
+	}
+
+	err := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
+		Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
+			CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
+				TargetUri:  appURI.String(),
+				RouteToApp: &apiteletermRouteToApp,
+				Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
+					InvalidLocalPort: invalidLocalPort,
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.ErrorContext(ctx, "Could not notify the Electron app about invalid local port",
+			"notify_error", err, "profile_name", profileName, "leaf_cluster_name", leafClusterName, "route_to_app", routeToApp)
+	}
 }
 
 type usageReporter interface {

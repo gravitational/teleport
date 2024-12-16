@@ -20,15 +20,20 @@ package rollout
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -39,7 +44,7 @@ import (
 // The comparison does not take into account the proto internal state.
 func rolloutEquals(expected *autoupdate.AutoUpdateAgentRollout) require.ValueAssertionFunc {
 	return func(t require.TestingT, i interface{}, _ ...interface{}) {
-		require.IsType(t, &autoupdate.AutoUpdateAgentRollout{}, i)
+		require.IsType(t, &autoupdate.AutoUpdateAgentRollout{}, i, "resource should be an autoupdate_agent_rollout")
 		actual := i.(*autoupdate.AutoUpdateAgentRollout)
 		require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
 	}
@@ -181,6 +186,7 @@ func TestTryReconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -190,6 +196,7 @@ func TestTryReconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
+	outOfDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
 
 	tests := []struct {
 		name            string
@@ -354,6 +361,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -363,6 +371,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
+	outOfDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
 
 	// Those tests are not written in table format because the fixture setup it too complex and this would harm
 	// readability.
@@ -564,4 +573,392 @@ func TestReconciler_Reconcile(t *testing.T) {
 		// Test validation: check that all the expected calls were received
 		client.checkIfEmpty(t)
 	})
+}
+
+func Test_makeGroupsStatus(t *testing.T) {
+	now := time.Now()
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		schedules *autoupdate.AgentAutoUpdateSchedules
+		expected  []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+	}{
+		{
+			name:      "nil schedules",
+			schedules: nil,
+			expected: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             defaultGroupName,
+					StartTime:        nil,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(now),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       defaultUpdateDays,
+					ConfigStartHour:  defaultStartHour,
+				},
+			},
+		},
+		{
+			name:      "no groups in schedule",
+			schedules: &autoupdate.AgentAutoUpdateSchedules{Regular: make([]*autoupdate.AgentAutoUpdateGroup, 0)},
+			expected: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             defaultGroupName,
+					StartTime:        nil,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(now),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       defaultUpdateDays,
+					ConfigStartHour:  defaultStartHour,
+				},
+			},
+		},
+		{
+			name: "one group in schedule",
+			schedules: &autoupdate.AgentAutoUpdateSchedules{
+				Regular: []*autoupdate.AgentAutoUpdateGroup{
+					{
+						Name:      "group1",
+						Days:      everyWeekday,
+						StartHour: matchingStartHour,
+					},
+				},
+			},
+			expected: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             "group1",
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(now),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       everyWeekday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+		},
+		{
+			name: "multiple groups in schedule",
+			schedules: &autoupdate.AgentAutoUpdateSchedules{
+				Regular: []*autoupdate.AgentAutoUpdateGroup{
+					{
+						Name:      "group1",
+						Days:      everyWeekday,
+						StartHour: matchingStartHour,
+					},
+					{
+						Name:      "group2",
+						Days:      everyWeekdayButSunday,
+						StartHour: nonMatchingStartHour,
+						WaitHours: 1,
+					},
+				},
+			},
+			expected: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             "group1",
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(now),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       everyWeekday,
+					ConfigStartHour:  matchingStartHour,
+				},
+				{
+					Name:             "group2",
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(now),
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       everyWeekdayButSunday,
+					ConfigStartHour:  nonMatchingStartHour,
+					ConfigWaitHours:  1,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// We craft a mock client always answering there's no cmc.
+			// It's not the point of this test to check the cmc client usage so we don't count the number of calls here.
+			// CMC-specific tests happen in TestDefaultConfigGroup().
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{{
+				result: nil,
+				err:    trace.NotFound("no cmc"),
+			}}})
+			r := reconciler{clt: clt}
+			result, err := r.makeGroupsStatus(ctx, tt.schedules, now)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+const fakeRolloutStrategyName = "fake"
+
+type fakeRolloutStrategy struct {
+	strategyName string
+	// calls counts how many times the fake rollout strategy was called.
+	// This is not thread safe.
+	calls int
+}
+
+func (f *fakeRolloutStrategy) name() string {
+	return f.strategyName
+}
+
+func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+	f.calls++
+	return nil
+}
+
+func Test_reconciler_computeStatus(t *testing.T) {
+	log := utils.NewSlogLoggerForTests()
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	oldStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
+		Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			{
+				Name:  "old group",
+				State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+			},
+		},
+		State: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+	}
+	oldSpec := &autoupdate.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "1.2.4",
+		Schedule:       update.AgentsScheduleRegular,
+		AutoupdateMode: update.AgentsUpdateModeEnabled,
+		Strategy:       fakeRolloutStrategyName,
+	}
+	schedules := &autoupdate.AgentAutoUpdateSchedules{
+		Regular: []*autoupdate.AgentAutoUpdateGroup{
+			{
+				Name: "new group",
+				Days: everyWeekday,
+			},
+		},
+	}
+	r := reconciler{}
+	newGroups, err := r.makeGroupsStatus(ctx, schedules, clock.Now())
+	require.NoError(t, err)
+	newStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
+		Groups: newGroups,
+		State:  autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+	}
+
+	tests := []struct {
+		name                  string
+		existingRollout       *autoupdate.AutoUpdateAgentRollout
+		newSpec               *autoupdate.AutoUpdateAgentRolloutSpec
+		expectedStatus        *autoupdate.AutoUpdateAgentRolloutStatus
+		expectedStrategyCalls int
+	}{
+		{
+			name: "status is reset if start version changes",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec:   oldSpec,
+				Status: oldStatus,
+			},
+			newSpec: &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:   "1.2.2",
+				TargetVersion:  "1.2.4",
+				Schedule:       update.AgentsScheduleRegular,
+				AutoupdateMode: update.AgentsUpdateModeEnabled,
+				Strategy:       fakeRolloutStrategyName,
+			},
+			// status should have been reset and is now the new status
+			expectedStatus:        newStatus,
+			expectedStrategyCalls: 1,
+		},
+		{
+			name: "status is reset if target version changes",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec:   oldSpec,
+				Status: oldStatus,
+			},
+			newSpec: &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.5",
+				Schedule:       update.AgentsScheduleRegular,
+				AutoupdateMode: update.AgentsUpdateModeEnabled,
+				Strategy:       fakeRolloutStrategyName,
+			},
+			// status should have been reset and is now the new status
+			expectedStatus:        newStatus,
+			expectedStrategyCalls: 1,
+		},
+		{
+			name: "status is reset if strategy changes",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec:   oldSpec,
+				Status: oldStatus,
+			},
+			newSpec: &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+				Schedule:       update.AgentsScheduleRegular,
+				AutoupdateMode: update.AgentsUpdateModeEnabled,
+				Strategy:       fakeRolloutStrategyName + "2",
+			},
+			// status should have been reset and is now the new status
+			expectedStatus:        newStatus,
+			expectedStrategyCalls: 1,
+		},
+		{
+			name: "status is not reset if mode changes",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec:   oldSpec,
+				Status: oldStatus,
+			},
+			newSpec: &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+				Schedule:       update.AgentsScheduleRegular,
+				AutoupdateMode: update.AgentsUpdateModeSuspended,
+				Strategy:       fakeRolloutStrategyName,
+			},
+			// status should NOT have been reset and still contain the old groups
+			expectedStatus:        oldStatus,
+			expectedStrategyCalls: 1,
+		},
+		{
+			name: "groups are unset if schedule is immediate",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec:   oldSpec,
+				Status: oldStatus,
+			},
+			newSpec: &autoupdate.AutoUpdateAgentRolloutSpec{
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+				Schedule:       update.AgentsScheduleImmediate,
+				AutoupdateMode: update.AgentsUpdateModeEnabled,
+				Strategy:       fakeRolloutStrategyName,
+			},
+			// groups should be unset
+			expectedStatus:        &autoupdate.AutoUpdateAgentRolloutStatus{},
+			expectedStrategyCalls: 0,
+		},
+		{
+			name: "new groups are populated if previous ones were empty",
+			existingRollout: &autoupdate.AutoUpdateAgentRollout{
+				Spec: oldSpec,
+				// old groups were empty
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{},
+			},
+			// no spec change
+			newSpec: oldSpec,
+			// still, we have the new groups set
+			expectedStatus:        newStatus,
+			expectedStrategyCalls: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			strategy := &fakeRolloutStrategy{strategyName: tt.newSpec.Strategy}
+			r := &reconciler{
+				log:               log,
+				clock:             clock,
+				rolloutStrategies: []rolloutStrategy{strategy},
+				mutex:             sync.Mutex{},
+			}
+			result, err := r.computeStatus(ctx, tt.existingRollout, tt.newSpec, schedules)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.expectedStatus, result, protocmp.Transform()))
+			require.Equal(t, tt.expectedStrategyCalls, strategy.calls)
+		})
+	}
+}
+
+func TestDefaultConfigGroup(t *testing.T) {
+	ctx := context.Background()
+	testStartHour := 16
+
+	tests := []struct {
+		name           string
+		cmcAnswer      callAnswer[*types.ClusterMaintenanceConfigV1]
+		expectedResult *autoupdate.AgentAutoUpdateGroup
+		expectError    require.ErrorAssertionFunc
+	}{
+		{
+			name: "no CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.NotFound("no cmc"),
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no upgrade window",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: nil,
+					},
+				}, nil,
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     nil,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      []string{"*"},
+				StartHour: int32(testStartHour),
+				WaitHours: 0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "CMC with weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     everyWeekdayButSunday,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      everyWeekdayButSunday,
+				StartHour: int32(testStartHour),
+				WaitHours: 0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "unexpected error getting CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.ConnectionProblem(trace.Errorf("oh no"), "connection failed"),
+			},
+			expectedResult: nil,
+			expectError:    require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: loading fixtures.
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{tt.cmcAnswer}})
+			r := &reconciler{clt: clt}
+			// Test execution.
+			result, err := r.defaultConfigGroup(ctx)
+			tt.expectError(t, err)
+			require.Equal(t, tt.expectedResult, result)
+			// Test validation: the mock client should be empty.
+			clt.checkIfEmpty(t)
+		})
+	}
 }

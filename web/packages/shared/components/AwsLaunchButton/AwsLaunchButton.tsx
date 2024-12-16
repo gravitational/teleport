@@ -48,7 +48,8 @@ export class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, getLaunchUrl, onLaunchUrl } = this.props;
+    const { awsRoles, getLaunchUrl, onLaunchUrl, isAwsIdentityCenterApp } =
+      this.props;
     return (
       <>
         <ButtonBorder
@@ -94,6 +95,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
             onChange={this.onChange}
+            isAwsIdentityCenterApp={isAwsIdentityCenterApp}
           />
         </Menu>
       </>
@@ -107,6 +109,7 @@ function RoleItemList({
   closeMenu,
   onChange,
   onLaunchUrl,
+  isAwsIdentityCenterApp,
 }: Props & {
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -117,6 +120,9 @@ function RoleItemList({
     let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
+    }
+    if (isAwsIdentityCenterApp) {
+      text = name;
     }
     return (
       <StyledMenuItem
@@ -181,6 +187,7 @@ type Props = {
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
   width?: string;
+  isAwsIdentityCenterApp?: boolean;
 };
 
 const StyledMenuItem = styled(MenuItem)(

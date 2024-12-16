@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
