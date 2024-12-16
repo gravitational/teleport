@@ -26,8 +26,11 @@ import { AccessDenied } from 'design/CardError';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import AuthnDialog from 'teleport/components/AuthnDialog';
 import { UrlLauncherParams } from 'teleport/config';
+import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function AppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');
@@ -36,6 +39,20 @@ export function AppLauncher() {
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');
+
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.USER_SESSION,
+      allowReuse: false,
+      isMfaRequiredRequest: {
+        app: {
+          fqdn: pathParams.fqdn,
+          cluster_name: pathParams.clusterId,
+          public_addr: pathParams.publicAddr,
+        },
+      },
+    },
+  });
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
@@ -101,7 +118,11 @@ export function AppLauncher() {
       if (params.arn) {
         params.arn = decodeURIComponent(params.arn);
       }
-      const session = await service.createAppSession(params);
+
+      // Prompt for MFA if per-session MFA is required for this app.
+      const mfaResponse = await mfa.getChallengeResponse();
+
+      const session = await service.createAppSession(params, mfaResponse);
 
       // Set all the fields expected by server to validate request.
       const url = getXTeleportAuthUrl({ fqdn, port });
@@ -140,13 +161,18 @@ export function AppLauncher() {
 
   useEffect(() => {
     createAppSession(pathParams);
-  }, [pathParams]);
+  }, []);
 
-  if (attempt.status === 'failed') {
-    return <AppLauncherAccessDenied statusText={attempt.statusText} />;
-  }
-
-  return <AppLauncherProcessing />;
+  return (
+    <div>
+      {attempt.status === 'failed' ? (
+        <AppLauncherAccessDenied statusText={attempt.statusText} />
+      ) : (
+        <AppLauncherProcessing />
+      )}
+      <AuthnDialog {...mfa}></AuthnDialog>
+    </div>
+  );
 }
 
 export function AppLauncherProcessing() {
