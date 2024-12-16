@@ -18,6 +18,7 @@ test-terraform-provider:
 	make -C terraform test
 
 .PHONY: release-event-handler
+release-event-handler:
 	$(MAKE) -C event-handler release
 
 define access_plugin_template
@@ -27,4 +28,16 @@ release-access-$(1):
 endef
 
 ACCESS_PLUGINS = discord pagerduty msteams jira slack mattermost email datadog
+ACCESS_PLUGIN_TARGETS = $(addprefix release-access-,$(ACCESS_PLUGINS)) 
+.PHONY: $(ACCESS_PLUGIN_TARGETS)
+$(ACCESS_PLUGIN_TARGETS):
+
 $(foreach plugin,$(ACCESS_PLUGINS),$(eval $(call access_plugin_template,$(plugin))))
+
+.PHONY: release-terraform-provider
+release-terraform-provider:
+	$(MAKE) -C terraform release
+
+.PHONY: release-plugins
+release-plugins: release-event-handler release-terraform-provider $(ACCESS_PLUGIN_TARGETS) 
+	@echo $(ACCESS_PLUGIN_TARGETS)
