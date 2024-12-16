@@ -18,11 +18,13 @@ package common
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -58,49 +60,46 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	return trace.Wrap(processManager.Wait())
 }
 
-// vnetAdminSetupCommand is the fallback command run as root when tsh isn't
-// compiled with the vnetdaemon build tag. This is typically the case when
-// running tsh in development where it's not signed and bundled in tsh.app.
-//
-// This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
+// vnetAdminSetupCommand is the command that is run as the Windows service.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
-	// the unprivileged process.
-	socketPath string
-	// ipv6Prefix is the IPv6 prefix for the VNet.
-	ipv6Prefix string
-	// dnsAddr is the IP address for the VNet DNS server.
-	dnsAddr string
+	// home is the path to the user's TELEPORT_HOME.
+	home string
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.").Hidden(),
 	}
-	cmd.Flag("socket", "socket path").StringVar(&cmd.socketPath)
-	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
-	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.BadParameter("this command must run as a windows service")
+	if err := os.Setenv(types.HomeEnvVar, c.home); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := vnet.ServiceMain(cf.Context); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 type vnetInstallServiceCommand struct {
 	*kingpin.CmdClause
 	username string
+	home     string
 }
 
 func newVnetInstallServiceCommand(parent *kingpin.CmdClause) *vnetInstallServiceCommand {
 	cmd := &vnetInstallServiceCommand{
 		CmdClause: parent.Command("install-service", "Install the VNet service.").Hidden(),
 	}
-	cmd.Flag("username", "username of the user that the service should be installed for.").StringVar(&cmd.username)
+	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
+	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
 func (c *vnetInstallServiceCommand) run() error {
-	return trace.Wrap(vnet.InstallService(c.username))
+	return trace.Wrap(vnet.InstallService(c.username, c.home))
 }

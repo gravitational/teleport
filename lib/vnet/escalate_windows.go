@@ -30,6 +30,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
@@ -49,6 +50,8 @@ var (
 func execAdminProcess(ctx context.Context, cfg daemon.Config) error {
 	service, err := startService(cfg)
 	if err != nil {
+		// TODO(nklaassen): try to install service here, escalate with runas ->
+		// UAC prompt.
 		return trace.Wrap(err)
 	}
 	defer service.Close()
@@ -93,13 +96,13 @@ func serviceArgs(cfg daemon.Config) []string {
 	}
 }
 
-func InstallService(username string) error {
+func InstallService(username, home string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
 	}
 	defer m.Disconnect()
-	service, err := installService(m)
+	service, err := installService(m, home)
 	if err != nil {
 		return trace.Wrap(err, "installing Windows service")
 	}
@@ -109,7 +112,7 @@ func InstallService(username string) error {
 	return nil
 }
 
-func installService(m *mgr.Mgr) (*mgr.Service, error) {
+func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 	if service, err := m.OpenService(serviceName); err == nil {
 		// Service is already installed.
 		return service, nil
@@ -125,7 +128,11 @@ func installService(m *mgr.Mgr) (*mgr.Service, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "getting executable path")
 	}
-	service, err := m.CreateService(serviceName, tshPath, serviceCfg)
+	args := []string{
+		teleport.VnetAdminSetupSubCommand,
+		"--home", profile.FullProfilePath(os.Getenv(types.HomeEnvVar)),
+	}
+	service, err := m.CreateService(serviceName, tshPath, serviceCfg, args...)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Windows service")
 	}
@@ -175,19 +182,25 @@ func configureServicePermissions(service *mgr.Service, username string) error {
 	return nil
 }
 
-func ServiceMain() error {
-	if err := svc.Run(serviceName, windowsService{}); err != nil {
-		return trace.Wrap(err, "running Windows service %s", serviceName)
+// ServiceMain runs with Windows VNet service.
+func ServiceMain(ctx context.Context) error {
+	cleanup := setupServiceLogger()
+	defer cleanup()
+	s := &windowsService{
+		done: ctx.Done(),
+	}
+	if err := svc.Run(serviceName, s); err != nil {
+		return trace.Wrap(err, "running Windows service")
 	}
 	return nil
 }
 
-type windowsService struct{}
+type windowsService struct {
+	done <-chan struct{}
+}
 
-func (s windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
-	cleanup := setupLogger()
-	defer cleanup()
-
+// Execute implements [svc.Handler].
+func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	status <- svc.Status{State: svc.StartPending}
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -205,6 +218,8 @@ loop:
 			case svc.Stop, svc.Shutdown:
 				break loop
 			}
+		case <-s.done:
+			break loop
 		case err := <-errCh:
 			slog.ErrorContext(ctx, "Running Windows VNet service", "error", err)
 			const exitCode = 1
@@ -220,7 +235,7 @@ loop:
 	return false, exitCode
 }
 
-func (s windowsService) run(ctx context.Context, args []string) error {
+func (s *windowsService) run(ctx context.Context, args []string) error {
 	slog.InfoContext(ctx, "Initial arguments", "args", os.Args)
 	slog.InfoContext(ctx, "Executed arguments", "args", args)
 	homePath := os.Getenv(types.HomeEnvVar)
@@ -229,15 +244,17 @@ func (s windowsService) run(ctx context.Context, args []string) error {
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
 	var (
+		debug      bool
 		socketPath string
 		ipv6Prefix string
 		dnsAddr    string
 	)
 	app := kingpin.New("tsh", "Teleport Windows Service")
+	app.Flag("debug", "Enable verbose logging").Short('d').BoolVar(&debug)
 	adminSetupCmd := app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.")
-	adminSetupCmd.Flag("socket", "socket path").StringVar(&socketPath)
-	adminSetupCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&ipv6Prefix)
-	adminSetupCmd.Flag("dns-addr", "VNet DNS address").StringVar(&dnsAddr)
+	adminSetupCmd.Flag("socket", "socket path").Required().StringVar(&socketPath)
+	adminSetupCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").Required().StringVar(&ipv6Prefix)
+	adminSetupCmd.Flag("dns-addr", "VNet DNS address").Required().StringVar(&dnsAddr)
 	cmd, err := app.Parse(os.Args)
 	if err != nil {
 		return trace.Wrap(err, "parsing arguments")
@@ -246,7 +263,7 @@ func (s windowsService) run(ctx context.Context, args []string) error {
 	return nil
 }
 
-func setupLogger() func() {
+func setupServiceLogger() func() {
 	exePath, err := os.Executable()
 	if err != nil {
 		panic(err)
