@@ -49,6 +49,8 @@ type AKSFetcherConfig struct {
 	FilterLabels types.Labels
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// DiscoveryConfigName is the name of the DiscoveryConfig that created this Fetcher.
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -156,8 +158,8 @@ func (a *aksFetcher) IntegrationName() string {
 	return ""
 }
 
-func (a *aksFetcher) DiscoveryConfigName() string {
-	return ""
+func (a *aksFetcher) GetDiscoveryConfigName() string {
+	return a.DiscoveryConfigName
 }
 
 func (a *aksFetcher) FetcherType() string {
