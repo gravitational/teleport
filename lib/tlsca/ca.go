@@ -19,6 +19,7 @@
 package tlsca
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -35,7 +36,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -43,11 +43,10 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentAuthority,
-})
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
 func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
@@ -1274,12 +1273,12 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 
-	log.WithFields(logrus.Fields{
-		"not_after":   req.NotAfter,
-		"dns_names":   req.DNSNames,
-		"key_usage":   req.KeyUsage,
-		"common_name": req.Subject.CommonName,
-	}).Debug("Generating TLS certificate")
+	logger.DebugContext(context.TODO(), "Generating TLS certificate",
+		"not_after", req.NotAfter,
+		"dns_names", req.DNSNames,
+		"key_usage", req.KeyUsage,
+		"common_name", req.Subject.CommonName,
+	)
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
