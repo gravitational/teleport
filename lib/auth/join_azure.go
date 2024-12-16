@@ -398,8 +398,7 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 	if err := checkAzureAllowRulesWithClaims(claims, token.GetName(), token.Spec.Azure.Allow); err == nil {
 		return nil
 	}
-	a.logger.WarnContext(ctx, "Failed to validate Azure allow rules with claims. Attempting to validate with VMs.",
-		"error", err)
+	log.WithError(err).Warn("Failed to validate Azure allow rules with claims. Attempting to validate with VMs.")
 
 	// Required claims for validation are only present for source resource types
 	// that have onboarded to SNI auth. Fallback to validation with VMs if
