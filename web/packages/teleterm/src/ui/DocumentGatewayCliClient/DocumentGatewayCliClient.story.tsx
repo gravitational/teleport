@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { DocumentGatewayCliClient } from 'teleterm/ui/services/workspacesService';
 
 import { WaitingForGatewayContent } from './DocumentGatewayCliClient';

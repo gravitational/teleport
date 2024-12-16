@@ -2550,7 +2550,8 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	opts := []reverseproxy.Option{
 		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(f.log),
+		// TODO(tross): convert this to use f.log once it has been converted to use slog
+		reverseproxy.WithLogger(slog.Default()),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	}
 	if sess.isLocalKubernetesCluster {

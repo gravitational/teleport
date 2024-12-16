@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Flex } from 'design';
+import { Alert, Box, Flex } from 'design';
 import React, { useId, useState } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -47,7 +47,6 @@ export type RoleEditorProps = {
   originalRole?: RoleWithYaml;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
-  onDelete?(): void;
 };
 
 /**
@@ -59,7 +58,6 @@ export const RoleEditor = ({
   originalRole,
   onCancel,
   onSave,
-  onDelete,
 }: RoleEditorProps) => {
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
@@ -130,7 +128,7 @@ export const RoleEditor = ({
     // requires model to be valid. However, if it's OK, we reset the validator.
     // We don't want it to be validating at this point, since the user didn't
     // attempt to submit the form.
-    if (!validator.validate()) return;
+    if (!standardModel.roleModel.requiresReset && !validator.validate()) return;
     validator.reset();
 
     switch (activeIndex) {
@@ -181,32 +179,34 @@ export const RoleEditor = ({
     <Validation>
       {({ validator }) => (
         <Flex flexDirection="column" flex="1">
-          <EditorHeader
-            role={originalRole?.object}
-            onDelete={onDelete}
-            selectedEditorTab={selectedEditorTab}
-            onEditorTabChange={index => onTabChange(index, validator)}
-            isProcessing={isProcessing}
-            standardEditorId={standardEditorId}
-            yamlEditorId={yamlEditorId}
-          />
-          {saveAttempt.status === 'error' && (
-            <Alert mt={3} dismissible>
-              {saveAttempt.statusText}
-            </Alert>
-          )}
-          {parseAttempt.status === 'error' && (
-            <Alert mt={3} dismissible>
-              {parseAttempt.statusText}
-            </Alert>
-          )}
-          {yamlifyAttempt.status === 'error' && (
-            <Alert mt={3} dismissible>
-              {yamlifyAttempt.statusText}
-            </Alert>
-          )}
+          <Box mt={3} mx={3}>
+            <EditorHeader
+              role={originalRole?.object}
+              selectedEditorTab={selectedEditorTab}
+              onEditorTabChange={index => onTabChange(index, validator)}
+              isProcessing={isProcessing}
+              standardEditorId={standardEditorId}
+              yamlEditorId={yamlEditorId}
+              onClose={onCancel}
+            />
+            {saveAttempt.status === 'error' && (
+              <Alert mt={3} dismissible>
+                {saveAttempt.statusText}
+              </Alert>
+            )}
+            {parseAttempt.status === 'error' && (
+              <Alert mt={3} dismissible>
+                {parseAttempt.statusText}
+              </Alert>
+            )}
+            {yamlifyAttempt.status === 'error' && (
+              <Alert mt={3} dismissible>
+                {yamlifyAttempt.statusText}
+              </Alert>
+            )}
+          </Box>
           {selectedEditorTab === EditorTab.Standard && (
-            <div id={standardEditorId}>
+            <Flex flexDirection="column" flex="1" id={standardEditorId}>
               <StandardEditor
                 originalRole={originalRole}
                 onSave={object => handleSave({ object })}
@@ -215,7 +215,7 @@ export const RoleEditor = ({
                 isProcessing={isProcessing}
                 onChange={setStandardModel}
               />
-            </div>
+            </Flex>
           )}
           {selectedEditorTab === EditorTab.Yaml && (
             <Flex flexDirection="column" flex="1" id={yamlEditorId}>

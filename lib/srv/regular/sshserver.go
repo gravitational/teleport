@@ -1184,7 +1184,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(nsctx.Context, cmd)
+	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
 	return proc, trace.Wrap(err)
 }
 
@@ -1413,16 +1413,16 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 // canPortForward determines if port forwarding is allowed for the current
 // user/role/node combo. Returns nil if port forwarding is allowed, non-nil
 // if denied.
-func (s *Server) canPortForward(scx *srv.ServerContext) error {
+func (s *Server) canPortForward(scx *srv.ServerContext, mode services.SSHPortForwardMode) error {
 	// Is the node configured to allow port forwarding?
 	if !s.allowTCPForwarding {
 		return trace.AccessDenied("node does not allow port forwarding")
 	}
 
 	// Check if the role allows port forwarding for this user.
-	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx)
+	err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, mode)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1465,32 +1465,32 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
-	if err = s.canPortForward(scx); err != nil {
+	if err = s.canPortForward(scx, services.SSHPortForwardModeLocal); err != nil {
 		s.writeStderr(ctx, channel, err.Error())
 		return
 	}
 
-	scx.Debugf("Opening direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
-	defer scx.Debugf("Closing direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
+	scx.Logger.DebugContext(ctx, "Opening direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
+	defer scx.Logger.DebugContext(ctx, "Closing direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
 
 	conn, err := s.dialTCPIP(scx, scx.DstAddr)
 	if err != nil {
 		if errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())) || errors.Is(err, trace.BadParameter("unknown user")) {
 			// user does not exist for the provided login. Terminate the connection.
-			s.logger.WarnContext(ctx, "terminating direct-tcpip request because user does not exist", "user", scx.Identity.Login)
+			scx.Logger.WarnContext(ctx, "terminating direct-tcpip request because user does not exist", "user", scx.Identity.Login)
 			if err := ccx.ServerConn.Close(); err != nil {
-				s.logger.WarnContext(ctx, "Unable to terminate connection", "error", err)
+				scx.Logger.WarnContext(ctx, "Unable to terminate connection", "error", err)
 			}
 			return
 		}
 
-		s.logger.ErrorContext(ctx, "Forwarding data via direct-tcpip channel failed", "error", err)
+		scx.Logger.ErrorContext(ctx, "Forwarding data via direct-tcpip channel failed", "error", err)
 		s.writeStderr(ctx, channel, err.Error())
 		return
 	}
 
 	if err := utils.ProxyConn(ctx, conn, channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-		s.logger.WarnContext(ctx, "Connection problem in direct-tcpip channel", "error", err)
+		scx.Logger.WarnContext(ctx, "Connection problem in direct-tcpip channel", "error", err)
 	}
 
 	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
@@ -1508,7 +1508,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 			Success: true,
 		},
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
+		scx.Logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}
 }
 
@@ -1561,16 +1561,15 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	for {
 		// update scx with the session ID:
 		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(s.reg)
+			err := scx.CreateOrJoinSession(ctx, s.reg)
 			if err != nil {
-				errorMessage := fmt.Sprintf("unable to update context: %v", err)
-				scx.Errorf("Unable to update context: %v.", errorMessage)
+				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
 
 				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, errorMessage)
+				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
 				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
 				if err != nil {
-					scx.Errorf("Failed to send exit status %v.", errorMessage)
+					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
 				}
 				return
 			}
@@ -1579,12 +1578,12 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
 			// want us to close session and the channel
-			scx.Debugf("Close session request: %v.", creq.Err)
+			scx.Logger.DebugContext(ctx, "Close session request", "error", creq.Err)
 			return
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				scx.Debugf("Client %v disconnected.", scx.ServerConn.RemoteAddr())
+				scx.Logger.DebugContext(ctx, "Client disconnected.", "client_addr", scx.ServerConn.RemoteAddr())
 				return
 			}
 
@@ -1609,23 +1608,23 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			}
 			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
-					s.logger.WarnContext(ctx, "Failed to reply to request", "request_type", req.Type, "error", err)
+					scx.Logger.WarnContext(ctx, "Failed to reply to request", "request_type", req.Type, "error", err)
 				}
 			}
 			span.End()
 		case result := <-scx.ExecResultCh:
-			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
+			scx.Logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
 			_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
-				scx.Infof("Failed to send exit status for %v: %v", result.Command, err)
+				scx.Logger.InfoContext(ctx, "Failed to send exit status", "command", result.Command, "error", err)
 			}
 
 			return
 		case <-ctx.Done():
-			s.logger.DebugContext(ctx, "Closing session due to cancellation")
+			scx.Logger.DebugContext(ctx, "Closing session due to cancellation")
 			return
 		}
 	}
@@ -1634,7 +1633,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 // dispatch receives an SSH request for a subsystem and dispatches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	serverContext.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
+	serverContext.Logger.DebugContext(ctx, "Handling session request", "request_type", req.Type, "want_reply", req.WantReply)
 
 	// If this SSH server is configured to only proxy, we do not support anything
 	// other than our own custom "subsystems" and environment manipulation.
@@ -1643,15 +1642,15 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
-			return s.handleEnv(ch, req, serverContext)
+			return s.handleEnv(ctx, ch, req, serverContext)
 		case tracessh.EnvsRequest:
-			return s.handleEnvs(ch, req, serverContext)
+			return s.handleEnvs(ctx, ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
 			err := s.handleAgentForwardProxy(req, serverContext)
 			if err != nil {
-				s.logger.WarnContext(ctx, "Failure forwarding agent", "error", err)
+				serverContext.Logger.WarnContext(ctx, "Failure forwarding agent", "error", err)
 			}
 			return nil
 		case sshutils.PuTTYSimpleRequest:
@@ -1659,13 +1658,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// as a proxy to indicate that it's in "simple" node and won't be requesting any other channels.
 			// As we don't support this request, we ignore it.
 			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-			s.logger.DebugContext(ctx, "deliberately ignoring simple@putty.projects.tartarus.org request")
+			serverContext.Logger.DebugContext(ctx, "deliberately ignoring simple@putty.projects.tartarus.org request")
 			return nil
 		default:
 			s.logger.WarnContext(ctx, "server doesn't support request type", "request_type", req.Type)
 			if req.WantReply {
 				if err := req.Reply(false, nil); err != nil {
-					s.logger.ErrorContext(ctx, "error sending reply on SSH channel", "error", err)
+					serverContext.Logger.ErrorContext(ctx, "error sending reply on SSH channel", "error", err)
 				}
 			}
 			return nil
@@ -1702,9 +1701,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForwardNode(req, serverContext)
+			err := s.handleAgentForwardNode(ctx, req, serverContext)
 			if err != nil {
-				s.logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+				serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
@@ -1729,9 +1728,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, serverContext)
+		return s.handleEnv(ctx, ch, req, serverContext)
 	case tracessh.EnvsRequest:
-		return s.handleEnvs(ch, req, serverContext)
+		return s.handleEnvs(ctx, ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
@@ -1749,18 +1748,18 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForwardNode(req, serverContext)
+		err := s.handleAgentForwardNode(ctx, req, serverContext)
 		if err != nil {
-			s.logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+			serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
 		return s.handlePuTTYWinadj(ctx, req)
 	default:
-		s.logger.WarnContext(ctx, "server doesn't support request type", "request_type", req.Type)
+		serverContext.Logger.WarnContext(ctx, "server doesn't support request type", "request_type", req.Type)
 		if req.WantReply {
 			if err := req.Reply(false, nil); err != nil {
-				s.logger.ErrorContext(ctx, "error sending reply on SSH channel", "error", err)
+				serverContext.Logger.ErrorContext(ctx, "error sending reply on SSH channel", "error", err)
 			}
 		}
 		return nil
@@ -1769,7 +1768,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 // handleAgentForwardNode will create a unix socket and serve the agent running
 // on the client on it.
-func (s *Server) handleAgentForwardNode(_ *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx *srv.ServerContext) error {
 	// check if the user's RBAC role allows agent forwarding
 	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
@@ -1779,7 +1778,7 @@ func (s *Server) handleAgentForwardNode(_ *ssh.Request, scx *srv.ServerContext) 
 	// Enable agent forwarding for the broader connection-level
 	// context.
 	scx.Parent().SetForwardAgent(true)
-	if err := s.serveAgent(scx); err != nil {
+	if err := s.serveAgent(ctx, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1787,7 +1786,7 @@ func (s *Server) handleAgentForwardNode(_ *ssh.Request, scx *srv.ServerContext) 
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
-func (s *Server) serveAgent(scx *srv.ServerContext) error {
+func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 	proc, err := s.getNetworkingProcess(scx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1805,10 +1804,10 @@ func (s *Server) serveAgent(scx *srv.ServerContext) error {
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())
 	scx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", os.Getpid()))
-	scx.Debugf("Starting agent server for Teleport user %v and socket %v.", scx.Identity.TeleportUser, agentServer.Path)
+	scx.Logger.DebugContext(ctx, "Starting agent server for user", "teleport_user", scx.Identity.TeleportUser, "socket", agentServer.Path)
 	go func() {
 		if err := agentServer.Serve(); err != nil {
-			scx.Errorf("agent server for user %q stopped: %v", scx.Identity.TeleportUser, err)
+			scx.Logger.ErrorContext(ctx, "agent server for user stopped", "teleport_user", scx.Identity.TeleportUser, "error", err)
 		}
 	}()
 
@@ -1870,7 +1869,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			err = nil
 		}
 		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			s.logger.WarnContext(s.ctx, "Failed to emit x11-forward event", "error", err)
+			scx.Logger.WarnContext(s.ctx, "Failed to emit x11-forward event", "error", err)
 		}
 	}()
 
@@ -1894,7 +1893,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.Wrap(err)
 	}
 
-	listener, err := proc.ListenX11(context.Background(), networking.X11Request{
+	listener, err := proc.ListenX11(ctx, networking.X11Request{
 		ForwardRequestPayload: x11Req,
 		DisplayOffset:         s.x11.DisplayOffset,
 		MaxDisplay:            s.x11.MaxDisplay,
@@ -1904,7 +1903,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 	scx.Parent().AddCloser(listener)
 
-	if err := scx.HandleX11Listener(listener, x11Req.SingleConnection); err != nil {
+	if err := scx.HandleX11Listener(ctx, listener, x11Req.SingleConnection); err != nil {
 		if trace.IsLimitExceeded(err) {
 			return trace.AccessDenied("The server cannot support any more X11 forwarding sessions at this time")
 		}
@@ -1917,43 +1916,43 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	sb, err := s.parseSubsystemRequest(ctx, req, serverContext)
 	if err != nil {
-		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
+		serverContext.Logger.WarnContext(ctx, "Failed to parse subsystem request", "requres_type", req.Type, "error", err)
 		return trace.Wrap(err)
 	}
-	serverContext.Debugf("Subsystem request: %v.", sb)
+	serverContext.Logger.DebugContext(ctx, "Starting subsystem")
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx, serverContext.ServerConn, ch, req, serverContext); err != nil {
-		serverContext.Warnf("Subsystem request %v failed: %v.", sb, err)
-		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+		serverContext.Logger.WarnContext(ctx, "Subsystem request failed", "error", err)
+		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
-		s.logger.DebugContext(ctx, "Subsystem finished", "subsystem", sb, "error", err)
-		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+		serverContext.Logger.DebugContext(ctx, "Subsystem finished", "subsystem", sb, "error", err)
+		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
 }
 
 // handleEnv accepts an environment variable sent by the client and stores it
 // in connection context
-func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Error(err)
+		scx.Logger.ErrorContext(ctx, "failed to parse env request", "error", err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
-	ctx.SetEnv(e.Name, e.Value)
+	scx.SetEnv(e.Name, e.Value)
 	return nil
 }
 
 // handleEnvs accepts environment variables sent by the client and stores them
 // in connection context
-func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var raw tracessh.EnvsReq
 	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
-		ctx.Error(err)
+		scx.Logger.ErrorContext(ctx, "failed to parse envs request", "error", err)
 		return trace.Wrap(err, "failed to parse envs request")
 	}
 
@@ -1963,7 +1962,7 @@ func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCon
 	}
 
 	for k, v := range envs {
-		ctx.SetEnv(k, v)
+		scx.SetEnv(k, v)
 	}
 
 	return nil
@@ -2171,7 +2170,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 
-	if err := s.canPortForward(scx); err != nil {
+	if err := s.canPortForward(scx, services.SSHPortForwardModeRemote); err != nil {
 		scx.Close()
 		return nil, nil, trace.Wrap(err)
 	}

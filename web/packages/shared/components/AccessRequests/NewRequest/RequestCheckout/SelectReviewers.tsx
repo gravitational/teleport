@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { components } from 'react-select';
 import ReactSelectCreatable from 'react-select/creatable';
 import styled from 'styled-components';
@@ -40,7 +40,7 @@ export function SelectReviewers({
     () => reviewers.map(r => ({ value: r, label: r, isDisabled: true }))
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     // When editing reviewers, auto focus on input box.
     if (editReviewers) {
       reactSelectRef.current.focus();

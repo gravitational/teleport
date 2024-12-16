@@ -310,7 +310,8 @@ type SharedResourceAccessRequestKind =
   | 'db'
   | 'node'
   | 'kube_cluster'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -430,6 +431,18 @@ export function toResourceRequest({
             appId: resourceId,
           }),
           samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_ic_account_assignment':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: false,
         },
         kind: 'app',
       };

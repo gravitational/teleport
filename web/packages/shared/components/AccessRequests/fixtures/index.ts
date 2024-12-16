@@ -141,6 +141,16 @@ export const requestSearchPending: AccessRequest = {
         friendlyName: 'app-saml',
       },
     },
+    {
+      id: {
+        kind: 'aws_ic_account_assignment',
+        name: 'admin-on-account1',
+        clusterName: 'cluster-name',
+      },
+      details: {
+        friendlyName: 'account1',
+      },
+    },
   ],
 };
 

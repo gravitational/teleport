@@ -26,6 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -1016,6 +1017,18 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 		return err
 	}
 
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		if err != nil {
+			return err
+		}
+
+		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeRemote); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -1073,8 +1086,12 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
+		if err := ch.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close channel", "error", err)
+		}
 		return
 	}
+	scx.AddCloser(ch)
 	scx.RemoteClient = s.remoteClient
 	scx.ExecType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
@@ -1083,11 +1100,13 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 
 	ch = scx.TrackActivity(ch)
 
-	// Check if the role allows port forwarding for this user.
-	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
-	if err != nil {
-		s.stderrWrite(ctx, ch, err.Error())
-		return
+	// RBAC checks are only necessary when connecting to an agentless node
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
+		if err != nil {
+			s.stderrWrite(ctx, ch, err.Error())
+			return
+		}
 	}
 
 	s.logger.DebugContext(ctx, "Opening direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr, "session_id", scx.ID())
@@ -1106,7 +1125,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}
 
-	if err := utils.ProxyConn(ctx, ch, conn); err != nil {
+	if err := utils.ProxyConn(ctx, ch, conn); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
 		s.logger.WarnContext(ctx, "Failed proxying data for port forwarding connection", "error", err)
 	}
 }
@@ -1174,7 +1193,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 
 	for {
 		// Update the context with the session ID.
-		err := scx.CreateOrJoinSession(s.sessionRegistry)
+		err := scx.CreateOrJoinSession(ctx, s.sessionRegistry)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "unable create or join session", "error", err)
 
@@ -1243,7 +1262,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 }
 
 func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
-	s.logger.DebugContext(ctx, "Handling request", "request_type", req.Type, "want_reply", req.WantReply)
+	scx.Logger.DebugContext(ctx, "Handling request", "request_type", req.Type, "want_reply", req.WantReply)
 
 	// Certs with a join-only principal can only use a
 	// subset of all the possible request types.
@@ -1268,7 +1287,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// processing requests.
 			err := s.handleAgentForward(ch, req, scx)
 			if err != nil {
-				s.logger.DebugContext(ctx, "failure forwarding agent", "error", err)
+				scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
@@ -1303,16 +1322,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// processing requests.
 		err := s.handleAgentForward(ch, req, scx)
 		if err != nil {
-			s.logger.DebugContext(ctx, "failure forwarding agent", "error", err)
+			scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
 		return s.handlePuTTYWinadj(ctx, ch, req)
 	default:
-		s.logger.WarnContext(ctx, "received unsupported SSH request", "request_type", req.Type)
+		scx.Logger.WarnContext(ctx, "received unsupported SSH request", "request_type", req.Type)
 		if req.WantReply {
 			if err := req.Reply(false, nil); err != nil {
-				s.logger.ErrorContext(ctx, "failed sending error reply on SSH channel", "error", err)
+				scx.Logger.ErrorContext(ctx, "failed sending error reply on SSH channel", "error", err)
 			}
 		}
 		return nil
@@ -1430,7 +1449,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			err = nil
 		}
 		if err := s.EmitAuditEvent(ctx, event); err != nil {
-			s.logger.WarnContext(ctx, "Failed to emit x11-forward event", "error", err)
+			scx.Logger.WarnContext(ctx, "Failed to emit x11-forward event", "error", err)
 		}
 	}()
 
@@ -1477,7 +1496,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	// start the requested subsystem, if it fails to start return result right away
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
-		serverContext.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
 			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
@@ -1487,7 +1506,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	// wait for the subsystem to finish and return that result
 	go func() {
 		err := subsystem.Wait()
-		serverContext.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
 			Name: subsystem.subsystemName,
 			Err:  trace.Wrap(err),
 		})
@@ -1499,7 +1518,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		s.logger.ErrorContext(ctx, "failed to parse env request", "error", err)
+		scx.Logger.ErrorContext(ctx, "failed to parse env request", "error", err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
@@ -1515,7 +1534,7 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
-		s.logger.DebugContext(ctx, "Unable to set environment variable", "key", e.Name, "value", e.Value, "error", err)
+		scx.Logger.DebugContext(ctx, "Unable to set environment variable", "key", e.Name, "value", e.Value, "error", err)
 	}
 
 	return nil
@@ -1526,7 +1545,7 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var raw tracessh.EnvsReq
 	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
-		s.logger.ErrorContext(ctx, "failed to parse envs request", "error", err)
+		scx.Logger.ErrorContext(ctx, "failed to parse envs request", "error", err)
 		return trace.Wrap(err, "failed to parse envs request")
 	}
 
@@ -1548,7 +1567,7 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
-		s.logger.DebugContext(ctx, "Unable to set environment variables", "error", err)
+		scx.Logger.DebugContext(ctx, "Unable to set environment variables", "error", err)
 	}
 
 	return nil

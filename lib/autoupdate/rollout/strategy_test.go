@@ -308,3 +308,67 @@ func Test_setGroupState(t *testing.T) {
 		})
 	}
 }
+
+func Test_computeRolloutState(t *testing.T) {
+	tests := []struct {
+		name          string
+		groups        []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		expectedState autoupdate.AutoUpdateAgentRolloutState
+	}{
+		{
+			name:          "empty groups",
+			groups:        []*autoupdate.AutoUpdateAgentRolloutStatusGroup{},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED,
+		},
+		{
+			name: "all groups unstarted",
+			groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+			},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+		},
+		{
+			name: "one group active",
+			groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+			},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
+		},
+		{
+			name: "one group done",
+			groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+			},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
+		},
+		{
+			name: "every group done",
+			groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+			},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE,
+		},
+		{
+			name: "one group rolledback",
+			groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK},
+				{State: autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
+			},
+			expectedState: autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedState, computeRolloutState(tt.groups))
+		})
+	}
+}

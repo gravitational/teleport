@@ -170,6 +170,7 @@ export function AccessRequestCheckout() {
                       switch (c.kind) {
                         case 'app':
                         case 'saml_idp_service_provider':
+                        case 'aws_ic_account_assignment':
                           resource.Icon = Icon.Application;
                           break;
                         case 'node':
