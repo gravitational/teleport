@@ -405,7 +405,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, exitCode(err), trace.Wrap(err)
+	return io.Discard, sshutils.ExitCodeFromExecError(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.

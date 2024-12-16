@@ -32,8 +32,7 @@ import (
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/fixtures"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 type fakeAuthPreferenceGetter struct {
@@ -53,11 +52,7 @@ func (f fakeGitHubUserCertGenerator) GenerateGitHubUserCert(_ context.Context, i
 		return nil, trace.CompareFailed("expect ttl %v but got %v", f.checkTTL, input.Ttl.AsDuration())
 	}
 
-	signer, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	caSigner, err := ssh.NewSignerFromKey(signer)
+	caSigner, err := apisshutils.MakeTestSSHCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,11 +78,7 @@ func (f fakeGitHubUserCertGenerator) GenerateGitHubUserCert(_ context.Context, i
 
 func TestMakeGitHubSigner(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
-		Integration:  "org",
-		Organization: "org",
-	})
-	require.NoError(t, err)
+	server := makeGitServer(t, "org")
 
 	tests := []struct {
 		name       string

@@ -3567,3 +3567,27 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
 }
+
+type AuthPreferenceGetter interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
+// AccessStateFromSSHCertificate populates access state based on user's SSH
+// certificate and auth preference.
+func AccessStateFromSSHCertificate(ctx context.Context, cert *ssh.Certificate, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+	return state, nil
+}

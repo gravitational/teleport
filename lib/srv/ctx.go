@@ -250,9 +250,6 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
-
-	// GitHubUserID is GitHub user ID attached to this user.
-	GitHubUserID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,

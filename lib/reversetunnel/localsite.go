@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
@@ -245,10 +246,6 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
-	// forward to "github.com" from Proxy
-	if params.TargetServer != nil && params.TargetServer.GetGitHub() != nil {
-		return true
-	}
 	// proxy session recording mode is being used and an SSH session
 	// is being requested, the connection must be forwarded
 	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
@@ -258,6 +255,10 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer != nil && params.TargetServer.GetKind() == types.KindGitServer {
+		return s.dialAndForwardGit(params)
+	}
+
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,6 +354,50 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 	}
 }
 
+func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
+	s.log.Debug("Dialing and forwarding git from %s to %s", params.From, params.To)
+
+	dialStart := s.srv.Clock.Now()
+	targetConn, err := s.dialDirect(params)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "failed to connect to git server")
+	}
+
+	// Get a host certificate for the forwarding node from the cache.
+	hostCertificate, err := s.certificateCache.getHostCertificate(context.TODO(), params.Address, params.Principals)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a forwarding server that serves a single SSH connection on it. This
+	// server does not need to close, it will close and release all resources
+	// once conn is closed.
+	serverConfig := &git.ForwardServerConfig{
+		AuthClient:      s.client,
+		AccessPoint:     s.accessPoint,
+		TargetConn:      newMetricConn(targetConn, dialTypeDirect, dialStart, s.srv.Clock),
+		SrcAddr:         params.From,
+		DstAddr:         params.To,
+		HostCertificate: hostCertificate,
+		Ciphers:         s.srv.Config.Ciphers,
+		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:   s.srv.Config.MACAlgorithms,
+		Emitter:         s.srv.Config.Emitter,
+		ParentContext:   s.srv.Context,
+		LockWatcher:     s.srv.LockWatcher,
+		HostUUID:        s.srv.ID,
+		TargetServer:    params.TargetServer,
+		Clock:           s.clock,
+	}
+	remoteServer, err := git.NewForwardServer(serverConfig)
+	if err != nil {
+		s.log.WithError(err).Error("Failed to create git forward server")
+		return nil, trace.Wrap(err)
+	}
+	go remoteServer.Serve()
+
+	return remoteServer.Dial()
+}
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && !params.IsAgentlessNode {
 		return nil, trace.BadParameter("agentless node require an agent getter")
@@ -454,6 +499,18 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+func (s *localSite) dialDirect(params reversetunnelclient.DialParams) (net.Conn, error) {
+	dialer := proxyutils.DialerFromEnvironment(params.To.String())
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
+		s.log.WithError(err).Warn("Failed to get cluster networking config - using default dial timeout")
+	} else {
+		dialTimeout = cnc.GetSSHDialTimeout()
+	}
+	return dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
 }
 
 // tryProxyPeering determines whether the node should try to be reached over
@@ -649,16 +706,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	}
 
 	// If no tunnel connection was found, dial to the target host.
-	dialer := proxyutils.DialerFromEnvironment(params.To.String())
-
-	dialTimeout := apidefaults.DefaultIOTimeout
-	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
-		s.log.WithError(err).Warn("Failed to get cluster networking config - using default dial timeout")
-	} else {
-		dialTimeout = cnc.GetSSHDialTimeout()
-	}
-
-	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
+	conn, directErr = s.dialDirect(params)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)

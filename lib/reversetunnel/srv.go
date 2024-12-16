@@ -1287,22 +1287,6 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	go remoteSite.updateLocks(lockRetry)
-
-	gitServerWatcher, err := services.NewGitServerWatcher(srv.ctx, services.GitServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			// TODO(tross) update this after converting to use slog
-			// Logger:          srv.Log,
-			MaxStaleness: time.Minute,
-		},
-		GitServerGetter: accessPoint,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	remoteSite.gitServerWatcher = gitServerWatcher
-
 	return remoteSite, nil
 }
 

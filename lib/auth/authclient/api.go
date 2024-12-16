@@ -422,9 +422,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
-
-	// GitServerGetter defines a service to get Git servers.
-	services.GitServerGetter
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
