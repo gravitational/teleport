@@ -96,12 +96,10 @@ jobs:
         run: |
           echo "" > .gitmodules
           rm -rf content/*
-          cd content || exit 1
           # Rather than using a submodule, copy the teleport source into the
           # content directory.
           cp -r "$GITHUB_WORKSPACE/teleport" "$GITHUB_WORKSPACE/docs/content/current"
-          cd "$GITHUB_WORKSPACE/docs" || exit 1
-          jq -nr --arg version "$BRANCH" '{"versions": [{"name": $version,"branch": $version, "deprecated": false, "isDefault": true }]}' > config.json
+          jq -nr --arg version "current" '{"versions": [{"name": $version,"branch": $version,"deprecated": false,"isDefault": true}]}' > config.json
           NEW_PACKAGE_JSON=$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json);
           NEW_PACKAGE_JSON=$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' <<< "$NEW_PACKAGE_JSON");
           echo "$NEW_PACKAGE_JSON" > package.json;
