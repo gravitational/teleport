@@ -94,6 +94,7 @@ type vnetInstallServiceCommand struct {
 
 func newVnetInstallServiceCommand(parent *vnetAdminSetupCommand) *vnetInstallServiceCommand {
 	cmd := &vnetInstallServiceCommand{
+		parent:    parent,
 		CmdClause: parent.Command("install-service", "Install the VNet service.").Hidden(),
 	}
 	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
