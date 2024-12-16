@@ -624,7 +624,7 @@ func NamedImports(file *ast.File) map[string]string {
 
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
 // Looks up decl's fields in allDecls and methods in allMethods.
-func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
+func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl, allDecls)
 	if err != nil {
 		return nil, err
@@ -697,7 +697,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 			if !ok {
 				continue
 			}
-			r, err := ReferenceDataFromDeclaration(gd, allDecls, allMethods)
+			r, err := ReferenceDataFromDeclaration(gd, allDecls)
 			if errors.Is(err, NotAGenDeclError{}) {
 				continue
 			}

@@ -1313,15 +1313,12 @@ type AddressInfo struct {
 
 			}
 
-			allMethods, err := GetMethodInfo(allDecls)
-			assert.NoError(t, err)
-
 			r, err := ReferenceDataFromDeclaration(DeclarationInfo{
 				FilePath:     "myfile.go",
 				Decl:         gd,
 				PackageName:  f.Name.Name,
 				NamedImports: NamedImports(f),
-			}, pkgToDecl, allMethods)
+			}, pkgToDecl)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)
 			} else {

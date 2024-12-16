@@ -344,7 +344,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
-		entries, err := resource.ReferenceDataFromDeclaration(decl, typeDecls, methods)
+		entries, err := resource.ReferenceDataFromDeclaration(decl, typeDecls)
 		if errors.Is(err, resource.NotAGenDeclError{}) {
 			continue
 		}
@@ -355,8 +355,9 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		pc.Resource.ReferenceEntry = entries[k]
 		delete(entries, k)
 		pc.Fields = entries
+
 		// TODO: Extract the version/kind identification stuff into a
-		// function
+		// function. Or better yet, make it a map of names.
 		entryMethods, ok := methods[k]
 		// Can't be a resource since it does not have methods.
 		if !ok {
