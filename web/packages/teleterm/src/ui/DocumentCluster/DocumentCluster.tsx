@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert, H2 } from 'design';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
