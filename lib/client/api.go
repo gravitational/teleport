@@ -1609,11 +1609,19 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 			return nil, trace.Wrap(err)
 		}
 
-		if len(resources) == 0 {
+		switch len(resources) {
+		case 0:
 			return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
-		}
-
-		if len(resources) > 1 {
+		case 1:
+			node, ok := resources[0].ResourceWithLabels.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+			}
+			return &TargetNode{
+				Hostname: node.GetHostname(),
+				Addr:     node.GetName() + ":0",
+			}, nil
+		default:
 			// If routing does not allow choosing the most recent host, then abort with
 			// an ambiguous host error.
 			cnc, err := clt.GetClusterNetworkingConfig(ctx)
@@ -1626,22 +1634,21 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 				return a.Expiry().Compare(b.Expiry())
 			})
 
-		}
+			// Sorting above is oldest expiry to newest expiry, so proceed
+			// with the last item server in the slice.
+			server, ok := resources[len(resources)-1].ResourceWithLabels.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+			}
 
-		// Sorting above is oldest expiry to newest expiry, so proceed
-		// with the last item server in the slice.
-		server, ok := resources[len(resources)-1].ResourceWithLabels.(types.Server)
-		if !ok {
-			return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+			// Dialing is happening by UUID but a port is still required by
+			// the Proxy dial request. Zero is an indicator to the Proxy that
+			// it may chose the appropriate port based on the target server.
+			return &TargetNode{
+				Hostname: server.GetHostname(),
+				Addr:     server.GetName() + ":0",
+			}, nil
 		}
-
-		// Dialing is happening by UUID but a port is still required by
-		// the Proxy dial request. Zero is an indicator to the Proxy that
-		// it may chose the appropriate port based on the target server.
-		return &TargetNode{
-			Hostname: server.GetHostname(),
-			Addr:     server.GetName() + ":0",
-		}, nil
 	case err == nil:
 		if resp.GetServer() == nil {
 			return nil, trace.NotFound("no matching SSH hosts found")
