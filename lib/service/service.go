@@ -1236,8 +1236,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		upgraderKind = ""
 	}
 
-	// If the new auto-updater is enabled, it superceeds the old one.
-	ok, err := autoupdate.IsEnabled()
+	// If the installation is managed by teleport-update, it supersedes the teleport-upgrader script.
+	ok, err := autoupdate.IsActive()
 	if err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
 	} else if ok {
@@ -1285,7 +1285,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
 		}
 
-		if upgraderKind == "unit" {
+		if upgraderKind == types.UpgraderKindSystemdUnit {
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
 				if err != nil {
@@ -1315,26 +1315,28 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			})
 		}
 
-		driver, err := uw.NewDriver(upgraderKind)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if upgraderKind != types.UpgraderKindTeleportUpdate {
+			driver, err := uw.NewDriver(upgraderKind)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
+				Driver:                   driver,
+				ExportFunc:               process.exportUpgradeWindows,
+				AuthConnectivitySentinel: process.inventoryHandle.Sender(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
+			process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
+				exporter.Close()
+			})
+
+			process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
 		}
-
-		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
-			Driver:                   driver,
-			ExportFunc:               process.exportUpgradeWindows,
-			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-		process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
-			exporter.Close()
-		})
-
-		process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
 	}
 
 	serviceStarted := false

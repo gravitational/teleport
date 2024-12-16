@@ -26,7 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func IsEnabled() (bool, error) {
+// IsActive returns true if the local Teleport binary is managed by teleport-update.
+// Note that true may be returned even if auto-updates is disabled or the version is pinned.
+func IsActive() (bool, error) {
 	teleportPath, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
