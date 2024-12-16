@@ -209,12 +209,20 @@ export const BotTiles = () => {
     <PreviewBox>
       <Flex>
         {integrationsTop.map(integration => (
-          <DisplayTile icon={integration.icon} title={integration.title} />
+          <DisplayTile
+            key={integration.title}
+            icon={integration.icon}
+            title={integration.title}
+          />
         ))}
       </Flex>
       <Flex>
         {integrationsBottom.map(integration => (
-          <DisplayTile icon={integration.icon} title={integration.title} />
+          <DisplayTile
+            key={integration.title}
+            icon={integration.icon}
+            title={integration.title}
+          />
         ))}
       </Flex>
     </PreviewBox>

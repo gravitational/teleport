@@ -41,7 +41,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -74,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -605,7 +606,7 @@ func Main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
@@ -703,6 +704,10 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -1228,7 +1233,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	var err error
-
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1848,6 +1852,14 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
+	// The user is not logged in and has typed in `tsh --proxy=... login`, if
+	// the running binary needs to be updated, update and re-exec.
+	if profile == nil {
+		if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1858,6 +1870,13 @@ func onLogin(cf *CLIConf) error {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1871,6 +1890,13 @@ func onLogin(cf *CLIConf) error {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+
+			// The user has typed `tsh login`, if the running binary needs to
+			// be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
+
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1941,7 +1967,11 @@ func onLogin(cf *CLIConf) error {
 
 		// otherwise just pass through to standard login
 		default:
-
+			// The user is logged in and has typed in `tsh --proxy=... login`, if
+			// the running binary needs to be updated, update and re-exec.
+			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 

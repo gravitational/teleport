@@ -61,7 +61,8 @@ teleportVersionOverride: ""
 # For example:
 #
 # auth:
-#  postStart: ["curl", "http://hook"]
+#  postStart:
+#    command: ["curl", "http://hook"]
 #  imagePullPolicy: Always
 auth:
   # auth.teleportConfig contains YAML teleport configuration for auth pods
@@ -84,7 +85,8 @@ auth:
 # This is merged with chart-scoped values and takes precedence in case of conflict.
 # For example:
 # proxy:
-#   postStart: ["curl", "http://hook"]
+#   postStart:
+#     command: ["curl", "http://hook"]
 #   imagePullPolicy: Always
 #   annotations:
 #     service:

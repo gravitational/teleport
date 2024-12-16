@@ -21,6 +21,10 @@ import path, { delimiter } from 'path';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
 
 import {
   PtyCommand,
@@ -63,6 +67,9 @@ export async function buildPtyOptions(
       throw error;
     })
     .then(({ shellEnv, creationStatus }) => {
+      // combinedEnv is going to be used as env by every command coming out of buildPtyOptions. Some
+      // commands might add extra variables, but they shouldn't remove any of the env vars that are
+      // added here.
       const combinedEnv = {
         ...process.env,
         ...shellEnv,
@@ -71,6 +78,7 @@ export async function buildPtyOptions(
         TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
+        [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       };
 
       return {

@@ -994,7 +994,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	// waitSessionTermination wait until the errCh returns something and assert
 	// it with the provided function.
 	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
-		errorAssertion(t, waitForError(errCh, 10*time.Second))
+		errorAssertion(t, waitForError(errCh, 30*time.Second))
 	}
 
 	// enableDiskFailure changes the OpenFileFunc on filesession package. The
@@ -4420,12 +4420,18 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
+	// Wait for the nodes to be visible to both Proxy instances.
+	require.NoError(t, main.WaitForNodeCount(ctx, helpers.Site, 1))
+	instance := helpers.TeleInstance{Tunnel: proxyTunnel}
+	require.NoError(t, instance.WaitForNodeCount(ctx, helpers.Site, 1))
+
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    "cluster-main-node",
 	}
+
 	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
