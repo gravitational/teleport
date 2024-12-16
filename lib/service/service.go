@@ -1285,7 +1285,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
 		}
 
-		if upgraderKind == types.UpgraderKindSystemdUnit {
+		switch upgraderKind {
+		case types.UpgraderKindTeleportUpdate:
+			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := driver.ForceNOP(process.ExitContext()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
 				if err != nil {
@@ -1313,9 +1322,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
 				return nil
 			})
-		}
-
-		if upgraderKind != types.UpgraderKindTeleportUpdate {
+			fallthrough
+		default:
 			driver, err := uw.NewDriver(upgraderKind)
 			if err != nil {
 				return nil, trace.Wrap(err)
