@@ -73,8 +73,10 @@ type PacketEntry struct {
 
 // Capture struct holds all packet details and offers methods to add and save packets.
 type Capture struct {
-	packets    []PacketEntry
-	clock      clockwork.Clock
+	packets []PacketEntry
+	clock   clockwork.Clock
+
+	// runCommand runs a specific command and returns combined output.
 	runCommand func(name string, arg ...string) ([]byte, error)
 
 	mu sync.Mutex
