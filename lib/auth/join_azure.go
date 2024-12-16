@@ -30,6 +30,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -158,7 +160,14 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 	}
 	if cfg.getVMClient == nil {
 		cfg.getVMClient = func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
-			client, err := azure.NewVirtualMachinesClient(subscriptionID, token, nil)
+			opts := &armpolicy.ClientOptions{
+				ClientOptions: policy.ClientOptions{
+					Telemetry: policy.TelemetryOptions{
+						ApplicationID: "teleport",
+					},
+				},
+			}
+			client, err := azure.NewVirtualMachinesClient(subscriptionID, token, opts)
 			return client, trace.Wrap(err)
 		}
 	}
