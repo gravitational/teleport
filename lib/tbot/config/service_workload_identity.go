@@ -59,8 +59,8 @@ type WorkloadIdentityOutput struct {
 	// bundles in the output.
 	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
 	// JWTs is an optional list of audiences and file names to write JWT SVIDs
-	// to.
-	JWTs []JWTSVID `yaml:"jwts,omitempty"`
+	// to. If none are specified, no JWT will be output.
+	JWTAudiences []string `yaml:"jwt_audiences,omitempty"`
 }
 
 // Init initializes the destination.
@@ -77,11 +77,6 @@ func (o *WorkloadIdentityOutput) GetDestination() bot.Destination {
 func (o *WorkloadIdentityOutput) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
-	}
-	for i, jwt := range o.JWTs {
-		if err := jwt.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validating jwts[%d]", i)
-		}
 	}
 	if err := o.WorkloadIdentity.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating workload_identity")
@@ -102,8 +97,8 @@ func (o *WorkloadIdentityOutput) Describe() []FileDescription {
 			Name: SVIDTrustBundlePEMPath,
 		},
 	}
-	for _, jwt := range o.JWTs {
-		fds = append(fds, FileDescription{Name: jwt.FileName})
+	if len(o.JWTAudiences) > 0 {
+		fds = append(fds, FileDescription{Name: "jwt"})
 	}
 	return nil
 }
