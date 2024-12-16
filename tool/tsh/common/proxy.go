@@ -388,6 +388,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	portMapping, err := libclient.ParsePortMapping(cf.LocalProxyPortMapping)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var (
 		appInfo *appInfo
 		app     types.Application
@@ -416,13 +421,13 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	proxyApp := newLocalProxyAppWithPortMapping(tc, appInfo, portMapping, cf.InsecureSkipVerify)
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
-	if cf.LocalProxyPort == "" {
+	if portMapping.LocalPort == 0 {
 		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
