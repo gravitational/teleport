@@ -4482,7 +4482,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
-			Log:              process.log.WithField(teleport.ComponentKey, "router"),
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
