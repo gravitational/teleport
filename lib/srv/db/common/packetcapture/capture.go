@@ -95,8 +95,7 @@ func NewCapture(clock clockwork.Clock) *Capture {
 	}
 }
 
-// AddPacket adds a packet to the trace based on the sender (client or server) and the payload.
-// It automatically handles source and destination addresses based on the sender.
+// AddPacket records the packet in the given direction and payload.
 func (c *Capture) AddPacket(direction Direction, payload []byte) {
 	// Record timestamp
 	timestamp := c.clock.Now()
@@ -108,7 +107,6 @@ func (c *Capture) AddPacket(direction Direction, payload []byte) {
 		Timestamp: timestamp,
 	}
 
-	// Add packet to the trace
 	c.mu.Lock()
 	c.packets = append(c.packets, packet)
 	c.mu.Unlock()
@@ -175,7 +173,7 @@ func (c *Capture) saveOneLinkToPCAP(filename string, port int, sender, receiver 
 	return nil
 }
 
-// SaveToPCAP saves the trace to a single merged pcap file. Note: this will run `text2pcap` and `mergecap` programs.
+// SaveToPCAP saves the captured packets to a single pcap file. Note: this will run `text2pcap` and `mergecap` programs.
 func (c *Capture) SaveToPCAP(baseFilename string, port int) error {
 	// Skip saving if filename is empty.
 	if baseFilename == "" {
