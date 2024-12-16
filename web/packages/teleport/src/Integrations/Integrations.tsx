@@ -79,7 +79,7 @@ export function Integrations() {
   return (
     <>
       <FeatureBox>
-        <FeatureHeader>
+        <FeatureHeader justifyContent="space-between">
           <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
           <IntegrationsAddButton
             requiredPermissions={[

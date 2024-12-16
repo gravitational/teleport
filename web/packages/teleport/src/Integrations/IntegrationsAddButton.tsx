@@ -36,6 +36,7 @@ export function IntegrationsAddButton({
 
   return (
     <HoverTooltip
+      position="bottom"
       tipContent={
         canCreateIntegrations ? null : (
           <MissingPermissionsTooltip
