@@ -112,8 +112,10 @@ type CertAuthority struct {
 }
 
 // Identity is an identity of the user or service, e.g. Proxy or Node
+// Must be kept in sync with teleport.decision.v1alpha1.TLSIdentity.
 type Identity struct {
-	// Username is a username or name of the node connection
+	// Username is the name of the user (for end-users/bots) or the Host ID (for
+	// Teleport processes).
 	Username string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
