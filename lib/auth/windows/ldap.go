@@ -280,7 +280,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				referrals = append(referrals, newReferrals...)
 			}
 		}
-		return nil, trace.Wrap(errors.New("no referral provided can execute the query"))
+		return nil, trace.Wrap(fmt.Errorf("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ",")))
 	} else if err != nil {
 		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
