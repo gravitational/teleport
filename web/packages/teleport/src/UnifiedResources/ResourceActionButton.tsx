@@ -285,7 +285,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
 };
 
 function DatabaseConnect({ database }: { database: Database }) {
-  const { name, protocol } = database;
+  const { name, protocol, supportsInteractive } = database;
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const [open, setOpen] = useState(false);
@@ -313,6 +313,7 @@ function DatabaseConnect({ database }: { database: Database }) {
           onClose={() => setOpen(false)}
           authType={authType}
           accessRequestId={accessRequestId}
+          supportsInteractive={supportsInteractive}
         />
       )}
     </>
