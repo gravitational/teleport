@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
+import { produce, Immutable } from 'immer';
 
 import {
   DefaultTab,
@@ -119,7 +120,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * This state is not processed in any way, so it may, for example,
    * contain clusters that are no longer available.
    */
-  private restoredState?: WorkspacesPersistedState;
+  private restoredState?: Immutable<WorkspacesPersistedState>;
 
   constructor(
     private modalsService: ModalsService,
@@ -427,7 +428,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * This state is not processed in any way, so it may, for example,
    * contain clusters that are no longer available.
    */
-  getRestoredState(): WorkspacesPersistedState | undefined {
+  getRestoredState(): Immutable<WorkspacesPersistedState> | undefined {
     return this.restoredState;
   }
 
@@ -436,11 +437,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    */
   restorePersistedState(): void {
     const restoredState = this.statePersistenceService.getWorkspacesState();
-    this.restoredState = restoredState;
+    // Make the restored state immutable.
+    this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
       .reduce((workspaces, cluster) => {
-        const restoredWorkspace = restoredState.workspaces[cluster.uri];
+        const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(
           cluster.uri,
           restoredWorkspace
@@ -457,7 +459,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   private reopenPreviousDocuments(
     rootClusterUri: RootClusterUri,
     reopen: {
-      documents: Document[];
+      documents: Immutable<Document[]>;
       location: DocumentUri;
     }
   ): void {
@@ -500,6 +502,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 ...defaultParams.sort,
                 ...d.queryParams?.sort,
               },
+              resourceKinds: d.queryParams?.resourceKinds
+                ? [...d.queryParams.resourceKinds] // makes the array mutable
+                : defaultParams.resourceKinds,
             },
           };
           return documentCluster;
@@ -601,7 +606,7 @@ function getDocumentsToPersist(documents: Document[]): Document[] {
 }
 
 function getLocationToRestore(
-  documents: Document[],
+  documents: Immutable<Document[]>,
   location: DocumentUri
 ): DocumentUri | undefined {
   return documents.find(d => d.uri === location) ? location : documents[0]?.uri;
@@ -609,7 +614,7 @@ function getLocationToRestore(
 
 function getWorkspaceDefaultState(
   rootClusterUri: RootClusterUri,
-  restoredWorkspace?: Omit<Workspace, 'accessRequests'>
+  restoredWorkspace?: Immutable<Omit<Workspace, 'accessRequests'>>
 ): Workspace {
   const defaultDocument = createClusterDocument({ clusterUri: rootClusterUri });
   const defaultWorkspace: Workspace = {
@@ -657,10 +662,10 @@ function hasDocumentsToReopen({
   previousDocuments,
   currentDocuments,
 }: {
-  previousDocuments?: Document[];
+  previousDocuments?: Immutable<Document[]>;
   currentDocuments: Document[];
 }): boolean {
-  const omitUriAndTitle = (documents: Document[]) =>
+  const omitUriAndTitle = (documents: Immutable<Document[]>) =>
     documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
   return (
