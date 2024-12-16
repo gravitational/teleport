@@ -14,15 +14,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package packettrace
+// Package packetcapture provides utilities for saving application-layer packets to file in either plain text or PCAP formats.
+// The PCAP functionality depends on the external utilities from Wireshark (text2pcap, mergecap) and is expected to be used in dev/debugging contexts only.
+package packetcapture
 
 import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -69,18 +71,18 @@ type PacketEntry struct {
 	Timestamp time.Time
 }
 
-// Trace struct holds all packet details and offers methods to add and save packets.
-type Trace struct {
+// Capture struct holds all packet details and offers methods to add and save packets.
+type Capture struct {
 	packets    []PacketEntry
 	clock      clockwork.Clock
 	runCommand func(name string, arg ...string) ([]byte, error)
 
-	mx sync.Mutex
+	mu sync.Mutex
 }
 
-// NewTrace initializes a new Trace object.
-func NewTrace(clock clockwork.Clock) *Trace {
-	return &Trace{
+// NewCapture initializes a new Capture object.
+func NewCapture(clock clockwork.Clock) *Capture {
+	return &Capture{
 		packets: make([]PacketEntry, 0),
 		clock:   clock,
 		runCommand: func(name string, arg ...string) ([]byte, error) {
@@ -93,9 +95,9 @@ func NewTrace(clock clockwork.Clock) *Trace {
 
 // AddPacket adds a packet to the trace based on the sender (client or server) and the payload.
 // It automatically handles source and destination addresses based on the sender.
-func (t *Trace) AddPacket(direction Direction, payload []byte) {
+func (c *Capture) AddPacket(direction Direction, payload []byte) {
 	// Record timestamp
-	timestamp := t.clock.Now()
+	timestamp := c.clock.Now()
 
 	// Create a new PacketEntry
 	packet := PacketEntry{
@@ -105,9 +107,9 @@ func (t *Trace) AddPacket(direction Direction, payload []byte) {
 	}
 
 	// Add packet to the trace
-	t.mx.Lock()
-	t.packets = append(t.packets, packet)
-	t.mx.Unlock()
+	c.mu.Lock()
+	c.packets = append(c.packets, packet)
+	c.mu.Unlock()
 }
 
 type participant struct {
@@ -115,7 +117,7 @@ type participant struct {
 	direction Direction
 }
 
-func (t *Trace) saveOneLinkToPCAP(filename string, port int, sender, receiver participant, packets []PacketEntry) error {
+func (c *Capture) saveOneLinkToPCAP(filename string, port int, sender, receiver participant, packets []PacketEntry) error {
 	buffer := &bytes.Buffer{}
 	for _, packet := range packets {
 		// assign indicator or skip packet.
@@ -152,7 +154,7 @@ func (t *Trace) saveOneLinkToPCAP(filename string, port int, sender, receiver pa
 
 	// Invoke text2pcap to convert the hex dump to PCAP format
 	addrPair := fmt.Sprintf("%v,%v", sender.addr, receiver.addr)
-	out, err := t.runCommand(text2pcapBin,
+	out, err := c.runCommand(text2pcapBin,
 		// enable inbound/outbound markers
 		"-D",
 		// configure timestamp format
@@ -172,22 +174,22 @@ func (t *Trace) saveOneLinkToPCAP(filename string, port int, sender, receiver pa
 	return nil
 }
 
-// SaveToPCAP saves the trace to a single merged pcap file.
-func (t *Trace) SaveToPCAP(baseFilename string, port int) error {
+// SaveToPCAP saves the trace to a single merged pcap file. Note: this will run `text2pcap` and `mergecap` programs.
+func (c *Capture) SaveToPCAP(baseFilename string, port int) error {
 	// Skip saving if filename is empty.
 	if baseFilename == "" {
 		return nil
 	}
 
-	t.mx.Lock() // Lock the mutex for the duration of the packet writing
-	defer t.mx.Unlock()
+	c.mu.Lock() // Lock the mutex for the duration of the packet writing
+	defer c.mu.Unlock()
 
 	// we write to .pcap files:
 	// client <-> teleport
 	filename001 := baseFilename + ".001"
 	clientPart := participant{addr: fakeClientAddr, direction: ClientToTeleport}
 	teleportPart1 := participant{addr: fakeTeleportAddr, direction: TeleportToClient}
-	err := t.saveOneLinkToPCAP(filename001, port, clientPart, teleportPart1, t.packets)
+	err := c.saveOneLinkToPCAP(filename001, port, clientPart, teleportPart1, c.packets)
 	if err != nil {
 		return trace.Wrap(err, "error saving to PCAP")
 	}
@@ -197,39 +199,50 @@ func (t *Trace) SaveToPCAP(baseFilename string, port int) error {
 	filename002 := baseFilename + ".002"
 	teleportPart2 := participant{addr: fakeTeleportAddr, direction: TeleportToServer}
 	serverPart := participant{addr: fakeServerAddr, direction: ServerToTeleport}
-	err = t.saveOneLinkToPCAP(filename002, port, teleportPart2, serverPart, t.packets)
+	err = c.saveOneLinkToPCAP(filename002, port, teleportPart2, serverPart, c.packets)
 	if err != nil {
 		return trace.Wrap(err, "error saving to PCAP")
 	}
 	defer os.Remove(filename002)
 
 	// merge two files
-	out, err := t.runCommand(mergecapBin, "-w", baseFilename, filename001, filename002)
+	out, err := c.runCommand(mergecapBin, "-w", baseFilename, filename001, filename002)
 	if err != nil {
 		return trace.Wrap(err, "error running mergecap (output: %v)", out)
 	}
 	return nil
 }
 
-func (t *Trace) SaveAsText(file string) error {
+func (c *Capture) WriteTo(w io.Writer) (int64, error) {
+	c.mu.Lock() // Lock the mutex for the duration of the packet writing
+	defer c.mu.Unlock()
+
+	var total int64
+	for _, packet := range c.packets {
+		hexData := hex.Dump(packet.Payload)
+
+		count, err := fmt.Fprintf(w, "Timestamp: %v\nDirection: %v\n\n%s\n\n", packet.Timestamp.UTC(), packet.Direction, hexData)
+		total += int64(count)
+		if err != nil {
+			return total, trace.Wrap(err)
+		}
+	}
+	return total, nil
+}
+
+// SaveAsText saves the capture using plain text format without any external dependencies.
+func (c *Capture) SaveAsText(file string) error {
 	// Skip saving if filename is empty.
 	if file == "" {
 		return nil
 	}
 
-	t.mx.Lock() // Lock the mutex for the duration of the packet writing
-	defer t.mx.Unlock()
-
-	var lines []string
-
-	for _, packet := range t.packets {
-		hexData := hex.Dump(packet.Payload)
-
-		line := fmt.Sprintf("Timestamp: %v\nDirection: %v\n\n%s\n", packet.Timestamp.UTC(), packet.Direction, hexData)
-		lines = append(lines, line)
+	handle, err := os.Create(file)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	defer handle.Close()
 
-	result := []byte(strings.Join(lines, "\n"))
-
-	return trace.Wrap(os.WriteFile(file, result, 0644))
+	_, err = c.WriteTo(handle)
+	return trace.Wrap(err)
 }
