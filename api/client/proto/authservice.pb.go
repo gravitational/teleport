@@ -11523,8 +11523,15 @@ func (m *ListResourcesRequest) GetIncludeLogins() bool {
 }
 
 // ResolveSSHTargetRequest provides details about a server to be resolved in
+// an equivalent manner to a ssh dial request.
 //
-//	an equivalent manner to a ssh dial request.
+// Resolution can happen in two modes:
+//  1. searching for hosts based on labels, a predicate expression, or keywords
+//  2. searching based on hostname
+//
+// If a Host is provided, resolution will only operate in the second mode and
+// will not perform any resolution based on labels. In order to resolve via
+// labels the Host must not be populated.
 type ResolveSSHTargetRequest struct {
 	// Host is the target host as would be sent to the proxy during a dial request.
 	Host string `protobuf:"bytes,1,opt,name=Host,proto3" json:"Host,omitempty"`

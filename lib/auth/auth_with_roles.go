@@ -1693,6 +1693,10 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	var servers []*types.ServerV2
 	switch {
 	case req.Host != "":
+		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
+			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and label information - ignoring labels")
+		}
+
 		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
 			Host: req.Host,
 			Port: req.Port,
