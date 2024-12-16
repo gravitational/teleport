@@ -23,14 +23,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -279,46 +277,6 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
-}
-
-// HostCertParams defines all parameters needed to generate a host certificate
-type HostCertParams struct {
-	// CASigner is the signer that will sign the public key of the host with the CA private key.
-	CASigner ssh.Signer
-	// PublicHostKey is the public key of the host
-	PublicHostKey []byte
-	// HostID is used by Teleport to uniquely identify a node within a cluster
-	HostID string
-	// Principals is a list of additional principals to add to the certificate.
-	Principals []string
-	// NodeName is the DNS name of the node
-	NodeName string
-	// ClusterName is the name of the cluster within which a node lives
-	ClusterName string
-	// Role identifies the role of a Teleport instance
-	Role types.SystemRole
-	// TTL defines how long a certificate is valid for
-	TTL time.Duration
-}
-
-// Check checks parameters for errors
-func (c HostCertParams) Check() error {
-	if c.CASigner == nil {
-		return trace.BadParameter("CASigner is required")
-	}
-	if c.HostID == "" && len(c.Principals) == 0 {
-		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
-			c.HostID, c.Principals)
-	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
-	}
-
-	if err := c.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // CertPoolFromCertAuthorities returns a certificate pool from the TLS certificates

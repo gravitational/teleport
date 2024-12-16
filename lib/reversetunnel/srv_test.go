@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -82,13 +81,15 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "host cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ta.GenerateHostCert(services.HostCertParams{
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
 					CASigner:      caSigner,
 					PublicHostKey: pub,
 					HostID:        "host-id",
 					NodeName:      con.User(),
-					ClusterName:   "host-cluster-name",
-					Role:          types.RoleNode,
+					Identity: sshca.Identity{
+						ClusterName: "host-cluster-name",
+						SystemRole:  types.RoleNode,
+					},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -113,7 +114,7 @@ func TestServerKeyAuth(t *testing.T) {
 					TTL:               time.Minute,
 					Identity: sshca.Identity{
 						Username:       con.User(),
-						AllowedLogins:  []string{con.User()},
+						Principals:     []string{con.User()},
 						Roles:          []string{"dev", "admin"},
 						RouteToCluster: "user-cluster-name",
 					},

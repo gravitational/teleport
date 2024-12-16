@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -361,14 +362,16 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	signer, err := ssh.ParsePrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	cert, err := keygen.GenerateHostCert(services.HostCertParams{
+	cert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      signer,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
-		ClusterName:   cfg.ClusterName,
-		Role:          types.RoleAdmin,
 		TTL:           24 * time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: cfg.ClusterName,
+			SystemRole:  types.RoleAdmin,
+		},
 	})
 	fatalIf(err)
 	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
