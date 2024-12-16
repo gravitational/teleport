@@ -34,11 +34,11 @@ import (
 const versionField = "Version"
 const kindField = "Kind"
 
-// content represents the sections of the resource reference.
-// Fields must be exported so we can use them in templates.
-type content struct {
-	Resources map[resource.PackageInfo]resourceSection
-	Fields    map[resource.PackageInfo]resource.ReferenceEntry
+// pageContent represents a reference page for a single resource and its related
+// fields. Fields must be exported so we can use them in templates.
+type pageContent struct {
+	Resource resourceSection
+	Fields   map[resource.PackageInfo]resource.ReferenceEntry
 }
 
 // resourceSection represents a top-level section of the resource reference
@@ -51,19 +51,19 @@ type resourceSection struct {
 
 // Intended to be executed with a ReferenceContent.
 // Ampersands are replaced with backticks.
-var referenceTemplate string = `
-## Resources
+var referenceTemplate string = `---
+title: {{ .Resource.Kind }} {{ .Resource.Version }} Reference
+description: Provides a reference of fields within the {{ .Kind }} {{ .Version}} resource, which you can manage with tctl.
+sidebar_title: {{ .Kind }} {{ .Version }}
+---
 
-{{ range .Resources }}
-### {{ .SectionName }}
+**Kind**: {{ .Resource.Kind }}
 
-**Kind**: {{ .Kind }}
+**Version**: {{ .Resource.Version }}
 
-**Version**: {{ .Version}}
+{{ .Resource.Description }}
 
-{{ .Description }}
-
-{/*Automatically generated from: {{ .SourcePath}}*/}
+{/*Automatically generated from: {{ .Resource.SourcePath}}*/}
 
 {{ if gt (len .Fields) 0 }}
 |Field Name|Description|Type|
@@ -74,11 +74,9 @@ var referenceTemplate string = `
 {{ end }}
 
 {{ end }}
-
-## Resource fields
 
 {{ range .Fields }}
-### {{ .SectionName }}
+## {{ .SectionName }}
 
 {{ .Description }}
 
@@ -90,8 +88,6 @@ var referenceTemplate string = `
 {{ range .Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
-{{ end }}
-
 {{ end }}
 `
 
@@ -335,7 +331,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		return err
 	}
 
-	content := content{
+	content := pageContent{
 		Resources: make(map[resource.PackageInfo]resourceSection),
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
