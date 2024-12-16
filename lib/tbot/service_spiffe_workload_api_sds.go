@@ -38,9 +38,9 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,7 +73,7 @@ type spiffeSDSHandler struct {
 	botCfg           *config.BotConfig
 	trustBundleCache bundleSetGetter
 
-	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
+	clientAuthenticator func(ctx context.Context) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error)
 	svidFetcher         func(
 		ctx context.Context,
 		log *slog.Logger,
