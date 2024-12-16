@@ -44,59 +44,57 @@ const mockUseDbSession = useDbSession as jest.MockedFunction<
   typeof useDbSession
 >;
 
-describe('DocumentDb', () => {
-  const setup = (status: Status) => {
-    mockUseDbSession.mockReturnValue({
-      tty: {
-        sendDbConnectData: jest.fn(),
-        on: jest.fn(),
-        removeListener: jest.fn(),
-        connect: jest.fn(),
-        disconnect: jest.fn(),
-        removeAllListeners: jest.fn(),
-      } as unknown as Tty,
-      status,
-      closeDocument: jest.fn(),
+const setup = (status: Status) => {
+  mockUseDbSession.mockReturnValue({
+    tty: {
       sendDbConnectData: jest.fn(),
-      session: baseSession,
-    });
-
-    const { ctx, consoleCtx } = getContexts();
-
-    render(
-      <ContextProvider ctx={ctx}>
-        <TestLayout ctx={consoleCtx}>
-          <DocumentDb doc={baseDoc} visible={true} />
-        </TestLayout>
-      </ContextProvider>
-    );
-  };
-
-  test('renders loading indicator when status is loading', () => {
-    jest.useFakeTimers();
-    setup('loading');
-
-    act(() => jest.runAllTimers());
-    expect(screen.getByTestId('indicator')).toBeInTheDocument();
+      on: jest.fn(),
+      removeListener: jest.fn(),
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+      removeAllListeners: jest.fn(),
+    } as unknown as Tty,
+    status,
+    closeDocument: jest.fn(),
+    sendDbConnectData: jest.fn(),
+    session: baseSession,
   });
 
-  test('renders terminal window when status is initialized', () => {
-    setup('initialized');
+  const { ctx, consoleCtx } = getContexts();
 
-    expect(screen.getByTestId('terminal')).toBeInTheDocument();
-  });
+  render(
+    <ContextProvider ctx={ctx}>
+      <TestLayout ctx={consoleCtx}>
+        <DocumentDb doc={baseDoc} visible={true} />
+      </TestLayout>
+    </ContextProvider>
+  );
+};
 
-  test('renders data dialog when status is waiting', () => {
-    setup('waiting');
+test('renders loading indicator when status is loading', () => {
+  jest.useFakeTimers();
+  setup('loading');
 
-    expect(screen.getByText('Connect To Database')).toBeInTheDocument();
-  });
+  act(() => jest.runAllTimers());
+  expect(screen.getByTestId('indicator')).toBeInTheDocument();
+});
 
-  test('does not render data dialog when status is initialized', () => {
-    setup('initialized');
+test('renders terminal window when status is initialized', () => {
+  setup('initialized');
 
-    expect(screen.queryByText('Connect to Database')).not.toBeInTheDocument();
-  });
+  expect(screen.getByTestId('terminal')).toBeInTheDocument();
+});
+
+test('renders data dialog when status is waiting', () => {
+  setup('waiting');
+
+  expect(screen.getByText('Connect To Database')).toBeInTheDocument();
+});
+
+test('does not render data dialog when status is initialized', () => {
+  setup('initialized');
+
+  expect(screen.queryByText('Connect to Database')).not.toBeInTheDocument();
 });
 
 function getContexts() {

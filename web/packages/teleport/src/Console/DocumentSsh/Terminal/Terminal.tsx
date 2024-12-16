@@ -74,7 +74,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     termCtrl.open();
 
     const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
-      if (props.disableCtrlC && event.ctrlKey && event.key == 'c') {
+      if (props.disableCtrlC && event.ctrlKey && event.key === 'c') {
         return false;
       }
 
