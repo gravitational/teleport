@@ -288,6 +288,11 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 			stringAssignments[k] = v
 		}
 
+		// Collect information from each file:
+		// - Imported packages and their aliases
+		// - Possible function declarations (for identifying relevant
+		//   methods later)
+		// - Type declarations
 		pn := resource.NamedImports(file)
 		for _, decl := range file.Decls {
 			di := resource.DeclarationInfo{
@@ -318,7 +323,6 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
-
 		}
 		return nil
 	})
@@ -336,6 +340,8 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
 
+	// Extract data from a declaration to transform it into a reference
+	// entry later
 	errs := GenerationError{messages: []error{}}
 	allEntries := make(map[resource.PackageInfo]resource.ReferenceEntry)
 	for k, decl := range typeDecls {
