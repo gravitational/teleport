@@ -14,22 +14,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build windows
-// +build windows
-
 package vnet
 
 import (
 	"context"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"syscall"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
@@ -174,23 +175,19 @@ func configureServicePermissions(service *mgr.Service, username string) error {
 	return nil
 }
 
-func RunService(ctx context.Context, cfg daemon.Config) error {
-	service := &windowsService{
-		done: ctx.Done(),
-		cfg:  cfg,
-	}
-	if err := svc.Run(serviceName, service); err != nil {
+func ServiceMain() error {
+	if err := svc.Run(serviceName, windowsService{}); err != nil {
 		return trace.Wrap(err, "running Windows service %s", serviceName)
 	}
 	return nil
 }
 
-type windowsService struct {
-	cfg  daemon.Config
-	done <-chan struct{}
-}
+type windowsService struct{}
 
-func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+func (s windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+	cleanup := setupLogger()
+	defer cleanup()
+
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	status <- svc.Status{State: svc.StartPending}
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -198,19 +195,18 @@ func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeReques
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	errCh := make(chan error)
-	go func() { errCh <- RunAdminProcess(ctx, s.cfg) }()
+	go func() { errCh <- s.run(ctx, args) }()
 
 loop:
 	for {
 		select {
-		case <-s.done:
-			break loop
 		case request := <-requests:
 			switch request.Cmd {
 			case svc.Stop, svc.Shutdown:
 				break loop
 			}
-		case <-errCh:
+		case err := <-errCh:
+			slog.ErrorContext(ctx, "Running Windows VNet service", "error", err)
 			const exitCode = 1
 			status <- svc.Status{State: svc.Stopped, Win32ExitCode: exitCode}
 			return false, exitCode
@@ -222,4 +218,46 @@ loop:
 	const exitCode = 0
 	status <- svc.Status{State: svc.Stopped, Win32ExitCode: exitCode}
 	return false, exitCode
+}
+
+func (s windowsService) run(ctx context.Context, args []string) error {
+	slog.InfoContext(ctx, "Initial arguments", "args", os.Args)
+	slog.InfoContext(ctx, "Executed arguments", "args", args)
+	homePath := os.Getenv(types.HomeEnvVar)
+	if homePath == "" {
+		// This runs as root so we need to be configured with the user's home path.
+		return trace.BadParameter("%s must be set", types.HomeEnvVar)
+	}
+	var (
+		socketPath string
+		ipv6Prefix string
+		dnsAddr    string
+	)
+	app := kingpin.New("tsh", "Teleport Windows Service")
+	adminSetupCmd := app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.")
+	adminSetupCmd.Flag("socket", "socket path").StringVar(&socketPath)
+	adminSetupCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&ipv6Prefix)
+	adminSetupCmd.Flag("dns-addr", "VNet DNS address").StringVar(&dnsAddr)
+	cmd, err := app.Parse(os.Args)
+	if err != nil {
+		return trace.Wrap(err, "parsing arguments")
+	}
+	slog.InfoContext(ctx, "Full command", "cmd", cmd)
+	return nil
+}
+
+func setupLogger() func() {
+	exePath, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	dir := filepath.Dir(exePath)
+	logFile, err := os.Create(filepath.Join(dir, "logs.txt"))
+	if err != nil {
+		panic(err)
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	return func() { logFile.Close() }
 }

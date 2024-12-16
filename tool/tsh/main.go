@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.

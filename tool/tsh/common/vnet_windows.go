@@ -18,15 +18,12 @@ package common
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -88,26 +85,7 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	homePath := os.Getenv(types.HomeEnvVar)
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return trace.BadParameter("%s must be set", types.HomeEnvVar)
-	}
-
-	config := daemon.Config{
-		SocketPath: c.socketPath,
-		IPv6Prefix: c.ipv6Prefix,
-		DNSAddr:    c.dnsAddr,
-		HomePath:   homePath,
-		ClientCred: daemon.ClientCred{
-			// TODO(nklaassen): figure out how to pass some form of user
-			// identifier. For now Valid: true is a hack to make
-			// CheckAndSetDefaults pass.
-			Valid: true,
-		},
-	}
-
-	return trace.Wrap(vnet.RunService(cf.Context, config))
+	return trace.BadParameter("this command must run as a windows service")
 }
 
 type vnetInstallServiceCommand struct {
