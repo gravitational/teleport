@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"encoding/base64"
@@ -310,12 +311,9 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, tokenClaims
 }
 
 func checkAzureAllowRulesWithClaims(claims *accessTokenClaims, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
-	rid := claims.AzureResourceID
-	if rid == "" {
-		// xms_az_rid claim is omitted when the VM is assigned a System-Assigned Identity.
-		// The xms_mirid claim should be used instead.
-		rid = claims.ManangedIdentityResourceID
-	}
+	// xms_az_rid claim is omitted when the VM is assigned a System-Assigned Identity.
+	// The xms_mirid claim should be used instead.
+	rid := cmp.Or(claims.AzureResourceID, claims.ManangedIdentityResourceID)
 
 	resourceID, err := arm.ParseResourceID(rid)
 	if err != nil {
@@ -400,6 +398,8 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 	if err := checkAzureAllowRulesWithClaims(claims, token.GetName(), token.Spec.Azure.Allow); err == nil {
 		return nil
 	}
+	a.logger.WarnContext(ctx, "Failed to validate Azure allow rules with claims. Attempting to validate with VMs.",
+		"error", err)
 
 	// Required claims for validation are only present for source resource types
 	// that have onboarded to SNI auth. Fallback to validation with VMs if
