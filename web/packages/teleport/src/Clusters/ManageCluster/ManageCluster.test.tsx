@@ -19,7 +19,7 @@
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
 import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 
 import { render, waitFor, screen } from 'design/utils/testing';
 
@@ -46,17 +46,19 @@ function renderElement(element, ctx) {
 
 describe('test ManageCluster component', () => {
   const server = setupServer(
-    http.get(cfg.getClusterInfoPath('cluster-id'), () => {
-      return HttpResponse.json({
-        name: 'cluster-id',
-        lastConnected: new Date(),
-        status: 'active',
-        publicURL: 'cluster-id.teleport.com',
-        authVersion: 'v17.0.0',
-        proxyVersion: 'v17.0.0',
-        isCloud: false,
-        licenseExpiry: new Date(),
-      });
+    rest.get(cfg.getClusterInfoPath('cluster-id'), (req, res, ctx) => {
+      return res(
+        ctx.json({
+          name: 'cluster-id',
+          lastConnected: new Date(),
+          status: 'active',
+          publicURL: 'cluster-id.teleport.com',
+          authVersion: 'v17.0.0',
+          proxyVersion: 'v17.0.0',
+          isCloud: false,
+          licenseExpiry: new Date(),
+        })
+      );
     })
   );
 
@@ -78,12 +80,12 @@ describe('test ManageCluster component', () => {
 
   test('shows error when load fails', async () => {
     server.use(
-      http.get(cfg.getClusterInfoPath('cluster-id'), () => {
-        return HttpResponse.json(
-          {
+      rest.get(cfg.getClusterInfoPath('cluster-id'), (req, res, ctx) => {
+        return res(
+          ctx.status(400),
+          ctx.json({
             message: 'Failed to load cluster information',
-          },
-          { status: 400 }
+          })
         );
       })
     );
