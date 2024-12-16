@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -1233,6 +1234,17 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 	if upgraderVersion == "" {
 		upgraderKind = ""
+	}
+
+	// If the new auto-updater is enabled, it superceeds the old one.
+	ok, err := autoupdate.IsEnabled()
+	if err != nil {
+		process.logger.WarnContext(process.ExitContext(), "Failed to determine if auto-updates are enabled.", "error", err)
+	} else if ok {
+		// If this is a teleport-update managed installation, the version
+		// managed by the timer will always match the installed version of teleport.
+		upgraderKind = "teleport-update"
+		upgraderVersion = "v" + teleport.Version
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
