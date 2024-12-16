@@ -78,8 +78,13 @@ function DocumentSsh({ doc, visible }: PropTypes) {
 
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
-    terminalRef.current?.focus();
-  }, [visible, ftMfa.challenge]);
+    if (
+      ttyMfa.attempt.status === 'processing' ||
+      ftMfa.attempt.status === 'processing'
+    ) {
+      terminalRef.current?.focus();
+    }
+  }, [visible, ttyMfa.attempt.status, ftMfa.attempt.status]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);

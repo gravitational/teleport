@@ -215,7 +215,9 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 	channelID := id.String()
-	ssoClientRedirectURL.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
+	query := ssoClientRedirectURL.Query()
+	query.Set("channel_id", channelID)
+	ssoClientRedirectURL.RawQuery = query.Encode()
 
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
