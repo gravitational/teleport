@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -262,25 +262,6 @@ func TestAccessLists(t *testing.T) {
 			expectedTraitCount:          2,
 			expectedInheritedRoleCount:  0,
 			expectedInheritedTraitCount: 0,
-		},
-		{
-			name:  "access lists add member roles and traits, roles missing from backend",
-			user:  user,
-			cloud: true,
-			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
-					"trait1": []string{"value1"},
-				}), emptyGrants),
-				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
-					"trait1": []string{"value2"},
-					"trait2": []string{"value3"},
-				}), emptyGrants),
-			},
-			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
-			roles:   []string{"orole1"},
-			wantErr: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound("role role1 is not found"))
-			},
 		},
 		{
 			name:  "access lists only a member of some lists",
@@ -548,6 +529,40 @@ func TestAccessLists(t *testing.T) {
 			expectedInheritedRoleCount:  1,
 			expectedInheritedTraitCount: 1,
 		},
+		{
+			name:  "an access list that references a non-existent role should be skipped entirely",
+			user:  user,
+			cloud: true,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
+					"trait1": []string{"value1"},
+				}), emptyGrants),
+				// role3 doesn't exist, so this access list is invalid and should be skipped.
+				newAccessList(t, clock, "2", grants([]string{"role2", "role3"}, trait.Traits{
+					"trait1": []string{"value2"},
+					"trait2": []string{"value3"},
+				}), emptyGrants),
+			},
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			roles:   []string{"orole1", "role1", "role2"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1": "value1",
+					"label2": "value2",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				// only role1 will be granted by the access lists, since role2 comes from an invalid access list.
+				[]string{"orole1", "role1"},
+				// traits from the invalid access list won't be granted.
+				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1"}},
+			),
+			expectedRoleCount:           1,
+			expectedTraitCount:          1,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
+		},
 	}
 
 	for _, test := range tests {
@@ -721,12 +736,15 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 		UserLoginStates: ulsService,
 	}
 
+	emitter := &eventstest.MockRecorderEmitter{}
+
 	generator, err := NewGenerator(GeneratorConfig{
 		Log:         log,
 		AccessLists: svc,
 		Access:      svc,
 		UsageEvents: svc,
 		Clock:       clock,
+		Emitter:     emitter,
 	})
 	require.NoError(t, err)
 	return generator, svc
