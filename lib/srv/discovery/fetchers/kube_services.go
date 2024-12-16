@@ -21,6 +21,7 @@ package fetchers
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -192,7 +193,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				case protoHTTPS, protoHTTP, protoTCP:
 					portProtocols[port] = protocolAnnotation
 				default:
-					if p := autoProtocolDetection(services.GetServiceFQDN(service), port, f.ProtocolChecker); p != protoTCP {
+					if p := autoProtocolDetection(service, port, f.ProtocolChecker); p != protoTCP {
 						portProtocols[port] = p
 					}
 				}
@@ -248,7 +249,7 @@ func (f *KubeAppFetcher) String() string {
 //   - If port's name is `http` or number is 80 or 8080, we return `http`
 //   - If protocol checker is available it will perform HTTP request to the service fqdn trying to find out protocol. If it
 //     gives us result `http` or `https` we return it
-func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
+func autoProtocolDetection(service v1.Service, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
 		switch p := strings.ToLower(*port.AppProtocol); p {
 		case protoHTTP, protoHTTPS:
@@ -270,8 +271,7 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 	}
 
 	if pc != nil {
-		result := pc.CheckProtocol(fmt.Sprintf("%s:%d", serviceFQDN, port.Port))
-		if result != protoTCP {
+		if result := pc.CheckProtocol(service, port); result != protoTCP {
 			return result
 		}
 	}
@@ -281,7 +281,7 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 
 // ProtocolChecker is an interface used to check what protocol uri serves
 type ProtocolChecker interface {
-	CheckProtocol(uri string) string
+	CheckProtocol(service v1.Service, port v1.ServicePort) string
 }
 
 func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
@@ -315,6 +315,21 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 type ProtoChecker struct {
 	InsecureSkipVerify bool
 	client             *http.Client
+
+	// cacheKubernetesServiceProtocol maps a Kubernetes Service Namespace/Name to a tuple containing the Service's ResourceVersion and the Protocol.
+	// When the Kubernetes Service ResourceVersion changes, then we assume the protocol might've changed as well, so the cache is invalidated.
+	// Only protocol checkers that require a network connection are cached.
+	cacheKubernetesServiceProtocol map[kubernetesNameNamespace]appResourceVersionProtocol
+}
+
+type appResourceVersionProtocol struct {
+	resourceVersion string
+	protocol        string
+}
+
+type kubernetesNameNamespace struct {
+	namespace string
+	name      string
 }
 
 func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
@@ -330,23 +345,45 @@ func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
 				},
 			},
 		},
+		cacheKubernetesServiceProtocol: make(map[kubernetesNameNamespace]appResourceVersionProtocol),
 	}
 
 	return p
 }
 
-func (p *ProtoChecker) CheckProtocol(uri string) string {
+func (p *ProtoChecker) CheckProtocol(service v1.Service, port v1.ServicePort) string {
 	if p.client == nil {
 		return protoTCP
 	}
 
-	resp, err := p.client.Head(fmt.Sprintf("https://%s", uri))
-	if err == nil {
-		_ = resp.Body.Close()
-		return protoHTTPS
-	} else if strings.Contains(err.Error(), "server gave HTTP response to HTTPS client") {
-		return protoHTTP
+	key := kubernetesNameNamespace{namespace: service.Namespace, name: service.Name}
+	if versionProtocol, ok := p.cacheKubernetesServiceProtocol[key]; ok {
+		if versionProtocol.resourceVersion == service.ResourceVersion {
+			return versionProtocol.protocol
+		}
 	}
 
-	return protoTCP
+	var result string
+
+	uri := fmt.Sprintf("https://%s:%d", services.GetServiceFQDN(service), port.Port)
+	resp, err := p.client.Head(uri)
+	switch {
+	case err == nil:
+		result = protoHTTPS
+		_ = resp.Body.Close()
+
+	case errors.Is(err, http.ErrSchemeMismatch):
+		result = protoHTTP
+
+	default:
+		result = protoTCP
+
+	}
+
+	p.cacheKubernetesServiceProtocol[key] = appResourceVersionProtocol{
+		resourceVersion: service.ResourceVersion,
+		protocol:        result,
+	}
+
+	return result
 }
