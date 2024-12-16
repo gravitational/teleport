@@ -174,7 +174,7 @@ func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []ac
 	for _, g := range groupsAssignmentWithAccountAndPermissionSetName {
 		var aclRoles []string
 		for _, ga := range g.assignments {
-			aclRoles = append(aclRoles, getImportedRoleName(ga.permissionSetName, ga.accountName))
+			aclRoles = append(aclRoles, getImportedRoleName(ga.permissionSetName, ga.accountName, ga.accountID))
 		}
 
 		acl, err := accesslist.NewAccessList(
@@ -211,6 +211,8 @@ type groupWithAccountAndPermAssignment struct {
 
 // accountAndPermAssignment represents permission assignment (permission set + account).
 type accountAndPermAssignment struct {
+	// accountID is the ID of an assigned account
+	accountID string
 	// accountName is the name of an assigned account.
 	accountName string
 	// permissionSetName is the name of the assigned permission set.
@@ -262,6 +264,7 @@ func accountAndPermAssignments(
 			continue
 		}
 		out = append(out, &accountAndPermAssignment{
+			accountID:         a.AccountID,
 			accountName:       accountMap[a.AccountID].Name,
 			permissionSetName: permSetMap[a.PermissionSetARN].Name,
 		})

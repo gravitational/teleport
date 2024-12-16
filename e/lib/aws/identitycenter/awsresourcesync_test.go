@@ -93,8 +93,8 @@ func TestPreprocessing(t *testing.T) {
 		// The only change to Account 1 should be the addition of assignment
 		// names to the resources
 		expectedAcct1 := awsAccounts[acctOneID].CloneResource().(services.IdentityCenterAccount)
-		expectedAcct1.Spec.PermissionSetInfo[0].AssignmentId = "account1--admin"
-		expectedAcct1.Spec.PermissionSetInfo[1].AssignmentId = "account1--readonly"
+		expectedAcct1.Spec.PermissionSetInfo[0].AssignmentId = "1111111111--admin"
+		expectedAcct1.Spec.PermissionSetInfo[1].AssignmentId = "1111111111--readonly"
 		require.Equal(t, expectedAcct1, processedData.accounts[acctOneID],
 			"Account 1 should be passed through with only the assignment names added")
 
@@ -102,8 +102,8 @@ func TestPreprocessing(t *testing.T) {
 		// having the assignment names added to the permission set info
 		expectedAcct2 := awsAccounts[acctTwoID].CloneResource().(services.IdentityCenterAccount)
 		expectedAcct2.Spec.IsOrganizationOwner = true
-		expectedAcct2.Spec.PermissionSetInfo[0].AssignmentId = "account2--admin"
-		expectedAcct2.Spec.PermissionSetInfo[1].AssignmentId = "account2--readonly"
+		expectedAcct2.Spec.PermissionSetInfo[0].AssignmentId = "2222222222--admin"
+		expectedAcct2.Spec.PermissionSetInfo[1].AssignmentId = "2222222222--readonly"
 		require.Equal(t, expectedAcct2, processedData.accounts[acctTwoID],
 			"Account 2 should be identified as the organization owner")
 	})
@@ -115,26 +115,26 @@ func TestPreprocessing(t *testing.T) {
 
 	t.Run("AccountAssignmentRoles", func(t *testing.T) {
 		expectedRoles := accountAssignmentRolesMap{
-			mkRoleKey(acctOneID, psAdminARN): test.AccountAssignmentRole{
-				Name:             "admin-on-account1",
+			mkRoleKey(acctOneID, psAdminARN, string(acctOneID)): test.AccountAssignmentRole{
+				Name:             "admin-on-account1-1111111111",
 				AccountID:        acctOneID,
 				PermissionSetARN: psAdminARN,
 			}.Build(t),
 
-			mkRoleKey(acctOneID, psReadOnlyARN): test.AccountAssignmentRole{
-				Name:             "readonly-on-account1",
+			mkRoleKey(acctOneID, psReadOnlyARN, string(acctOneID)): test.AccountAssignmentRole{
+				Name:             "readonly-on-account1-1111111111",
 				AccountID:        acctOneID,
 				PermissionSetARN: psReadOnlyARN,
 			}.Build(t),
 
-			mkRoleKey(acctTwoID, psAdminARN): test.AccountAssignmentRole{
-				Name:             "admin-on-account2",
+			mkRoleKey(acctTwoID, psAdminARN, string(acctTwoID)): test.AccountAssignmentRole{
+				Name:             "admin-on-account2-2222222222",
 				AccountID:        acctTwoID,
 				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
 			}.Build(t),
 
-			mkRoleKey(acctTwoID, psReadOnlyARN): test.AccountAssignmentRole{
-				Name:             "readonly-on-account2",
+			mkRoleKey(acctTwoID, psReadOnlyARN, string(acctTwoID)): test.AccountAssignmentRole{
+				Name:             "readonly-on-account2-2222222222",
 				AccountID:        acctTwoID,
 				PermissionSetARN: psReadOnlyARN,
 			}.Build(t),
@@ -144,36 +144,36 @@ func TestPreprocessing(t *testing.T) {
 
 	t.Run("AccountAssignments", func(t *testing.T) {
 		expectedAccountAssignments := accountAssignmentMap{
-			"account1--admin": test.AccountAssignment{
-				ID:                "account1--admin",
-				DisplayName:       "Admin on Account1",
+			"1111111111--admin": test.AccountAssignment{
+				ID:                "1111111111--admin",
+				DisplayName:       `"Admin" on "Account1"`,
 				AccountName:       "Account1",
 				AccountID:         acctOneID,
 				PermissionSetName: "Admin",
 				PermissionSetARN:  psAdminARN,
 			}.Build(),
 
-			"account1--readonly": test.AccountAssignment{
-				ID:                "account1--readonly",
-				DisplayName:       "ReadOnly on Account1",
+			"1111111111--readonly": test.AccountAssignment{
+				ID:                "1111111111--readonly",
+				DisplayName:       `"ReadOnly" on "Account1"`,
 				AccountName:       "Account1",
 				AccountID:         acctOneID,
 				PermissionSetName: "ReadOnly",
 				PermissionSetARN:  psReadOnlyARN,
 			}.Build(),
 
-			"account2--admin": test.AccountAssignment{
-				ID:                "account2--admin",
-				DisplayName:       "Admin on Account2",
+			"2222222222--admin": test.AccountAssignment{
+				ID:                "2222222222--admin",
+				DisplayName:       `"Admin" on "Account2"`,
 				AccountName:       "Account2",
 				AccountID:         acctTwoID,
 				PermissionSetName: "Admin",
 				PermissionSetARN:  psAdminARN,
 			}.Build(),
 
-			"account2--readonly": test.AccountAssignment{
-				ID:                "account2--readonly",
-				DisplayName:       "ReadOnly on Account2",
+			"2222222222--readonly": test.AccountAssignment{
+				ID:                "2222222222--readonly",
+				DisplayName:       `"ReadOnly" on "Account2"`,
 				AccountName:       "Account2",
 				AccountID:         acctTwoID,
 				PermissionSetName: "ReadOnly",

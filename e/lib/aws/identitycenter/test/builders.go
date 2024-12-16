@@ -112,7 +112,8 @@ func (a AccountAssignmentRole) Build(t *testing.T) *types.RoleV6 {
 		Metadata: types.Metadata{
 			Name: a.Name,
 			Labels: map[string]string{
-				common.OriginLabel: common.OriginAWSIdentityCenter,
+				common.OriginLabel:             common.OriginAWSIdentityCenter,
+				"teleport.internal/account_id": string(a.AccountID),
 			},
 		},
 		Spec: types.RoleSpecV6{

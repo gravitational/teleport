@@ -149,7 +149,7 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 			if err != nil {
 				return nil, trace.Wrap(err, "creating account assignment role")
 			}
-			roles[mkRoleKey(getAccountID(acct), ps.Arn)] = role
+			roles[mkRoleKey(getAccountID(acct), ps.Arn, acct.GetSpec().GetId())] = role
 
 			asmt, err := newAccountAssignment(acct, ps)
 			if err != nil {

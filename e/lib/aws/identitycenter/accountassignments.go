@@ -105,13 +105,13 @@ func newAccountAssignment(acct services.IdentityCenterAccount, ps *identitycente
 			Kind:    types.KindIdentityCenterAccountAssignment,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.Spec.Name, ps.Name)),
+				Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.GetSpec().GetId(), ps.Name)),
 				Labels: map[string]string{
 					types.OriginLabel: common.OriginAWSIdentityCenter,
 				},
 			},
 			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: fmt.Sprintf("%s on %s", ps.Name, acct.Spec.Name),
+				Display: fmt.Sprintf("%q on %q", ps.Name, acct.Spec.Name),
 				PermissionSet: &identitycenterv1.PermissionSetInfo{
 					Arn:  ps.Arn,
 					Name: ps.Name,

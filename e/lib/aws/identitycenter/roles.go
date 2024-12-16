@@ -16,19 +16,39 @@ import (
 
 const (
 	RoleSubKindIdentityCenter = "aws_identity_center"
+	roleAccountLabel          = types.TeleportInternalLabelPrefix + "account_id"
 )
 
+// A note on role keys and roleAccountLabels.
+//
+// Originally we didn't include the AWS account ID in the role name, but it
+// turns out that account names are not guaranteed to be unique, meaning that we
+// need to include the unique Account ID in the Role name in order to prevent
+// duplicate roles.
+//
+// We're using the normal reconciler to delete the old roles and re-create them
+// with the new names. We use a label value only present in the migrated roles
+// in the map key to differentiate the old and new roles.
+
+// accountAssignmentKey is a key for the [accountAssignmentRolesMap], which is a
+// triple containing the AccountID, the PermissionSet ARN and the content of the
+// Role's [roleAccountLabel] label.
+//
+// The label value is included to mark values that have been migrated to use
+// names that include the AWS Account ID.
 type accountAssignmentRoleKey struct {
 	account       services.IdentityCenterAccountID
 	permissionSet string
+	label         string
 }
 
 type accountAssignmentRolesMap map[accountAssignmentRoleKey]*types.RoleV6
 
-func mkRoleKey(account services.IdentityCenterAccountID, permissionSetARN string) accountAssignmentRoleKey {
+func mkRoleKey(account services.IdentityCenterAccountID, permissionSetARN string, label string) accountAssignmentRoleKey {
 	return accountAssignmentRoleKey{
 		account:       account,
 		permissionSet: permissionSetARN,
+		label:         label,
 	}
 }
 
@@ -42,7 +62,10 @@ func mkRoleKeyForRole(role *types.RoleV6) (accountAssignmentRoleKey, error) {
 	}
 
 	asmt := &role.Spec.Allow.AccountAssignments[0]
-	return mkRoleKey(services.IdentityCenterAccountID(asmt.Account), asmt.PermissionSet), nil
+	return mkRoleKey(
+		services.IdentityCenterAccountID(asmt.Account),
+		asmt.PermissionSet,
+		role.GetMetadata().Labels[roleAccountLabel]), nil
 }
 
 func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssignmentRolesMap, error) {
@@ -82,12 +105,12 @@ func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssi
 }
 
 // getImportedRoleName returns role name based on permission set name and account name.
-func getImportedRoleName(permissionSetName, accountName string) string {
-	return normalizeResourceName(fmt.Sprintf("%s-on-%s", permissionSetName, accountName))
+func getImportedRoleName(permissionSetName, accountName, accountID string) string {
+	return normalizeResourceName(fmt.Sprintf("%s-on-%s-%s", permissionSetName, accountName, accountID))
 }
 
 func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identitycenterv1.PermissionSetInfo) (*types.RoleV6, error) {
-	roleName := getImportedRoleName(ps.GetName(), acct.Spec.Name)
+	roleName := getImportedRoleName(ps.GetName(), acct.GetSpec().GetName(), acct.GetSpec().GetId())
 
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -102,6 +125,15 @@ func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identityc
 	if err != nil {
 		return nil, trace.Wrap(err, "creating account assignment role %q", roleName)
 	}
+
+	// Add a label to mark
+	labels := role.GetStaticLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[roleAccountLabel] = acct.Spec.Id
+	role.SetStaticLabels(labels)
+
 	role.SetSubKind(RoleSubKindIdentityCenter)
 	role.SetOrigin(common.OriginAWSIdentityCenter)
 
