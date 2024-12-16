@@ -1299,6 +1299,44 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 		},
 		{
+			name:        "service exist but was changed and --config-string argument is missing",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				command = command[:len(command)-1]
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: false,
+				}}
+			},
+		},
+		{
+			name:        "service exist but was changed and --config-string flag is missing",
+			integration: "my-integration",
+			regions:     []string{"us-west-2"},
+			servicesPerRegion: func(t *testing.T) map[string][]*integrationv1.DeployedDatabaseService {
+				command := buildCommandDeployedDatabaseService(t, true, types.Labels{"vpc": []string{"vpc1", "vpc2"}})
+				command[1] = "--no-config-string"
+				return map[string][]*integrationv1.DeployedDatabaseService{
+					"us-west-2": dummyDeployedDatabaseServices(1, command),
+				}
+			},
+			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
+				return []ui.AWSOIDCDeployedDatabaseService{{
+					Name:                "database-service-vpc-0",
+					DashboardURL:        "url",
+					ValidTeleportConfig: false,
+				}}
+			},
+		},
+		{
 			name:        "supports pagination",
 			integration: "my-integration",
 			regions:     []string{"us-west-2"},
@@ -1330,9 +1368,10 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 				integration:       tt.integration,
 				servicesPerRegion: tt.servicesPerRegion(t),
 			}
-			got, err := listDeployedDatabaseServices(ctx, logger, tt.integration, tt.regions, clt)
+			actual, err := listDeployedDatabaseServices(ctx, logger, tt.integration, tt.regions, clt)
 			require.NoError(t, err)
-			require.Equal(t, tt.expectedServices(t), got)
+			expected := tt.expectedServices(t)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
