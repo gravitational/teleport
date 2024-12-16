@@ -218,8 +218,8 @@ func TestRBAC(t *testing.T) {
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
-					Username:      "testuser",
-					AllowedLogins: []string{"testuser"},
+					Username:   "testuser",
+					Principals: []string{"testuser"},
 				},
 			})
 			require.NoError(t, err)
@@ -394,8 +394,8 @@ func TestRBACJoinMFA(t *testing.T) {
 				PublicUserKey:     ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				CertificateFormat: constants.CertificateFormatStandard,
 				Identity: sshca.Identity{
-					Username:      username,
-					AllowedLogins: []string{username},
+					Username:   username,
+					Principals: []string{username},
 					Traits: wrappers.Traits{
 						teleport.TraitInternalPrefix: []string{""},
 					},
