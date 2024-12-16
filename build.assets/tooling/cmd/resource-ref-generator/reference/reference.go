@@ -331,11 +331,6 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		return err
 	}
 
-	content := pageContent{
-		Resources: make(map[resource.PackageInfo]resourceSection),
-		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
-	}
-
 	// Extract data from a declaration to transform it into a reference
 	// entry later
 	errs := GenerationError{messages: []error{}}
@@ -344,6 +339,8 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
 		}
+
+		pc := pageContent{}
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
@@ -354,24 +351,15 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		if err != nil {
 			errs.messages = append(errs.messages, fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err))
 		}
-		for pi, e := range entries {
-			allEntries[pi] = e
-		}
-	}
-	if len(errs.messages) > 0 {
-		return errs
-	}
 
-	// Add each reference entry to its appropriate place in the
-	// reference, either as a resource or as a field. Resources
-	// require a version number and `kind` value, so we search the
-	// methods of the resource type for the one that specifies these
-	// values.
-	for pi, e := range allEntries {
-		entryMethods, ok := methods[pi]
+		pc.Resource.ReferenceEntry = entries[k]
+		delete(entries, k)
+		pc.Fields = entries
+		// TODO: Extract the version/kind identification stuff into a
+		// function
+		entryMethods, ok := methods[k]
 		// Can't be a resource since it does not have methods.
 		if !ok {
-			content.Fields[pi] = e
 			continue
 		}
 		var foundMethods bool
@@ -415,9 +403,10 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 			foundMethods = true
 			break
 		}
-		if !foundMethods {
-			content.Fields[pi] = e
-		}
+
+	}
+	if len(errs.messages) > 0 {
+		return errs
 	}
 
 	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, content)
