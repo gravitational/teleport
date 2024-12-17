@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
+	"github.com/spf13/afero"
 
 	"gopkg.in/yaml.v3"
 )
@@ -87,13 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	outfile, err := os.Create(genconf.DestinationPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not create the output file: %v\n", err)
-		os.Exit(1)
-	}
-
-	err = reference.Generate(outfile, genconf)
+	err = reference.Generate(afero.NewOsFs(), genconf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)
