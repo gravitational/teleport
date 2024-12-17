@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 )
@@ -66,13 +67,35 @@ func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, 
 
 // newLocalProxyAppWithPortMapping creates a new generic app proxy. Unlike newLocalProxyApp, it
 // accepts a specific port mapping as an argument.
-func newLocalProxyAppWithPortMapping(tc *client.TeleportClient, appInfo *appInfo, portMapping client.PortMapping, insecure bool) *localProxyApp {
+func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportClient, appInfo *appInfo, app types.Application, portMapping client.PortMapping, insecure bool) (*localProxyApp, error) {
+	if err := validateTargetPort(app, portMapping.TargetPort); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &localProxyApp{
 		tc:          tc,
 		appInfo:     appInfo,
 		portMapping: portMapping,
 		insecure:    insecure,
+	}, nil
+}
+
+func validateTargetPort(app types.Application, targetPort int) error {
+	if targetPort == 0 {
+		return nil
 	}
+
+	tcpPorts := app.GetTCPPorts()
+	if len(tcpPorts) == 0 {
+		return trace.BadParameter("cannot specify target port %d because app %q does not provide access to multiple ports",
+			targetPort, app.GetName())
+	}
+
+	if !tcpPorts.Contains(targetPort) {
+		return trace.BadParameter("port %d is not included in target ports of app %q; valid ports: %s",
+			targetPort, app.GetName(), tcpPorts)
+	}
+
+	return nil
 }
 
 // StartLocalProxy sets up local proxies for serving app clients.

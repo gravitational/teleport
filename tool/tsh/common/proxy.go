@@ -421,7 +421,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyAppWithPortMapping(tc, appInfo, portMapping, cf.InsecureSkipVerify)
+	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, appInfo, app, portMapping, cf.InsecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
