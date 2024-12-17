@@ -105,7 +105,14 @@ export async function connectToApp(
 
   // TCP app
   if (launchVnet) {
-    await connectToAppWithVnet(ctx, launchVnet, target);
+    await connectToAppWithVnet(
+      ctx,
+      launchVnet,
+      target,
+      // We don't let the user pick the target port through the search bar on purpose. If an app
+      // allows a port range, we'd need to allow the user to input any number from the range.
+      undefined /* targetPort */
+    );
     return;
   }
 
@@ -144,14 +151,19 @@ export async function setUpAppGateway(
 export async function connectToAppWithVnet(
   ctx: IAppContext,
   launchVnet: () => Promise<[void, Error]>,
-  target: App
+  target: App,
+  targetPort: number | undefined
 ) {
   const [, err] = await launchVnet();
   if (err) {
     return;
   }
 
-  const addrToCopy = target.publicAddr;
+  let addrToCopy = target.publicAddr;
+  if (targetPort) {
+    addrToCopy = `${addrToCopy}:${targetPort}`;
+  }
+
   try {
     await navigator.clipboard.writeText(addrToCopy);
   } catch (error) {
