@@ -34,6 +34,8 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -55,7 +57,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
@@ -68,13 +70,20 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.kubeList.FullCommand():
-		err = c.ListKube(ctx, client)
+		commandFunc = c.ListKube
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
