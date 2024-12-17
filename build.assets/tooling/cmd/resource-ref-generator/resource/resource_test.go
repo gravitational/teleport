@@ -1589,10 +1589,11 @@ func TestGetMethodInfo(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
+		methodName  string
 		expected    map[PackageInfo]versionKindAssignment
 	}{
 		{
-			description: "multiple struct declarations",
+			description: "struct declarations and functions with no assignments",
 			source: `package testpkg
 
 import "strings"
@@ -1618,26 +1619,8 @@ func (o otherStruct) lowercaseName() string{
     return strings.ToLower(m.name)
 }
 `,
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					DeclName:    "myStruct",
-					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name:             "uppercaseName",
-						FieldAssignments: map[string]string{},
-					},
-				},
-				PackageInfo{
-					DeclName:    "otherStruct",
-					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name:             "lowercaseName",
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			methodName: "uppdercaseName",
+			expected:   map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "assignments",
@@ -1646,109 +1629,70 @@ func (o otherStruct) lowercaseName() string{
 import "strings"
 
 type myStruct struct {
-    name string
-    age int
+    Version string
+    Kind int
 }
 
 func (m myStruct) assignName() {
     m.name = nameConst
 }
 
-func (o *myStruct) assignAgeAndName(a int) {
-    o.age = a
-    o.name = nameConst
+func (o *myStruct) assignVersionAndKind(v string) {
+    o.Version = v
+    o.Kind = nameConst
 }
 `,
-			expected: map[PackageInfo][]MethodInfo{
+			expected: map[PackageInfo]versionKindAssignment{
 				PackageInfo{
 					DeclName:    "myStruct",
 					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name: "assignName",
-						FieldAssignments: map[string]string{
-							"name": "nameConst",
-						},
-					},
-					{
-						Name: "assignAgeAndName",
-						FieldAssignments: map[string]string{
-							"age":  "a",
-							"name": "nameConst",
-						},
-					},
+				}: versionKindAssignment{
+					version: "v",
+					kind:    "nameConst",
 				},
 			},
 		},
 		{
 			description: "some assignment values are skipped",
+			methodName:  "assignKindAndVersion",
 			source: `package testpkg
 
-func (o *otherStruct) copyNameFrom(m *myStruct){
-    o.name = *m.name
-    o.name, o.age = blah, 21
+func (o *myREceiver) assignKindAndVersion(){
+    o.Kind, o.Version = roleKind, 12
 }
 `,
-
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					DeclName:    "otherStruct",
-					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name: "copyNameFrom",
-						// Expecting no field assignments, since
-						// getMethodInfo does not process
-						// assignments to star expressions.
-						// Also ignoring multiple assignments
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			// Expecting no field assignments, since
+			// getMethodInfo does not process
+			// assignments to star expressions.
+			// Also ignoring multiple assignments
+			expected: map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "method with no receiver identifier",
+			methodName:  "assignKindAndVersion",
 			source: `package testpkg
-func (mystruct) getMessage() string {
+func (mystruct) assignKindAndVersion() string {
     return "This does not depend on the receiver"
 }
 `,
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					DeclName:    "mystruct",
-					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name:             "getMessage",
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			expected: map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "type parameter",
+			methodName:  "assignKindAndVersion",
 			source: `package mypkg
-func (stream *streamFunc[T]) Next() bool {
-	stream.item, stream.err = stream.fn()
+func (stream *streamFunc[T]) assignKindAndVersion() bool {
+	stream.Kind, stream.Version = stream.fn()
 	return stream.err == nil
 }
 `,
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					PackageName: "mypkg",
-					DeclName:    "streamFunc",
-				}: []MethodInfo{
-					{
-						Name:             "Next",
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			expected: map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "two type parameters",
+			methodName:  "assignKindAndVersion",
 			source: `package mypkg
-func (stream *filterMap[A, B]) Next() bool {
+func (stream *filterMap[A, B]) assignKindAndVersion() bool {
 	for {
 		if !stream.inner.Next() {
 			return false
@@ -1761,20 +1705,11 @@ func (stream *filterMap[A, B]) Next() bool {
 		return true
 	}
 }`,
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					PackageName: "mypkg",
-					DeclName:    "filterMap",
-				}: []MethodInfo{
-					{
-						Name:             "Next",
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			expected: map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "type params with value receiver",
+			methodName:  "assignKindAndVersion",
 			source: `package mypkg
 
 func (stream MyStream[T]) Next() bool {
@@ -1785,24 +1720,11 @@ func (stream MyStream[A, B]) Finish() bool {
 	return false
 }
 `,
-			expected: map[PackageInfo][]MethodInfo{
-				PackageInfo{
-					PackageName: "mypkg",
-					DeclName:    "MyStream",
-				}: []MethodInfo{
-					{
-						Name:             "Next",
-						FieldAssignments: map[string]string{},
-					},
-					{
-						Name:             "Finish",
-						FieldAssignments: map[string]string{},
-					},
-				},
-			},
+			expected: map[PackageInfo]versionKindAssignment{},
 		},
 		{
 			description: "assignments inside an if block",
+			methodName:  "assignKindAndVersion",
 			source: `package testpkg
 
 import "strings"
@@ -1812,7 +1734,7 @@ type RoleV6 struct {
     Version string
 }
 
-func (r *RoleV6) setStaticFields() {
+func (r *RoleV6) assignKindAndVersion() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
 		// When incrementing the role version, make sure to update the
@@ -1821,18 +1743,13 @@ func (r *RoleV6) setStaticFields() {
 		r.Version = V7
 	}
 }`,
-			expected: map[PackageInfo][]MethodInfo{
+			expected: map[PackageInfo]versionKindAssignment{
 				PackageInfo{
 					DeclName:    "RoleV6",
 					PackageName: "testpkg",
-				}: []MethodInfo{
-					{
-						Name: "setStaticFields",
-						FieldAssignments: map[string]string{
-							"Kind":    "KindRole",
-							"Version": "V7",
-						},
-					},
+				}: versionKindAssignment{
+					version: "V7",
+					kind:    "KindRole",
 				},
 			},
 		},
@@ -1858,7 +1775,7 @@ func (r *RoleV6) setStaticFields() {
 					PackageName: d.Name.Name,
 				})
 			}
-			actual, err := VersionKindAssignments(allDecls)
+			actual, err := VersionKindAssignments(allDecls, c.methodName)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})
