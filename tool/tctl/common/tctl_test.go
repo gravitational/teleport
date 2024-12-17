@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -38,6 +40,55 @@ import (
 func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
+}
+
+// TestCommandMatchBeforeAuthConnect verifies all defined `tctl` commands `TryRun`
+// method, to ensure that auth client not initialized in matching process,
+// so we don't require a client before command is executed.
+func TestCommandMatchBeforeAuthConnect(t *testing.T) {
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	var ccf tctlcfg.GlobalCLIFlags
+
+	commands := Commands()
+	for i := range commands {
+		commands[i].Initialize(app, &ccf, cfg)
+	}
+
+	testError := errors.New("auth client must not be initialized before match")
+
+	ctx := context.Background()
+	clientFunc := func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+		return nil, nil, testError
+	}
+
+	var match bool
+	var err error
+
+	// We set the command which is not defined to go through
+	// all defined commands to ensure that auth client
+	// not initialised before command is matched.
+	for _, c := range commands {
+		match, err = c.TryRun(ctx, "non-existing-command", clientFunc)
+		if err != nil {
+			break
+		}
+	}
+	require.False(t, match)
+	require.NoError(t, err)
+
+	// Iterate and expect that `tokens ls` command going to be executed
+	// and auth client is requested.
+	for _, c := range commands {
+		match, err = c.TryRun(ctx, "tokens ls", clientFunc)
+		if err != nil {
+			break
+		}
+	}
+	require.False(t, match)
+	require.ErrorIs(t, err, testError)
 }
 
 // TestConnect tests client config and connection logic.
