@@ -23,6 +23,7 @@ import (
 	"go/parser"
 	"go/token"
 	iofs "io/fs"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -107,8 +108,8 @@ type GeneratorConfig struct {
 	RequiredFieldTypes []TypeInfo `yaml:"required_field_types"`
 	// Path to the root of the Go project directory.
 	SourcePath string `yaml:"source"`
-	// Path of the resource reference.
-	DestinationPath string `yaml:"destination"`
+	// Directory where the generator writes reference pages.
+	DestinationDirectory string `yaml:"destination"`
 	// Struct types to exclude from the reference.
 	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
 	// The name of the method that assigns values to the required fields
@@ -121,7 +122,7 @@ type GeneratorConfig struct {
 // not, returns the first error it encounters.
 func (c GeneratorConfig) Validate() error {
 	switch {
-	case c.DestinationPath == "":
+	case c.DestinationDirectory == "":
 		return errors.New("no destination path provided")
 	case c.FieldAssignmentMethodName == "":
 		return errors.New("must provide a field assignment method name")
@@ -380,8 +381,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 			continue
 		}
 
-		// TODO: Add the location from the config
-		doc, err := fs.Create(kindName + "_" + verName + ".mdx")
+		doc, err := fs.Create(path.Join(conf.DestinationDirectory, kindName+"_"+verName+".mdx"))
 		if err != nil {
 			errs.messages = append(errs.messages, err)
 		}
