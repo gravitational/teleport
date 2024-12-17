@@ -917,8 +917,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
-	h.DELETE("/webapi/mfa/devices", h.WithAuth(h.deleteMFADeviceHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	// TODO(Joerger) v19.0.0: currently unused, WebUI can use these in v19 without backwards compatibility concerns.
+	h.DELETE("/webapi/mfa/devices", h.WithAuth(h.deleteMFADeviceHandle))
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))

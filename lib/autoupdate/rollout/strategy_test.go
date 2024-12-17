@@ -30,9 +30,8 @@ import (
 )
 
 var (
-	// TODO(hugoShaka) uncomment in the next PRs when this value will become useful
 	// 2024-11-30 is a Saturday
-	// testSaturday = time.Date(2024, 11, 30, 15, 30, 0, 0, time.UTC)
+	testSaturday = time.Date(2024, 11, 30, 12, 30, 0, 0, time.UTC)
 	// 2024-12-01 is a Sunday
 	testSunday            = time.Date(2024, 12, 1, 12, 30, 0, 0, time.UTC)
 	matchingStartHour     = int32(12)

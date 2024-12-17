@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -179,7 +179,7 @@ func (t *testPack) Close() {
 		errors = append(errors, t.cache.Close())
 	}
 	if err := trace.NewAggregate(errors...); err != nil {
-		log.Warningf("Failed to close %v", err)
+		slog.WarnContext(context.Background(), "Failed to close", "error", err)
 	}
 }
 
