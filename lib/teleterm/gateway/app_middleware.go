@@ -21,16 +21,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 )
 
 type appMiddleware struct {
 	onExpiredCert func(context.Context) (tls.Certificate, error)
-	log           *logrus.Entry
+	logger        *slog.Logger
 }
 
 // OnNewConnection calls m.onExpiredCert to get a fresh cert if the cert has expired and then sets
@@ -48,7 +48,7 @@ func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy
 		return trace.Wrap(err)
 	}
 
-	m.log.WithError(err).Debug("Gateway certificates have expired")
+	m.logger.DebugContext(ctx, "Gateway certificates have expired", "error", err)
 
 	cert, err := m.onExpiredCert(ctx)
 	if err != nil {
