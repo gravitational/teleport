@@ -658,7 +658,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.Wrap(err)
 	}
 
-	workloadIdentities, err := s.getWorkloadIdentities(
+	_, err = s.getWorkloadIdentities(
 		ctx,
 		authCtx,
 		convertLabels(req.LabelSelectors),
