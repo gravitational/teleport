@@ -66,10 +66,6 @@ type cliCommand interface {
 }
 
 func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
-	return runCommandWithContext(t, context.Background(), client, cmd, args)
-}
-
-func runCommandWithContext(t *testing.T, ctx context.Context, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -79,8 +75,7 @@ func runCommandWithContext(t *testing.T, ctx context.Context, client *authclient
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	_, err = cmd.TryRun(ctx, selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	_, err = cmd.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
 		return client, func(context.Context) {}, nil
 	})
 	return err

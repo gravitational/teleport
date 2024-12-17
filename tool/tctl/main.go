@@ -29,5 +29,5 @@ func main() {
 	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
-	common.Run(ctx, common.Commands(), common.CommandsWithoutAuth())
+	common.Run(ctx, common.Commands())
 }

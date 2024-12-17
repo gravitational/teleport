@@ -69,11 +69,3 @@ func Commands() []CLICommand {
 		&AutoUpdateCommand{},
 	}
 }
-
-// CommandsWithoutAuth returns the set of available subcommands for tctl not require auth client.
-func CommandsWithoutAuth() []CLICommand {
-	return []CLICommand{
-		&VersionCommand{},
-		&AutoUpdateCommand{readOnly: true},
-	}
-}

@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // getResponse is structure for formatting the client tools auto update response.
@@ -46,9 +48,8 @@ type getResponse struct {
 // AutoUpdateCommand implements the `tctl autoupdate` command for managing
 // autoupdate process for tools and agents.
 type AutoUpdateCommand struct {
-	app      *kingpin.Application
-	config   *servicecfg.Config
-	readOnly bool
+	app *kingpin.Application
+	ccf *tctlcfg.GlobalCLIFlags
 
 	setCmd *kingpin.CmdClause
 	getCmd *kingpin.CmdClause
@@ -63,9 +64,9 @@ type AutoUpdateCommand struct {
 }
 
 // Initialize allows AutoUpdateCommand to plug itself into the CLI parser.
-func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.app = app
-	c.config = config
+	c.ccf = ccf
 	autoUpdateCmd := app.Command("autoupdate", "Manage auto update configuration.")
 
 	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Manage client tools auto update configuration.")
@@ -84,17 +85,28 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 }
 
 // TryRun takes the CLI command as an argument and executes it.
-func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch {
-	case !c.readOnly && cmd == c.setCmd.FullCommand():
-		err = c.Set(ctx, client)
-	case !c.readOnly && c.proxy == "" && cmd == c.getCmd.FullCommand():
-		err = c.Get(ctx, client)
-	case c.readOnly && c.proxy != "" && cmd == c.getCmd.FullCommand():
+	case cmd == c.setCmd.FullCommand():
+		commandFunc = c.Set
+	case
+		c.proxy == "" && cmd == c.getCmd.FullCommand():
+		commandFunc = c.Get
+	case c.proxy != "" && cmd == c.getCmd.FullCommand():
 		err = c.GetByProxy(ctx)
+		return true, trace.Wrap(err)
 	default:
 		return false, nil
 	}
+
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
@@ -139,15 +151,10 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 
 // GetByProxy makes request to find endpoint without auth to fetch tools autoupdate version.
 func (c *AutoUpdateCommand) GetByProxy(ctx context.Context) error {
-	var insecure bool
-	if ccf, ok := ctx.Value(globalConfigKey{}).(GlobalCLIFlags); ok {
-		insecure = ccf.Insecure
-	}
-
 	find, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: c.proxy,
-		Insecure:  insecure,
+		Insecure:  c.ccf.Insecure,
 	})
 	if err != nil {
 		return trace.Wrap(err)
