@@ -910,7 +910,7 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 
 		s := getAssignments(receiver.Names[0].Name, f)
 		v, ok := s[versionField]
-		if ok {
+		if !ok {
 			return nil, fmt.Errorf(
 				"%v: expected function %v to assign %v to %v, but found no assignment",
 				decl.FilePath,
@@ -920,7 +920,7 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 			)
 		}
 		k, ok := s[kindField]
-		if ok {
+		if !ok {
 			return nil, fmt.Errorf(
 				"expected function %v to assign %v, but found no assignment",
 				methodName,
