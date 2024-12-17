@@ -586,7 +586,7 @@ func (s *IssuanceService) issueJWTSVID(
 func (s *IssuanceService) getWorkloadIdentities(
 	ctx context.Context,
 	authCtx *authz.Context,
-	labels []*workloadidentityv1pb.LabelSelector,
+	labels types.Labels,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
 	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
 	page := ""
@@ -630,6 +630,14 @@ func (s *IssuanceService) getWorkloadIdentities(
 	return canAccessAndInSearch, nil
 }
 
+func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {
+	labels := types.Labels{}
+	for _, selector := range selectors {
+		labels[selector.Key] = selector.Values
+	}
+	return labels
+}
+
 func (s *IssuanceService) IssueWorkloadIdentities(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
@@ -638,17 +646,23 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
 	}
 
+	switch {
+	case len(req.LabelSelectors) == 0:
+		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
+	case req.GetCredential() == nil:
+		return nil, trace.BadParameter("at least one credential type must be requested")
+	}
+
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform the two stage initial filter:
-	// - Check that they have access to the workload identity resource
-	// - Check that the labels they've specified match the workload identity
-	//  resource.
-
-	s.cache.ListWorkloadIdentities()
+	workloadIdentities, err := s.getWorkloadIdentities(
+		ctx,
+		authCtx,
+		convertLabels(req.LabelSelectors),
+	)
 
 	// TODO(noah): Coming to a PR near you soon!
 	return nil, trace.NotImplemented("not implemented")
