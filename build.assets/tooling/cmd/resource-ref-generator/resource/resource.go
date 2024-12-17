@@ -914,14 +914,9 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 
 		s := getAssignments(receiver.Names[0].Name, f)
 		v, ok := s[versionField]
+		// Some resources do not have versions
 		if !ok {
-			return nil, fmt.Errorf(
-				"%v: expected function %v to assign %v to %v, but found no assignment",
-				decl.FilePath,
-				methodName,
-				versionField,
-				recName,
-			)
+			v = ""
 		}
 		k, ok := s[kindField]
 		if !ok {

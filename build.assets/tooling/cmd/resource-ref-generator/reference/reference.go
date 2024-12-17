@@ -364,21 +364,25 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 				DeclName:    vk.Version,
 				PackageName: k.PackageName,
 			}]
+			// Some resources have no version
+			if !ok1 {
+				verName = ""
+			}
 
 			kindName, ok2 = stringAssignments[resource.PackageInfo{
 				DeclName:    vk.Kind,
 				PackageName: k.PackageName,
 			}]
-		}
-		if !ok1 || !ok2 {
-			errs.messages = append(errs.messages,
-				fmt.Errorf(
-					"no version and kind assigned for %v.%v",
-					k.PackageName,
-					k.DeclName,
-				),
-			)
-			continue
+			if !ok2 {
+				errs.messages = append(errs.messages,
+					fmt.Errorf(
+						"no version and kind assigned for %v.%v",
+						k.PackageName,
+						k.DeclName,
+					),
+				)
+				continue
+			}
 		}
 
 		doc, err := fs.Create(path.Join(conf.DestinationDirectory, kindName+"_"+verName+".mdx"))
