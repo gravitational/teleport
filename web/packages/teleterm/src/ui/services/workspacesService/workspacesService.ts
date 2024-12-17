@@ -376,6 +376,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       hasDocumentsToReopen({
         previousDocuments: restoredWorkspace?.documents,
         currentDocuments: this.state.workspaces[clusterUri].documents,
+        defaultDocuments: getWorkspaceDefaultState(clusterUri).documents,
       });
     if (!askAboutRestoringDocuments) {
       return { isAtDesiredWorkspace: true };
@@ -671,18 +672,37 @@ function parseUnifiedResourcePreferences(
 function hasDocumentsToReopen({
   previousDocuments,
   currentDocuments,
+  defaultDocuments,
 }: {
   previousDocuments?: Immutable<Document[]>;
   currentDocuments: Document[];
+  defaultDocuments: Document[];
 }): boolean {
   const omitUriAndTitle = (documents: Immutable<Document[]>) =>
     documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
-  return (
-    previousDocuments?.length &&
+  if (!previousDocuments?.length) {
+    return false;
+  }
+
+  // If current documents are no longer the default documents, don't offer reopening the previous session.
+  // This can happen when another dialog closed the dialog to reopen documents, and then you opened
+  // a few documents in that workspace.
+  // The app would then ask you about replacing your current documents with the default document
+  // the next time you would navigate to the workspace.
+  // TODO(gzdunek): Consider replacing the document reopen dialog with an action in the UI that
+  // could reopen the previous session at any time.
+  if (
     !arrayObjectIsEqual(
-      omitUriAndTitle(previousDocuments),
+      omitUriAndTitle(defaultDocuments),
       omitUriAndTitle(currentDocuments)
     )
+  ) {
+    return false;
+  }
+
+  return !arrayObjectIsEqual(
+    omitUriAndTitle(previousDocuments),
+    omitUriAndTitle(currentDocuments)
   );
 }
