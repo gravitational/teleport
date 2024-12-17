@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { ButtonPrimary, ButtonSecondary, Text, Alert } from 'design';
 import Dialog, {
   DialogHeader,
@@ -85,7 +85,7 @@ export function UserReset({
 
 function useDialog(props: Props) {
   const { attempt, run } = useAttemptNext();
-  const [token, setToken] = React.useState<ResetToken>(null);
+  const [token, setToken] = useState<ResetToken>(null);
 
   function onReset() {
     run(() => props.onReset(props.username).then(setToken));

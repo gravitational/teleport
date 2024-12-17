@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Link as ExternalLink, Text, Toggle } from 'design';
 import { Link as InternalLink } from 'react-router-dom';
 import { FetchStatus } from 'design/DataTable/types';

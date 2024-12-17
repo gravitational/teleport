@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ComponentType, PropsWithChildren } from 'react';
+import { ComponentType, PropsWithChildren } from 'react';
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
 import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import Box from '../packages/design/src/Box';

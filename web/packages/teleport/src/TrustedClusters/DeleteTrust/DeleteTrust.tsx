@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';

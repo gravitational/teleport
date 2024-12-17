@@ -333,7 +333,13 @@ message RouteToApp {
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
   // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  // Used merely for audit events and mirrors the URI from the app spec. Not used as a source of
+  // truth when routing connections.
   string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
+  // TargetPort signifies that the cert grants access to a specific port in a multi-port TCP app, as
+  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535.
+  // Used only for routing, should not be used in other contexts (e.g., access requests).
+  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.

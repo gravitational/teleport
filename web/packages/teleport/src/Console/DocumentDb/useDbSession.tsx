@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 import { context, trace } from '@opentelemetry/api';
 
@@ -34,10 +34,10 @@ const tracer = trace.getTracer('TTY');
 export function useDbSession(doc: DocumentDb) {
   const { clusterId, sid } = doc;
   const ctx = useConsoleContext();
-  const ttyRef = React.useRef<Tty>(null);
+  const ttyRef = useRef<Tty>(null);
   const tty = ttyRef.current;
-  const [session, setSession] = React.useState<Session>(null);
-  const [status, setStatus] = React.useState<Status>('loading');
+  const [session, setSession] = useState<Session>(null);
+  const [status, setStatus] = useState<Status>('loading');
 
   function closeDocument() {
     ctx.closeTab(doc);
@@ -51,7 +51,7 @@ export function useDbSession(doc: DocumentDb) {
     setStatus('initialized');
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     const session: Session = {
       kind: 'db',
       clusterId,

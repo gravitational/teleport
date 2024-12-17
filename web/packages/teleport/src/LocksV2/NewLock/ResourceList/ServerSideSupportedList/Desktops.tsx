@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ClickableLabelCell } from 'design/DataTable';
 
 import { Desktop } from 'teleport/services/desktops';

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Text, Box, Flex, Indicator, Link, H3 } from 'design';
 import * as Icons from 'design/Icon';
 
