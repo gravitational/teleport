@@ -102,7 +102,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer
@@ -175,7 +175,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer
