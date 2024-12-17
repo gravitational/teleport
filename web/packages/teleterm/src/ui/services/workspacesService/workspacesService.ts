@@ -119,6 +119,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * Keeps the state that was restored from the disk when the app was launched.
    * This state is not processed in any way, so it may, for example,
    * contain clusters that are no longer available.
+   * When a workspace is removed, it's removed from the restored state too.
    */
   private restoredState?: Immutable<WorkspacesPersistedState>;
 
@@ -415,6 +416,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.setState(draftState => {
       delete draftState.workspaces[clusterUri];
     });
+    this.restoredState = produce(this.restoredState, draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
   }
 
   getConnectedWorkspacesClustersUri() {
@@ -427,6 +431,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * Returns the state that was restored when the app was launched.
    * This state is not processed in any way, so it may, for example,
    * contain clusters that are no longer available.
+   * When a workspace is removed, it's removed from the restored state too.
    */
   getRestoredState(): Immutable<WorkspacesPersistedState> | undefined {
     return this.restoredState;
