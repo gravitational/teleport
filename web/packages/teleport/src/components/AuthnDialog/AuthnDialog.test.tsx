@@ -20,7 +20,7 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
 
-import { SsoChallenge } from 'teleport/services/mfa';
+import { getMfaChallengeOptions, SsoChallenge } from 'teleport/services/mfa';
 
 import AuthnDialog from './AuthnDialog';
 
@@ -55,8 +55,13 @@ describe('AuthnDialog', () => {
       challenge: {
         ssoChallenge: mockSsoChallenge,
       },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -67,15 +72,22 @@ describe('AuthnDialog', () => {
   });
 
   test('renders multi option dialog', () => {
+    const challenge = {
+      ssoChallenge: mockSsoChallenge,
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    };
     const mfa = makeMockState({
-      challenge: {
-        ssoChallenge: mockSsoChallenge,
-        webauthnPublicKey: {
-          challenge: new ArrayBuffer(1),
-        },
+      options: getMfaChallengeOptions(challenge),
+      challenge,
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
       },
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -91,14 +103,14 @@ describe('AuthnDialog', () => {
     const errorText = 'Authentication failed';
     const mfa = makeMockState({
       challenge: {},
-      submitAttempt: {
+      attempt: {
         status: 'error',
         statusText: errorText,
         data: null,
         error: new Error(errorText),
       },
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
 
     expect(screen.getByTestId('danger-alert')).toBeInTheDocument();
     expect(screen.getByText(errorText)).toBeInTheDocument();
@@ -109,9 +121,14 @@ describe('AuthnDialog', () => {
       challenge: {
         ssoChallenge: mockSsoChallenge,
       },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
       submit: jest.fn(),
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
     const ssoButton = screen.getByText('Okta');
     fireEvent.click(ssoButton);
     expect(mfa.submit).toHaveBeenCalledTimes(1);
@@ -122,9 +139,14 @@ describe('AuthnDialog', () => {
       challenge: {
         webauthnPublicKey: { challenge: new ArrayBuffer(0) },
       },
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
       submit: jest.fn(),
     });
-    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
     const webauthn = screen.getByText('Passkey or MFA Device');
     fireEvent.click(webauthn);
     expect(mfa.submit).toHaveBeenCalledTimes(1);
