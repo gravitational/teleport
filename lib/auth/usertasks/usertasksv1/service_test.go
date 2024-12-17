@@ -27,11 +27,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -90,7 +93,8 @@ func TestServiceAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter, &libevents.DiscardEmitter{}, clockwork.NewFakeClock())
+					backendService := newMockBackendService(t)
+					service := newService(t, fakeChecker{allowedVerbs: verbs}, backendService, testReporter, &libevents.DiscardEmitter{}, clockwork.NewFakeClock())
 					err := callMethod(t, service, tt.name)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
@@ -122,7 +126,8 @@ func TestEvents(t *testing.T) {
 	testReporter := &mockUsageReporter{}
 	auditEventsSink := eventstest.NewChannelEmitter(10)
 	fakeClock := clockwork.NewFakeClock()
-	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink, fakeClock)
+	backendService := newMockBackendService(t)
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, backendService, testReporter, auditEventsSink, fakeClock)
 	ctx := context.Background()
 
 	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
@@ -289,14 +294,8 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter, emitter apievents.Emitter, clock clockwork.Clock) *Service {
+func newService(t *testing.T, checker services.AccessChecker, backendService BackendService, usageReporter usagereporter.UsageReporter, emitter apievents.Emitter, clock clockwork.Clock) *Service {
 	t.Helper()
-
-	b, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	backendService, err := local.NewUserTasksService(b)
-	require.NoError(t, err)
 
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 		user, err := types.NewUser("llama")
@@ -336,4 +335,133 @@ func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymiza
 			m.emittedEvents = append(m.emittedEvents, userTaskEvent)
 		}
 	}
+}
+
+func createDummyUserTask(t *testing.T, integration string) *usertasksv1.UserTask {
+	ut, err := usertasks.NewDiscoverEC2UserTask(
+		&usertasksv1.UserTaskSpec{
+			Integration: integration,
+			TaskType:    "discover-ec2",
+			IssueType:   "ec2-ssm-invocation-failure",
+			State:       "OPEN",
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				AccountId: "123456789012",
+				Region:    "us-east-1",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-123": {
+						InstanceId:      "i-123",
+						DiscoveryConfig: "dc01",
+						DiscoveryGroup:  "dg01",
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return ut
+}
+
+func TestNotifications(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	backendService := newMockBackendService(t)
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, backendService, &mockUsageReporter{}, &libevents.DiscardEmitter{}, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	ut1 := createDummyUserTask(t, "my-integration")
+	userTaskName := ut1.GetMetadata().GetName()
+
+	_, err := service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// A global notification must be created because there's a new UserTask reporting happens when user task is created, so we expect to see an event.
+	require.Len(t, backendService.notifications, 1)
+	var existingNotification *notificationsv1.GlobalNotification
+	for _, v := range backendService.notifications {
+		existingNotification = v
+	}
+	// Integration is updated accordingly to store this notification.
+	require.Equal(t, backendService.integrationStatus.PendingUserTasksNotificationID, existingNotification.Metadata.GetName())
+
+	// Updating the User Task to resolved does not trigger a new notification.
+	ut1.Spec.State = "RESOLVED"
+	_, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	require.Equal(t, backendService.integrationStatus.PendingUserTasksNotificationID, existingNotification.Metadata.GetName())
+
+	// But updating it again to OPEN must create a new notification.
+	ut1.Spec.State = "OPEN"
+	_, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	require.NotEqual(t, backendService.integrationStatus.PendingUserTasksNotificationID, existingNotification.Metadata.GetName())
+
+	_, err = service.DeleteUserTask(ctx, &usertasksv1.DeleteUserTaskRequest{Name: userTaskName})
+	require.NoError(t, err)
+	require.NotEqual(t, backendService.integrationStatus.PendingUserTasksNotificationID, existingNotification.Metadata.GetName())
+
+	// After the notification expires, stale state might exist in the Integration status field.
+	// In that case, Deleting the Notification is a no-op and should be handled gracefully.
+	delete(backendService.notifications, ut1.GetMetadata().GetName())
+
+	ut2 := createDummyUserTask(t, "integration-for-ut2")
+	ut2.Metadata.Expires = &timestamppb.Timestamp{Seconds: 100}
+	_, err = service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut2})
+	require.NoError(t, err)
+
+	// Issuing a new Notification, whose expiration is shorter, should keep the old expiration.
+	ut3 := createDummyUserTask(t, "integration-for-ut3")
+	ut3.Metadata.Expires = &timestamppb.Timestamp{Seconds: 90}
+	_, err = service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut3})
+	require.NoError(t, err)
+
+	require.Len(t, backendService.notifications, 1)
+	for _, v := range backendService.notifications {
+		existingNotification = v
+		t.Log(v.Metadata.Expires)
+	}
+	require.Equal(t, int64(100), existingNotification.GetSpec().GetNotification().GetMetadata().GetExpires().GetSeconds())
+}
+
+func newMockBackendService(t *testing.T) *mockBackendService {
+	b, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	backendService, err := local.NewUserTasksService(b)
+	require.NoError(t, err)
+	return &mockBackendService{
+		UserTasks:     backendService,
+		notifications: make(map[string]*notificationsv1.GlobalNotification),
+	}
+}
+
+type mockBackendService struct {
+	services.UserTasks
+
+	notifications     map[string]*notificationsv1.GlobalNotification
+	integrationStatus types.IntegrationStatusV1
+}
+
+func (m *mockBackendService) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	globalNotification.Metadata = &headerv1.Metadata{
+		Name: uuid.NewString(),
+	}
+	m.notifications[globalNotification.GetMetadata().Name] = globalNotification
+	return globalNotification, nil
+}
+
+func (m *mockBackendService) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
+	if _, ok := m.notifications[notificationId]; !ok {
+		return trace.NotFound("global notification not found")
+	}
+	delete(m.notifications, notificationId)
+	return nil
+}
+
+func (m *mockBackendService) UpdateIntegration(ctx context.Context, integration types.Integration) (types.Integration, error) {
+	m.integrationStatus = integration.GetStatus()
+	return nil, nil
+}
+
+func (m *mockBackendService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	return &types.IntegrationV1{
+		Status: m.integrationStatus,
+	}, nil
 }
