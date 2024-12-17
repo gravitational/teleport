@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -5777,7 +5778,28 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	require.Error(t, err)
 }
 
+func withAccountAssignment(condition types.RoleConditionType, accountID, permissionSet string) CreateUserAndRoleOption {
+	return WithRoleMutator(func(role types.Role) {
+		r := role.(*types.RoleV6)
+		cond := &r.Spec.Deny
+		if condition == types.Allow {
+			cond = &r.Spec.Allow
+		}
+		cond.AccountAssignments = append(
+			cond.AccountAssignments,
+			types.IdentityCenterAccountAssignment{
+				Account:       accountID,
+				PermissionSet: permissionSet,
+			})
+	})
+}
+
 func TestUnifiedResources_IdentityCenter(t *testing.T) {
+	const (
+		validAccountID        = "11111111"
+		validPermissionSetARN = "some:ps:arn"
+	)
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t, withCacheEnabled(true))
 
@@ -5785,47 +5807,288 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	_, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test_acct",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
-			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   "11111111",
-				Arn:  "some:arn",
-				Name: "Test Account",
+	allowByGenericKind := []types.Rule{
+		types.NewRule(types.KindIdentityCenter, services.RO()),
+	}
+
+	// adds a Rule ALLOW condition for the valid account ID and Permission set
+	// pair
+	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
+		validAccountID, validPermissionSetARN)
+
+	testCases := []struct {
+		name string
+		kind string
+		init func(*testing.T)
+	}{
+		{
+			name: "account",
+			kind: types.KindIdentityCenterAccount,
+			init: func(subtestT *testing.T) {
+				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+					Account: &identitycenterv1.Account{
+						Kind:    types.KindIdentityCenterAccount,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: "test-account",
+							Labels: map[string]string{
+								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountSpec{
+							Id:   validAccountID,
+							Arn:  "some:account:arn",
+							Name: "Test Account",
+						},
+					},
+				})
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteIdentityCenterAccount(ctx,
+						services.IdentityCenterAccountID(acct.GetMetadata().GetName()))
+				})
+
+				inlineEventually(subtestT,
+					func() bool {
+						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
+							ctx, 100, &pagination.PageRequestToken{})
+						require.NoError(t, err)
+						return len(accounts) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
 			},
 		},
-	})
-	require.NoError(t, err)
+		{
+			name: "account assignment",
+			kind: types.KindIdentityCenterAccountAssignment,
+			init: func(subtestT *testing.T) {
+				asmt, err := srv.Auth().CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
+					AccountAssignment: &identitycenterv1.AccountAssignment{
+						Kind:    types.KindIdentityCenterAccountAssignment,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: "test-account",
+							Labels: map[string]string{
+								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountAssignmentSpec{
+							AccountId: validAccountID,
+							Display:   "Test Account Assignment",
+							PermissionSet: &identitycenterv1.PermissionSetInfo{
+								Arn:          validPermissionSetARN,
+								Name:         "Test permission set",
+								AssignmentId: "Test Assignment on Test Account",
+							},
+						},
+					},
+				})
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteAccountAssignment(ctx,
+						services.IdentityCenterAccountAssignmentID(asmt.GetMetadata().GetName()))
+				})
 
-	t.Run("access denied", func(t *testing.T) {
-		// Asserts that, with no RBAC or matchers in place, acces to IC Accounts
-		// is denied by default
-
-		userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "test", nil, nil)
-		require.NoError(t, err)
-
-		identity := TestUser(userNoAccess.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+				inlineEventually(subtestT,
+					func() bool {
+						testAssignments, _, err := srv.Auth().ListAccountAssignments(
+							ctx, 100, &pagination.PageRequestToken{})
+						require.NoError(t, err)
+						return len(testAssignments) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
 			},
-		})
-		require.True(t, trace.IsAccessDenied(err))
-	})
+		},
+	}
 
-	// TODO(tcsc): Add other tests one RBAC implemented
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			test.init(t)
+
+			allowBySpecificKind := []types.Rule{
+				types.NewRule(test.kind, services.RO()),
+			}
+
+			t.Run("no access", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("no access via no matching account condition ", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
+					allowByGenericKind,
+					withAccountAssignment(types.Allow, "22222222", validPermissionSetARN))
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("access denied by account deny condition", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
+					allowBySpecificKind,
+					withMatchingAccountAssignment,
+					withAccountAssignment(types.Deny, validAccountID, "*"))
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("access via generic kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "read-generic", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment)
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("access via specific kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "read-specific", nil,
+					allowBySpecificKind,
+					withMatchingAccountAssignment)
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("access denied via specific kind beats allow via generic kind", func(t *testing.T) {
+				user, _, err := CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment,
+					WithRoleMutator(func(r types.Role) {
+						r.SetRules(types.Deny, []types.Rule{
+							types.NewRule(test.kind, services.RO()),
+						})
+					}))
+				require.NoError(t, err)
+
+				identity := TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.True(t, trace.IsAccessDenied(err),
+					"Expected Access Denied, got %v", err)
+			})
+
+			// The tests below this point are only applicable to Identity Center
+			// Account assignments
+			if test.kind == types.KindIdentityCenterAccount {
+				return
+			}
+
+			// Asserts that a role ALLOW condition with a matching Account ID but
+			// nonmatching PermissionSet ARN does not allow access
+			t.Run("no access via no matching allow permission set condition", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "no-access-allow-ps-mismatch", nil,
+					allowByGenericKind,
+					withAccountAssignment(types.Allow, validAccountID, "some:other:ps:arn"))
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			// Asserts that a role DENY condition with a matching Account ID but
+			// nonmatching PermissionSet ARN does not block access
+			t.Run("access via no matching deny permission set condition", func(t *testing.T) {
+				userNoAccess, _, err := CreateUserAndRole(srv.Auth(), "access-deny-ps-mismatch", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment,
+					withAccountAssignment(types.Deny, "*", "some:other:ps"))
+				require.NoError(t, err)
+
+				identity := TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+		})
+	}
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
@@ -9363,5 +9626,208 @@ func TestRoleRequestReasonModeValidation(t *testing.T) {
 			_, err = s.UpsertRole(ctx, upsertRole)
 			require.ErrorIs(t, err, tt.expectedError)
 		})
+	}
+}
+
+func testUserName(testName string) string {
+	return strings.ReplaceAll(testName, " ", "_")
+}
+
+func TestFilterIdentityCenterPermissionSets(t *testing.T) {
+	const (
+		allAccessRoleName      = "all-access"
+		accountID              = "1234567890"
+		permissionSetArnPrefix = "aws:awn:test:permission:set:"
+	)
+
+	// GIVEN a test cluster...
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	// GIVEN an Identity Center Account with some associated Permission Set
+	// resources
+	permissionSets := []*identitycenterv1.PermissionSetInfo{
+		{
+			Name:         "PS One",
+			Arn:          permissionSetArnPrefix + "one",
+			AssignmentId: accountID + "-" + "ps_one",
+		},
+		{
+			Name:         "PS Two",
+			Arn:          permissionSetArnPrefix + "two",
+			AssignmentId: accountID + "-" + "ps_two",
+		},
+		{
+			Name:         "PS Three",
+			Arn:          permissionSetArnPrefix + "ps_three",
+			AssignmentId: accountID + "-" + "ps_three",
+		},
+	}
+
+	_, err := s.authServer.CreateIdentityCenterAccount(ctx,
+		services.IdentityCenterAccount{
+			Account: &identitycenterv1.Account{
+				Kind:    types.KindIdentityCenterAccount,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: accountID,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				},
+				Spec: &identitycenterv1.AccountSpec{
+					Id:                accountID,
+					Arn:               "aws:arn:test:account",
+					Name:              "Test Account",
+					Description:       "An account for testing",
+					PermissionSetInfo: permissionSets,
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	// GIVEN a role that allows access to all permission sets on the target
+	// Identity Center account
+	roleAccessAll, err := types.NewRole(allAccessRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AccountAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       accountID,
+					PermissionSet: types.Wildcard,
+				},
+			},
+		},
+	})
+	require.NoError(t, err, "Constructing role should succeed")
+	_, err = srv.Auth().CreateRole(ctx, roleAccessAll)
+	require.NoError(t, err, "Cretaing role should succeed")
+
+	withRequesterRole := WithRoleMutator(func(role types.Role) {
+		r := role.(*types.RoleV6)
+		r.Spec.Allow.Request = &types.AccessRequestConditions{
+			SearchAsRoles: []string{allAccessRoleName},
+		}
+	})
+
+	// EXPECT that the IC Account has made it to the cache
+	inlineEventually(t,
+		func() bool {
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
+				ctx, 100, &pagination.PageRequestToken{})
+			require.NoError(t, err)
+			return len(testAssignments) == 1
+		},
+		5*time.Second, 200*time.Millisecond,
+		"Target resource missing from cache")
+
+	testCases := []struct {
+		name                   string
+		roleModifiers          []CreateUserAndRoleOption
+		includeRequestable     bool
+		expectedPSs            []*types.IdentityCenterPermissionSet
+		expectedRequireRequest require.BoolAssertionFunc
+	}{
+		{
+			name: "basic access",
+			roleModifiers: []CreateUserAndRoleOption{
+				withAccountAssignment(types.Allow, accountID, permissionSets[0].Arn),
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
+			},
+			expectedPSs: []*types.IdentityCenterPermissionSet{
+				paginatedAppPermissionSet(permissionSets[0]),
+				paginatedAppPermissionSet(permissionSets[1]),
+			},
+			expectedRequireRequest: require.False,
+		},
+		{
+			name: "ignore search as roles when disabled",
+			roleModifiers: []CreateUserAndRoleOption{
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
+				withRequesterRole,
+			},
+			includeRequestable: false,
+			expectedPSs: []*types.IdentityCenterPermissionSet{
+				paginatedAppPermissionSet(permissionSets[1]),
+			},
+			expectedRequireRequest: require.False,
+		},
+		{
+			name: "requestable access",
+			roleModifiers: []CreateUserAndRoleOption{
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
+				withRequesterRole,
+			},
+			includeRequestable: true,
+			expectedPSs: []*types.IdentityCenterPermissionSet{
+				paginatedAppPermissionSet(permissionSets[0]),
+				paginatedAppPermissionSet(permissionSets[1]),
+				paginatedAppPermissionSet(permissionSets[2]),
+			},
+			expectedRequireRequest: require.True,
+		},
+		{
+			name: "no access",
+			roleModifiers: []CreateUserAndRoleOption{
+				withAccountAssignment(types.Allow, accountID, "some-non-existent-ps"),
+			},
+			expectedRequireRequest: require.False,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			// GIVEN a user who has a role that allows a test-defined level of
+			// Identity Center access
+			user, _, err := CreateUserAndRole(srv.Auth(), testUserName(test.name),
+				nil, nil, test.roleModifiers...)
+			require.NoError(t, err)
+
+			// GIVEN an auth client using the above user
+			identity := TestUser(user.GetName())
+			clt, err := srv.NewClient(identity)
+			require.NoError(t, err)
+			t.Cleanup(func() { clt.Close() })
+
+			// WHEN I list the unified resources, with a filter specifically for
+			// the account resource defined above...
+			resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindApp},
+				Labels: map[string]string{
+					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+				},
+				UseSearchAsRoles:   test.includeRequestable,
+				IncludeRequestable: test.includeRequestable,
+				IncludeLogins:      true,
+				SortBy:             types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+			})
+
+			// EXPECT that the listing succeeds and returns a single resource
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1, "Must return exactly one resource")
+
+			// EXPECT that the contained resource has the test-defined value for
+			// the RequiresRequest flag
+			resource := resp.Resources[0]
+			test.expectedRequireRequest(t, resource.RequiresRequest)
+
+			// EXPECT that the returned resource is an App
+			appServer := resp.Resources[0].GetAppServer()
+			require.NotNil(t, appServer, "Expected resource to be an app")
+			app := appServer.GetApp()
+
+			// EXPECT that the app PermissionSets are filtered to the test-defined
+			// list
+			require.ElementsMatch(t,
+				test.expectedPSs, app.GetIdentityCenter().PermissionSets)
+		})
+	}
+}
+
+func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.IdentityCenterPermissionSet {
+	return &types.IdentityCenterPermissionSet{
+		ARN:          src.Arn,
+		Name:         src.Name,
+		AssignmentID: src.AssignmentId,
 	}
 }

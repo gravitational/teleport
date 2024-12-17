@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -317,6 +318,109 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 		ret += len(matcher.Regions)
 	}
 	return ret
+}
+
+// integrationDiscoveryRules returns the Discovery Rules that are using a given integration.
+// A Discovery Rule is just like a DiscoveryConfig Matcher, except that it breaks down by region.
+// So, if a Matcher exists for two regions, that will be represented as two Rules.
+func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	values := r.URL.Query()
+	startKey := values.Get("startKey")
+	resourceType := values.Get("resourceType")
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, clt.DiscoveryConfigClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rules, nil
+}
+
+// collectAutoDiscoveryRules will iterate over all DiscoveryConfigs's Matchers and collect the Discovery Rules that exist in them for the given integration.
+// It can also be filtered by Matcher Type (eg ec2, rds, eks)
+// A Discovery Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
+// Eg if a DiscoveryConfig's Matcher has two regions, then it will output two (almost equal) Rules, one for each Region.
+func collectAutoDiscoveryRules(
+	ctx context.Context,
+	integrationName string,
+	nextPage string,
+	resourceTypeFilter string,
+	clt interface {
+		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	},
+) (ui.IntegrationDiscoveryRules, error) {
+	const (
+		maxPerPage = 100
+	)
+	var ret ui.IntegrationDiscoveryRules
+	for {
+		discoveryConfigs, nextToken, err := clt.ListDiscoveryConfigs(ctx, 0, nextPage)
+		if err != nil {
+			return ret, trace.Wrap(err)
+		}
+		for _, dc := range discoveryConfigs {
+			lastSync := &dc.Status.LastSyncTime
+			if lastSync.IsZero() {
+				lastSync = nil
+			}
+
+			for _, matcher := range dc.Spec.AWS {
+				if matcher.Integration != integrationName {
+					continue
+				}
+
+				for _, resourceType := range matcher.Types {
+					if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+						continue
+					}
+
+					for _, region := range matcher.Regions {
+						uiLables := make([]libui.Label, 0, len(matcher.Tags))
+						for labelKey, labelValues := range matcher.Tags {
+							for _, labelValue := range labelValues {
+								uiLables = append(uiLables, libui.Label{
+									Name:  labelKey,
+									Value: labelValue,
+								})
+							}
+						}
+						ret.Rules = append(ret.Rules, ui.IntegrationDiscoveryRule{
+							ResourceType:    resourceType,
+							Region:          region,
+							LabelMatcher:    uiLables,
+							DiscoveryConfig: dc.GetName(),
+							LastSync:        lastSync,
+						})
+					}
+				}
+			}
+		}
+
+		ret.NextKey = nextToken
+
+		if nextToken == "" || len(ret.Rules) > maxPerPage {
+			break
+		}
+
+		nextPage = nextToken
+	}
+
+	return ret, nil
 }
 
 // integrationsList returns a page of Integrations

@@ -286,6 +286,8 @@ const (
 	ExecFailureCode = "T3002E"
 	// PortForwardCode is the port forward event code.
 	PortForwardCode = "T3003I"
+	// PortForwardStopCode is the port forward stop event code.
+	PortForwardStopCode = "T3003S"
 	// PortForwardFailureCode is the port forward failure event code.
 	PortForwardFailureCode = "T3003E"
 	// SCPDownloadCode is the file download event code.
@@ -579,6 +581,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
+	// UserLoginAccessListInvalidCode is the user login access list invalid code. This event is a warning that an access list is invalid and was not applied upon the user's login.
+	UserLoginAccessListInvalidCode = "TAL009W"
+
 	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
 	SecReportsAuditQueryRunCode = "SRE001I"
 
@@ -673,6 +678,18 @@ const (
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
 	ContactDeleteCode = "TCTC002I"
+
+	// WorkloadIdentityCreateCode is the workload identity create event code.
+	WorkloadIdentityCreateCode = "WID001I"
+	// WorkloadIdentityUpdateCode is the workload identity update event code.
+	WorkloadIdentityUpdateCode = "WID002I"
+	// WorkloadIdentityDeleteCode is the workload identity delete event code.
+	WorkloadIdentityDeleteCode = "WID003I"
+
+	// GitCommandCode is the git command event code
+	GitCommandCode = "TGIT001I"
+	// GitCommandFailureCode is the git command feature event code.
+	GitCommandFailureCode = "TGIT001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

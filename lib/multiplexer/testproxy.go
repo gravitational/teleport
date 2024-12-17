@@ -19,14 +19,16 @@
 package multiplexer
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -35,7 +37,7 @@ type TestProxy struct {
 	listener net.Listener
 	target   string
 	closeCh  chan (struct{})
-	log      logrus.FieldLogger
+	log      *slog.Logger
 	v2       bool
 }
 
@@ -50,7 +52,7 @@ func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 		listener: listener,
 		target:   target,
 		closeCh:  make(chan struct{}),
-		log:      logrus.WithField(teleport.ComponentKey, "test:proxy"),
+		log:      utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test:proxy"),
 		v2:       v2,
 	}, nil
 }
@@ -67,10 +69,10 @@ func (p *TestProxy) Serve() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		p.log.Debugf("Accepted connection from %v.", clientConn.RemoteAddr().String())
+		p.log.DebugContext(context.Background(), "Accepted connection", "remote_addr", logutils.StringerAttr(clientConn.RemoteAddr()))
 		go func() {
 			if err := p.handleConnection(clientConn); err != nil {
-				p.log.WithError(err).Error("Failed to handle connection.")
+				p.log.ErrorContext(context.Background(), "Failed to handle connection", "error", err)
 			}
 		}()
 	}
@@ -110,7 +112,7 @@ func (p *TestProxy) handleConnection(clientConn net.Conn) error {
 				errs = append(errs, err)
 			}
 		case <-p.closeCh:
-			p.log.Debug("Closing.")
+			p.log.DebugContext(context.Background(), "Closing")
 			return trace.NewAggregate(errs...)
 		}
 	}
@@ -132,7 +134,10 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 		Source:      net.TCPAddr{IP: net.ParseIP(clientAddr.Host()), Port: clientAddr.Port(0)},
 		Destination: net.TCPAddr{IP: net.ParseIP(serverAddr.Host()), Port: serverAddr.Port(0)},
 	}
-	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
+	p.log.DebugContext(context.Background(), "Sending proxy line",
+		"proxy_line", proxyLine.String(),
+		"remote_addr", serverConn.RemoteAddr().String(),
+	)
 	if p.v2 {
 		b, bErr := proxyLine.Bytes()
 		if bErr != nil {

@@ -26,19 +26,22 @@ import selectEvent from 'react-select-event';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
+import { ResourceKind } from 'teleport/services/resources';
+
 import {
-  AccessSpec,
   AppAccessSpec,
   DatabaseAccessSpec,
   KubernetesAccessSpec,
   newAccessSpec,
   newRole,
   roleToRoleEditorModel,
+  RuleModel,
   ServerAccessSpec,
   StandardEditorModel,
   WindowsDesktopAccessSpec,
 } from './standardmodel';
 import {
+  AccessRules,
   AppAccessSpecSection,
   DatabaseAccessSpecSection,
   KubernetesAccessSpecSection,
@@ -48,7 +51,12 @@ import {
   StandardEditorProps,
   WindowsDesktopAccessSpecSection,
 } from './StandardEditor';
-import { validateAccessSpec } from './validation';
+import {
+  AccessSpecValidationResult,
+  AccessRuleValidationResult,
+  validateAccessSpec,
+  validateAccessRule,
+} from './validation';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();
@@ -58,13 +66,15 @@ const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   });
   return (
     <TeleportContextProvider ctx={ctx}>
-      <StandardEditor
-        originalRole={null}
-        standardEditorModel={model}
-        isProcessing={false}
-        onChange={setModel}
-        {...props}
-      />
+      <Validation>
+        <StandardEditor
+          originalRole={null}
+          standardEditorModel={model}
+          isProcessing={false}
+          onChange={setModel}
+          {...props}
+        />
+      </Validation>
     </TeleportContextProvider>
   );
 };
@@ -165,19 +175,21 @@ const getSectionByName = (name: string) =>
   // eslint-disable-next-line testing-library/no-node-access
   screen.getByRole('heading', { level: 3, name }).closest('details');
 
-const StatefulSection = <S extends AccessSpec>({
+function StatefulSection<Spec, ValidationResult>({
   defaultValue,
   component: Component,
   onChange,
   validatorRef,
+  validate,
 }: {
-  defaultValue: S;
-  component: React.ComponentType<SectionProps<S, any>>;
-  onChange(spec: S): void;
+  defaultValue: Spec;
+  component: React.ComponentType<SectionProps<Spec, any>>;
+  onChange(spec: Spec): void;
   validatorRef?(v: Validator): void;
-}) => {
-  const [model, setModel] = useState<S>(defaultValue);
-  const validation = validateAccessSpec(model);
+  validate(arg: Spec): ValidationResult;
+}) {
+  const [model, setModel] = useState<Spec>(defaultValue);
+  const validation = validate(model);
   return (
     <Validation>
       {({ validator }) => {
@@ -196,20 +208,21 @@ const StatefulSection = <S extends AccessSpec>({
       }}
     </Validation>
   );
-};
+}
 
 describe('ServerAccessSpecSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<ServerAccessSpec>
+      <StatefulSection<ServerAccessSpec, AccessSpecValidationResult>
         component={ServerAccessSpecSection}
         defaultValue={newAccessSpec('node')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -231,6 +244,10 @@ describe('ServerAccessSpecSection', () => {
       kind: 'node',
       labels: [{ name: 'some-key', value: 'some-value' }],
       logins: [
+        expect.objectContaining({
+          label: '{{internal.logins}}',
+          value: '{{internal.logins}}',
+        }),
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
@@ -258,13 +275,14 @@ describe('KubernetesAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<KubernetesAccessSpec>
+      <StatefulSection<KubernetesAccessSpec, AccessSpecValidationResult>
         component={KubernetesAccessSpecSection}
         defaultValue={newAccessSpec('kube_cluster')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -303,6 +321,7 @@ describe('KubernetesAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'kube_cluster',
       groups: [
+        expect.objectContaining({ value: '{{internal.kubernetes_groups}}' }),
         expect.objectContaining({ value: 'group1' }),
         expect.objectContaining({ value: 'group2' }),
       ],
@@ -399,73 +418,102 @@ describe('AppAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<AppAccessSpec>
+      <StatefulSection<AppAccessSpec, AccessSpecValidationResult>
         component={AppAccessSpecSection}
         defaultValue={newAccessSpec('app')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
   };
 
-  const awsRoleArn = () =>
-    within(screen.getByRole('group', { name: 'AWS Role ARNs' })).getByRole(
-      'textbox'
-    );
-  const azureIdentity = () =>
-    within(screen.getByRole('group', { name: 'Azure Identities' })).getByRole(
-      'textbox'
-    );
-  const gcpServiceAccount = () =>
-    within(
-      screen.getByRole('group', { name: 'GCP Service Accounts' })
-    ).getByRole('textbox');
+  const awsRoleArns = () =>
+    screen.getByRole('group', { name: 'AWS Role ARNs' });
+  const awsRoleArnTextBoxes = () =>
+    within(awsRoleArns()).getAllByRole('textbox');
+  const azureIdentities = () =>
+    screen.getByRole('group', { name: 'Azure Identities' });
+  const azureIdentityTextBoxes = () =>
+    within(azureIdentities()).getAllByRole('textbox');
+  const gcpServiceAccounts = () =>
+    screen.getByRole('group', { name: 'GCP Service Accounts' });
+  const gcpServiceAccountTextBoxes = () =>
+    within(gcpServiceAccounts()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
-    await user.type(awsRoleArn(), 'arn:aws:iam::123456789012:role/admin');
-    await user.type(
-      azureIdentity(),
-      '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
+    await user.click(
+      within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
     await user.type(
-      gcpServiceAccount(),
+      awsRoleArnTextBoxes()[1],
+      'arn:aws:iam::123456789012:role/admin'
+    );
+    await user.click(
+      within(azureIdentities()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(
+      azureIdentityTextBoxes()[1],
+      '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
+    );
+    await user.click(
+      within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(
+      gcpServiceAccountTextBoxes()[1],
       'admin@some-project.iam.gserviceaccount.com'
     );
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
       labels: [{ name: 'env', value: 'prod' }],
-      awsRoleARNs: ['arn:aws:iam::123456789012:role/admin'],
+      awsRoleARNs: [
+        '{{internal.aws_role_arns}}',
+        'arn:aws:iam::123456789012:role/admin',
+      ],
       azureIdentities: [
+        '{{internal.azure_identities}}',
         '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin',
       ],
-      gcpServiceAccounts: ['admin@some-project.iam.gserviceaccount.com'],
+      gcpServiceAccounts: [
+        '{{internal.gcp_service_accounts}}',
+        'admin@some-project.iam.gserviceaccount.com',
+      ],
     } as AppAccessSpec);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.type(awsRoleArn(), '*');
-    await user.type(azureIdentity(), '*');
-    await user.type(gcpServiceAccount(), '*');
+    await user.click(
+      within(awsRoleArns()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(awsRoleArnTextBoxes()[1], '*');
+    await user.click(
+      within(azureIdentities()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(azureIdentityTextBoxes()[1], '*');
+    await user.click(
+      within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
+    );
+    await user.type(gcpServiceAccountTextBoxes()[1], '*');
     act(() => validator.validate());
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-    expect(awsRoleArn()).toHaveAccessibleDescription(
+    expect(awsRoleArnTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in AWS role ARNs'
     );
-    expect(azureIdentity()).toHaveAccessibleDescription(
+    expect(azureIdentityTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in Azure identities'
     );
-    expect(gcpServiceAccount()).toHaveAccessibleDescription(
+    expect(gcpServiceAccountTextBoxes()[1]).toHaveAccessibleDescription(
       'Wildcard is not allowed in GCP service accounts'
     );
   });
@@ -476,13 +524,14 @@ describe('DatabaseAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<DatabaseAccessSpec>
+      <StatefulSection<DatabaseAccessSpec, AccessSpecValidationResult>
         component={DatabaseAccessSpecSection}
         defaultValue={newAccessSpec('db')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -505,9 +554,18 @@ describe('DatabaseAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'db',
       labels: [{ name: 'env', value: 'prod' }],
-      names: [expect.objectContaining({ label: 'stuff', value: 'stuff' })],
-      roles: [expect.objectContaining({ label: 'admin', value: 'admin' })],
-      users: [expect.objectContaining({ label: 'mary', value: 'mary' })],
+      names: [
+        expect.objectContaining({ value: '{{internal.db_names}}' }),
+        expect.objectContaining({ label: 'stuff', value: 'stuff' }),
+      ],
+      roles: [
+        expect.objectContaining({ value: '{{internal.db_roles}}' }),
+        expect.objectContaining({ label: 'admin', value: 'admin' }),
+      ],
+      users: [
+        expect.objectContaining({ value: '{{internal.db_users}}' }),
+        expect.objectContaining({ label: 'mary', value: 'mary' }),
+      ],
     } as DatabaseAccessSpec);
   });
 
@@ -532,13 +590,14 @@ describe('WindowsDesktopAccessSpecSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<WindowsDesktopAccessSpec>
+      <StatefulSection<WindowsDesktopAccessSpec, AccessSpecValidationResult>
         component={WindowsDesktopAccessSpecSection}
         defaultValue={newAccessSpec('windows_desktop')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
+        validate={validateAccessSpec}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -555,7 +614,10 @@ describe('WindowsDesktopAccessSpecSection', () => {
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'windows_desktop',
       labels: [{ name: 'os', value: 'win-xp' }],
-      logins: [expect.objectContaining({ label: 'julio', value: 'julio' })],
+      logins: [
+        expect.objectContaining({ value: '{{internal.windows_logins}}' }),
+        expect.objectContaining({ label: 'julio', value: 'julio' }),
+      ],
     } as WindowsDesktopAccessSpec);
   });
 
@@ -566,6 +628,63 @@ describe('WindowsDesktopAccessSpecSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
+  });
+});
+
+describe('AccessRules', () => {
+  const setup = () => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<RuleModel[], AccessRuleValidationResult[]>
+        component={AccessRules}
+        defaultValue={[]}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={rules => rules.map(validateAccessRule)}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { user, onChange } = setup();
+    await user.click(screen.getByRole('button', { name: 'Add New' }));
+    await selectEvent.select(screen.getByLabelText('Resources'), [
+      'db',
+      'node',
+    ]);
+    await selectEvent.select(screen.getByLabelText('Permissions'), [
+      'list',
+      'read',
+    ]);
+    expect(onChange).toHaveBeenLastCalledWith([
+      {
+        id: expect.any(String),
+        resources: [
+          { label: ResourceKind.Database, value: 'db' },
+          { label: ResourceKind.Node, value: 'node' },
+        ],
+        verbs: [
+          { label: 'list', value: 'list' },
+          { label: 'read', value: 'read' },
+        ],
+      },
+    ] as RuleModel[]);
+  });
+
+  test('validation', async () => {
+    const { user, validator } = setup();
+    await user.click(screen.getByRole('button', { name: 'Add New' }));
+    act(() => validator.validate());
+    expect(
+      screen.getByText('At least one resource kind is required')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('At least one permission is required')
+    ).toBeInTheDocument();
   });
 });
 

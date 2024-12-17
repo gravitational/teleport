@@ -32,7 +32,7 @@ import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInp
 
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import { MfaAuthnResponse } from 'teleport/services/mfa';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 import { WILD_CARD } from 'teleport/Discover/Shared/const';
 
 import {
@@ -93,7 +93,7 @@ export function TestConnection() {
 
   function testConnection(
     validator: Validator,
-    mfaResponse?: MfaAuthnResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     if (!validator.validate()) {
       return;
@@ -117,7 +117,7 @@ export function TestConnection() {
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(validator, res)}
+              onMfaResponse={async res => testConnection(validator, res)}
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />

@@ -35,7 +35,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
@@ -326,16 +326,16 @@ func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
 
 // getAWSV2Options returns a list of options to be used when
 // creating AWS clients with the v2 sdk.
-func (a *awsFetcher) getAWSV2Options() []config.AWSOptionsFn {
-	opts := []config.AWSOptionsFn{
-		config.WithCredentialsMaybeIntegration(a.Config.Integration),
+func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
 
 	if a.Config.AssumeRole != nil {
-		opts = append(opts, config.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
+		opts = append(opts, awsconfig.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
 	const maxRetries = 10
-	opts = append(opts, config.WithRetryer(func() awsv2.Retryer {
+	opts = append(opts, awsconfig.WithRetryer(func() awsv2.Retryer {
 		return retry.NewStandard(func(so *retry.StandardOptions) {
 			so.MaxAttempts = maxRetries
 			so.Backoff = retry.NewExponentialJitterBackoff(300 * time.Second)

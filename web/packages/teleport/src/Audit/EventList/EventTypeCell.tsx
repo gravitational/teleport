@@ -95,6 +95,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.BOT_CREATED]: Icons.Info,
   [eventCodes.BOT_UPDATED]: Icons.Info,
   [eventCodes.BOT_DELETED]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -195,6 +198,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
+  [eventCodes.PORTFORWARD_STOP]: Icons.Info,
   [eventCodes.SUBSYSTEM]: Icons.Info,
   [eventCodes.SUBSYSTEM_FAILURE]: Icons.Info,
   [eventCodes.LOCK_CREATED]: Icons.Lock,
@@ -254,6 +258,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
     Icons.Warning,
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: Icons.Warning,
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
@@ -286,6 +291,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CONTACT_CREATE]: Icons.Info,
   [eventCodes.CONTACT_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
+  [eventCodes.GIT_COMMAND]: Icons.GitHub,
+  [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
 };
 
 export default function renderTypeCell(event: Event) {

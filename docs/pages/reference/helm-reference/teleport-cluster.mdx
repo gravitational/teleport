@@ -16,7 +16,7 @@ The `teleport-cluster` chart runs three Teleport services, split into two sets o
 | Teleport service | Running in | Purpose | Documentation |
 | - | - | - | - |
 | `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../architecture/authentication.mdx)
-| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../enroll-resources/kubernetes-access/introduction.mdx) |
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Enrolling Kubernetes clusters](../../enroll-resources/kubernetes-access/introduction.mdx) |
 | `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../architecture/proxy.mdx) |
 
 <Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">
@@ -109,11 +109,13 @@ This is merged with chart-scoped values and takes precedence in case of conflict
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 auth:
   # But we override the `postStart` value specifically for auth pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 ```
 
@@ -193,11 +195,13 @@ For example, to override the [`postStart`](#postStart) value only for Teleport P
 and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 proxy:
   # But we override the `postStart` value specifically for proxy pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 
   # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
@@ -305,7 +309,7 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 |----------|---------------|-----------|---------------------------------------------|
 | `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
-`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+`authentication.secondFactor` configures multi-factor authentication for local users. Possible values supported by this chart
 are `on`, `otp`, and `webauthn`.
 
 When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
@@ -331,7 +335,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 ### `authentication.webauthn`
 
-See [Second Factor - WebAuthn](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
+See [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
@@ -989,7 +993,7 @@ to inject your custom configuration.
 
 `podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
 ](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
-that monitors the workload (Auth and Proxy Services) deployed by the chart.
+that monitors the workload (Auth Service and Proxy Service) deployed by the chart.
 This custom resource configures Prometheus and makes it scrape Teleport metrics.
 
 The CRD is deployed by the prometheus-operator and allows workload to

@@ -167,10 +167,10 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 		}))
 	t.Cleanup(brokenChannelUpstream.Close)
 
-	clock := clockwork.NewFakeClock()
+	cacheClock := clockwork.NewFakeClock()
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         findEndpointCacheTTL,
-		Clock:       clock,
+		Clock:       cacheClock,
 		Context:     ctx,
 		ReloadOnErr: false,
 	})
@@ -179,6 +179,9 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 		cmcCache.Shutdown(ctx)
 	})
 
+	// We don't use the cache clock because we are advancing it to invalidate the cmc cache and
+	// this would interfere with the test logic
+	clock := clockwork.NewFakeClock()
 	activeUpgradeWindow := types.AgentUpgradeWindow{UTCStartHour: uint32(clock.Now().Hour())}
 	inactiveUpgradeWindow := types.AgentUpgradeWindow{UTCStartHour: uint32(clock.Now().Add(2 * time.Hour).Hour())}
 	tests := []struct {
@@ -321,8 +324,8 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 			cmc := types.NewClusterMaintenanceConfig()
 			cmc.SetAgentUpgradeWindow(tt.upgradeWindow)
 			require.NoError(t, tt.channel.CheckAndSetDefaults())
-			// Advance clock to invalidate cache
-			clock.Advance(2 * findEndpointCacheTTL)
+			// Advance cache clock to expire cached cmc
+			cacheClock.Advance(2 * findEndpointCacheTTL)
 			h := &Handler{
 				cfg: Config{
 					AccessPoint: &fakeRolloutAccessPoint{

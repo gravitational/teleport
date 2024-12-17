@@ -24,8 +24,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // mockClient is a mock implementation if the Client interface for testing purposes.
@@ -39,6 +42,7 @@ type mockClient struct {
 	createAutoUpdateAgentRollout *createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]
 	updateAutoUpdateAgentRollout *createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]
 	deleteAutoUpdateAgentRollout *deleteHandler
+	getClusterMaintenanceConfig  *legacyGetHandler[*types.ClusterMaintenanceConfigV1]
 }
 
 func (m mockClient) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
@@ -65,6 +69,10 @@ func (m mockClient) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
 	return m.deleteAutoUpdateAgentRollout.handle(ctx)
 }
 
+func (m mockClient) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	return m.getClusterMaintenanceConfig.handle(ctx)
+}
+
 func (m mockClient) checkIfEmpty(t *testing.T) {
 	require.True(t, m.getAutoUpdateConfig.isEmpty(), "Get autoupdate_config mock not empty")
 	require.True(t, m.getAutoUpdateVersion.isEmpty(), "Get autoupdate_version mock not empty")
@@ -72,6 +80,7 @@ func (m mockClient) checkIfEmpty(t *testing.T) {
 	require.True(t, m.createAutoUpdateAgentRollout.isEmpty(), "Create autoupdate_agent_rollout mock not empty")
 	require.True(t, m.updateAutoUpdateAgentRollout.isEmpty(), "Update autoupdate_agent_rollout mock not empty")
 	require.True(t, m.deleteAutoUpdateAgentRollout.isEmpty(), "Delete autoupdate_agent_rollout mock not empty")
+	require.True(t, m.getClusterMaintenanceConfig.isEmpty(), "Get cluster_maintenance config mock not empty")
 }
 
 func newMockClient(t *testing.T, stubs mockClientStubs) *mockClient {
@@ -86,6 +95,7 @@ func newMockClient(t *testing.T, stubs mockClientStubs) *mockClient {
 		createAutoUpdateAgentRollout: &createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]{t, stubs.createRolloutExpects, stubs.createRolloutAnswers},
 		updateAutoUpdateAgentRollout: &createUpdateHandler[*autoupdate.AutoUpdateAgentRollout]{t, stubs.updateRolloutExpects, stubs.updateRolloutAnswers},
 		deleteAutoUpdateAgentRollout: &deleteHandler{t, stubs.deleteRolloutAnswers},
+		getClusterMaintenanceConfig:  &legacyGetHandler[*types.ClusterMaintenanceConfigV1]{t, stubs.cmcAnswers},
 	}
 }
 
@@ -98,6 +108,7 @@ type mockClientStubs struct {
 	updateRolloutAnswers []callAnswer[*autoupdate.AutoUpdateAgentRollout]
 	updateRolloutExpects []require.ValueAssertionFunc
 	deleteRolloutAnswers []error
+	cmcAnswers           []callAnswer[*types.ClusterMaintenanceConfigV1]
 }
 
 type callAnswer[T any] struct {
@@ -128,6 +139,35 @@ func (h *getHandler[T]) handle(_ context.Context) (T, error) {
 
 // isEmpty returns true only if all stubs were consumed
 func (h *getHandler[T]) isEmpty() bool {
+	return len(h.answers) == 0
+}
+
+// legacyGetHandler is a getHandler for legacy teleport types (gogo proto-based)
+// A first iteration was trying to be smart and reuse the getHandler logic
+// by converting fixtures before to protoadapt.MessageV2, and converting back to
+// protoadapt.MessageV1 before returning. The resulting code was hard to read and
+// duplicating the logic seems more maintainable.
+type legacyGetHandler[T protoadapt.MessageV1] struct {
+	t       *testing.T
+	answers []callAnswer[T]
+}
+
+func (h *legacyGetHandler[T]) handle(_ context.Context) (T, error) {
+	if len(h.answers) == 0 {
+		require.Fail(h.t, "no answers left")
+	}
+
+	entry := h.answers[0]
+	h.answers = h.answers[1:]
+
+	// We need to deep copy because the reconciler might do updates in place.
+	// We don't want the original resource to be edited as this would mess with other tests.
+	result := apiutils.CloneProtoMsg(entry.result)
+	return result, entry.err
+}
+
+// isEmpty returns true only if all stubs were consumed
+func (h *legacyGetHandler[T]) isEmpty() bool {
 	return len(h.answers) == 0
 }
 

@@ -35,6 +35,7 @@ import {
   KubernetesResourceModel,
   MetadataModel,
   RoleEditorModel,
+  RuleModel,
 } from './standardmodel';
 
 const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
@@ -49,10 +50,12 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
 export function validateRoleEditorModel({
   metadata,
   accessSpecs,
+  rules,
 }: RoleEditorModel) {
   return {
     metadata: validateMetadata(metadata),
     accessSpecs: accessSpecs.map(validateAccessSpec),
+    rules: rules.map(validateAccessRule),
   };
 }
 
@@ -60,7 +63,10 @@ function validateMetadata(model: MetadataModel): MetadataValidationResult {
   return runRules(model, metadataRules);
 }
 
-const metadataRules = { name: requiredField('Role name is required') };
+const metadataRules = {
+  name: requiredField('Role name is required'),
+  labels: nonEmptyLabels,
+};
 export type MetadataValidationResult = RuleSetValidationResult<
   typeof metadataRules
 >;
@@ -165,4 +171,15 @@ const windowsDesktopSpecValidationRules = {
 };
 export type WindowsDesktopSpecValidationResult = RuleSetValidationResult<
   typeof windowsDesktopSpecValidationRules
+>;
+
+export const validateAccessRule = (accessRule: RuleModel) =>
+  runRules(accessRule, accessRuleValidationRules);
+
+const accessRuleValidationRules = {
+  resources: requiredField('At least one resource kind is required'),
+  verbs: requiredField('At least one permission is required'),
+};
+export type AccessRuleValidationResult = RuleSetValidationResult<
+  typeof accessRuleValidationRules
 >;

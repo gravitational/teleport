@@ -34,7 +34,7 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
+import type { WebauthnAssertionResponse } from './services/mfa';
 import type {
   PluginKind,
   Regions,
@@ -176,6 +176,8 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -246,7 +248,6 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
@@ -257,6 +258,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -319,6 +321,8 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationStatsPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
@@ -656,6 +660,14 @@ const cfg = {
     });
   },
 
+  getDbConnectRoute(params: UrlDbConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDbSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbSession, { clusterId, sid });
+  },
+
   getKubeExecSessionRoute(
     { clusterId, sid }: UrlParams,
     mode?: ParticipantMode
@@ -849,13 +861,6 @@ const cfg = {
     });
   },
 
-  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopServicesPath, {
-      clusterId,
-      ...params,
-    });
-  },
-
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
@@ -963,6 +968,14 @@ const cfg = {
     return generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
+    });
+  },
+
+  getIntegrationStatsUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
     });
   },
 
@@ -1246,6 +1259,11 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+}
+
+export interface UrlDbConnectParams {
+  clusterId: string;
+  serviceName: string;
 }
 
 export interface UrlSessionRecordingsParams {

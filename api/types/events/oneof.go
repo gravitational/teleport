@@ -604,6 +604,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
 			AccessListMemberDeleteAllForAccessList: e,
 		}
+	case *UserLoginAccessListInvalid:
+		out.Event = &OneOf_UserLoginAccessListInvalid{
+			UserLoginAccessListInvalid: e,
+		}
 	case *AuditQueryRun:
 		out.Event = &OneOf_AuditQueryRun{
 			AuditQueryRun: e,
@@ -797,6 +801,23 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *ContactDelete:
 		out.Event = &OneOf_ContactDelete{
 			ContactDelete: e,
+		}
+
+	case *WorkloadIdentityCreate:
+		out.Event = &OneOf_WorkloadIdentityCreate{
+			WorkloadIdentityCreate: e,
+		}
+	case *WorkloadIdentityUpdate:
+		out.Event = &OneOf_WorkloadIdentityUpdate{
+			WorkloadIdentityUpdate: e,
+		}
+	case *WorkloadIdentityDelete:
+		out.Event = &OneOf_WorkloadIdentityDelete{
+			WorkloadIdentityDelete: e,
+		}
+	case *GitCommand:
+		out.Event = &OneOf_GitCommand{
+			GitCommand: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

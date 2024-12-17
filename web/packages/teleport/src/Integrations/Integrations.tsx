@@ -41,7 +41,6 @@ export function Integrations() {
   const { attempt, run } = useAttempt('processing');
 
   const ctx = useTeleport();
-  const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
 
   useEffect(() => {
     // TODO(lisa): handle paginating as a follow up polish.
@@ -80,9 +79,16 @@ export function Integrations() {
   return (
     <>
       <FeatureBox>
-        <FeatureHeader>
+        <FeatureHeader justifyContent="space-between">
           <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-          <IntegrationsAddButton canCreate={canCreateIntegrations} />
+          <IntegrationsAddButton
+            requiredPermissions={[
+              {
+                value: ctx.storeUser.getIntegrationsAccess().create,
+                label: 'integration.create',
+              },
+            ]}
+          />
         </FeatureHeader>
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         {attempt.status === 'processing' && (

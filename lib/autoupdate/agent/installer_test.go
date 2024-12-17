@@ -255,7 +255,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "executable",
+			errMatch: "no binaries",
 		},
 		{
 			name: "present with existing links",
@@ -396,6 +396,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
@@ -404,6 +405,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
 				},
+				ValidateBinary: validator.IsExecutable,
 			}
 			ctx := context.Background()
 			revert, err := installer.Link(ctx, NewRevision(version, 0))
@@ -523,7 +525,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "executable",
+			errMatch: "no binaries",
 		},
 		{
 			name: "present with existing links",
@@ -649,6 +651,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
@@ -657,6 +660,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
 				},
+				ValidateBinary: validator.IsExecutable,
 			}
 			ctx := context.Background()
 			err = installer.TryLink(ctx, NewRevision(version, 0))
@@ -797,6 +801,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 
 			linkDir := t.TempDir()
 
+			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
 				InstallDir:      versionsDir,
 				LinkBinDir:      filepath.Join(linkDir, "bin"),
@@ -805,6 +810,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				TransformService: func(b []byte) []byte {
 					return []byte("[transform]" + string(b))
 				},
+				ValidateBinary: validator.IsExecutable,
 			}
 			ctx := context.Background()
 

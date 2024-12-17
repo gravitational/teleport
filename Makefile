@@ -600,6 +600,7 @@ build-archive: | $(RELEASE_DIR)
 		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
+		build.assets/LICENSE-community \
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
@@ -1838,3 +1839,7 @@ create-github-release:
 	--latest=$(LATEST) \
 	--verify-tag \
 	-F - <<< "$$NOTES"
+
+.PHONY: go-mod-tidy-all
+go-mod-tidy-all:
+	find . -type "f" -name "go.mod" -execdir go mod tidy \;

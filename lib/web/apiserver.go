@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -315,6 +316,9 @@ type Config struct {
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
+
+	// DatabaseREPLRegistry is used for retrieving database REPL.
+	DatabaseREPLRegistry dbrepl.REPLRegistry
 }
 
 // SetDefaults ensures proper default values are set if
@@ -834,6 +838,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
 	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -912,7 +917,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.DELETE("/webapi/mfa/devices", h.WithAuth(h.deleteMFADeviceHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
+
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 	// DEPRECATED in favor of mfa/authenticatechallenge.
 	// TODO(bl-nero): DELETE IN 17.0.0
@@ -921,7 +929,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
 	// Web UI.
-	h.GET("/webapi/devices/webconfirm", h.WithAuthCookieAndCSRF(h.deviceWebConfirm))
+	h.GET("/webapi/devices/webconfirm", h.WithSession(h.deviceWebConfirm))
 
 	// trusted clusters
 	h.POST("/webapi/trustedclusters/validate", h.WithUnauthenticatedLimiter(h.validateTrustedCluster))
@@ -972,6 +980,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
+	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
@@ -1007,6 +1016,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
+
+	// Okta integration endpoints.
+	h.GET("/.well-known/jwks-okta", h.WithLimiter(h.jwksOkta))
 
 	// Azure OIDC integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))
@@ -1241,7 +1253,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !pingResp.LicenseExpiry.IsZero() {
+	if pingResp.LicenseExpiry != nil && !pingResp.LicenseExpiry.IsZero() {
 		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
 	}
 
@@ -3069,9 +3081,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
-	var dbNames, dbUsers []string
-	hasFetchedDBUsersAndNames := false
-
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
@@ -3083,14 +3092,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
 		case types.DatabaseServer:
-			if !hasFetchedDBUsersAndNames {
-				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				hasFetchedDBUsersAndNames = true
-			}
-			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
+			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3584,6 +3586,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	term, err := NewTerminal(ctx, TerminalHandlerConfig{
+		Logger:             h.logger,
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		UserAuthClient:     clt,
@@ -3736,6 +3739,7 @@ func (h *Handler) podConnect(
 		ws:                  ws,
 		keepAliveInterval:   keepAliveInterval,
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
+		logger:              h.logger.With(teleport.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,
@@ -4677,9 +4681,22 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 }
 
 // WithAuth ensures that a request is authenticated.
+// Authenticated requests require both a session cookie as well as a bearer token.
 func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		sctx, err := h.AuthenticateRequest(w, r, true)
+		sctx, err := h.AuthenticateRequest(w, r, true /* check bearer token */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p, sctx)
+	})
+}
+
+// WithSession ensures that the request provides a session cookie.
+// It does not check for a bearer token.
+func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false /* check bearer token */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

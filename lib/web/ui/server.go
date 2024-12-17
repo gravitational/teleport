@@ -306,6 +306,9 @@ type Database struct {
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportsInteractive is a flag to indicate the database supports
+	// interactive sessions using database REPLs.
+	SupportsInteractive bool `json:"supports_interactive,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -322,22 +325,35 @@ const (
 	LabelStatus = "status"
 )
 
+// DatabaseInteractiveChecker is used to check if the database supports
+// interactive sessions using database REPLs.
+type DatabaseInteractiveChecker interface {
+	IsSupported(protocol string) bool
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	dbNames := accessChecker.EnumerateDatabaseNames(database)
+	var dbUsers []string
+	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+		dbUsers = res.Allowed()
+	}
+
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                database.GetKind(),
+		Name:                database.GetName(),
+		Desc:                database.GetDescription(),
+		Protocol:            database.GetProtocol(),
+		Type:                database.GetType(),
+		Labels:              uiLabels,
+		DatabaseUsers:       dbUsers,
+		DatabaseNames:       dbNames.Allowed(),
+		Hostname:            stripProtocolAndPort(database.GetURI()),
+		URI:                 database.GetURI(),
+		RequiresRequest:     requiresRequest,
+		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
 	}
 
 	if database.IsAWSHosted() {
@@ -355,10 +371,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 

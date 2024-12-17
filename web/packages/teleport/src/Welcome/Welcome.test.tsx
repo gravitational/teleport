@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
@@ -89,7 +88,7 @@ describe('teleport/components/Welcome', () => {
       expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/confirm password/i)).toBeInTheDocument();
+    expect(await screen.findByText(/confirm password/i)).toBeInTheDocument();
   });
 
   it('should have correct welcome prompt flow for reset', async () => {
@@ -123,7 +122,7 @@ describe('teleport/components/Welcome', () => {
     });
     expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
-    expect(screen.getByText(/submit/i)).toBeInTheDocument();
+    expect(await screen.findByText(/submit/i)).toBeInTheDocument();
   });
 
   it('reset password', async () => {
@@ -217,7 +216,7 @@ describe('teleport/components/Welcome', () => {
     });
 
     // Trigger submit.
-    await user.click(screen.getByText(/submit/i));
+    await user.click(await screen.findByText(/submit/i));
 
     expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
       expect.objectContaining({

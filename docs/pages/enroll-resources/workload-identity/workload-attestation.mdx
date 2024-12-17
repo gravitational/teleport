@@ -37,10 +37,25 @@ available to be used when configuring rules for `tbot`'s Workload API service:
 
 | Field             | Description                                                                  |
 |-------------------|------------------------------------------------------------------------------|
-| `unix.attested` | Indicates that the workload has been attested by the Unix Workload Attestor. |
+| `unix.attested`   | Indicates that the workload has been attested by the Unix Workload Attestor. |
 | `unix.pid`        | The process ID of the attested workload.                                     |
 | `unix.uid`        | The effective user ID of the attested workload.                              |
 | `unix.gid`        | The effective primary group ID of the attested workload.                     |
+
+### Support for non-standard procfs mounting
+
+To resolve information about a process from the PID, the Unix Workload Attestor
+reads information from the procfs filesystem. By default, it expects procfs to
+be mounted at `/proc`.
+
+If procfs is mounted at a different location, you must configure the Unix
+Workload Attestor to read from that alternative location by setting the
+`HOST_PROC` environment variable.
+
+This is a sensitive configuration option, and you should ensure that it is
+set correctly or not set at all. If misconfigured, an attacker could provide
+falsified information about processes, and this could lead to the issuance of
+SVIDs to unauthorized workloads.
 
 ## Kubernetes
 

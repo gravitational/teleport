@@ -36,10 +36,10 @@ type Fetcher interface {
 	// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
 	// Might be empty when the fetcher is using ambient credentials.
 	IntegrationName() string
-	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	// GetDiscoveryConfigName is the name of the discovery config which originated the resource.
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
-	DiscoveryConfigName() string
+	GetDiscoveryConfigName() string
 	// Cloud returns the cloud the fetcher is operating.
 	Cloud() string
 }

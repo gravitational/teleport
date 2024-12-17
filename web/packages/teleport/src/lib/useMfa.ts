@@ -20,11 +20,12 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
+import { parseMfaChallengeJson as parseMfaChallenge } from 'teleport/services/mfa/makeMfa';
 import {
-  makeMfaAuthenticateChallenge,
-  makeWebauthnAssertionResponse,
+  MfaAuthenticateChallengeJson,
   SSOChallenge,
-} from 'teleport/services/auth';
+} from 'teleport/services/mfa';
+import auth from 'teleport/services/auth/auth';
 
 export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState<{
@@ -83,16 +84,17 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       return;
     }
 
-    navigator.credentials
-      .get({ publicKey: state.webauthnPublicKey })
+    auth
+      .getMfaChallengeResponse({
+        webauthnPublicKey: state.webauthnPublicKey,
+      })
       .then(res => {
         setState(prevState => ({
           ...prevState,
           errorText: '',
           webauthnPublicKey: null,
         }));
-        const credential = makeWebauthnAssertionResponse(res);
-        emitterSender.sendWebAuthn(credential);
+        emitterSender.sendWebAuthn(res.webauthn_response);
       })
       .catch((err: Error) => {
         setErrorText(err.message);
@@ -129,8 +131,12 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   useEffect(() => {
     let ssoChallengeAbortController: AbortController | undefined;
     const challengeHandler = (challengeJson: string) => {
+      const challenge = JSON.parse(
+        challengeJson
+      ) as MfaAuthenticateChallengeJson;
+
       const { webauthnPublicKey, ssoChallenge, totpChallenge } =
-        makeMfaAuthenticateChallenge(challengeJson);
+        parseMfaChallenge(challenge);
 
       setState(prevState => ({
         ...prevState,

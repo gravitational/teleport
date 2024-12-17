@@ -111,6 +111,9 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// SSHPortForwardMode returns the SSHPortForwardMode that the RoleSet allows.
+	SSHPortForwardMode() SSHPortForwardMode
+
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
 	// one or more of the roles in the set has disabled it.
@@ -444,6 +447,18 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
+
+	switch rr := r.(type) {
+	case types.Resource153Unwrapper:
+		switch urr := rr.Unwrap().(type) {
+		case IdentityCenterAccount:
+			matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
+
+		case IdentityCenterAccountAssignment:
+			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
+		}
+	}
+
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
@@ -1349,6 +1364,9 @@ type UserState interface {
 
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
+
+	// GetGithubIdentities returns a list of connected GitHub identities
+	GetGithubIdentities() []types.ExternalIdentity
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and
