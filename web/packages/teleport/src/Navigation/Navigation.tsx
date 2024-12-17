@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useLocation, useHistory } from 'react-router';
 import { Box, Text, Flex } from 'design';

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { bblpTheme, lightTheme, darkTheme, Theme } from 'design/theme';
 import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';

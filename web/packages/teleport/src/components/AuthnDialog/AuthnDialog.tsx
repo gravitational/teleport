@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Dialog, { DialogContent } from 'design/Dialog';
 import { Danger } from 'design/Alert';
 import { FingerprintSimple, Cross } from 'design/Icon';

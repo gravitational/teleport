@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import { OutlineInfo } from 'design/Alert/Alert';
 import { Mark } from 'design';
