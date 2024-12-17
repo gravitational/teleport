@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -233,6 +234,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.PreviousIdentityExpires = asTime
 	}
+	identity.GitHubUserID = certificate.Extensions[teleport.CertExtensionGitHubUserID]
 
 	return identity, nil
 }
@@ -493,6 +495,12 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
 			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
 		}
+	} else if h.c.Component == teleport.ComponentForwardingGit {
+		if h.c.TargetServer != nil && h.c.TargetServer.GetGitHub() != nil {
+			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+		} else {
+			return nil, trace.BadParameter("missing server or spec for Git proxy")
+		}
 	} else {
 		// the SSH server is a Teleport node, preform an RBAC check now
 		err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
@@ -571,9 +579,14 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	// Use the server's shutdown context.
 	ctx := h.c.Server.Context()
 
-	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
-	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
+	switch h.c.Server.TargetMetadata().ServerSubKind {
+	case types.SubKindOpenSSHEICENode:
+		// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support
+		// Certificates in ec2.SendSSHPublicKey).
 		return nil
+
+	case types.SubKindGitHub:
+		return trace.Wrap(git.VerifyGitHubHostKey(hostname, remote, key))
 	}
 
 	// If strict host key checking is enabled, reject host key fallback.
@@ -678,11 +691,23 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
+	// Make role matchers.
+	var roleMatchers []services.RoleMatcher
+	switch a.c.Component {
+	case teleport.ComponentForwardingGit:
+		if osUser != teleport.SSHGitPrincipal {
+			return trace.BadParameter("only expecting %s as login for Git commands but got %s", teleport.SSHGitPrincipal, osUser)
+		}
+		// Now continue to CheckAccess on the resource.
+	default:
+		roleMatchers = append(roleMatchers, services.NewLoginMatcher(osUser))
+	}
+
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		target,
 		state,
-		services.NewLoginMatcher(osUser),
+		roleMatchers...,
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)

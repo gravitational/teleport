@@ -320,6 +320,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// GitServerGetter defines a service to get Git servers.
+	services.GitServerGetter
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -419,6 +422,9 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GitServerGetter defines a service to get Git servers.
+	services.GitServerGetter
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1252,6 +1258,9 @@ type Cache interface {
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
+
+	// GitServerGetter defines methods for fetching Git servers.
+	services.GitServerGetter
 }
 
 type NodeWrapper struct {
