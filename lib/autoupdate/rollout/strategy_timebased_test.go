@@ -44,9 +44,10 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		initialState  []*autoupdate.AutoUpdateAgentRolloutStatusGroup
-		expectedState []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		name             string
+		initialState     []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		rolloutStartTime *timestamppb.Timestamp
+		expectedState    []*autoupdate.AutoUpdateAgentRolloutStatusGroup
 	}{
 		{
 			name: "unstarted -> unstarted",
@@ -67,6 +68,30 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+		},
+		{
+			name: "unstarted -> unstarted because rollout just changed",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   lastUpdate,
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+			rolloutStartTime: timestamppb.New(clock.Now()),
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonRolloutChanged,
+					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 				},
 			},
@@ -302,13 +327,18 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := strategy.progressRollout(ctx, tt.initialState)
+			status := &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups:    tt.initialState,
+				State:     0,
+				StartTime: tt.rolloutStartTime,
+			}
+			err := strategy.progressRollout(ctx, status)
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.
 			// So it's better to be more conservative and validate order never changes for
 			// both strategies.
-			require.Equal(t, tt.expectedState, tt.initialState)
+			require.Equal(t, tt.expectedState, status.Groups)
 		})
 	}
 }

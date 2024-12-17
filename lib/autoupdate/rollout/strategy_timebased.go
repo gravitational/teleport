@@ -20,18 +20,19 @@ package rollout
 
 import (
 	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"log/slog"
+	"time"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 )
 
 const (
-	updateReasonInWindow      = "in_window"
-	updateReasonOutsideWindow = "outside_window"
+	updateReasonInWindow       = "in_window"
+	updateReasonOutsideWindow  = "outside_window"
+	updateReasonRolloutChanged = "rollout_changed_during_window"
 )
 
 type timeBasedStrategy struct {
@@ -56,11 +57,11 @@ func newTimeBasedStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrat
 	}, nil
 }
 
-func (h *timeBasedStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	now := h.clock.Now()
 	// We always process every group regardless of the order.
 	var errs []error
-	for _, group := range groups {
+	for _, group := range status.Groups {
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
@@ -76,10 +77,17 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, groups []*autou
 				errs = append(errs, err)
 				continue
 			}
-			if shouldBeActive {
-				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonInWindow, now)
-			} else {
+
+			// Check if the rollout got created after the theoretical group start time
+			rolloutChangedDuringWindow := status.StartTime.AsTime().After(now.Truncate(time.Hour))
+
+			switch {
+			case !shouldBeActive:
 				setGroupState(group, group.State, updateReasonOutsideWindow, now)
+			case rolloutChangedDuringWindow:
+				setGroupState(group, group.State, updateReasonRolloutChanged, now)
+			default:
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonInWindow, now)
 			}
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
 			// We don't touch any group that was manually rolled back.
