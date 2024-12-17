@@ -20,7 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/workloadidentity/v1/attrs.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1pb";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // WorkloadIdentityIssuanceService is the service that issues workload identity
 // credentials.

@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1pb";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // Attributes sourced from the Kubernetes workload attestor.
 message WorkloadAttrsKubernetes {
