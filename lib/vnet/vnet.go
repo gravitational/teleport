@@ -117,7 +117,7 @@ type TCPHandlerSpec struct {
 // [connector] to complete the TCP handshake and get the TCP conn. This is so that clients will see that the
 // TCP connection was refused, instead of seeing a successful TCP dial that is immediately closed.
 type TCPHandler interface {
-	HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error
+	HandleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error
 }
 
 // UDPHandler defines the behavior for handling UDP connections from VNet.
@@ -423,7 +423,7 @@ func (ns *NetworkStack) handleTCP(req *tcp.ForwarderRequest) {
 		return conn, nil
 	}
 
-	if err := handler.HandleTCPConnector(ctx, connector); err != nil {
+	if err := handler.HandleTCPConnector(ctx, id.LocalPort, connector); err != nil {
 		if errors.Is(err, context.Canceled) {
 			slog.DebugContext(ctx, "TCP connection handler returned early due to canceled context.")
 		} else {
