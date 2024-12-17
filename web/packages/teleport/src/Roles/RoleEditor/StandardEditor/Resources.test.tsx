@@ -22,36 +22,39 @@ import { Validator } from 'shared/components/Validation';
 import selectEvent from 'react-select-event';
 
 import {
-  AppAccessSpec,
-  DatabaseAccessSpec,
-  KubernetesAccessSpec,
-  newAccessSpec,
-  ServerAccessSpec,
-  WindowsDesktopAccessSpec,
+  ServerAccess,
+  newResourceAccess,
+  KubernetesAccess,
+  AppAccess,
+  DatabaseAccess,
+  WindowsDesktopAccess,
 } from './standardmodel';
-import { AccessSpecValidationResult, validateAccessSpec } from './validation';
 import {
-  ServerAccessSpecSection,
-  KubernetesAccessSpecSection,
-  AppAccessSpecSection,
-  DatabaseAccessSpecSection,
-  WindowsDesktopAccessSpecSection,
+  ResourceAccessValidationResult,
+  validateResourceAccess,
+} from './validation';
+import {
+  ServerAccessSection,
+  KubernetesAccessSection,
+  AppAccessSection,
+  DatabaseAccessSection,
+  WindowsDesktopAccessSection,
 } from './Resources';
 import { StatefulSection } from './StatefulSection';
 
-describe('ServerAccessSpecSection', () => {
+describe('ServerAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<ServerAccessSpec, AccessSpecValidationResult>
-        component={ServerAccessSpecSection}
-        defaultValue={newAccessSpec('node')}
+      <StatefulSection<ServerAccess, ResourceAccessValidationResult>
+        component={ServerAccessSection}
+        defaultValue={newResourceAccess('node')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -80,7 +83,7 @@ describe('ServerAccessSpecSection', () => {
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
-    } as ServerAccessSpec);
+    } as ServerAccess);
   });
 
   test('validation', async () => {
@@ -99,25 +102,25 @@ describe('ServerAccessSpecSection', () => {
   });
 });
 
-describe('KubernetesAccessSpecSection', () => {
+describe('KubernetesAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<KubernetesAccessSpec, AccessSpecValidationResult>
-        component={KubernetesAccessSpecSection}
-        defaultValue={newAccessSpec('kube_cluster')}
+      <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
+        component={KubernetesAccessSection}
+        defaultValue={newResourceAccess('kube_cluster')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
   };
 
-  test('editing the spec', async () => {
+  test('editing', async () => {
     const { user, onChange } = setup();
 
     await selectEvent.create(screen.getByLabelText('Groups'), 'group1', {
@@ -167,7 +170,7 @@ describe('KubernetesAccessSpecSection', () => {
           ],
         },
       ],
-    } as KubernetesAccessSpec);
+    } as KubernetesAccess);
   });
 
   test('adding and removing resources', async () => {
@@ -242,19 +245,19 @@ describe('KubernetesAccessSpecSection', () => {
   });
 });
 
-describe('AppAccessSpecSection', () => {
+describe('AppAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<AppAccessSpec, AccessSpecValidationResult>
-        component={AppAccessSpecSection}
-        defaultValue={newAccessSpec('app')}
+      <StatefulSection<AppAccess, ResourceAccessValidationResult>
+        component={AppAccessSection}
+        defaultValue={newResourceAccess('app')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -314,7 +317,7 @@ describe('AppAccessSpecSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
-    } as AppAccessSpec);
+    } as AppAccess);
   });
 
   test('validation', async () => {
@@ -348,19 +351,19 @@ describe('AppAccessSpecSection', () => {
   });
 });
 
-describe('DatabaseAccessSpecSection', () => {
+describe('DatabaseAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<DatabaseAccessSpec, AccessSpecValidationResult>
-        component={DatabaseAccessSpecSection}
-        defaultValue={newAccessSpec('db')}
+      <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
+        component={DatabaseAccessSection}
+        defaultValue={newResourceAccess('db')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -395,7 +398,7 @@ describe('DatabaseAccessSpecSection', () => {
         expect.objectContaining({ value: '{{internal.db_users}}' }),
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
-    } as DatabaseAccessSpec);
+    } as DatabaseAccess);
   });
 
   test('validation', async () => {
@@ -414,19 +417,19 @@ describe('DatabaseAccessSpecSection', () => {
   });
 });
 
-describe('WindowsDesktopAccessSpecSection', () => {
+describe('WindowsDesktopAccessSection', () => {
   const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<WindowsDesktopAccessSpec, AccessSpecValidationResult>
-        component={WindowsDesktopAccessSpecSection}
-        defaultValue={newAccessSpec('windows_desktop')}
+      <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
+        component={WindowsDesktopAccessSection}
+        defaultValue={newResourceAccess('windows_desktop')}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={validateAccessSpec}
+        validate={validateResourceAccess}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -447,7 +450,7 @@ describe('WindowsDesktopAccessSpecSection', () => {
         expect.objectContaining({ value: '{{internal.windows_logins}}' }),
         expect.objectContaining({ label: 'julio', value: 'julio' }),
       ],
-    } as WindowsDesktopAccessSpec);
+    } as WindowsDesktopAccess);
   });
 
   test('validation', async () => {

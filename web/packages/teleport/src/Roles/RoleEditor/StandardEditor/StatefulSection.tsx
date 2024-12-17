@@ -23,20 +23,20 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { SectionProps } from './sections';
 
 /** A helper for testing editor section components. */
-export function StatefulSection<Spec, ValidationResult>({
+export function StatefulSection<Model, ValidationResult>({
   defaultValue,
   component: Component,
   onChange,
   validatorRef,
   validate,
 }: {
-  defaultValue: Spec;
-  component: React.ComponentType<SectionProps<Spec, any>>;
-  onChange(spec: Spec): void;
+  defaultValue: Model;
+  component: React.ComponentType<SectionProps<Model, any>>;
+  onChange(model: Model): void;
   validatorRef?(v: Validator): void;
-  validate(arg: Spec): ValidationResult;
+  validate(arg: Model): ValidationResult;
 }) {
-  const [model, setModel] = useState<Spec>(defaultValue);
+  const [model, setModel] = useState<Model>(defaultValue);
   const validation = validate(model);
   return (
     <Validation>
@@ -47,9 +47,9 @@ export function StatefulSection<Spec, ValidationResult>({
             value={model}
             validation={validation}
             isProcessing={false}
-            onChange={spec => {
-              setModel(spec);
-              onChange(spec);
+            onChange={model => {
+              setModel(model);
+              onChange(model);
             }}
           />
         );
