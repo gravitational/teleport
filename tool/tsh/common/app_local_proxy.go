@@ -35,8 +35,10 @@ import (
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc          *client.TeleportClient
-	appInfo     *appInfo
+	tc      *client.TeleportClient
+	appInfo *appInfo
+	// app is available only when starting a localProxyApp through newLocalProxyAppWithPortMapping.
+	app         types.Application
 	insecure    bool
 	portMapping client.PortMapping
 
@@ -74,6 +76,7 @@ func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportCli
 	return &localProxyApp{
 		tc:          tc,
 		appInfo:     appInfo,
+		app:         app,
 		portMapping: portMapping,
 		insecure:    insecure,
 	}, nil
@@ -152,7 +155,15 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 	// Otherwise, let the checker reissue one as needed.
 	cert, err := loadAppCertificate(a.tc, routeToApp.Name)
 	if err == nil {
-		appCertChecker.SetCert(cert)
+		if a.app != nil && len(a.app.GetTCPPorts()) > 0 {
+			// There are too many cases to cover when dealing with a multi-port app and an existing cert.
+			// We'd need to consider portMapping passed from argv and TargetPort in the cert.
+			// As tsh proxy app is not the recommended way to access multi-port apps, let's bail out of
+			// using the existing cert and instead always generate a new one.
+			fmt.Println("Warning: Ignoring existing app cert and generating a new one. Connections made through this proxy will be routed according to command arguments.")
+		} else {
+			appCertChecker.SetCert(cert)
+		}
 	}
 
 	listenAddr := fmt.Sprintf("localhost:%d", portMapping.LocalPort)
