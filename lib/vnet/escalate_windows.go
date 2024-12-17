@@ -14,44 +14,27 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin
-// +build !darwin
+//go:build windows
+// +build windows
 
 package vnet
 
 import (
 	"context"
-	"net"
-	"os"
-	"runtime"
 
 	"github.com/gravitational/trace"
-	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 var (
 	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on windows"}
 )
 
-func createUnixSocket() (*net.UnixListener, string, error) {
-	return nil, "", trace.Wrap(ErrVnetNotImplemented)
-}
-
-func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
-	return nil, trace.Wrap(ErrVnetNotImplemented)
-}
-
+// execAdminProcess is called from the normal user process to execute the admin
+// subcommand as root.
 func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func DaemonSubcommand(ctx context.Context) error {
+	// TODO(nklaassen): implement execAdminProcess on windows.
 	return trace.Wrap(ErrVnetNotImplemented)
 }

@@ -48,8 +48,8 @@ type GKEFetcherConfig struct {
 	FilterLabels types.Labels
 	// Log is the logger.
 	Log logrus.FieldLogger
-	// DiscoveryConfig is the name of the discovery config which originated the resource.
-	DiscoveryConfig string
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -154,8 +154,8 @@ func (a *gkeFetcher) IntegrationName() string {
 	// There is currently no integration that supports Auto Discover for GCP resources.
 	return ""
 }
-func (a *gkeFetcher) DiscoveryConfigName() string {
-	return a.DiscoveryConfig
+func (a *gkeFetcher) GetDiscoveryConfigName() string {
+	return a.DiscoveryConfigName
 }
 
 func (a *gkeFetcher) String() string {
