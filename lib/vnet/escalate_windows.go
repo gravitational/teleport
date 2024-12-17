@@ -254,7 +254,7 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	serviceCmd.Flag("socket", "socket path").Required().StringVar(&socketPath)
 	serviceCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").Required().StringVar(&ipv6Prefix)
 	serviceCmd.Flag("dns-addr", "VNet DNS address").Required().StringVar(&dnsAddr)
-	cmd, err := app.Parse(os.Args)
+	cmd, err := app.Parse(args)
 	if err != nil {
 		return trace.Wrap(err, "parsing arguments")
 	}
