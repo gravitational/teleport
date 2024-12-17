@@ -175,8 +175,8 @@ func TestGenerate(t *testing.T) {
 				Package: "typestest",
 			},
 		},
-		SourcePath:      "testdata/src",
-		DestinationPath: "testdata/golden.mdx",
+		SourcePath:           "testdata/src",
+		DestinationDirectory: "testdata/dest",
 		ExcludedResourceTypes: []TypeInfo{
 			{
 				Name:    "ResourceHeader",
@@ -185,7 +185,7 @@ func TestGenerate(t *testing.T) {
 		},
 		FieldAssignmentMethodName: "setStaticFields",
 	}
-	golden, err := os.Open(config.DestinationPath)
+	golden, err := os.Open(config.DestinationDirectory)
 	if os.IsNotExist(err) {
 		assert.NoError(t, Generate(afero.NewOsFs(), config))
 		return
