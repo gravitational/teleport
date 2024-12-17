@@ -1,4 +1,3 @@
-import React from 'react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { render, screen, act } from 'design/utils/testing';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';

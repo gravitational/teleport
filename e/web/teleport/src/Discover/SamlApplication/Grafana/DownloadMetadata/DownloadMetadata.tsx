@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link, ButtonPrimary, Mark, H3, Subtitle3 } from 'design';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box } from 'design';
 
 import { AccessListMemberTable } from 'e-teleport/AccessListManagement/ViewEditAccessList/Members/MembersList';

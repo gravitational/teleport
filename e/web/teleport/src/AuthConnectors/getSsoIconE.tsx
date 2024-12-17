@@ -1,4 +1,3 @@
-import React from 'react';
 import { Check } from 'design/Icon';
 import { AuthProviderType } from 'shared/services';
 

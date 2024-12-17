@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, Flex, ButtonPrimary, H3 } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { AuthProviderType } from 'shared/services';

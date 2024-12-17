@@ -1,4 +1,3 @@
-import React from 'react';
 import { NewLockView } from 'teleport/LocksV2/NewLock/NewLock';
 import {
   LockResourceOption,

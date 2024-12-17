@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams } from 'react-router';
 import { NotFound } from 'design/CardError';
 import { Plugin, PluginKind } from 'teleport/services/integrations';

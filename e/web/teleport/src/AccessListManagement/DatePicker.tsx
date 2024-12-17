@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import 'react-day-picker/dist/style.css';
 import { DayPicker } from 'react-day-picker';
 import Dialog from 'design/DialogConfirmation';

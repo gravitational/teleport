@@ -1,4 +1,3 @@
-import React from 'react';
 import { generatePath } from 'react-router';
 import { Flex, Text, Image, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 

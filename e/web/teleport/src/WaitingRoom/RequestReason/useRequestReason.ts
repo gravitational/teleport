@@ -1,9 +1,9 @@
-import React from 'react';
+import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttempt';
 
 export default function useRequestReason({ onCreateRequest, prompt }: Props) {
   const [attempt, attemptActions] = useAttempt({});
-  const [reason, setReason] = React.useState('');
+  const [reason, setReason] = useState('');
 
   function createRequest() {
     attemptActions.start();

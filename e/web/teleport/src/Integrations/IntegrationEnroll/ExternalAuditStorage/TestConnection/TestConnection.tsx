@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import * as Icons from 'design/Icon';
 import { HeaderSubtitle, Header, TextIcon } from 'teleport/Discover/Shared';
 import useAttempt from 'shared/hooks/useAttemptNext';

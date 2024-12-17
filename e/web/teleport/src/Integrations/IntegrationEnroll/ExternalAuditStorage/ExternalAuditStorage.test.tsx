@@ -1,4 +1,3 @@
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 

@@ -1,5 +1,4 @@
 import { render, screen, userEvent } from 'design/utils/testing';
-import React from 'react';
 
 import { Switchback } from './Switchback';
 

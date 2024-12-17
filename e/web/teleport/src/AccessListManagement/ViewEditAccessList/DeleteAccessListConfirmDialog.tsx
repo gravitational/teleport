@@ -1,4 +1,3 @@
-import React from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { ButtonSecondary, ButtonWarning, Text, Alert, Box, P1 } from 'design';

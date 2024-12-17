@@ -1,4 +1,3 @@
-import React from 'react';
 import { addWeeks } from 'date-fns';
 import { Info } from 'design/Alert';
 import { MemoryRouter } from 'react-router';

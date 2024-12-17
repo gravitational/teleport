@@ -1,4 +1,3 @@
-import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import cfg from 'teleport/config';

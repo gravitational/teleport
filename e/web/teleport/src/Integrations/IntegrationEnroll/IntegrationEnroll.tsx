@@ -1,4 +1,3 @@
-import React from 'react';
 import { Switch, Route } from 'teleport/components/Router';
 import { FeatureBox } from 'teleport/components/Layout';
 

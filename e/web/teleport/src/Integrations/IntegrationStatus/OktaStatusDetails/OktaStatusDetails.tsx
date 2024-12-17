@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Flex, Text, ButtonWarning, Link as ExternalLink } from 'design';
 import { Trash, NewTab } from 'design/Icon';
 

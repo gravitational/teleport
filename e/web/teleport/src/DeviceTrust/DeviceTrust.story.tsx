@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { http, HttpResponse, delay } from 'msw';
 import { ContextProvider } from 'teleport';
 import { MemoryRouter } from 'react-router';

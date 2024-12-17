@@ -1,4 +1,3 @@
-import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import {
   renderActionCell,

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Indicator } from 'design';
 
 import { OutlineDanger } from 'design/Alert/Alert';

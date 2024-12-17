@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ContextProvider } from 'teleport';
 
 import { makeUserContext } from 'teleport/services/user';

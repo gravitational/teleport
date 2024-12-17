@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ContextProvider } from 'teleport';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';

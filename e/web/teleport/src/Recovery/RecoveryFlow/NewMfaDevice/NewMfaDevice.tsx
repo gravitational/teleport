@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { NewMfaDeviceForm } from 'teleport/components/NewMfaDeviceForm';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';

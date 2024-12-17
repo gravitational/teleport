@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { useLocation } from 'teleport/components/Router';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';

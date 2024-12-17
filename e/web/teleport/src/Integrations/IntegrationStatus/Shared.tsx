@@ -1,4 +1,3 @@
-import React from 'react';
 import { Label, Text } from 'design';
 import {
   IntegrationStatusCode,

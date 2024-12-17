@@ -1,4 +1,3 @@
-import React from 'react';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Box, LabelInput } from 'design';
 import { pluralize } from 'shared/utils/text';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, userEvent, render, screen } from 'design/utils/testing';
 
 import { Option } from 'shared/components/Select';

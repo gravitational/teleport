@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { http, HttpResponse } from 'msw';
 
 import { Info } from 'design/Alert';

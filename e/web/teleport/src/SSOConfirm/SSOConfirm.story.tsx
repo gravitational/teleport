@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { MemoryRouter } from 'react-router-dom';
 
 import cfg from 'e-teleport/config';

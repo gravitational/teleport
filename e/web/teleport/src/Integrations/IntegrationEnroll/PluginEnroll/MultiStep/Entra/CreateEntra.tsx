@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { usePlugin } from '../../MultiStep/usePlugin';
 import { SubmittablePluginForm } from '../../SubmittablePluginForm';
 

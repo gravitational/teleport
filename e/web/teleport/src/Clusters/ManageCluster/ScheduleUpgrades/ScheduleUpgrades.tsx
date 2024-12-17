@@ -1,4 +1,3 @@
-import React from 'react';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog, {
   DialogContent,

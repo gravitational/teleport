@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plugin } from 'teleport/services/integrations';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';

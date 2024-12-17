@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttempt';
 import historyService from 'teleport/services/history';
 import { UserContext } from 'teleport/services/user';
@@ -11,9 +11,9 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
   const userService = ctx.userService;
   const accessRequest = ctx.storeAccessRequests.getWaitingRoom();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
-  const [userCtx, setUserCtx] = React.useState<UserContext>();
+  const [userCtx, setUserCtx] = useState<UserContext>();
 
-  React.useEffect(() => {
+  useEffect(() => {
     attemptActions.do(() =>
       userService.fetchUserContext().then(res => {
         // User can only assume roles from the UI, if they have access to the dashboard.

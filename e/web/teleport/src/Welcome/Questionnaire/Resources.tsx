@@ -1,5 +1,4 @@
 import { Flex, LabelInput, ResourceIcon, Text } from 'design';
-import React from 'react';
 import { CheckboxInput } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';

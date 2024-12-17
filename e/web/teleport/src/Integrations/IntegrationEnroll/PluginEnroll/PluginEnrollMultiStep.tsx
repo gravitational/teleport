@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box } from 'design';
 
 import { Navigation } from 'teleport/components/Wizard/Navigation';

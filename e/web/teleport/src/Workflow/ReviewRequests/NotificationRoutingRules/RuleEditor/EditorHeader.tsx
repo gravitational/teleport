@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Flex, ButtonText, H2 } from 'design';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { Trash } from 'design/Icon';

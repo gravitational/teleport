@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, H1, P1 } from 'design';
 
 export default function InvalidLink() {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {

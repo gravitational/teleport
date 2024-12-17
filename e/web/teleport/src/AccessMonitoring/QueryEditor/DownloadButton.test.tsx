@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 
 import * as saveOnDiskUtils from 'shared/utils/saveOnDisk';

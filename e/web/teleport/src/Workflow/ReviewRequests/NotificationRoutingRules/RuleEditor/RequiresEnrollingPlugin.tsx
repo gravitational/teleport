@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import { Text, ButtonPrimary, Link as ExternalLink, Flex } from 'design';
 import { Info } from 'design/Alert/Alert';

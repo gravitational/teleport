@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { addWeeks } from 'date-fns';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';

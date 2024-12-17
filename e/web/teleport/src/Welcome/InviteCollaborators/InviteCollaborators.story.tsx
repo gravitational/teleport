@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { InviteCollaboratorsCard } from './InviteCollaboratorsCard';
 
 export default {

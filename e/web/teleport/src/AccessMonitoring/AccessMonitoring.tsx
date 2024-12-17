@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Box } from 'design';

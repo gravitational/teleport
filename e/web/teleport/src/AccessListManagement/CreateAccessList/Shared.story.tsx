@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';

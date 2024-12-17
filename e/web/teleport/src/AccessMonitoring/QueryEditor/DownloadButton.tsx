@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 import { Button } from 'design/Button';

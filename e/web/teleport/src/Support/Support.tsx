@@ -1,4 +1,3 @@
-import React from 'react';
 import { Support } from 'teleport/Support';
 
 import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';

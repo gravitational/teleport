@@ -1,4 +1,3 @@
-import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { waitFor, renderHook, act } from '@testing-library/react';
 import makeUserContext from 'teleport/services/user/makeUserContext';

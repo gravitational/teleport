@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
 import { PluginDelete } from './PluginDelete';
 

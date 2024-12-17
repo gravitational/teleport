@@ -1,4 +1,3 @@
-import React from 'react';
 import { render } from 'design/utils/testing';
 
 import { FromInvite, FromReset } from './RecoveryCodes.story';

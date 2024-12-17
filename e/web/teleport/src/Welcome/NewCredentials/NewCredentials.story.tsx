@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { WelcomeWrapper } from 'teleport/components/Onboard';
 
 import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';

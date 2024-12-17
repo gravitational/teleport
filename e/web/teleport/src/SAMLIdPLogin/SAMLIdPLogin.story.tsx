@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { SAMLLoginAccessDenied, SAMLLoginProcessing } from './SAMLIdPLogin';
 
 export default {

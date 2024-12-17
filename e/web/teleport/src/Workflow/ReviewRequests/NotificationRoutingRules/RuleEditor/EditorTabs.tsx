@@ -1,4 +1,3 @@
-import React from 'react';
 import { SlideTabs } from 'design/SlideTabs';
 
 const tabs = ['Standard', 'YAML'];

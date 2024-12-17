@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import { Prompt } from 'react-router';
 import { pluralize } from 'shared/utils/text';

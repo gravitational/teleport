@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Alert, Box, Flex, Indicator, Link, H3 } from 'design';
 
 import {

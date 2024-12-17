@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Image } from 'design';
 import pamSuccess from 'design/assets/images/icons/success.png';

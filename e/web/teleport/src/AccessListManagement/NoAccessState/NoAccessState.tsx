@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, Box } from 'design';
 
 export function NoAccessState({ action }: { action?: 'create' }) {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
 import auth from 'teleport/services/auth/auth';

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';

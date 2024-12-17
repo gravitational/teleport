@@ -1,4 +1,3 @@
-import React from 'react';
 import { P3, Flex, Label, Text } from 'design';
 import { Link as InternalLink } from 'react-router-dom';
 import { SyncAlt } from 'design/Icon';

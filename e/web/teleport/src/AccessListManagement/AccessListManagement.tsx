@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Switch, Route } from 'teleport/components/Router';
 
 import cfg from 'e-teleport/config';

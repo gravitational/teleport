@@ -1,4 +1,3 @@
-import React from 'react';
 import { Flex, H1, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';

@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Switchback } from './Switchback';
 
 export default {

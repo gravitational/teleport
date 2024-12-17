@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 

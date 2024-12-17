@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { usePlugin } from '../../MultiStep/usePlugin';
 import { SubmittablePluginForm } from '../../SubmittablePluginForm';

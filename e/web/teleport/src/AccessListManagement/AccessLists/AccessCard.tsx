@@ -1,4 +1,4 @@
-import React from 'react';
+import { cloneElement } from 'react';
 import { format } from 'date-fns';
 import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
@@ -144,7 +144,7 @@ export const renderRolesAndTraits = ({
           tipContent={otherLabels.map(label =>
             // Labels in the tip content need to be rendered in inverse colors,
             // or they will be illegible.
-            React.cloneElement(label, { inverse: true })
+            cloneElement(label, { inverse: true })
           )}
         >
           <Text typography="body4">+ {otherLabels.length} more</Text>

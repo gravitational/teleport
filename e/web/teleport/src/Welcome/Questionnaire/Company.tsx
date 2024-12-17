@@ -1,4 +1,3 @@
-import React from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';

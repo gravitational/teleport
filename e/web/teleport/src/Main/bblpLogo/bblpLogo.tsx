@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { Image } from 'design';
 
 import bblpLogo from './bblpLogo.svg';

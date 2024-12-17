@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import { Suspense } from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, userEvent } from 'design/utils/testing';
 import { PointerEventsCheckLevel } from '@testing-library/user-event';

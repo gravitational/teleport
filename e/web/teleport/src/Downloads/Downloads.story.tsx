@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { DownloadsView } from './Downloads';
 
 import { State } from './useDownloads';

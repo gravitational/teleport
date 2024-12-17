@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { PluginEmailSpec } from 'teleport/services/integrations';
 import {

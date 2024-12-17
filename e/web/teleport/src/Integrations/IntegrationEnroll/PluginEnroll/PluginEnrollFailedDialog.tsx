@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ButtonSecondary, H2, H3, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
 

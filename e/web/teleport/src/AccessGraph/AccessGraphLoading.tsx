@@ -1,5 +1,4 @@
 import { Text } from 'design';
-import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
 const animate = keyframes`

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, ButtonPrimary, Flex, Link, Text, Mark } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
 import styled from 'styled-components';

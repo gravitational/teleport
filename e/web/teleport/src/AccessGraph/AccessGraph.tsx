@@ -2,7 +2,7 @@
 //
 // It will download the access graph library from the CDN and then render the component
 
-import React, { ComponentType, lazy, Suspense, useCallback } from 'react';
+import { ComponentType, lazy, Suspense, useCallback } from 'react';
 import { useHistory, useLocation } from 'react-router';
 import { Location } from 'history';
 import useStickyClusterId from 'teleport/useStickyClusterId';

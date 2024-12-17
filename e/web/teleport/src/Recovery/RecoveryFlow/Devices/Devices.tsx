@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Card, Box, ButtonPrimary, Indicator, P3 } from 'design';
 import MfaService from 'teleport/services/mfa';
 import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';

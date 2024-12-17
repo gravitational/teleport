@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import session from 'teleport/services/websession';
 import { Text, ButtonLink, Flex } from 'design';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Flex, Text, Box, H2, ButtonText } from 'design';
 import { UserIdBadge, CircleCheck, NotificationsActive } from 'design/Icon';
 import { Option } from 'shared/components/Select';

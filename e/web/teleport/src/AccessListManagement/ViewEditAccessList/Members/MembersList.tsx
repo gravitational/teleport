@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Flex, Text, Box, ButtonText, ButtonSecondary, H2 } from 'design';
 import Table, { StyledPanel } from 'design/DataTable';
 import { UsersTriple, Add, ArrowRight } from 'design/Icon';

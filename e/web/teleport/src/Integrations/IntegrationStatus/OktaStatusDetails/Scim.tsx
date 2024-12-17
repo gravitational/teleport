@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, Link as ExternalLink, Flex } from 'design';
 import { NewTab } from 'design/Icon';
 

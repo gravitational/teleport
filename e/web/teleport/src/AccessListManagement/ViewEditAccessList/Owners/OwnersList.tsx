@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Flex, ButtonText, H2 } from 'design';
 import Table from 'design/DataTable';
 import { Wrench, Add } from 'design/Icon';

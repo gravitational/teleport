@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useRule } from 'shared/components/Validation';
 import TextEditor from 'shared/components/TextEditor';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';

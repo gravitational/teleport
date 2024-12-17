@@ -1,7 +1,5 @@
 import { render, screen } from 'design/utils/testing';
 
-import React from 'react';
-
 import Validation from 'shared/components/Validation';
 
 import { RoleProps } from './types';

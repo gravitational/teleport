@@ -1,4 +1,3 @@
-import React from 'react';
 import session from 'teleport/services/websession';
 import { ButtonSecondary, Text, Alert } from 'design';
 import Dialog, {

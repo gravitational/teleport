@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
 import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';

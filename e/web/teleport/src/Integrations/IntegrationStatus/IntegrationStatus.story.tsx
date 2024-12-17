@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { http, HttpResponse, delay } from 'msw';
 import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';

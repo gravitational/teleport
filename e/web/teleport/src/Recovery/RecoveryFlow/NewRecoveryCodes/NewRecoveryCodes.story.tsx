@@ -1,4 +1,3 @@
-import React from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { NewRecoveryCodes } from './NewRecoveryCodes';

@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ScheduleUpgrades, Props } from './ScheduleUpgrades';
 
 export default {

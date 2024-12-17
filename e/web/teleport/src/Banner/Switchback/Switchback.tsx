@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTheme } from 'styled-components';
 import { Flex, Box, Banner } from 'design';
 import { pluralize } from 'shared/utils/text';

@@ -2,7 +2,7 @@
 //
 // It will download the access graph library from the CDN and then render the component
 
-import React, { ComponentType, lazy, Suspense } from 'react';
+import { ComponentType, lazy, Suspense } from 'react';
 
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';

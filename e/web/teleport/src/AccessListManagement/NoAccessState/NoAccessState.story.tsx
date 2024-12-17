@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { NoAccessState } from './NoAccessState';
 
 export default {

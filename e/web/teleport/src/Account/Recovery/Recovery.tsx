@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, ButtonPrimary } from 'design';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 

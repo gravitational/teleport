@@ -1,4 +1,3 @@
-import React from 'react';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 import { render, screen, userEvent } from 'design/utils/testing';

@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { SVGIcon } from 'design/SVGIcon/SVGIcon';
 
 import type { SVGIconProps } from 'design/SVGIcon/common';

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Text, Alert, Box, Indicator } from 'design';
 import FieldInput from 'shared/components/FieldInput';

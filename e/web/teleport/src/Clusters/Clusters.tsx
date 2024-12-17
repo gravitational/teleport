@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ClusterListPage } from 'teleport/Clusters/Clusters';
 import { Route, Switch } from 'teleport/components/Router';
 

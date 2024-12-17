@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box } from 'design';
 import styled from 'styled-components';
 import Validation from 'shared/components/Validation';

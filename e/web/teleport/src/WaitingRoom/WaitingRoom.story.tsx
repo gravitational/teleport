@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { WaitingRoomComponent as WaitingRoom } from './WaitingRoom';
 import RequestPending from './RequestPending';
 

@@ -1,11 +1,11 @@
-import React from 'react';
+import { Component, Fragment } from 'react';
 import PropTypes from 'prop-types';
 import * as Icons from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import { Button } from 'design/Button';
 import { AuthProviderType } from 'shared/services';
 
-class AddMenu extends React.Component<Props> {
+class AddMenu extends Component<Props> {
   static displayName = 'AddMenu';
 
   static propTypes = {
@@ -50,7 +50,7 @@ class AddMenu extends React.Component<Props> {
       isSamlLocked = false,
     } = this.props;
     return (
-      <React.Fragment>
+      <Fragment>
         <Button
           intent="primary"
           fill="border"
@@ -91,7 +91,7 @@ class AddMenu extends React.Component<Props> {
             </MenuItem>
           )}
         </Menu>
-      </React.Fragment>
+      </Fragment>
     );
   }
 }

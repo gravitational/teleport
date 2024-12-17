@@ -1,4 +1,4 @@
-import React, { lazy } from 'react';
+import { lazy } from 'react';
 import * as OSS from 'teleport/features';
 import {
   ManagementSection,

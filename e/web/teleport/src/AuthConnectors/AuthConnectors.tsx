@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import styled from 'styled-components';
 import { Alert, Box, Flex, H3, Indicator, Text } from 'design';

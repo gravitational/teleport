@@ -1,4 +1,3 @@
-import React from 'react';
 import { Flex, Box } from 'design';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';

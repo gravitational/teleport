@@ -1,4 +1,3 @@
-import React from 'react';
 import { Flex } from 'design';
 
 import { AccessCard } from '../AccessCard';

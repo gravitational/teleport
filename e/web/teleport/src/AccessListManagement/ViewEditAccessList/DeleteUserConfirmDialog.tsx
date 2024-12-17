@@ -1,4 +1,3 @@
-import React from 'react';
 import { ButtonSecondary, ButtonWarning, Text, Alert, P1, Box } from 'design';
 import Dialog, {
   DialogHeader,

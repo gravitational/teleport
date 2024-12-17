@@ -1,4 +1,3 @@
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen } from 'design/utils/testing';
 import { ResourceKind } from 'teleport/Discover/Shared';

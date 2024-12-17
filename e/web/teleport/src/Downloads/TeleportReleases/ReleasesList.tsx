@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
 

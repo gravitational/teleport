@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import { Alert, ButtonBorder, Flex, Text, Box, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, ButtonSecondary } from 'design';
 import { ShieldCheck } from 'design/Icon';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';

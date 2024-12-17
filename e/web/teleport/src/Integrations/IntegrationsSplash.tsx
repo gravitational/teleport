@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { ButtonBorder, Flex, Image, Link as ExternalLink, H1 } from 'design';
 
 import pluginsWheel from 'design/assets/images/icons/plugins.svg';

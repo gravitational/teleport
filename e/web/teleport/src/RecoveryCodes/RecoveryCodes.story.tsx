@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { RecoveryCodes } from './RecoveryCodes';
 
 export default {

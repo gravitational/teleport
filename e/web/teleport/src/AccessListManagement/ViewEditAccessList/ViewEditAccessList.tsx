@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useHistory, useLocation, useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';

@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { NewMfaDevice, NewMfaDeviceProps } from './NewMfaDevice';
 
 export default {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Flex } from 'design';
 import { AuthProviderType } from 'shared/services';
 import { State as ResourceState } from 'teleport/components/useResources';

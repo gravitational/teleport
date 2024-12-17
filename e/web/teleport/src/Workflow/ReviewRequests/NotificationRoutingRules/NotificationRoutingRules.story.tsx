@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 import { withoutQuery } from 'web/packages/build/storybook';

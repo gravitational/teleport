@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, waitFor } from '@testing-library/react';
 import { render, screen, userEvent } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';

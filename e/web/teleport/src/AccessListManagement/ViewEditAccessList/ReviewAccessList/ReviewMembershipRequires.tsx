@@ -1,4 +1,3 @@
-import React from 'react';
 import { Option } from 'shared/components/Select';
 import { Box } from 'design';
 

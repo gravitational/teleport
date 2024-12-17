@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useHistory } from 'react-router';
 import { generatePath } from 'react-router';
 import { HeaderSubtitle, Header } from 'teleport/Discover/Shared';

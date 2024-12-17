@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import { components } from 'react-select';
 import Select from 'shared/components/Select';

@@ -1,4 +1,3 @@
-import React from 'react';
 import LoginForm from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
 import history from 'teleport/services/history';

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Indicator, Box } from 'design';
 import { Route, Switch } from 'teleport/components/Router';
 

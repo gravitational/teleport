@@ -1,4 +1,3 @@
-import React from 'react';
 import { components } from 'react-select';
 import { useTheme } from 'styled-components';
 import { Box, Flex, Text } from 'design';

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import Select, { Option } from 'shared/components/Select';

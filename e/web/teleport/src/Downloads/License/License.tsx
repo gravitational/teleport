@@ -1,4 +1,3 @@
-import React from 'react';
 import { format, addMinutes } from 'date-fns';
 import {
   Box,

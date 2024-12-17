@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { DiscoverComponent } from 'teleport/Discover/Discover';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 

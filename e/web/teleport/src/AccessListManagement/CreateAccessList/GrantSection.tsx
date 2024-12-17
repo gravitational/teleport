@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, H2 } from 'design';
 import { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';

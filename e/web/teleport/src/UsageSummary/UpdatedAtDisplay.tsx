@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Flex, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 

@@ -1,5 +1,4 @@
 import { render, screen } from 'design/utils/testing';
-import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
 import { IntegrationKind } from 'teleport/services/integrations';
 

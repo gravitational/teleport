@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { timeFormat } from 'd3-time-format';

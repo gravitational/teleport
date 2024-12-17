@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useHistory } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Option } from 'shared/components/Select';

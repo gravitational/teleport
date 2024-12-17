@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Text, Flex, H2 } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { components } from 'react-select';
 import { Box, Text, Mark } from 'design';
 import FieldInput from 'shared/components/FieldInput';
