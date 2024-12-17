@@ -70,6 +70,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -5211,4 +5212,10 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 		Name: name,
 	})
 	return rc, trace.Wrap(err)
+}
+
+// DecisionClient returns an unadorned DecisionService client using the
+// underlying Auth gRPC connection.
+func (c *Client) DecisionClient() decisionpb.DecisionServiceClient {
+	return decisionpb.NewDecisionServiceClient(c.conn)
 }
