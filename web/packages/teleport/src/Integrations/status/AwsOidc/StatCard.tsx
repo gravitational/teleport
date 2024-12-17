@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Card, Flex, H2, Text } from 'design';
 import { ResourceIcon } from 'design/ResourceIcon';
 

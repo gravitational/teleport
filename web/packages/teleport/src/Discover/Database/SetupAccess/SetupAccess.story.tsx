@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { http, HttpResponse } from 'msw';
 
 import { noAccess, getAcl } from 'teleport/mocks/contexts';
