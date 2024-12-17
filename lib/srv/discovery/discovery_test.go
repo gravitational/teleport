@@ -899,7 +899,7 @@ func newMockKubeService(name, namespace, externalName string, labels, annotation
 type noopProtocolChecker struct{}
 
 // CheckProtocol for noopProtocolChecker just returns 'tcp'
-func (*noopProtocolChecker) CheckProtocol(uri string) string {
+func (*noopProtocolChecker) CheckProtocol(service corev1.Service, port corev1.ServicePort) string {
 	return "tcp"
 }
 

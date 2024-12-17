@@ -6655,6 +6655,12 @@ message SPIFFESVIDIssued {
   // Audiences is the list of audiences in the issued SVID.
   // Only present if the SVID is a JWT.
   repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
+  // The WorkloadIdentity resource that was used to issue the SVID, this will
+  // be empty if the legacy RPCs were used.
+  string WorkloadIdentity = 12 [(gogoproto.jsontag) = "workload_identity,omitempty"];
+  // The revision of the WorkloadIdentity resource that was used to issue the
+  // SVID. This will be empty if the legacy RPCs were used.
+  string WorkloadIdentityRevision = 13 [(gogoproto.jsontag) = "workload_identity_revision,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
