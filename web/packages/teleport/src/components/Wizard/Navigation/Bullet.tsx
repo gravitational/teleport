@@ -17,7 +17,6 @@
  */
 
 import Flex from 'design/Flex';
-import React from 'react';
 import styled from 'styled-components';
 
 export type Props = {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ButtonPrimary } from 'design/Button';
 import { NotificationItem } from 'shared/components/Notification';
 import { throttle } from 'shared/utils/highbar';

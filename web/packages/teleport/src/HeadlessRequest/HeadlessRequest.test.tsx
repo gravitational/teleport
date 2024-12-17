@@ -17,7 +17,6 @@
  */
 
 import { render, screen } from 'design/utils/testing';
-import React from 'react';
 import { Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
