@@ -116,7 +116,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     isInitialized: false,
   };
   /**
-   * Keeps the state restored when the app was launched.
+   * Keeps the state that was restored from the disk when the app was launched.
    * This state is not processed in any way, so it may, for example,
    * contain clusters that are no longer available.
    */
