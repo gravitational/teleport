@@ -41,11 +41,10 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
+import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
-
-import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
 
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
@@ -87,25 +86,22 @@ export function DocumentsRenderer(props: {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {/* ConnectMyComputerContext depends on ResourcesContext. */}
-            <ResourcesContextProvider>
-              <ConnectMyComputerContextProvider
-                rootClusterUri={workspace.rootClusterUri}
-              >
-                {workspace.documentsService.getDocuments().length ? (
-                  renderDocuments(workspace.documentsService)
-                ) : (
-                  <KeyboardShortcutsPanel />
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                props.topBarContainerRef.current &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef.current
                 )}
-                {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() &&
-                  props.topBarContainerRef.current &&
-                  createPortal(
-                    <ConnectMyComputerNavigationMenu />,
-                    props.topBarContainerRef.current
-                  )}
-              </ConnectMyComputerContextProvider>
-            </ResourcesContextProvider>
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}
@@ -158,6 +154,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
+      case 'doc.authorize_web_session':
+        return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

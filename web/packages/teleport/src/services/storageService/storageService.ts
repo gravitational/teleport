@@ -38,6 +38,7 @@ import type { RecommendFeature } from 'teleport/types';
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.ACCESS_LIST_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
@@ -263,7 +264,7 @@ export const storageService = {
   },
 
   getUseNewRoleEditor(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, false);
+    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, true);
   },
 
   getIsTopBarView(): boolean {

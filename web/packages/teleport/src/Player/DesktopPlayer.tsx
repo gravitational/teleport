@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { Indicator, Box, Alert, Flex } from 'design';
 
@@ -69,7 +69,7 @@ export const DesktopPlayer = ({
     clusterId,
   });
 
-  const isError = playerStatus === StatusEnum.ERROR;
+  const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;

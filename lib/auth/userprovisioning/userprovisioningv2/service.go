@@ -91,7 +91,7 @@ func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioning
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -117,7 +117,7 @@ func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,7 +147,7 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -180,7 +180,7 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -213,7 +213,7 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -249,7 +249,7 @@ func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisionin
 	if err := authCtx.CheckAccessToKind(types.KindStaticHostUser, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { debounce } from 'shared/utils/highbar';
 import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';

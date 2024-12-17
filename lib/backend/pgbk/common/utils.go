@@ -131,7 +131,7 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if retryErr != nil {
 		var zeroT T

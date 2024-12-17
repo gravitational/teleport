@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import {
   Text,
   Box,
@@ -69,9 +68,10 @@ export function Manually({
           - Download Teleport package to your computer
           <DownloadLinks isEnterprise={isEnterprise} version={version} />
         </Box>
-        {attempt.status === 'failed' ? (
+        {attempt.status === 'failed' && (
           <StepsWithoutToken host={host} tshLoginCmd={tshLoginCmd} />
-        ) : (
+        )}
+        {attempt.status === 'success' && (
           <StepsWithToken createToken={createToken} host={host} token={token} />
         )}
       </DialogContent>

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Users } from './Users';
@@ -149,4 +148,12 @@ const sample = {
   EmailPasswordReset: null,
   showMauInfo: false,
   onDismissUsersMauNotice: () => null,
+  canEditUsers: true,
+  usersAcl: {
+    read: true,
+    edit: false,
+    remove: true,
+    list: true,
+    create: true,
+  },
 };

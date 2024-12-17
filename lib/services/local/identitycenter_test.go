@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -52,11 +53,12 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 	const resourceID = "alpha"
 
 	testCases := []struct {
-		name           string
-		createResource func(*testing.T, context.Context, services.IdentityCenter, string) types.Resource153
-		getResource    func(context.Context, services.IdentityCenter, string) (types.Resource153, error)
-		updateResource func(context.Context, services.IdentityCenter, types.Resource153) (types.Resource153, error)
-		upsertResource func(context.Context, services.IdentityCenter, types.Resource153) (types.Resource153, error)
+		name               string
+		createResource     func(*testing.T, context.Context, services.IdentityCenter, string) types.Resource153
+		getResource        func(context.Context, services.IdentityCenter, string) (types.Resource153, error)
+		updateResource     func(context.Context, services.IdentityCenter, types.Resource153) (types.Resource153, error)
+		upsertResource     func(context.Context, services.IdentityCenter, types.Resource153) (types.Resource153, error)
+		deleteAllResources func(context.Context, services.IdentityCenter) (*emptypb.Empty, error)
 	}{
 		{
 			name: "Account",
@@ -74,6 +76,9 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				acct := r.(services.IdentityCenterAccount)
 				return svc.UpsertIdentityCenterAccount(subtestCtx, acct)
 			},
+			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) (*emptypb.Empty, error) {
+				return svc.DeleteAllIdentityCenterAccounts(subtestCtx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
+			},
 		},
 		{
 			name: "PermissionSet",
@@ -86,6 +91,9 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			updateResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				ps := r.(*identitycenterv1.PermissionSet)
 				return svc.UpdatePermissionSet(subtestCtx, ps)
+			},
+			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) (*emptypb.Empty, error) {
+				return svc.DeleteAllPermissionSets(subtestCtx, &identitycenterv1.DeleteAllPermissionSetsRequest{})
 			},
 		},
 		{
@@ -104,6 +112,9 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				asmt := r.(services.IdentityCenterAccountAssignment)
 				return svc.UpsertAccountAssignment(subtestCtx, asmt)
 			},
+			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) (*emptypb.Empty, error) {
+				return svc.DeleteAllAccountAssignments(subtestCtx, &identitycenterv1.DeleteAllAccountAssignmentsRequest{})
+			},
 		},
 		{
 			name: "PrincipalAssignment",
@@ -120,6 +131,9 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				asmt := r.(*identitycenterv1.PrincipalAssignment)
 				return svc.UpsertPrincipalAssignment(subtestCtx, asmt)
+			},
+			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) (*emptypb.Empty, error) {
+				return svc.DeleteAllPrincipalAssignments(subtestCtx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
 			},
 		},
 	}
@@ -214,6 +228,43 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				r, err := test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
 				require.Equal(t, "2", r.GetMetadata().Labels["update"])
+			})
+
+			t.Run("DeleteAllResources", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := newTestContext(t)
+				clock := clockwork.NewFakeClock()
+				backend := newTestBackend(t, ctx, clock)
+				defer backend.Close()
+
+				// GIVEN an IdentityCenter service populated with a resource
+				uut, err := NewIdentityCenterService(IdentityCenterServiceConfig{Backend: backend})
+				require.NoError(t, err)
+
+				resourceTestNames := []string{"r1", "r2"}
+				for _, v := range resourceTestNames {
+					test.createResource(t, ctx, uut, v)
+				}
+
+				// EXPECT that the backend records for the resources created above can be fetched
+				var resourceNamesFromBackend []string
+				for _, v := range resourceTestNames {
+					r, err := test.getResource(ctx, uut, v)
+					require.NoError(t, err)
+					resourceNamesFromBackend = append(resourceNamesFromBackend, r.GetMetadata().GetName())
+				}
+				require.ElementsMatch(t, resourceTestNames, resourceNamesFromBackend)
+
+				// WHEN I attempt to Delete resources
+				_, err = test.deleteAllResources(ctx, uut)
+				require.NoError(t, err)
+
+				// EXPECT that the backend reflects the resource were deleted.
+				for _, v := range resourceTestNames {
+					_, err := test.getResource(ctx, uut, v)
+					require.ErrorContains(t, err, "doesn't exist")
+				}
 			})
 		})
 	}

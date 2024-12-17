@@ -24,7 +24,6 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -56,14 +55,15 @@ type awsFetcherConfig struct {
 	Labels types.Labels
 	// Region is the AWS region selector to match cloud databases.
 	Region string
-	// Log is a field logger to provide structured logging for each matcher,
-	// based on its config settings by default.
-	Log logrus.FieldLogger
 	// Logger is the slog.Logger
 	Logger *slog.Logger
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	// Might be empty when the fetcher is using static matchers:
+	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -79,19 +79,6 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 	}
 	if cfg.Region == "" {
 		return trace.BadParameter("missing parameter Region")
-	}
-	if cfg.Log == nil {
-		credentialsSource := "environment"
-		if cfg.Integration != "" {
-			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
-		}
-		cfg.Log = logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: "watch:" + component,
-			"labels":              cfg.Labels,
-			"region":              cfg.Region,
-			"role":                cfg.AssumeRole,
-			"credentials":         credentialsSource,
-		})
 	}
 	if cfg.Logger == nil {
 		credentialsSource := "environment"
@@ -144,7 +131,7 @@ func (f *awsFetcher) getDatabases(ctx context.Context) (types.Databases, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.cfg.Log), nil
+	return filterDatabasesByLabels(ctx, databases, f.cfg.Labels, f.cfg.Logger), nil
 }
 
 // rewriteDatabases rewrites the discovered databases.
@@ -165,6 +152,16 @@ func (f *awsFetcher) applyAssumeRole(db types.Database) {
 // Cloud returns the cloud the fetcher is operating.
 func (f *awsFetcher) Cloud() string {
 	return types.CloudAWS
+}
+
+// IntegrationName returns the integration name whose credentials are used to fetch the resources.
+func (f *awsFetcher) IntegrationName() string {
+	return f.cfg.Integration
+}
+
+// GetDiscoveryConfigName returns the discovery config name whose matchers are used to fetch the resources.
+func (f *awsFetcher) GetDiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfigName
 }
 
 // ResourceType identifies the resource type the fetcher is returning.

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Card, Flex, H1, ResourceIcon, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 

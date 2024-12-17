@@ -30,9 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
@@ -110,37 +108,6 @@ func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 
 		return false
 	}
-}
-
-// WaitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
-	const (
-		deadline     = time.Second * 30
-		iterWaitTime = time.Second
-	)
-
-	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		remoteSite, err := t.Tunnel.GetSite(clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		accessPoint, err := remoteSite.CachingAccessPoint()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(nodes) == count {
-			return nil
-		}
-		return trace.BadParameter("found %v nodes, but wanted to find %v nodes", len(nodes), count)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections

@@ -21,15 +21,18 @@ package autoupdatev1
 import (
 	"context"
 	"log/slog"
+	"maps"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -121,6 +124,10 @@ func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.Cr
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config, err := s.backend.CreateAutoUpdateConfig(ctx, req.Config)
 	var errMsg string
 	if err != nil {
@@ -158,6 +165,10 @@ func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 	}
 
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -201,6 +212,10 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config, err := s.backend.UpsertAutoUpdateConfig(ctx, req.Config)
 	var errMsg string
 	if err != nil {
@@ -237,7 +252,7 @@ func (s *Service) DeleteAutoUpdateConfig(ctx context.Context, req *autoupdate.De
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -292,6 +307,10 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,6 +349,10 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.UpdateAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -374,6 +397,10 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -415,11 +442,15 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -476,10 +507,11 @@ func (s *Service) CreateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 
 	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
 	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
-	// The workaround is to check if the caller has the auth system role.
-	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -504,10 +536,11 @@ func (s *Service) UpdateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 
 	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
 	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
-	// The workaround is to check if the caller has the auth system role.
-	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -532,10 +565,11 @@ func (s *Service) UpsertAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 
 	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
 	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
-	// The workaround is to check if the caller has the auth system role.
-	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -560,10 +594,11 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 
 	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
 	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
-	// The workaround is to check if the caller has the auth system role.
-	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -571,7 +606,7 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -588,4 +623,143 @@ func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 			"error", err,
 		)
 	}
+}
+
+// checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
+			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
+			"opt-out or configure update schedules.",
+			types.KindAutoUpdateVersion, types.KindAutoUpdateConfig)
+	}
+	return nil
+}
+
+// Those values are arbitrary, we will want to increase them as we test. We will also want to modulate them based on the
+// cluster context. We don't want people to craft schedules that can't realistically finish within a week on Cloud as
+// we usually do weekly updates. However, self-hosted users can craft more complex schedules, slower rollouts, and shoot
+// themselves in the foot if they want.
+const (
+	maxGroupsTimeBasedStrategy        = 20
+	maxGroupsHaltOnErrorStrategy      = 10
+	maxGroupsHaltOnErrorStrategyCloud = 4
+	maxRolloutDurationCloudHours      = 72
+)
+
+var (
+	cloudGroupUpdateDays = []string{"Mon", "Tue", "Wed", "Thu"}
+)
+
+// validateServerSideAgentConfig validates that the autoupdate_config.agent spec meets the cluster rules.
+// Rules may vary based on the cluster, and over time.
+//
+// This function should not be confused with api/types/autoupdate.ValidateAutoUpdateConfig which validates the integrity
+// of the resource and does not enforce potentially changing rules.
+func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
+	agentsSpec := config.GetSpec().GetAgents()
+	if agentsSpec == nil {
+		return nil
+	}
+	// We must check resource integrity before, because it makes no sense to try to enforce rules on an invalid resource.
+	// The generic backend service will likely check integrity again, but it's not a large performance problem.
+	err := update.ValidateAutoUpdateConfig(config)
+	if err != nil {
+		return trace.Wrap(err, "validating autoupdate config")
+	}
+
+	var maxGroups int
+	isCloud := modules.GetModules().Features().Cloud
+
+	switch {
+	case isCloud && agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
+		maxGroups = maxGroupsHaltOnErrorStrategyCloud
+	case agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
+		maxGroups = maxGroupsHaltOnErrorStrategy
+	case agentsSpec.GetStrategy() == update.AgentsStrategyTimeBased:
+		maxGroups = maxGroupsTimeBasedStrategy
+	default:
+		return trace.BadParameter("unknown max group for strategy %v", agentsSpec.GetStrategy())
+	}
+
+	if len(agentsSpec.GetSchedules().GetRegular()) > maxGroups {
+		return trace.BadParameter("max groups (%d) exceeded for strategy %s, %s schedule contains %d groups", maxGroups, agentsSpec.GetStrategy(), update.AgentsScheduleRegular, len(agentsSpec.GetSchedules().GetRegular()))
+	}
+
+	if !isCloud {
+		return nil
+	}
+
+	cloudWeekdays, err := types.ParseWeekdays(cloudGroupUpdateDays)
+	if err != nil {
+		return trace.Wrap(err, "parsing cloud weekdays")
+	}
+
+	for i, group := range agentsSpec.GetSchedules().GetRegular() {
+		weekdays, err := types.ParseWeekdays(group.Days)
+		if err != nil {
+			return trace.Wrap(err, "parsing weekdays from group %d", i)
+		}
+
+		if !maps.Equal(cloudWeekdays, weekdays) {
+			return trace.BadParameter("weekdays must be set to %v in cloud", cloudGroupUpdateDays)
+		}
+
+	}
+
+	if duration := computeMinRolloutTime(agentsSpec.GetSchedules().GetRegular()); duration > maxRolloutDurationCloudHours {
+		return trace.BadParameter("rollout takes more than %d hours to complete: estimated completion time is %d hours", maxRolloutDurationCloudHours, duration)
+	}
+
+	return nil
+}
+
+func computeMinRolloutTime(groups []*autoupdate.AgentAutoUpdateGroup) int {
+	if len(groups) == 0 {
+		return 0
+	}
+
+	// We start the rollout at the first group hour, and we wait for the group to update (1 hour).
+	hours := groups[0].StartHour + 1
+
+	for _, group := range groups[1:] {
+		previousStartHour := (hours - 1) % 24
+		previousEndHour := hours % 24
+
+		// compute the difference between the current hour and the group start hour
+		// we then check if it's less than the WaitHours, in this case we wait a day
+		diff := hourDifference(previousStartHour, group.StartHour)
+		if diff < group.WaitHours%24 {
+			hours += 24 + hourDifference(previousEndHour, group.StartHour)
+		} else {
+			hours += hourDifference(previousEndHour, group.StartHour)
+		}
+
+		// Handle the case where WaitHours is > 24
+		// This is an integer division
+		waitDays := group.WaitHours / 24
+		// There's a special case where the difference modulo 24 is zero, the
+		// wait hours are non-null, but we already waited 23 hours.
+		// To avoid double counting we reduce the number of wait days by 1 if
+		// it's not zero already.
+		if diff == 0 {
+			waitDays = max(waitDays-1, 0)
+		}
+		hours += waitDays * 24
+
+		// We assume the group took an hour to update
+		hours += 1
+	}
+
+	// We remove the group start hour we added initially
+	return int(hours - groups[0].StartHour)
+}
+
+// hourDifference computed the difference between two hours.
+func hourDifference(a, b int32) int32 {
+	diff := b - a
+	if diff < 0 {
+		diff = diff + 24
+	}
+	return diff
 }

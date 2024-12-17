@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { Alert, Box, Button, Indicator } from 'design';
 
 import {
@@ -45,12 +45,15 @@ export function Bots() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
+  const canListBots = flags.listBots;
 
   const [bots, setBots] = useState<FlatBot[]>([]);
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
-  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
+  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
+    canListBots ? 'processing' : 'success'
+  );
 
   useEffect(() => {
     const signal = new AbortController();
@@ -60,15 +63,17 @@ export function Bots() {
       return await fetchBots(signal, flags);
     }
 
-    fetchRun(() =>
-      bots(signal.signal).then(botRes => {
-        setBots(botRes.bots);
-      })
-    );
+    if (canListBots) {
+      fetchRun(() =>
+        bots(signal.signal).then(botRes => {
+          setBots(botRes.bots);
+        })
+      );
+    }
     return () => {
       signal.abort();
     };
-  }, [ctx, fetchRun]);
+  }, [ctx, fetchRun, canListBots]);
 
   async function fetchRoleNames(search: string): Promise<string[]> {
     const flags = ctx.getFeatureFlags();
@@ -122,6 +127,12 @@ export function Bots() {
   if (fetchAttempt.status === 'success' && bots.length === 0) {
     return (
       <FeatureBox>
+        {!canListBots && (
+          <Alert kind="info" mt={4}>
+            You do not have permission to access Bots. Missing role permissions:{' '}
+            <code>bot.list</code>
+          </Alert>
+        )}
         <EmptyState />
       </FeatureBox>
     );

@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type options struct {
@@ -59,8 +61,8 @@ func withEditor(editor func(string) error) optionsFunc {
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
+	Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config)
+	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
 func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
@@ -72,12 +74,15 @@ func runCommandWithContext(t *testing.T, ctx context.Context, client *authclient
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	cmd.Initialize(app, cfg)
+	cmd.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	_, err = cmd.TryRun(ctx, selectedCmd, client)
+	ctx := context.Background()
+	_, err = cmd.TryRun(ctx, selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	return err
 }
 

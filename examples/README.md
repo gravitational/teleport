@@ -1,9 +1,5 @@
 # Examples
 
-## Configuration Examples
-
-* [local-cluster](https://github.com/gravitational/teleport/tree/master/examples/local-cluster) : Sample configuration of a 3-node Teleport cluster using just a single machine
-
 ## Daemon Configuration
 
 * [systemd](https://github.com/gravitational/teleport/tree/master/examples/systemd) : Service file for systemd
@@ -13,7 +9,6 @@
 
 * [AWS: Simple cluster with Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/starter-cluster#teleport-terraform-aws-ami-simple-example)
 * [AWS: High Availability cluster with Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
-* [AWS: EKS. External Link](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/)
 
 ## Kubernetes - Helm Charts
 

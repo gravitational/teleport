@@ -28,18 +28,6 @@ import { MockedUnaryCall } from '../cloneableClient';
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  getKubes = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getDatabases = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   listDatabaseUsers = () =>
     new MockedUnaryCall({
       users: [],
@@ -52,12 +40,6 @@ export class MockTshClient implements TshdClient {
       applicableRoles: [],
     });
   getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getApps = () =>
     new MockedUnaryCall({
       agents: [],
       totalCount: 0,
@@ -119,7 +101,13 @@ export class MockTshClient implements TshdClient {
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
-  authenticateWebDevice = () => new MockedUnaryCall({});
+  authenticateWebDevice = () =>
+    new MockedUnaryCall({
+      confirmationToken: {
+        id: '123456789',
+        token: '7c8e7438-abe1-4cbc-b3e6-bd233bba967c',
+      },
+    });
   startHeadlessWatcher = () => new MockedUnaryCall({});
 }
 

@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 

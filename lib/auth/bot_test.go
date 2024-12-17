@@ -62,7 +62,8 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	"github.com/gravitational/teleport/lib/kube/token"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -565,7 +566,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	t.Run("Azure method", func(t *testing.T) {
 		subID := uuid.NewString()
 		resourceGroup := "rg"
-		rsID := resourceID(subID, resourceGroup, "test-vm")
+		rsID := vmResourceID(subID, resourceGroup, "test-vm")
 		vmID := "vmID"
 
 		accessToken, err := makeToken(rsID, a.clock.Now())
@@ -585,13 +586,20 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, a.UpsertToken(ctx, azureToken))
 
-		vmClient := &mockAzureVMClient{vm: &azure.VirtualMachine{
-			ID:            rsID,
-			Name:          "test-vm",
-			Subscription:  subID,
-			ResourceGroup: resourceGroup,
-			VMID:          vmID,
-		}}
+		vmClient := &mockAzureVMClient{
+			vms: map[string]*azure.VirtualMachine{
+				rsID: {
+					ID:            rsID,
+					Name:          "test-vm",
+					Subscription:  subID,
+					ResourceGroup: resourceGroup,
+					VMID:          vmID,
+				},
+			},
+		}
+		getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
+			subID: vmClient,
+		})
 
 		tlsConfig, err := fixtures.LocalTLSConfig()
 		require.NoError(t, err)
@@ -633,7 +641,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 				AccessToken:  accessToken,
 			}
 			return req, nil
-		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClient(vmClient))
+		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClientGetter(getVMClient))
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})
@@ -757,9 +765,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
 		if token == k8sTokenName {
-			return &kubernetestoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -912,9 +920,9 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
 		if token == k8sTokenName {
-			return &kubernetestoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken

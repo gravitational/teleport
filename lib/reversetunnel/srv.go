@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -186,7 +187,11 @@ type Config struct {
 	Component string
 
 	// Log specifies the logger
+	// TODO(tross): remove this once Logger is used everywhere
 	Log log.FieldLogger
+
+	// Logger specifies the logger
+	Logger *slog.Logger
 
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -260,13 +265,16 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Component == "" {
 		cfg.Component = teleport.Component(teleport.ComponentProxy, teleport.ComponentServer)
 	}
-	logger := cfg.Log
 	if cfg.Log == nil {
-		logger = log.StandardLogger()
+		cfg.Log = log.StandardLogger()
 	}
-	cfg.Log = logger.WithFields(log.Fields{
-		teleport.ComponentKey: cfg.Component,
-	})
+	cfg.Log = cfg.Log.WithField(teleport.ComponentKey, cfg.Component)
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	cfg.Logger = cfg.Logger.With(teleport.ComponentKey, cfg.Component)
+
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
 	}
@@ -345,7 +353,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
-		sshutils.SetLogger(cfg.Log),
+		sshutils.SetLogger(cfg.Logger),
 		sshutils.SetLimiter(cfg.Limiter),
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -1233,10 +1241,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.certificateCache = certificateCache
 
 	caRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1262,10 +1270,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}()
 
 	lockRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {

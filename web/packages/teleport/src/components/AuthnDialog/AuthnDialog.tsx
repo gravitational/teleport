@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Dialog, { DialogContent } from 'design/Dialog';
 import { Danger } from 'design/Alert';
 import { FingerprintSimple, Cross } from 'design/Icon';
@@ -29,10 +28,12 @@ import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 import { MfaState } from 'teleport/lib/useMfa';
 
 export default function AuthnDialog({ mfa, onCancel }: Props) {
+  let hasMultipleOptions = mfa.ssoChallenge && mfa.webauthnPublicKey;
+
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
-        <H2>Re-authenticate in the Browser</H2>
+        <H2>Verify Your Identity</H2>
         <ButtonIcon data-testid="close-dialog" onClick={onCancel}>
           <Cross color="text.slightlyMuted" />
         </ButtonIcon>
@@ -43,8 +44,10 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
             {mfa.errorText}
           </Danger>
         )}
-        <Text textAlign="center" color="text.slightlyMuted">
-          To continue, you must verify your identity by re-authenticating:
+        <Text color="text.slightlyMuted">
+          {hasMultipleOptions
+            ? 'Select one of the following methods to verify your identity:'
+            : 'Select the method below to verify your identity:'}
         </Text>
       </DialogContent>
       <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
@@ -57,11 +60,13 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
           >
             <SSOIcon
               type={guessProviderType(
-                mfa.ssoChallenge.device.displayName,
+                mfa.ssoChallenge.device.displayName ||
+                  mfa.ssoChallenge.device.connectorId,
                 mfa.ssoChallenge.device.connectorType
               )}
             />
-            {mfa.ssoChallenge.device.displayName}
+            {mfa.ssoChallenge.device.displayName ||
+              mfa.ssoChallenge.device.connectorId}
           </ButtonSecondary>
         )}
         {mfa.webauthnPublicKey && (

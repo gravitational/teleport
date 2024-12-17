@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import ReactSelect, {
   ClearIndicatorProps,
   DropdownIndicatorProps,
@@ -395,6 +394,7 @@ const StyledSelect = styled.div<{
     }
   }
   .react-select__menu {
+    z-index: 10;
     margin-top: 0px;
     // If the component is on an elevated platform (such as a dialog), use a lighter background.
     background-color: ${props =>

@@ -339,6 +339,7 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex-direction: column;
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
+          min-height: 0;
         `}
       >
         {children}

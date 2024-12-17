@@ -239,7 +239,7 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		return nil
 	})
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := time.NewTimer(jitter(initialProcessingDelay))
 	defer timer.Stop()
 

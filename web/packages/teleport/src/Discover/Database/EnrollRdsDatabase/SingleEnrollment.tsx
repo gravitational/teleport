@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -121,7 +121,7 @@ export function SingleEnrollment({
           }
         );
 
-      // Abort early if there were no rds dbs for the selected region.
+      // Abort early if there were no rds dbs for the selected region/vpc.
       if (fetchedDbs.length <= 0) {
         onFetchAttempt({ status: 'success' });
         setTableData({ ...data, fetchStatus: 'disabled' });

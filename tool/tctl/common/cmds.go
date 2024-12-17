@@ -29,6 +29,7 @@ import (
 // Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
+		&VersionCommand{},
 		&UserCommand{},
 		&NodeCommand{},
 		&TokensCommand{},
@@ -42,6 +43,7 @@ func Commands() []CLICommand {
 		&DesktopCommand{},
 		&LockCommand{},
 		&BotsCommand{},
+		&WorkloadIdentityCommand{},
 		&InventoryCommand{},
 		&RecordingsCommand{},
 		&AlertCommand{},

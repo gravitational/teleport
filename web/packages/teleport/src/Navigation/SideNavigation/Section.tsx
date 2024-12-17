@@ -16,39 +16,127 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { NavLink } from 'react-router-dom';
-import styled, { css } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 
-import { Box } from 'design';
+import { Box, ButtonIcon, Flex, P2, Text } from 'design';
 import { Theme } from 'design/theme';
+import { ArrowLineLeft } from 'design/Icon';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
-import { NavigationSection } from './Navigation';
+import cfg from 'teleport/config';
+
+import { NavigationSection, NavigationSubsection } from './Navigation';
 import { zIndexMap } from './zIndexMap';
 import { CategoryIcon } from './CategoryIcon';
 
-export function Section({
-  section,
-  $active,
-  setExpandedSection,
-  onClick,
-  children,
-  isExpanded,
-}: {
+type SharedSectionProps = {
   section: NavigationSection;
   $active: boolean;
-  setExpandedSection: () => void;
-  onClick: (event: React.MouseEvent) => void;
-  isExpanded?: boolean;
-  children?: JSX.Element;
+  isExpanded: boolean;
+  onExpandSection: () => void;
+};
+
+/**
+ * DefaultSection is a NavigationSection with default children automatically generated from the subsections it contains,
+ * this will just be a regular list of subsection items (eg. Identity section).
+ */
+export function DefaultSection({
+  $active,
+  section,
+  isExpanded,
+  onNavigationItemClick,
+  previousExpandedSection,
+  stickyMode,
+  toggleStickyMode,
+  currentPageSection,
+  currentView,
+  onExpandSection,
+}: SharedSectionProps & {
+  currentView?: NavigationSubsection;
+  onNavigationItemClick?: () => void;
+  currentPageSection?: NavigationSection;
+  stickyMode: boolean;
+  toggleStickyMode: () => void;
+  previousExpandedSection: NavigationSection;
 }) {
   return (
     <>
       <CategoryButton
         $active={$active}
-        onMouseEnter={setExpandedSection}
-        onFocus={setExpandedSection}
-        onClick={onClick}
+        onMouseEnter={onExpandSection}
+        onFocus={onExpandSection}
+        isExpanded={isExpanded}
+        tabIndex={section.standalone ? 0 : -1}
+      >
+        <CategoryIcon category={section.category} />
+        {section.category}
+      </CategoryButton>
+
+      <RightPanel
+        isVisible={isExpanded}
+        skipAnimation={!!previousExpandedSection}
+        id={`panel-${section.category}`}
+        onFocus={onExpandSection}
+      >
+        <Flex
+          flexDirection="column"
+          justifyContent="space-between"
+          height="100%"
+        >
+          <Box
+            css={`
+              overflow-y: auto;
+              padding: 3px;
+            `}
+          >
+            <RightPanelHeader
+              title={section.category}
+              stickyMode={stickyMode}
+              toggleStickyMode={toggleStickyMode}
+              canToggleStickyMode={!!currentPageSection}
+            />
+            {!section.standalone &&
+              section.subsections.map(subsection => (
+                <SubsectionItem
+                  $active={currentView?.route === subsection.route}
+                  to={subsection.route}
+                  exact={subsection.exact}
+                  key={subsection.title}
+                  onClick={() => {
+                    onNavigationItemClick();
+                  }}
+                >
+                  <subsection.icon size={16} />
+                  <P2>{subsection.title}</P2>
+                </SubsectionItem>
+              ))}
+          </Box>
+          {cfg.edition === 'oss' && <AGPLFooter />}
+          {cfg.edition === 'community' && <CommunityFooter />}
+        </Flex>
+      </RightPanel>
+    </>
+  );
+}
+
+/**
+ * CustomChildrenSection is a NavigationSection with custom children (e.g. search section).
+ */
+export function CustomChildrenSection({
+  section,
+  $active,
+  isExpanded,
+  children,
+  onExpandSection,
+}: PropsWithChildren<SharedSectionProps>) {
+  return (
+    <>
+      <CategoryButton
+        $active={$active}
+        onMouseEnter={onExpandSection}
+        onFocus={onExpandSection}
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
       >
@@ -60,9 +148,9 @@ export function Section({
   );
 }
 
-const rightPanelWidth = '236px';
+export const rightPanelWidth = 236;
 
-export const RightPanel = styled(Box).attrs({ pt: 2, px: '5px' })<{
+export const RightPanel = styled(Box).attrs({ px: '5px' })<{
   isVisible: boolean;
   skipAnimation: boolean;
 }>`
@@ -70,7 +158,7 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: '5px' })<{
   left: var(--sidenav-width);
   height: 100%;
   scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
-  width: ${rightPanelWidth};
+  width: ${rightPanelWidth}px;
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
@@ -92,6 +180,64 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: '5px' })<{
     top: ${p => p.theme.topBarHeight[1]}px;
     padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
   }
+`;
+
+export function RightPanelHeader({
+  title,
+  stickyMode,
+  toggleStickyMode,
+  canToggleStickyMode,
+}: {
+  title: string;
+  stickyMode: boolean;
+  toggleStickyMode: () => void;
+  canToggleStickyMode: boolean;
+}) {
+  return (
+    <Flex
+      py={verticalPadding}
+      px={3}
+      css={`
+        position: relative;
+      `}
+    >
+      <Text typography="h2" color="text.slightlyMuted">
+        {title}
+      </Text>
+      <StickyToggleBtn
+        onClick={toggleStickyMode}
+        disabled={!canToggleStickyMode}
+      >
+        {canToggleStickyMode ? (
+          <HoverTooltip tipContent={stickyMode ? 'Collapse' : 'Keep Expanded'}>
+            <AnimatedArrow size={20} $isSticky={stickyMode} />
+          </HoverTooltip>
+        ) : (
+          <AnimatedArrow size={20} $isSticky={stickyMode} />
+        )}
+      </StickyToggleBtn>
+    </Flex>
+  );
+}
+
+const StickyToggleBtn = styled(ButtonIcon)`
+  position: absolute;
+  right: 0;
+  top: 4px;
+  height: 40px;
+  width: 40px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  color: ${props => props.theme.colors.text.muted};
+
+  &:hover:enabled,
+  &:focus-visible:enabled {
+    color: ${props => props.theme.colors.text.main};
+  }
+`;
+
+const AnimatedArrow = styled(ArrowLineLeft)<{ $isSticky: boolean }>`
+  transition: transform 0.3s ease-in-out;
+  transform: ${props => (props.$isSticky ? 'none' : 'rotate(180deg)')};
 `;
 
 export const CategoryButton = styled.button<{
@@ -253,3 +399,87 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
     }
   `;
 }
+
+function AGPLFooter() {
+  const theme = useTheme();
+  return (
+    <LicenseFooter
+      title="AGPL Edition"
+      subText="Unofficial Version"
+      infoContent={
+        <>
+          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
+          {/* can find the official release on{' '} */}
+          This is an independently compiled AGPL-3.0 version of Teleport.
+          <br />
+          Visit{' '}
+          <Text
+            as="a"
+            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
+          >
+            the Downloads page
+          </Text>{' '}
+          for the official release.
+        </>
+      }
+    />
+  );
+}
+
+function CommunityFooter() {
+  const theme = useTheme();
+  return (
+    <LicenseFooter
+      title="Community Edition"
+      subText="Limited Features"
+      infoContent={
+        <>
+          <Text
+            as="a"
+            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
+          >
+            Upgrade to Teleport Enterprise
+          </Text>{' '}
+          for SSO, just-in-time access requests, Access Graph, and much more!
+        </>
+      }
+    />
+  );
+}
+
+function LicenseFooter({
+  title,
+  subText,
+  infoContent,
+}: {
+  title: string;
+  subText: string;
+  infoContent: JSX.Element;
+}) {
+  return (
+    <StyledFooterBox py={3} px={4}>
+      <Flex alignItems="center" gap={2}>
+        <Text>{title}</Text>
+        <IconTooltip position="right" sticky>
+          {infoContent}
+        </IconTooltip>
+      </Flex>
+      <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
+
+const StyledFooterBox = styled(Box)`
+  line-height: 20px;
+  border-top: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.spotBackground[0]};
+`;
+
+const SubText = styled(Text)`
+  color: ${props => props.theme.colors.text.disabled};
+  font-size: ${props => props.theme.fontSizes[1]}px;
+`;

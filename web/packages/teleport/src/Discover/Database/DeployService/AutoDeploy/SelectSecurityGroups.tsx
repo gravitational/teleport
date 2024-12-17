@@ -21,7 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
@@ -125,10 +125,10 @@ export const SelectSecurityGroups = ({
   return (
     <>
       <Flex alignItems="center" gap={1} mb={2}>
-        <Subtitle3>Select Security Groups</Subtitle3>
-        <ToolTipInfo>
+        <Subtitle3>Select ECS Security Groups</Subtitle3>
+        <IconTooltip>
           <Text>
-            Select security group(s) based on the following requirements:
+            Select ECS security group(s) based on the following requirements:
             <ul>
               <li>
                 The selected security group(s) must allow all outbound traffic
@@ -141,11 +141,11 @@ export const SelectSecurityGroups = ({
               </li>
             </ul>
           </Text>
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
 
       <P mb={2}>
-        Select security groups to assign to the Fargate service that will be
+        Select ECS security groups to assign to the Fargate service that will be
         running the Teleport Database Service. If you don't select any security
         groups, the default one for the VPC will be used.
       </P>

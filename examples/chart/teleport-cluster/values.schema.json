@@ -286,6 +286,11 @@
             "type": "boolean",
             "default": false
         },
+        "licenseSecretName": {
+            "$id": "#/properties/licenseSecretName",
+            "type": "string",
+            "default": "license"
+        },
         "installCRDs": {
             "$id": "#/properties/installCRDs",
             "type": "boolean"

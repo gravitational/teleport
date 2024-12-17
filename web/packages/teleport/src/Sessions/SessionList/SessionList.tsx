@@ -18,7 +18,6 @@
 
 import Table, { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
-import React from 'react';
 import styled from 'styled-components';
 
 import { Participant, Session, SessionKind } from 'teleport/services/session';

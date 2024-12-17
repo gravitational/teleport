@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"os"
@@ -529,7 +529,7 @@ func ChooseRandomString(slice []string) string {
 	case 1:
 		return slice[0]
 	default:
-		return slice[rand.Intn(len(slice))]
+		return slice[rand.N(len(slice))]
 	}
 }
 

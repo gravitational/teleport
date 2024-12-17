@@ -273,11 +273,15 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
-	proxyHost, _, err = net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
+	}
+	proxyHost, _, err = net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
+
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(

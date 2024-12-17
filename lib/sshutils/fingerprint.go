@@ -19,6 +19,8 @@
 package sshutils
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -46,4 +48,19 @@ func PrivateKeyFingerprint(keyBytes []byte) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return Fingerprint(signer.PublicKey()), nil
+}
+
+// fingerprintPrefix is the fingerprint prefix added by ssh.FingerprintSHA256.
+const fingerprintPrefix = "SHA256:"
+
+func maybeAddPrefix(fingerprint string) string {
+	if !strings.HasPrefix(fingerprint, fingerprintPrefix) {
+		return fingerprintPrefix + fingerprint
+	}
+	return fingerprint
+}
+
+// EqualFingerprints checks if two finger prints are equal.
+func EqualFingerprints(a, b string) bool {
+	return strings.EqualFold(maybeAddPrefix(a), maybeAddPrefix(b))
 }

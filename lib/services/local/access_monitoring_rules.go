@@ -85,7 +85,7 @@ func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Co
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	updated, err := s.svc.UpdateResource(ctx, amr)
+	updated, err := s.svc.UnconditionalUpdateResource(ctx, amr)
 	return updated, trace.Wrap(err)
 }
 

@@ -29,11 +29,13 @@ export default function PromptSsoStatus(props: Props) {
         </Text>
         <LinearProgress />
       </Box>
-      <ButtonSecondary onClick={props.onCancel}>Cancel</ButtonSecondary>
+      {props.onCancel && (
+        <ButtonSecondary onClick={props.onCancel}>Cancel</ButtonSecondary>
+      )}
     </Flex>
   );
 }
 
 export type Props = {
-  onCancel(): void;
+  onCancel?(): void;
 };

@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -130,6 +131,12 @@ func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// tlsCertPathLegacy returns the legacy TLS certificate path used in Teleport v16 and
+// older given KeyRingIndex.
+func (fs *FSKeyStore) tlsCertPathLegacy(idx KeyRingIndex) string {
+	return keypaths.TLSCertPathLegacy(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
 // sshDir returns the SSH certificate path for the given KeyRingIndex.
 func (fs *FSKeyStore) sshDir(proxy, user string) string {
 	return keypaths.SSHDir(fs.KeyDir, proxy, user)
@@ -217,9 +224,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
-		// PPKFile can only be generated from an RSA private key. If the key is in a different
-		// format, a BadParameter error is returned and we can skip PPK generation.
-		if err != nil && !trace.IsBadParameter(err) {
+		if err != nil {
 			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
@@ -499,6 +504,33 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	return nil
 }
 
+// LegacyCertPathError will be returned when [(*FSKeyStore).GetKeyRing] does not
+// find a user TLS certificate at the expected path used in v17+ but does find
+// one at the legacy path used in Teleport v16-.
+type LegacyCertPathError struct {
+	wrappedError            error
+	expectedPath, foundPath string
+}
+
+func newLegacyCertPathError(wrappedError error, expectedPath, foundPath string) *LegacyCertPathError {
+	return &LegacyCertPathError{
+		wrappedError: wrappedError,
+		expectedPath: expectedPath,
+		foundPath:    foundPath,
+	}
+}
+
+// Error implements the error interface.
+func (e *LegacyCertPathError) Error() string {
+	return fmt.Sprintf(
+		"user TLS certificate was found at unsupported legacy path (expected path: %s, found path: %s)",
+		e.expectedPath, e.foundPath)
+}
+
+func (e *LegacyCertPathError) Unwrap() error {
+	return e.wrappedError
+}
+
 // GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
 func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
@@ -514,6 +546,12 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing
 
 	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			if _, statErr := os.Stat(fs.tlsCertPathLegacy(idx)); statErr == nil {
+				return nil, newLegacyCertPathError(err, fs.tlsCertPath(idx), fs.tlsCertPathLegacy(idx))
+			}
+			return nil, err
+		}
 		return nil, trace.Wrap(err)
 	}
 

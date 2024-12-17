@@ -412,6 +412,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		Sso: &types.SSOMFADevice{
 			ConnectorId:   samlConnector.GetName(),
 			ConnectorType: samlConnector.GetKind(),
+			DisplayName:   samlConnector.GetDisplay(),
 		},
 	})
 	require.NoError(t, err)

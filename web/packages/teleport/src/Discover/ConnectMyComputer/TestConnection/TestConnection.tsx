@@ -57,7 +57,7 @@ import { NodeMeta } from '../../useDiscover';
 
 import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
-import type { MfaAuthnResponse } from 'teleport/services/mfa';
+import type { MfaChallengeResponse } from 'teleport/services/mfa';
 import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
 
 export function TestConnection(props: AgentStepProps) {
@@ -144,7 +144,7 @@ export function TestConnection(props: AgentStepProps) {
   function testConnection(args: {
     login: string;
     sshPrincipalSelectionMode: ConnectionDiagnosticRequest['sshPrincipalSelectionMode'];
-    mfaResponse?: MfaAuthnResponse;
+    mfaResponse?: MfaChallengeResponse;
   }) {
     return runConnectionDiagnostic(
       {
@@ -170,13 +170,13 @@ export function TestConnection(props: AgentStepProps) {
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res =>
-            testConnection({
+          onMfaResponse={async res => {
+            await testConnection({
               login: selectedLoginOpt.value,
               sshPrincipalSelectionMode,
               mfaResponse: res,
-            })
-          }
+            });
+          }}
           onClose={cancelMfaDialog}
           challengeScope={MfaChallengeScope.USER_SESSION}
         />

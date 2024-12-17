@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   ButtonPrimary,
@@ -31,7 +31,7 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { IconTooltip } from 'design/Tooltip';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import { EksMeta, useDiscover } from 'teleport/Discover/useDiscover';
@@ -95,7 +95,13 @@ export type CheckedEksCluster = AwsEksCluster & {
 };
 
 type EKSClusterEnrollmentState = {
-  status: 'notStarted' | 'enrolling' | 'awaitingAgent' | 'success' | 'error';
+  status:
+    | 'notStarted'
+    | 'enrolling'
+    | 'awaitingAgent'
+    | 'success'
+    | 'error'
+    | 'alreadyExists';
   error?: string;
 };
 
@@ -302,16 +308,19 @@ export function EnrollEksCluster(props: AgentStepProps) {
         emitErrorEvent(
           'unknown error: no results came back from enrolling the EKS cluster.'
         );
-      } else if (
-        result.error &&
-        !result.error.includes(
-          'teleport-kube-agent is already installed on the cluster'
-        )
-      ) {
-        setEnrollmentState({
+      } else if (result.error) {
+        const errorState: EKSClusterEnrollmentState = {
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
-        });
+        };
+        if (
+          result.error.includes(
+            'teleport-kube-agent is already installed on the cluster'
+          )
+        ) {
+          errorState.status = 'alreadyExists';
+        }
+        setEnrollmentState(errorState);
         emitErrorEvent(`failed to enroll EKS cluster: ${result.error}`);
       } else {
         setEnrollmentState({ status: 'awaitingAgent' });
@@ -426,11 +435,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Enable Kubernetes App Discovery
               </Box>
-              <ToolTipInfo>
+              <IconTooltip>
                 Teleport's Kubernetes App Discovery will automatically identify
                 and enroll to Teleport HTTP applications running inside a
                 Kubernetes cluster.
-              </ToolTipInfo>
+              </IconTooltip>
             </Toggle>
             <Toggle
               isToggled={isAutoDiscoveryEnabled}
@@ -439,11 +448,11 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Box ml={2} mr={1}>
                 Auto-enroll all EKS clusters for selected region
               </Box>
-              <ToolTipInfo>
+              <IconTooltip>
                 Auto-enroll will automatically identify all EKS clusters from
                 the selected region and register them as Kubernetes resources in
                 your infrastructure.
-              </ToolTipInfo>
+              </IconTooltip>
             </Toggle>
           </Box>
           {showTable && (
@@ -515,7 +524,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
         </Box>
       )}
       {(enrollmentState.status === 'enrolling' ||
-        enrollmentState.status === 'error') && (
+        enrollmentState.status === 'error' ||
+        enrollmentState.status === 'alreadyExists') && (
         <EnrollmentDialog
           clusterName={selectedCluster.name}
           close={closeEnrollmentDialog}

@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -627,15 +628,14 @@ func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bo
 	return true
 }
 
-func getAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter) ([]*accesslist.AccessList, error) {
+// GetAncestorsFor calculates and returns the set of Ancestor ACLs depending on
+// the supplied relationship criteria. Order of the ancestor list is undefined.
+func GetAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter) ([]*accesslist.AccessList, error) {
 	ancestorsMap := make(map[string]*accesslist.AccessList)
 	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ancestors := make([]*accesslist.AccessList, 0, len(ancestorsMap))
-	for _, al := range ancestorsMap {
-		ancestors = append(ancestors, al)
-	}
+	ancestors := slices.Collect(maps.Values(ancestorsMap))
 	return ancestors, nil
 }
 
@@ -712,7 +712,7 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	// Get ancestors via member relationship
-	ancestorLists, err := getAncestorsFor(ctx, accessList, RelationshipKindMember, g)
+	ancestorLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -722,7 +722,7 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	// Get ancestors via owner relationship
-	ancestorOwnerLists, err := getAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
+	ancestorOwnerLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

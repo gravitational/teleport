@@ -93,7 +93,10 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
+	}
 
 	// Fetch information about the database and then issue the initial
 	// certificate. We issue the initial certificate to allow us to fail faster.
@@ -127,7 +130,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCert(tlsca.RouteToDatabase{
+			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,

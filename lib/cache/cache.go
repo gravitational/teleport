@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 var (
@@ -102,6 +103,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
 	types.KindDatabaseObject:        {},
+	types.KindGitServer:             {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -197,6 +199,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPluginStaticCredentials},
+		{Kind: types.KindGitServer},
+		{Kind: types.KindWorkloadIdentity},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -254,6 +259,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -549,6 +555,9 @@ type Cache struct {
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
+	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
+	gitServersCache              *local.GitServerService
+	workloadIdentityCache        workloadIdentityCacher
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -731,6 +740,9 @@ type Config struct {
 	SPIFFEFederations SPIFFEFederationReader
 	// StaticHostUsers is the static host user service.
 	StaticHostUsers services.StaticHostUser
+	// WorkloadIdentity is the upstream Workload Identities service that we're
+	// caching
+	WorkloadIdentity WorkloadIdentityReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -783,6 +795,10 @@ type Config struct {
 
 	// IdentityCenter is the upstream Identity Center service that we're caching
 	IdentityCenter services.IdentityCenter
+	// PluginStaticCredentials is the plugin static credentials services
+	PluginStaticCredentials services.PluginStaticCredentials
+	// GitServers is the Git server service.
+	GitServers services.GitServerGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -997,6 +1013,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1017,6 +1039,18 @@ func New(config Config) (*Cache, error) {
 
 	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
 		Backend: config.Backend})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	gitServersCache, err := local.NewGitServerService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1069,6 +1103,9 @@ func New(config Config) (*Cache, error) {
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
+		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
+		gitServersCache:              gitServersCache,
+		workloadIdentityCache:        workloadIdentityCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1095,10 +1132,10 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		First:  retryutils.FullJitter(c.MaxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  c.Clock,
 	})
 	if err != nil {
@@ -1421,8 +1458,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	if c.EnableRelativeExpiry {
 		relativeExpiryInterval = interval.New(interval.Config{
 			Duration:      c.Config.RelativeExpiryCheckInterval,
-			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 	defer relativeExpiryInterval.Stop()
@@ -3557,4 +3594,31 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	defer rg.Release()
 
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
+}
+
+// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListAccountAssignments(ctx, pageSize, pageToken)
 }

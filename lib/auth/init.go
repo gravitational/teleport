@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -321,6 +322,10 @@ type InitConfig struct {
 	// SPIFFEFederations is a service that manages storing SPIFFE federations.
 	SPIFFEFederations services.SPIFFEFederations
 
+	// WorkloadIdentity is the service for storing and retrieving
+	// WorkloadIdentity resources.
+	WorkloadIdentity services.WorkloadIdentities
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
@@ -335,6 +340,12 @@ type InitConfig struct {
 	// IdentityCenter is the Identity Center state storage service to use in
 	// this node.
 	IdentityCenter services.IdentityCenter
+
+	// PluginStaticCredentials handles credentials for integrations and plugins.
+	PluginStaticCredentials services.PluginStaticCredentials
+
+	// GitServers manages git servers.
+	GitServers services.GitServers
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -382,7 +393,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -780,14 +791,15 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if err := modules.ValidateResource(storedAuthPref); err != nil {
+			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+				err := modules.ValidateResource(storedAuthPref)
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-
-				return trace.Wrap(err)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
-
 			return nil
 		}
 
@@ -1025,6 +1037,7 @@ func GetPresetRoles() []types.Role {
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
 		services.NewPresetTerraformProviderRole(),
+		services.NewSystemIdentityCenterAccessRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

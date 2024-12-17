@@ -118,6 +118,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
@@ -129,6 +130,7 @@ type PluginStatus interface {
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
+	GetAwsIc() *PluginAWSICStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.

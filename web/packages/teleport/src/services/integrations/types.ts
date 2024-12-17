@@ -62,6 +62,7 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  GitHub = 'github',
 }
 
 /**
@@ -81,6 +82,23 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+};
+
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
 };
 
 export enum IntegrationStatusCode {
@@ -265,6 +283,41 @@ export type IntegrationCreateRequest = {
 export type IntegrationListResponse = {
   items: Integration[];
   nextKey?: string;
+};
+
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+export type IntegrationWithSummary = {
+  name: string;
+  subKind: string;
+  awsoidc: IntegrationSpecAwsOidc;
+  // AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+  awsec2: ResourceTypeSummary;
+  // AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+  awsrds: ResourceTypeSummary;
+  // AWSEKS contains the summary for the AWS EKS resources for this integration.
+  awseks: ResourceTypeSummary;
+};
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+export type ResourceTypeSummary = {
+  // rulesCount is the number of enrollment rules that are using this integration.
+  // A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+  // If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+  // Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+  // Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+  // Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+  rulesCount: number;
+  // resourcesFound contains the count of resources found by this integration.
+  resourcesFound: number;
+  // resourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+  resourcesEnrollmentFailed: number;
+  // resourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+  resourcesEnrollmentSuccess: number;
+  // discoverLastSync contains the time when this integration tried to auto-enroll resources.
+  discoverLastSync: number;
+  // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+  // Only applicable for AWS RDS resource summary.
+  ecsDatabaseServiceCount: number;
 };
 
 // awsRegionMap maps the AWS regions to it's region name
@@ -475,11 +528,11 @@ export type AwsEksCluster = {
   authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
 
   /**
-   * EndpointPublicAddress indicates whether this cluster is publicly accessible.
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
    * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
    * in order to deploy the helm chart.
    */
-  endpointPublicAddress: boolean;
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {

@@ -17,11 +17,6 @@
  */
 
 import { useStore } from 'shared/libs/stores';
-import {
-  DbProtocol,
-  DbType,
-  formatDatabaseInfo,
-} from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
@@ -30,9 +25,6 @@ import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import {
   CreateAccessRequestRequest,
   ReviewAccessRequestRequest,
@@ -764,39 +756,4 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
     };
   }
-}
-
-export function makeServer(source: Server) {
-  return {
-    uri: source.uri,
-    id: source.name,
-    clusterId: source.name,
-    hostname: source.hostname,
-    labels: source.labels,
-    addr: source.addr,
-    tunnel: source.tunnel,
-    sshLogins: [],
-  };
-}
-
-export function makeDatabase(source: Database) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    description: source.desc,
-    type: formatDatabaseInfo(
-      source.type as DbType,
-      source.protocol as DbProtocol
-    ).title,
-    protocol: source.protocol,
-    labels: source.labels,
-  };
-}
-
-export function makeKube(source: Kube) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    labels: source.labels,
-  };
 }

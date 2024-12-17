@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 import { MemoryRouter } from 'react-router';
 
@@ -165,7 +165,6 @@ WithAwsPermissionsError.parameters = {
 };
 
 export const WithEnrollmentError = () => <Component />;
-
 WithEnrollmentError.parameters = {
   msw: {
     handlers: [
@@ -194,6 +193,39 @@ WithEnrollmentError.parameters = {
   },
 };
 
+export const WithAlreadyExistsError = () => (
+  <Component devInfoText="select any region, select EKS1 to see already exist error" />
+);
+WithAlreadyExistsError.parameters = {
+  msw: {
+    handlers: [
+      tokenHandler,
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+        {
+          return HttpResponse.json({ clusters: eksClusters });
+        }
+      }),
+      http.get(
+        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+        () => {
+          return HttpResponse.json({ items: kubeServers });
+        }
+      ),
+      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+        await delay(1000);
+        return HttpResponse.json({
+          results: [
+            {
+              clusterName: 'EKS1',
+              error: 'teleport-kube-agent is already installed on the cluster',
+            },
+          ],
+        });
+      }),
+    ],
+  },
+};
+
 export const WithOtherError = () => <Component />;
 
 WithOtherError.parameters = {
@@ -212,7 +244,7 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = () => {
+const Component = ({ devInfoText = '' }) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -268,7 +300,9 @@ const Component = () => {
           resourceKind={ResourceKind.Kubernetes}
         >
           <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>Devs: Select any region to see story state</Info>
+            <Info>
+              {devInfoText || 'Devs: Select any region to see story state'}
+            </Info>
             <EnrollEksCluster
               nextStep={discoverCtx.nextStep}
               updateAgentMeta={discoverCtx.updateAgentMeta}
@@ -304,7 +338,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS2',
@@ -318,7 +352,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS3',
@@ -332,7 +366,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS4',
@@ -346,7 +380,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'CONFIG_MAP',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS5',
@@ -360,6 +394,6 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API_AND_CONFIG_MAP',
-    endpointPublicAddress: false,
+    endpointPublicAccess: false,
   },
 ];

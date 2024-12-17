@@ -32,6 +32,8 @@ import { DeviceEnrollToken } from "./device_enroll_token_pb";
 import { CreateDeviceEnrollTokenRequest } from "./devicetrust_service_pb";
 import { BulkCreateDevicesResponse } from "./devicetrust_service_pb";
 import { BulkCreateDevicesRequest } from "./devicetrust_service_pb";
+import { ListDevicesByUserResponse } from "./devicetrust_service_pb";
+import { ListDevicesByUserRequest } from "./devicetrust_service_pb";
 import { ListDevicesResponse } from "./devicetrust_service_pb";
 import { ListDevicesRequest } from "./devicetrust_service_pb";
 import { GetDeviceRequest } from "./devicetrust_service_pb";
@@ -134,6 +136,12 @@ export interface IDeviceTrustService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListDevices(teleport.devicetrust.v1.ListDevicesRequest) returns (teleport.devicetrust.v1.ListDevicesResponse);
      */
     listDevices: grpc.handleUnaryCall<ListDevicesRequest, ListDevicesResponse>;
+    /**
+     * ListDevicesByUser lists all devices owned by the user
+     *
+     * @generated from protobuf rpc: ListDevicesByUser(teleport.devicetrust.v1.ListDevicesByUserRequest) returns (teleport.devicetrust.v1.ListDevicesByUserResponse);
+     */
+    listDevicesByUser: grpc.handleUnaryCall<ListDevicesByUserRequest, ListDevicesByUserResponse>;
     /**
      * BulkCreateDevices is a bulk variant of CreateDevice.
      *
@@ -307,6 +315,16 @@ export const deviceTrustServiceDefinition: grpc.ServiceDefinition<IDeviceTrustSe
         requestDeserialize: bytes => ListDevicesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListDevicesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListDevicesRequest.toBinary(value))
+    },
+    listDevicesByUser: {
+        path: "/teleport.devicetrust.v1.DeviceTrustService/ListDevicesByUser",
+        originalName: "ListDevicesByUser",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListDevicesByUserResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListDevicesByUserRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListDevicesByUserResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListDevicesByUserRequest.toBinary(value))
     },
     bulkCreateDevices: {
         path: "/teleport.devicetrust.v1.DeviceTrustService/BulkCreateDevices",

@@ -335,7 +335,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		if err := generateDBLocalProxyCert(keyRing.TLSPrivateKey, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

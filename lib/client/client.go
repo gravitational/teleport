@@ -742,7 +742,7 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 		First:  100 * time.Millisecond,
 		Step:   100 * time.Millisecond,
 		Max:    time.Second,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

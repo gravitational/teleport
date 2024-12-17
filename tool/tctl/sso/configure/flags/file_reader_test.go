@@ -17,12 +17,11 @@
 package flags
 
 import (
-	"math/rand"
+	"crypto/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -50,11 +49,9 @@ func TestFileReader(t *testing.T) {
 
 	// random string
 	fn = filepath.Join(tmp, "random.txt")
-	src := rand.NewSource(time.Now().UnixNano())
 	buf := make([]byte, 1024*1024)
-	for ix := range buf {
-		buf[ix] = byte(src.Int63())
-	}
+	_, err = rand.Read(buf)
+	require.NoError(t, err)
 	err = os.WriteFile(fn, buf, 0777)
 	require.NoError(t, err)
 	err = reader.Set(fn)

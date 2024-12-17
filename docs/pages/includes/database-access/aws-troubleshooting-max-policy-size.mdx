@@ -23,8 +23,12 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   <TabItem label="Auto-Discovery by Discovery Service">
   You can specify `assume_role_arn` in the AWS matchers of Discovery Service's
   configuration:
+
+  (!docs/pages/includes/discovery/discovery-group.mdx!)
+
   ```yaml
   discovery_service:
+    discovery_group: "prod"
     enabled: "yes"
     aws:
       - types: ["rds"]

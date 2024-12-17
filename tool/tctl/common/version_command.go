@@ -24,9 +24,10 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // VersionCommand implements the `tctl version`
@@ -37,19 +38,19 @@ type VersionCommand struct {
 }
 
 // Initialize allows VersionCommand to plug itself into the CLI parser.
-func (c *VersionCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *VersionCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.app = app
 	c.verCmd = app.Command("version", "Print the version of your tctl binary.")
-	app.HelpFlag.Short('h')
 }
 
 // TryRun takes the CLI command as an argument and executes it.
-func (c *VersionCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *VersionCommand) TryRun(_ context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.verCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
 		return false, nil
 	}
+
 	return true, trace.Wrap(err)
 }

@@ -370,6 +370,19 @@ func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app 
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
 
+// GetApplication returns the application with the given app client ID.
+// Note that appID here is the app the application "client ID" ([Application.AppID]) not  "object ID" ([Application.ID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-get].
+func (c *Client) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
+	applicationIDFilter := fmt.Sprintf("applications(appId='%s')", applicationID)
+	uri := c.endpointURI(applicationIDFilter)
+	out, err := roundtrip[*Application](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // UpdateServicePrincipal issues a partial update for a [ServicePrincipal].
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-update].
 func (c *Client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {

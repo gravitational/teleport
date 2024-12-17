@@ -138,7 +138,7 @@ type startConfigureTestCase struct {
 
 func testStartConfigureCommand[T startConfigureCommand](
 	t *testing.T,
-	newCommand func(parentCmd *kingpin.CmdClause, action MutatorAction) T,
+	newCommand func(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) T,
 	testCases []startConfigureTestCase,
 ) {
 	for _, tt := range testCases {
@@ -148,7 +148,7 @@ func testStartConfigureCommand[T startConfigureCommand](
 			cmd := newCommand(subcommand, func(mut ConfigMutator) error {
 				actionCalled = true
 				return nil
-			})
+			}, CommandModeStart)
 
 			command, err := app.Parse(tt.args)
 			require.NoError(t, err)

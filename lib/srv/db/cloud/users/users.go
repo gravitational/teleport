@@ -162,7 +162,7 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 
 		// NewSeventhJitter builds a new jitter on the range [6n/7,n).
 		// Use n = cfg.Interval*7/6 gives an effective duration range of

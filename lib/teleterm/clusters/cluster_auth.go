@@ -100,11 +100,12 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 
 // SSOLogin logs in a user to the Teleport cluster using supported SSO provider
 func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName string) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = providerName
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = providerName
 
 	if err := c.login(ctx, c.ssoLogin(providerType, providerName)); err != nil {
 		return trace.Wrap(err)
@@ -115,11 +116,12 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 
 // PasswordlessLogin processes passwordless logins for this cluster.
 func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = constants.PasswordlessConnector
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = constants.PasswordlessConnector
 
 	if err := c.login(ctx, c.passwordlessLogin(stream)); err != nil {
 		return trace.Wrap(err)

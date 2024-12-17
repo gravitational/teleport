@@ -526,7 +526,8 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 			isActive:   true,
 		}, nil
 	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		// pickActiveApp errors are non-retryable.
+		return nil, trace.Wrap(&client.NonRetryableError{Err: err})
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
@@ -550,33 +551,45 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 		app: app,
 	}
 
+	// When getAppInfo gets called inside RetryWithRelogin, it will relogin on
+	// trace.BadParameter errors. Wrap errors from pickCloudAppLogin as they
+	// are not retryable.
+	if err := appInfo.pickCloudAppLogin(cf, logins); err != nil {
+		return nil, trace.Wrap(&client.NonRetryableError{Err: err})
+	}
+	return appInfo, nil
+}
+
+// pickCloudAppLogin picks the cloud identity for the app based on provided CLI
+// flags and/or available logins of the Teleport user.
+func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 	// If this is a cloud app, set additional applicable fields from CLI flags or roles.
 	switch {
-	case app.IsAWSConsole():
-		awsRoleARN, err := getARNFromFlags(cf, app, logins)
+	case a.app.IsAWSConsole():
+		awsRoleARN, err := getARNFromFlags(cf, a.app, logins)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		appInfo.AWSRoleARN = awsRoleARN
+		a.AWSRoleARN = awsRoleARN
 
-	case app.IsAzureCloud():
-		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
+	case a.app.IsAzureCloud():
+		azureIdentity, err := getAzureIdentityFromFlags(cf, a.profile)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Debugf("Azure identity is %q", azureIdentity)
-		appInfo.AzureIdentity = azureIdentity
+		a.AzureIdentity = azureIdentity
 
-	case app.IsGCP():
-		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
+	case a.app.IsGCP():
+		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, a.profile)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
-		appInfo.GCPServiceAccount = gcpServiceAccount
+		a.GCPServiceAccount = gcpServiceAccount
 	}
 
-	return appInfo, nil
+	return nil
 }
 
 // appInfo wraps a RouteToApp and the corresponding app.
