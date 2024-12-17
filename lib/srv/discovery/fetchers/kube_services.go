@@ -20,7 +20,6 @@ package fetchers
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -72,7 +71,7 @@ func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if k.ProtocolChecker == nil {
-		k.ProtocolChecker = NewProtoChecker(false)
+		k.ProtocolChecker = NewProtoChecker()
 	}
 
 	return nil
@@ -313,8 +312,7 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 }
 
 type ProtoChecker struct {
-	InsecureSkipVerify bool
-	client             *http.Client
+	client *http.Client
 
 	// cacheKubernetesServiceProtocol maps a Kubernetes Service Namespace/Name to a tuple containing the Service's ResourceVersion and the Protocol.
 	// When the Kubernetes Service ResourceVersion changes, then we assume the protocol might've changed as well, so the cache is invalidated.
@@ -333,18 +331,12 @@ type kubernetesNameNamespace struct {
 	name      string
 }
 
-func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
+func NewProtoChecker() *ProtoChecker {
 	p := &ProtoChecker{
-		InsecureSkipVerify: insecureSkipVerify,
 		client: &http.Client{
 			// This is a best-effort scenario, where teleport tries to guess which protocol is being used.
 			// Ideally it should either be inferred by the Service's ports or explicitly configured by using annotations on the service.
 			Timeout: 500 * time.Millisecond,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: insecureSkipVerify,
-				},
-			},
 		},
 		cacheKubernetesServiceProtocol: make(map[kubernetesNameNamespace]appResourceVersionProtocol),
 	}
