@@ -174,8 +174,11 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		IssueType: ut.GetSpec().GetIssueType(),
 		State:     ut.GetSpec().GetState(),
 	}
-	if ut.GetSpec().GetTaskType() == usertasks.TaskTypeDiscoverEC2 {
+	switch ut.GetSpec().GetTaskType() {
+	case usertasks.TaskTypeDiscoverEC2:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
+	case usertasks.TaskTypeDiscoverEKS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
 	}
 	return ret
 }
