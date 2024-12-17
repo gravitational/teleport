@@ -1589,7 +1589,7 @@ func TestGetMethodInfo(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
-		expected    map[PackageInfo][]MethodInfo
+		expected    map[PackageInfo]versionKindAssignment
 	}{
 		{
 			description: "multiple struct declarations",
@@ -1858,7 +1858,7 @@ func (r *RoleV6) setStaticFields() {
 					PackageName: d.Name.Name,
 				})
 			}
-			actual, err := GetMethodInfo(allDecls)
+			actual, err := VersionKindAssignments(allDecls)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})

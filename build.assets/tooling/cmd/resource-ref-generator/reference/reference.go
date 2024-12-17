@@ -31,9 +31,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-const versionField = "Version"
-const kindField = "Kind"
-
 // pageContent represents a reference page for a single resource and its related
 // fields. Fields must be exported so we can use them in templates.
 type pageContent struct {
@@ -326,7 +323,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		return fmt.Errorf("can't load Go source files: %v", err)
 	}
 
-	methods, err := resource.GetMethodInfo(possibleFuncDecls)
+	methods, err := resource.VersionKindAssignments(possibleFuncDecls)
 	if err != nil {
 		return err
 	}

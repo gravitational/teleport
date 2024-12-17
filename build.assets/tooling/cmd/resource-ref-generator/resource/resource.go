@@ -714,16 +714,6 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	return refs, nil
 }
 
-// MethodInfo is a simplified representation of a Go method.
-type MethodInfo struct {
-	// The name of the method.
-	Name string
-	// Any field assignments within the main body of the method. Keys
-	// represent fields of the receiver. Values are the values the
-	// assignments assign.
-	FieldAssignments map[string]string
-}
-
 // GetTopLevelStringAssignments collects all declarations of a var or a const
 // within decls that assign a string value. Used to look up the values of these
 // declarations.
@@ -786,14 +776,14 @@ func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo
 	return result, nil
 }
 
-func getMethodName(exp ast.Expr) (string, error) {
+func getReceiverName(exp ast.Expr) (string, error) {
 	switch t := exp.(type) {
 	case *ast.IndexExpr:
-		return getMethodName(t.X)
+		return getReceiverName(t.X)
 	case *ast.IndexListExpr:
-		return getMethodName(t.X)
+		return getReceiverName(t.X)
 	case *ast.StarExpr:
-		return getMethodName(t.X)
+		return getReceiverName(t.X)
 	case *ast.Ident:
 		return t.Name, nil
 	default:
@@ -855,15 +845,23 @@ func getAssignments(receiver string, n ast.Node) map[string]string {
 	return result
 }
 
-// GetMethodInfo extracts relevant data about methods in the provided Go
-// declarations. The resulting map associates methods with their receiving
-// types.
-func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
+type versionKindAssignment struct {
+	version string
+	kind    string
+}
+
+const versionField = "Version"
+const kindField = "Kind"
+
+// VersionKindAssignments finds all methods with methodName, which we expect to
+// assign the version and kind fields within the receiver, and returns a map of
+// receiver PackageInfos to the version and kind fields they assign.
+func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[PackageInfo]versionKindAssignment, error) {
 	if decls == nil || len(decls) == 0 {
-		return map[PackageInfo][]MethodInfo{}, nil
+		return map[PackageInfo]versionKindAssignment{}, nil
 	}
 
-	result := make(map[PackageInfo][]MethodInfo)
+	result := make(map[PackageInfo]versionKindAssignment)
 
 	for _, decl := range decls {
 		f, ok := decl.Decl.(*ast.FuncDecl)
@@ -883,43 +881,56 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 				f.Name.Name,
 			)
 		}
+		receiver := f.Recv.List[0]
 
-		i, err := getMethodName(f.Recv.List[0].Type)
+		// There is no method receiver name to assign to, so we
+		// won't track assignments made in this method.
+		if len(receiver.Names) != 1 {
+			continue
+		}
+
+		recName, err := getReceiverName(receiver.Type)
 		if err != nil {
 			return nil, fmt.Errorf("%v: method %v.%v has an unexpected receiver type",
 				decl.FilePath,
 				decl.PackageName,
 				f.Name.Name,
 			)
-
 		}
 
 		pi := PackageInfo{
 			PackageName: decl.PackageName,
-			DeclName:    i,
+			DeclName:    recName,
 		}
 
-		mi := MethodInfo{
-			Name:             f.Name.Name,
-			FieldAssignments: map[string]string{},
-		}
-
-		a, ok := result[pi]
-		if !ok {
-			result[pi] = []MethodInfo{}
-		}
-
-		// There is no method receiver name to assign to, so we
-		// won't track assignments made in this method.
-		if len(f.Recv.List[0].Names) != 1 {
-			result[pi] = append(a, mi)
+		_, ok = result[pi]
+		if ok {
 			continue
 		}
 
-		s := getAssignments(f.Recv.List[0].Names[0].Name, f)
-		mi.FieldAssignments = s
+		s := getAssignments(receiver.Names[0].Name, f)
+		v, ok := s[versionField]
+		if ok {
+			return nil, fmt.Errorf(
+				"expected function %v to assign %v, but found no assignment",
+				methodName,
+				versionField,
+			)
+		}
+		k, ok := s[kindField]
+		if ok {
+			return nil, fmt.Errorf(
+				"expected function %v to assign %v, but found no assignment",
+				methodName,
+				kindField,
+			)
+		}
 
-		result[pi] = append(a, mi)
+		result[pi] = versionKindAssignment{
+			version: v,
+			kind:    k,
+		}
 	}
+
 	return result, nil
 }
