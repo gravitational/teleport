@@ -124,10 +124,10 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*aut
 }
 
 func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
-	// check wait days
+	// check wait hours
 	if group.ConfigWaitHours != 0 {
 		if previousGroup == nil {
-			return false, trace.BadParameter("The first group cannot have non-zero wait hours")
+			return false, trace.BadParameter("the first group cannot have non-zero wait hours")
 		}
 
 		previousStart := previousGroup.StartTime.AsTime()

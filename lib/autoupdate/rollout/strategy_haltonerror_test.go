@@ -43,7 +43,7 @@ func Test_canStartHaltOnError(t *testing.T) {
 		wantErr       require.ErrorAssertionFunc
 	}{
 		{
-			name: "first group, no wait_days",
+			name: "first group, no wait_hours",
 			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
