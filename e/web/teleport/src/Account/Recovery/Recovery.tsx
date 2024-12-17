@@ -9,6 +9,8 @@ import { EnterpriseComponentProps } from 'teleport/Account/Account';
 
 import { P } from 'design/Text/Text';
 
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import useRecovery, { State } from './useRecovery';
@@ -83,7 +85,10 @@ export function Recovery({
       </MultiRowBox>
       {isReAuthenticateVisible && (
         <ReAuthenticate
-          onAuthenticated={setToken}
+          challengeScope={MfaChallengeScope.MANAGE_DEVICES}
+          onMfaResponse={mfaResponse =>
+            auth.createPrivilegeToken(mfaResponse).then(setToken)
+          }
           onClose={hideReAuthenticate}
         />
       )}

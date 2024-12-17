@@ -1,7 +1,8 @@
 import React from 'react';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import AuthService from 'teleport/services/auth';
+
+import auth from 'teleport/services/auth/auth';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'e-teleport/config';
@@ -18,13 +19,14 @@ describe('recovery dashboard testing', () => {
     ctx = new TeleportContextE();
     ctx.storeUser.setState({ username: 'joe@example.com' });
 
-    jest
-      .spyOn(AuthService, 'createPrivilegeTokenWithTotp')
-      .mockResolvedValue(privilegeToken);
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({
+      totpChallenge: true,
+      webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+    });
 
-    jest
-      .spyOn(AuthService, 'createPrivilegeTokenWithWebauthn')
-      .mockResolvedValue(privilegeToken);
+    jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+
+    jest.spyOn(auth, 'createPrivilegeToken').mockResolvedValue(privilegeToken);
 
     jest
       .spyOn(ctx.recoveryService, 'fetchRecoveryCodesMetadata')
@@ -62,7 +64,9 @@ describe('recovery dashboard testing', () => {
 
     fireEvent.click(await screen.findByText('Generate new recovery codes'));
 
-    expect(screen.getByText('Verify your identity')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Verify your identity')).toBeInTheDocument();
+    });
 
     const reAuthMfaSelectEl = screen
       .getByTestId('mfa-select')
@@ -75,9 +79,9 @@ describe('recovery dashboard testing', () => {
 
     fireEvent.click(screen.getByText('Continue'));
 
-    expect(AuthService.createPrivilegeTokenWithTotp).toHaveBeenCalledWith(
-      '321321'
-    );
+    await waitFor(() => {
+      expect(auth.createPrivilegeToken).toHaveBeenCalled();
+    });
 
     await waitFor(() => {
       expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
@@ -96,17 +100,19 @@ describe('recovery dashboard testing', () => {
   test('generating new codes with webauthn', async () => {
     renderRecovery();
 
-    jest.spyOn(cfg.oss, 'getPreferredMfaType').mockReturnValue('webauthn');
-
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
     fireEvent.click(await screen.findByText('Generate new recovery codes'));
 
-    expect(screen.getByText('Verify your identity')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Verify your identity')).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByText('Continue'));
 
-    expect(AuthService.createPrivilegeTokenWithWebauthn).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(auth.createPrivilegeToken).toHaveBeenCalled();
+    });
 
     await waitFor(() => {
       expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
