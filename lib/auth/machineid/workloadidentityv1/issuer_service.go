@@ -25,6 +25,7 @@ import (
 	"math/big"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -148,8 +149,15 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 		// We expect the final key to point to a string field - otherwise - we
 		// return an error.
 		if i == len(attrParts)-1 {
-			if fieldDesc.Kind() != protoreflect.StringKind {
-				return "", trace.BadParameter("attribute %q is not a string", part)
+			if !slices.Contains([]protoreflect.Kind{
+				protoreflect.StringKind,
+				protoreflect.BoolKind,
+				protoreflect.Int32Kind,
+				protoreflect.Int64Kind,
+				protoreflect.Uint64Kind,
+				protoreflect.Uint32Kind,
+			}, fieldDesc.Kind()) {
+				return "", trace.BadParameter("attribute %q of type %q cannot be converted to string", part, fieldDesc.Kind())
 			}
 			return message.Get(fieldDesc).String(), nil
 		}

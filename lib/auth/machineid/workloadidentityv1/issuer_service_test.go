@@ -46,6 +46,54 @@ func Test_getFieldStringValue(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			name: "bool",
+			in: &workloadidentityv1pb.Attrs{
+				User: &workloadidentityv1pb.UserAttrs{
+					Name: "jeff",
+				},
+				Workload: &workloadidentityv1pb.WorkloadAttrs{
+					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
+						Attested: true,
+					},
+				},
+			},
+			attr:       "workload.unix.attested",
+			want:       "true",
+			requireErr: require.NoError,
+		},
+		{
+			name: "int32",
+			in: &workloadidentityv1pb.Attrs{
+				User: &workloadidentityv1pb.UserAttrs{
+					Name: "jeff",
+				},
+				Workload: &workloadidentityv1pb.WorkloadAttrs{
+					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
+						Pid: 123,
+					},
+				},
+			},
+			attr:       "workload.unix.pid",
+			want:       "123",
+			requireErr: require.NoError,
+		},
+		{
+			name: "uint32",
+			in: &workloadidentityv1pb.Attrs{
+				User: &workloadidentityv1pb.UserAttrs{
+					Name: "jeff",
+				},
+				Workload: &workloadidentityv1pb.WorkloadAttrs{
+					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
+						Gid: 123,
+					},
+				},
+			},
+			attr:       "workload.unix.gid",
+			want:       "123",
+			requireErr: require.NoError,
+		},
+		{
 			name: "non-string final field",
 			in: &workloadidentityv1pb.Attrs{
 				User: &workloadidentityv1pb.UserAttrs{
@@ -54,7 +102,7 @@ func Test_getFieldStringValue(t *testing.T) {
 			},
 			attr: "user",
 			requireErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "attribute \"user\" is not a string")
+				require.ErrorContains(t, err, "attribute \"user\" of type \"message\" cannot be converted to string")
 			},
 		},
 		{
@@ -79,8 +127,8 @@ func Test_getFieldStringValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, gotErr := getFieldStringValue(tt.in, tt.attr)
-			require.Equal(t, tt.want, got)
 			tt.requireErr(t, gotErr)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
