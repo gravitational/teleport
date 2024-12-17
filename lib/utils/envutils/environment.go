@@ -20,12 +20,12 @@ package envutils
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,7 +39,10 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	// having this file for the user is optional.
 	file, err := utils.OpenFileNoUnsafeLinks(filename)
 	if err != nil {
-		log.Warnf("Unable to open environment file %v: %v, skipping", filename, err)
+		slog.WarnContext(context.Background(), "Unable to open environment file, skipping",
+			"file", filename,
+			"error", err,
+		)
 		return []string{}, nil
 	}
 	defer file.Close()
@@ -51,6 +54,7 @@ func readEnvironment(r io.Reader) ([]string, error) {
 	var lineno int
 	env := &SafeEnv{}
 
+	ctx := context.Background()
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -59,7 +63,9 @@ func readEnvironment(r io.Reader) ([]string, error) {
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
-			log.Warnf("Too many lines in environment file, returning first %v lines", teleport.MaxEnvironmentFileLines)
+			slog.WarnContext(ctx, "Too many lines in environment file, limiting how many are consumed",
+				"lines_consumed", teleport.MaxEnvironmentFileLines,
+			)
 			return *env, nil
 		}
 
@@ -71,7 +77,7 @@ func readEnvironment(r io.Reader) ([]string, error) {
 		// split on first =, if not found, log it and continue
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			log.Debugf("Bad line %v while reading environment file: no = separator found", lineno)
+			slog.DebugContext(ctx, "Bad line while reading environment file: no = separator found", "line_number", lineno)
 			continue
 		}
 
@@ -79,7 +85,7 @@ func readEnvironment(r io.Reader) ([]string, error) {
 		key := line[:idx]
 		value := line[idx+1:]
 		if strings.TrimSpace(key) == "" {
-			log.Debugf("Bad line %v while reading environment file: key without name", lineno)
+			slog.DebugContext(ctx, "Bad line while reading environment file: key without name", "line_number", lineno)
 			continue
 		}
 
@@ -88,7 +94,7 @@ func readEnvironment(r io.Reader) ([]string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Warnf("Unable to read environment file: %v", err)
+		slog.WarnContext(ctx, "Unable to read environment file", "error", err)
 		return []string{}, nil
 	}
 
