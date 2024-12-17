@@ -173,7 +173,7 @@ func (s *WorkloadIdentityOutputService) requestSVID(
 	}
 	defer impersonatedClient.Close()
 
-	res, privateKey, err := generateX509WorkloadIDByName(
+	res, privateKey, err := generateX509WorkloadIdentity(
 		ctx,
 		impersonatedClient,
 		s.cfg.WorkloadIdentity,
@@ -183,7 +183,7 @@ func (s *WorkloadIdentityOutputService) requestSVID(
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
 
-	jwtSvid, err := generateJWTWorkloadIDByName(
+	jwtSvid, err := generateJWTWorkloadIdentity(
 		ctx,
 		impersonatedClient,
 		s.cfg.WorkloadIdentity,
@@ -274,7 +274,7 @@ func (s *WorkloadIdentityOutputService) render(
 	return nil
 }
 
-func generateX509WorkloadIDByName(
+func generateX509WorkloadIdentity(
 	ctx context.Context,
 	clt *authclient.Client,
 	workloadIdentity config.WorkloadIdentitySelector,
@@ -282,7 +282,7 @@ func generateX509WorkloadIDByName(
 ) (*workloadidentityv1pb.Credential, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"generateX509WorkloadIDByName",
+		"generateX509WorkloadIdentity",
 	)
 	defer span.End()
 	privateKey, err := cryptosuites.GenerateKey(ctx,
@@ -314,7 +314,7 @@ func generateX509WorkloadIDByName(
 	return res.Credential, privateKey, nil
 }
 
-func generateJWTWorkloadIDByName(
+func generateJWTWorkloadIdentity(
 	ctx context.Context,
 	clt *authclient.Client,
 	workloadIdentity config.WorkloadIdentitySelector,
@@ -323,7 +323,7 @@ func generateJWTWorkloadIDByName(
 ) (*workloadidentityv1pb.Credential, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"generateJWTSVIDs",
+		"generateJWTWorkloadIdentity",
 	)
 	defer span.End()
 
