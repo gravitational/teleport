@@ -71,6 +71,7 @@ export function DocumentsReopen(props: {
           <ButtonIcon
             type="button"
             onClick={props.onDiscard}
+            title="Close"
             color="text.slightlyMuted"
           >
             <Cross size="medium" />

@@ -20,6 +20,7 @@ import 'jest-canvas-mock';
 import { render } from 'design/utils/testing';
 import { screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -29,9 +30,11 @@ import { VnetContextProvider } from 'teleterm/ui/Vnet';
 import Logger, { NullService } from 'teleterm/logger';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { AppInitializer } from './AppInitializer';
 
+mockIntersectionObserver();
 beforeAll(() => {
   Logger.init(new NullService());
 });
@@ -148,12 +151,97 @@ test('activating a workspace via deep link overrides the previously active works
   ).toBeVisible();
 });
 
-//TODO(gzdunek): Replace with Promise.withResolvers after upgrading to Node.js 22.
-function withPromiseResolver() {
-  let resolver: () => void;
-  const promise = new Promise<void>(resolve => (resolver = resolve));
-  return {
-    resolve: resolver,
-    promise,
-  };
-}
+test.each<{
+  name: string;
+  action(appContext: IAppContext): Promise<void>;
+  expectDocumentsRestoredOrDiscarded: boolean;
+}>([
+  {
+    name: 'closing documents reopen dialog via close button discards previous documents',
+    action: async () => {
+      await userEvent.click(await screen.findByTitle('Close'));
+    },
+    expectDocumentsRestoredOrDiscarded: true,
+  },
+  {
+    name: 'starting new session in document reopen dialog discards previous documents',
+    action: async () => {
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Start New Session' })
+      );
+    },
+    expectDocumentsRestoredOrDiscarded: true,
+  },
+  {
+    name: 'overwriting document reopen dialog with another regular dialog does not discard documents',
+    action: async appContext => {
+      act(() => {
+        const { closeDialog } = appContext.modalsService.openRegularDialog({
+          kind: 'change-access-request-kind',
+          onConfirm() {},
+          onCancel() {},
+        });
+        closeDialog();
+      });
+    },
+    expectDocumentsRestoredOrDiscarded: false,
+  },
+])('$name', async testCase => {
+  const rootCluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  jest
+    .spyOn(appContext.statePersistenceService, 'getWorkspacesState')
+    .mockReturnValue({
+      rootClusterUri: rootCluster.uri,
+      workspaces: {
+        [rootCluster.uri]: {
+          localClusterUri: rootCluster.uri,
+          documents: [
+            {
+              kind: 'doc.access_requests',
+              uri: '/docs/123',
+              state: 'browsing',
+              clusterUri: rootCluster.uri,
+              requestId: '',
+              title: 'Access Requests',
+            },
+          ],
+          location: undefined,
+        },
+      },
+    });
+  appContext.mainProcessClient.configService.set(
+    'usageReporting.enabled',
+    false
+  );
+  jest.spyOn(appContext.tshd, 'listRootClusters').mockReturnValue(
+    new MockedUnaryCall({
+      clusters: [rootCluster],
+    })
+  );
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <ResourcesContextProvider>
+            <AppInitializer />
+          </ResourcesContextProvider>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(
+    await screen.findByText(
+      'Do you want to reopen tabs from the previous session?'
+    )
+  ).toBeInTheDocument();
+
+  await testCase.action(appContext);
+
+  expect(
+    appContext.workspacesService.getWorkspace(rootCluster.uri)
+      .documentsRestoredOrDiscarded
+  ).toBe(testCase.expectDocumentsRestoredOrDiscarded);
+});
