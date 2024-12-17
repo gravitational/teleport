@@ -482,6 +482,8 @@ message EnrollEKSClustersRequest {
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
   string agent_version = 5;
+  // ExtraLabels added to the enrolled clusters.
+  map<string, string> extra_labels = 6;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
