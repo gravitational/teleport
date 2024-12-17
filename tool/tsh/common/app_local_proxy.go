@@ -34,9 +34,9 @@ import (
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc       *client.TeleportClient
-	appInfo  *appInfo
-	insecure bool
+	tc          *client.TeleportClient
+	appInfo     *appInfo
+	insecure    bool
 	portMapping client.PortMapping
 
 	localALPNProxy    *alpnproxy.LocalProxy
@@ -68,10 +68,10 @@ func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, 
 // accepts a specific port mapping as an argument.
 func newLocalProxyAppWithPortMapping(tc *client.TeleportClient, appInfo *appInfo, portMapping client.PortMapping, insecure bool) *localProxyApp {
 	return &localProxyApp{
-		tc:       tc,
-		appInfo:  appInfo,
+		tc:          tc,
+		appInfo:     appInfo,
 		portMapping: portMapping,
-		insecure: insecure,
+		insecure:    insecure,
 	}
 }
 
@@ -117,12 +117,16 @@ func (a *localProxyApp) Close() error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping client.PortMapping, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
+	routeToApp := a.appInfo.RouteToApp
+	if portMapping.TargetPort != 0 {
+		routeToApp.TargetPort = uint32(portMapping.TargetPort)
+	}
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil, client.WithTTL(a.tc.KeyTTL))
+	appCertChecker := client.NewAppCertChecker(a.tc, routeToApp, nil, client.WithTTL(a.tc.KeyTTL))
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, a.appInfo.RouteToApp.Name)
+	cert, err := loadAppCertificate(a.tc, routeToApp.Name)
 	if err == nil {
 		appCertChecker.SetCert(cert)
 	}

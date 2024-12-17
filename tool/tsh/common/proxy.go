@@ -426,8 +426,13 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
-	if portMapping.LocalPort == 0 {
+	appName := cf.AppName
+	if portMapping.TargetPort != 0 {
+		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+	}
+	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	// If target port is not equal to zero, the user must know about the port flag.
+	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
 		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
