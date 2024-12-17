@@ -69,7 +69,7 @@ func TestCommandMatchBeforeAuthConnect(t *testing.T) {
 
 	// We set the command which is not defined to go through
 	// all defined commands to ensure that auth client
-	// not initialised before command is matched.
+	// not initialized before command is matched.
 	for _, c := range commands {
 		match, err = c.TryRun(ctx, "non-existing-command", clientFunc)
 		if err != nil {

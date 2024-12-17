@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"io"
 	"os"
 	"strings"
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // SSOTestCommand implements common.CLICommand interface

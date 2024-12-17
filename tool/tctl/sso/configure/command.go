@@ -20,7 +20,6 @@ package configure
 
 import (
 	"context"
-	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // SSOConfigureCommand implements common.CLICommand interface
