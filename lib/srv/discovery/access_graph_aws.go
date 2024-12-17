@@ -145,15 +145,15 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 
 // getAllAWSSyncFetchers returns all AWS sync fetchers.
 func (s *Server) getAllAWSSyncFetchers() []aws_sync.AWSSync {
-	allFetchers := make([]aws_sync.AWSSync, 0, len(s.dynamicTAGSyncFetchers))
+	allFetchers := make([]aws_sync.AWSSync, 0, len(s.dynamicTAGAWSFetchers))
 
-	s.muDynamicTAGSyncFetchers.RLock()
-	for _, fetcherSet := range s.dynamicTAGSyncFetchers {
+	s.muDynamicTAGAWSFetchers.RLock()
+	for _, fetcherSet := range s.dynamicTAGAWSFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}
-	s.muDynamicTAGSyncFetchers.RUnlock()
+	s.muDynamicTAGAWSFetchers.RUnlock()
 
-	allFetchers = append(allFetchers, s.staticTAGSyncFetchers...)
+	allFetchers = append(allFetchers, s.staticTAGAWSFetchers...)
 	// TODO(tigrato): submit fetchers event
 	return allFetchers
 }
@@ -443,7 +443,7 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
-	s.staticTAGSyncFetchers = fetchers
+	s.staticTAGAWSFetchers = fetchers
 
 	if cfg.AccessGraphConfig.Enabled {
 		go func() {
