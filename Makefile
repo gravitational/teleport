@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.6
+VERSION=17.1.0-rc.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1828,3 +1828,7 @@ create-github-release:
 	--latest=$(LATEST) \
 	--verify-tag \
 	-F - <<< "$$NOTES"
+
+.PHONY: go-mod-tidy-all
+go-mod-tidy-all:
+	find . -type "f" -name "go.mod" -execdir go mod tidy \;
