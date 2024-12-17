@@ -32,11 +32,11 @@ import {
   newRole,
   StandardEditorModel,
   roleToRoleEditorModel as roleToRoleEditorModel,
-} from './standardmodel';
+} from './StandardEditor/standardmodel';
 import { YamlEditorModel } from './yamlmodel';
 import { EditorTab } from './EditorTabs';
 import { EditorHeader } from './EditorHeader';
-import { StandardEditor } from './StandardEditor';
+import { StandardEditor } from './StandardEditor/StandardEditor';
 import { YamlEditor } from './YamlEditor';
 
 export type RoleEditorProps = {
