@@ -18,7 +18,6 @@
 
 import { render, screen } from 'design/utils/testing';
 import { within } from '@testing-library/react';
-import React from 'react';
 
 import { MfaDevice } from 'teleport/services/mfa';
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Text, Box, Flex, Link, Mark } from 'design';
 import { Danger } from 'design/Alert';
 import { Info } from 'design/Icon';

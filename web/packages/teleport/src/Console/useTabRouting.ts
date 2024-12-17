@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useMemo } from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
 
 import cfg, {
@@ -44,7 +44,7 @@ export default function useRouting(ctx: ConsoleContext) {
   );
 
   // Ensure that each URL has corresponding document
-  React.useMemo(() => {
+  useMemo(() => {
     if (ctx.getActiveDocId(pathname) !== -1) {
       return;
     }

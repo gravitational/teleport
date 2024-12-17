@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { delay, http, HttpResponse } from 'msw';
 import { Info } from 'design/Alert';

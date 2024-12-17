@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -52,7 +52,7 @@ export default function Console() {
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
   const { attempt, run } = useAttempt();
 
-  React.useEffect(() => {
+  useEffect(() => {
     run(() => consoleCtx.initStoreUser());
   }, []);
 
@@ -134,7 +134,7 @@ export default function Console() {
  */
 function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
   const { doc, visible } = props;
-  return React.useMemo(() => {
+  return useMemo(() => {
     switch (doc.kind) {
       case 'terminal':
         return <DocumentSsh doc={doc} visible={visible} />;
