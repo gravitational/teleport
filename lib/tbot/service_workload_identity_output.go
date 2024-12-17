@@ -173,27 +173,52 @@ func (s *WorkloadIdentityOutputService) requestSVID(
 	}
 	defer impersonatedClient.Close()
 
-	res, privateKey, err := generateX509WorkloadIdentity(
+	x509Credentials, privateKey, err := issueX509WorkloadIdentity(
 		ctx,
 		impersonatedClient,
 		s.cfg.WorkloadIdentity,
 		s.botCfg.CertificateTTL,
+		nil,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
+	var x509Credential *workloadidentityv1pb.Credential
+	switch len(x509Credentials) {
+	case 0:
+		return nil, nil, nil, trace.BadParameter("no X509 SVIDs returned")
+	case 1:
+		x509Credential = x509Credentials[0]
+	default:
+		// We could eventually implement some kind of hint selection mechanism
+		// to pick the "right" one.
+		return nil, nil, nil, trace.BadParameter("multiple X509 SVIDs received")
+	}
 
-	jwtSvid, err := generateJWTWorkloadIdentity(
+	jwtSvid, err := issueJWTWorkloadIdentity(
 		ctx,
 		impersonatedClient,
 		s.cfg.WorkloadIdentity,
 		s.cfg.JWTAudiences,
-		s.botCfg.CertificateTTL)
+		s.botCfg.CertificateTTL,
+		nil,
+	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}
+	var jwtCred *workloadidentityv1pb.Credential
+	switch len(jwtSvid) {
+	case 0:
+		// No JWT SVIDs were requested, so we don't need to do anything.
+	case 1:
+		jwtCred = jwtSvid[0]
+	default:
+		// We could eventually implement some kind of hint selection mechanism
+		// to pick the "right" one.
+		return nil, nil, nil, trace.BadParameter("multiple JWT SVIDs received")
+	}
 
-	return res, privateKey, jwtSvid, nil
+	return x509Credential, privateKey, jwtCred, nil
 }
 
 func (s *WorkloadIdentityOutputService) render(
@@ -274,15 +299,16 @@ func (s *WorkloadIdentityOutputService) render(
 	return nil
 }
 
-func generateX509WorkloadIdentity(
+func issueX509WorkloadIdentity(
 	ctx context.Context,
 	clt *authclient.Client,
 	workloadIdentity config.WorkloadIdentitySelector,
 	ttl time.Duration,
-) (*workloadidentityv1pb.Credential, crypto.Signer, error) {
+	attest *workloadidentityv1pb.WorkloadAttrs,
+) ([]*workloadidentityv1pb.Credential, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"generateX509WorkloadIdentity",
+		"issueX509WorkloadIdentity",
 	)
 	defer span.End()
 	privateKey, err := cryptosuites.GenerateKey(ctx,
@@ -296,6 +322,8 @@ func generateX509WorkloadIdentity(
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// When using the "name" based selector, we either get a single WIC back,
+	// or an error. We don't need to worry about selecting the right one.
 	res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
 		&workloadidentityv1pb.IssueWorkloadIdentityRequest{
 			Name: workloadIdentity.Name,
@@ -304,26 +332,29 @@ func generateX509WorkloadIdentity(
 					PublicKey: pubBytes,
 				},
 			},
-			RequestedTtl: durationpb.New(ttl),
+			RequestedTtl:  durationpb.New(ttl),
+			WorkloadAttrs: attest,
 		},
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// TODO: Log intimate details of the issued credential
 
-	return res.Credential, privateKey, nil
+	return []*workloadidentityv1pb.Credential{res.Credential}, privateKey, nil
 }
 
-func generateJWTWorkloadIdentity(
+func issueJWTWorkloadIdentity(
 	ctx context.Context,
 	clt *authclient.Client,
 	workloadIdentity config.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
-) (*workloadidentityv1pb.Credential, error) {
+	attest *workloadidentityv1pb.WorkloadAttrs,
+) ([]*workloadidentityv1pb.Credential, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"generateJWTWorkloadIdentity",
+		"issueJWTWorkloadIdentity",
 	)
 	defer span.End()
 
@@ -331,6 +362,8 @@ func generateJWTWorkloadIdentity(
 		return nil, nil
 	}
 
+	// When using the "name" based selector, we either get a single WIC back,
+	// or an error. We don't need to worry about selecting the right one.
 	res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
 		&workloadidentityv1pb.IssueWorkloadIdentityRequest{
 			Name: workloadIdentity.Name,
@@ -339,12 +372,14 @@ func generateJWTWorkloadIdentity(
 					Audiences: audiences,
 				},
 			},
-			RequestedTtl: durationpb.New(ttl),
+			RequestedTtl:  durationpb.New(ttl),
+			WorkloadAttrs: attest,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO: Log intimate details of the issued credential
 
-	return res.Credential, nil
+	return []*workloadidentityv1pb.Credential{res.Credential}, nil
 }
