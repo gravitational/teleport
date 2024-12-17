@@ -45,18 +45,26 @@ export type MfaProps = {
 // 2. Setup AuthnDialog using the MFA state, to show a dialog when
 //    mfaAttempt.state === 'processing'.
 export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
-  const [required, setMfaRequired] = useState<boolean>(null);
+  const [mfaRequired, setMfaRequired] = useState<boolean>();
   const [options, setMfaOptions] = useState<MfaOption[]>();
 
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
   const mfaResponsePromise =
     useRef<PromiseWithResolvers<MfaChallengeResponse>>();
 
+  useEffect(() => {
+    setMfaRequired(isMfaRequired);
+  }, [isMfaRequired]);
+
+  useEffect(() => {
+    setMfaRequired(null);
+  }, [req?.isMfaRequiredRequest]);
+
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
       async (challenge?: MfaAuthenticateChallenge) => {
         if (!challenge) {
-          if (isMfaRequired === false || required === false) return;
+          if (mfaRequired === false) return;
 
           challenge = await auth.getMfaChallenge(req);
           if (!challenge) {
@@ -66,7 +74,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
         }
 
         // Set mfa requirement and options after we get a challenge for the first time.
-        if (!required) setMfaRequired(true);
+        if (!mfaRequired) setMfaRequired(true);
         if (!options) setMfaOptions(getMfaChallengeOptions(challenge));
 
         mfaResponsePromise.current = Promise.withResolvers();
@@ -78,7 +86,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
           setMfaChallenge(null);
         }
       },
-      [req, mfaResponsePromise, options, isMfaRequired, required]
+      [req, mfaResponsePromise, options, mfaRequired]
     )
   );
 
@@ -117,7 +125,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   );
 
   return {
-    required,
+    required: mfaRequired,
     options,
     challenge,
     getChallengeResponse,

@@ -1249,6 +1249,14 @@ export interface UrlAppParams {
   arn?: string;
 }
 
+export interface CreateAppSessionParams {
+  fqdn: string;
+  clusterId?: string;
+  publicAddr?: string;
+  arn?: string;
+  mfaResponse?: MfaChallengeResponse;
+}
+
 export interface UrlScpParams {
   clusterId: string;
   serverId: string;

@@ -27,7 +27,7 @@ import { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import { UrlLauncherParams } from 'teleport/config';
+import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
 import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -43,7 +43,6 @@ export function AppLauncher() {
   const mfa = useMfa({
     req: {
       scope: MfaChallengeScope.USER_SESSION,
-      allowReuse: false,
       isMfaRequiredRequest: {
         app: {
           fqdn: pathParams.fqdn,
@@ -119,10 +118,9 @@ export function AppLauncher() {
         params.arn = decodeURIComponent(params.arn);
       }
 
-      // Prompt for MFA if per-session MFA is required for this app.
-      const mfaResponse = await mfa.getChallengeResponse();
-
-      const session = await service.createAppSession(params, mfaResponse);
+      const createAppSessionParams = params as CreateAppSessionParams;
+      createAppSessionParams.mfaResponse = await mfa.getChallengeResponse();
+      const session = await service.createAppSession(createAppSessionParams);
 
       // Set all the fields expected by server to validate request.
       const url = getXTeleportAuthUrl({ fqdn, port });
@@ -161,7 +159,7 @@ export function AppLauncher() {
 
   useEffect(() => {
     createAppSession(pathParams);
-  }, []);
+  }, [pathParams]);
 
   return (
     <div>

@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
+import cfg, {
+  CreateAppSessionParams,
+  UrlAppParams,
+  UrlResourcesParams,
+} from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
-
-import { MfaChallengeResponse } from '../mfa';
 
 import makeApp from './makeApps';
 import { App } from './types';
@@ -41,18 +43,14 @@ const service = {
     });
   },
 
-  async createAppSession(
-    params: UrlAppParams,
-    mfaResponse: MfaChallengeResponse
-  ) {
+  async createAppSession(params: CreateAppSessionParams) {
     const createAppSession = {
       ...params,
-      mfaResponse,
       // TODO(Joerger): DELETE IN v19.0.0.
       // We include a string version of the MFA response for backwards compatibility.
-      mfa_response: mfaResponse
+      mfa_response: params.mfaResponse
         ? JSON.stringify({
-            webauthnAssertionResponse: mfaResponse.webauthn_response,
+            webauthnAssertionResponse: params.mfaResponse.webauthn_response,
           })
         : null,
     };
