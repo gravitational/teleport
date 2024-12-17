@@ -19,7 +19,7 @@ package teleport.workloadidentity.v1;
 import "google/protobuf/empty.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1pb";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // WorkloadIdentityResourceService provides methods to manage the
 // WorkloadIdentity resource.
