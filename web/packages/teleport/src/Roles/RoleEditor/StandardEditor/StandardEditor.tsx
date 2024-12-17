@@ -32,16 +32,16 @@ import {
   hasModifiedFields,
   RoleEditorModel,
   StandardEditorModel,
-  AccessSpecKind,
-  AccessSpec,
-  newAccessSpec,
+  ResourceAccessKind,
+  ResourceAccess,
+  newResourceAccess,
   RuleModel,
   OptionsModel,
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 import { MetadataSection } from './MetadataSection';
-import { AccessSpecSection, specSections } from './Resources';
+import { ResourceAccessSection, resourceAccessSections } from './Resources';
 import { AccessRules } from './AccessRules';
 import { Options } from './Options';
 
@@ -70,9 +70,9 @@ export const StandardEditor = ({
   const { roleModel } = standardEditorModel;
   const validation = validateRoleEditorModel(roleModel);
 
-  /** All spec kinds except those that are already in the role. */
-  const allowedSpecKinds = allAccessSpecKinds.filter(k =>
-    roleModel.accessSpecs.every(as => as.kind !== k)
+  /** All resource access kinds except those that are already in the role. */
+  const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
+    roleModel.resources.every(as => as.kind !== k)
   );
 
   enum StandardEditorTab {
@@ -111,29 +111,29 @@ export const StandardEditor = ({
     });
   }
 
-  function addAccessSpec(kind: AccessSpecKind) {
+  function addResourceAccess(kind: ResourceAccessKind) {
     handleChange({
       ...standardEditorModel.roleModel,
-      accessSpecs: [
-        ...standardEditorModel.roleModel.accessSpecs,
-        newAccessSpec(kind),
+      resources: [
+        ...standardEditorModel.roleModel.resources,
+        newResourceAccess(kind),
       ],
     });
   }
 
-  function removeAccessSpec(kind: AccessSpecKind) {
+  function removeResourceAccess(kind: ResourceAccessKind) {
     handleChange({
       ...standardEditorModel.roleModel,
-      accessSpecs: standardEditorModel.roleModel.accessSpecs.filter(
+      resources: standardEditorModel.roleModel.resources.filter(
         s => s.kind !== kind
       ),
     });
   }
 
-  function setAccessSpec(value: AccessSpec) {
+  function setResourceAccess(value: ResourceAccess) {
     handleChange({
       ...standardEditorModel.roleModel,
-      accessSpecs: standardEditorModel.roleModel.accessSpecs.map(original =>
+      resources: standardEditorModel.roleModel.resources.map(original =>
         original.kind === value.kind ? value : original
       ),
     });
@@ -184,7 +184,7 @@ export const StandardEditor = ({
                 controls: resourcesTabId,
                 status:
                   validator.state.validating &&
-                  validation.accessSpecs.some(s => !s.valid)
+                  validation.resources.some(s => !s.valid)
                     ? validationErrorTabStatus
                     : undefined,
               },
@@ -237,16 +237,16 @@ export const StandardEditor = ({
             }}
           >
             <Flex flexDirection="column" gap={3} my={2}>
-              {roleModel.accessSpecs.map((spec, i) => {
-                const validationResult = validation.accessSpecs[i];
+              {roleModel.resources.map((res, i) => {
+                const validationResult = validation.resources[i];
                 return (
-                  <AccessSpecSection
-                    key={spec.kind}
-                    value={spec}
+                  <ResourceAccessSection
+                    key={res.kind}
+                    value={res}
                     isProcessing={isProcessing}
                     validation={validationResult}
-                    onChange={value => setAccessSpec(value)}
-                    onRemove={() => removeAccessSpec(spec.kind)}
+                    onChange={value => setResourceAccess(value)}
+                    onRemove={() => removeResourceAccess(res.kind)}
                   />
                 );
               })}
@@ -265,18 +265,22 @@ export const StandardEditor = ({
                   buttonText={
                     <>
                       <Icon.Plus size="small" mr={2} />
-                      Add New Specifications
+                      Add New Resource Access
                     </>
                   }
                   buttonProps={{
                     size: 'medium',
                     fill: 'filled',
-                    disabled: isProcessing || allowedSpecKinds.length === 0,
+                    disabled:
+                      isProcessing || allowedResourceAccessKinds.length === 0,
                   }}
                 >
-                  {allowedSpecKinds.map(kind => (
-                    <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                      {specSections[kind].title}
+                  {allowedResourceAccessKinds.map(kind => (
+                    <MenuItem
+                      key={kind}
+                      onClick={() => addResourceAccess(kind)}
+                    >
+                      {resourceAccessSections[kind].title}
                     </MenuItem>
                   ))}
                 </MenuButton>
@@ -331,9 +335,10 @@ const validationErrorTabStatus = {
 } as const;
 
 /**
- * All access spec kinds, in order of appearance in the resource kind dropdown.
+ * All resource access kinds, in order of appearance in the resource kind
+ * dropdown.
  */
-const allAccessSpecKinds: AccessSpecKind[] = [
+const allResourceAccessKinds: ResourceAccessKind[] = [
   'kube_cluster',
   'node',
   'app',
