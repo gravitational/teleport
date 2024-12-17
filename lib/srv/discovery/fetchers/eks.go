@@ -87,10 +87,10 @@ type EKSFetcherConfig struct {
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
-	// DiscoveryConfig is the name of the discovery config which originated the resource.
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
-	DiscoveryConfig string
+	DiscoveryConfigName string
 	// KubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for the
 	// discovered cluster. We don't use this information for fetching itself, but we need it for
 	// correct enrollment of the clusters returned from this fetcher.
@@ -133,7 +133,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 
 // MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
 // by their reliance on the integration.
-func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfig string) (kubeFetchers []common.Fetcher, _ error) {
+func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) (kubeFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
 		var matcherAssumeRole types.AssumeRole
 		if matcher.AssumeRole != nil {
@@ -146,15 +146,15 @@ func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSCli
 				case types.AWSMatcherEKS:
 					fetcher, err := NewEKSFetcher(
 						EKSFetcherConfig{
-							ClientGetter:      clients,
-							AssumeRole:        matcherAssumeRole,
-							Region:            region,
-							Integration:       matcher.Integration,
-							KubeAppDiscovery:  matcher.KubeAppDiscovery,
-							FilterLabels:      matcher.Tags,
-							Log:               log,
-							SetupAccessForARN: matcher.SetupAccessForARN,
-							DiscoveryConfig:   discoveryConfig,
+							ClientGetter:        clients,
+							AssumeRole:          matcherAssumeRole,
+							Region:              region,
+							Integration:         matcher.Integration,
+							KubeAppDiscovery:    matcher.KubeAppDiscovery,
+							FilterLabels:        matcher.Tags,
+							Log:                 log,
+							SetupAccessForARN:   matcher.SetupAccessForARN,
+							DiscoveryConfigName: discoveryConfigName,
 						},
 					)
 					if err != nil {
@@ -329,8 +329,8 @@ func (a *eksFetcher) IntegrationName() string {
 	return a.Integration
 }
 
-func (a *eksFetcher) DiscoveryConfigName() string {
-	return a.DiscoveryConfig
+func (a *eksFetcher) GetDiscoveryConfigName() string {
+	return a.DiscoveryConfigName
 }
 
 func (a *eksFetcher) String() string {
