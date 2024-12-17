@@ -3998,7 +3998,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
-		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
+		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
