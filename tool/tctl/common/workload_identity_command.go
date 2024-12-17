@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
 // WorkloadIdentityCommand is a group of commands pertaining to Teleport
@@ -84,16 +85,24 @@ func (c *WorkloadIdentityCommand) Initialize(
 
 // TryRun attempts to run subcommands.
 func (c *WorkloadIdentityCommand) TryRun(
-	ctx context.Context, cmd string, client *authclient.Client,
+	ctx context.Context, cmd string, clientFunc commonclient.InitFunc,
 ) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.listCmd.FullCommand():
-		err = c.ListWorkloadIdentities(ctx, client)
+		commandFunc = c.ListWorkloadIdentities
 	case c.rmCmd.FullCommand():
-		err = c.DeleteWorkloadIdentity(ctx, client)
+		commandFunc = c.DeleteWorkloadIdentity
 	default:
 		return false, nil
 	}
+
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 
 	return true, trace.Wrap(err)
 }
