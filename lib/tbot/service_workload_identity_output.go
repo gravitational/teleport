@@ -13,7 +13,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -233,18 +232,13 @@ func (s *WorkloadIdentityOutputService) render(
 		Bytes: privBytes,
 	})
 
-	if len(res.Svids) != 1 {
-		return trace.BadParameter("expected 1 SVID, got %d", len(res.Svids))
-
-	}
-	svid := res.Svids[0]
 	if err := s.cfg.Destination.Write(ctx, config.SVIDKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  pemCertificate,
-		Bytes: svid.Certificate,
+		Bytes: x509Cred.GetX509Svid().GetCert(),
 	})
 	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
@@ -271,8 +265,8 @@ func (s *WorkloadIdentityOutputService) render(
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
-	for fileName, jwt := range jwtSVIDs {
-		if err := s.cfg.Destination.Write(ctx, fileName, []byte(jwt)); err != nil {
+	if jwtCred != nil {
+		if err := s.cfg.Destination.Write(ctx, "jwt", []byte(jwtCred.GetJwtSvid().GetJwt())); err != nil {
 			return trace.Wrap(err, "writing JWT SVID")
 		}
 	}
