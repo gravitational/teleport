@@ -55,8 +55,8 @@ import (
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
 
-// aggClient is aggregated client interface for auth command.
-type aggClient interface {
+// authCommandClient is aggregated client interface for auth command.
+type authCommandClient interface {
 	certificateSigner
 	crlGenerator
 	authclient.ClientI
@@ -177,7 +177,7 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 		return match, trace.Wrap(err)
 	}
 
-	var commandFunc func(ctx context.Context, client aggClient) error
+	var commandFunc func(ctx context.Context, client authCommandClient) error
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		commandFunc = a.GenerateKeys
@@ -231,7 +231,7 @@ var allowedCRLCertificateTypes = []string{
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt aggClient) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClient) error {
 	exportFunc := client.ExportAuthorities
 	if a.exportPrivateKeys {
 		exportFunc = client.ExportAuthoritiesSecrets
@@ -257,7 +257,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt aggClient) erro
 }
 
 // GenerateKeys generates a new keypair
-func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI aggClient) error {
+func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandClient) error {
 	signer, err := cryptosuites.GenerateKey(ctx,
 		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
 		cryptosuites.UserSSH)
@@ -309,7 +309,7 @@ type certificateSigner interface {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI aggClient) error {
+func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI authCommandClient) error {
 	if a.streamTarfile {
 		tarWriter := newTarWriter(clockwork.NewRealClock())
 		defer tarWriter.Archive(os.Stdout)
@@ -440,7 +440,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 }
 
 // ListAuthServers prints a list of connected auth servers
-func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI aggClient) error {
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authCommandClient) error {
 	servers, err := clusterAPI.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -468,7 +468,7 @@ type crlGenerator interface {
 
 // GenerateCRLForCA generates a certificate revocation list for a certificate
 // authority.
-func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI aggClient) error {
+func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authCommandClient) error {
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)

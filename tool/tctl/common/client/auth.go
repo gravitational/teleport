@@ -42,6 +42,8 @@ import (
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
+// If the function does not return an error, the caller is responsible for calling the client close function
+// once it does not need the client anymore.
 type InitFunc func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error)
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
@@ -92,7 +94,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		// Get the proxy address and set the MFA prompt constructor.
 		resp, err := client.Ping(ctx)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, trace.NewAggregate(err, client.Close())
 		}
 		proxyAddr := resp.ProxyPublicAddr
 		client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
