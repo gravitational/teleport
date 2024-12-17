@@ -5250,24 +5250,24 @@ func TestCreateRegisterChallenge(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		req             *createRegisterChallengeRequest
+		req             *createRegisterChallengeWithTokenRequest
 		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
 	}{
 		{
 			name: "totp",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType: "totp",
 			},
 		},
 		{
 			name: "webauthn",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType: "webauthn",
 			},
 		},
 		{
 			name: "passwordless",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType:  "webauthn",
 				DeviceUsage: "passwordless",
 			},

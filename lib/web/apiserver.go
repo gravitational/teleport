@@ -917,7 +917,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.DELETE("/webapi/mfa/devices", h.WithAuth(h.deleteMFADeviceHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
+
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
 	// DEPRECATED in favor of mfa/authenticatechallenge.
 	// TODO(bl-nero): DELETE IN 17.0.0
