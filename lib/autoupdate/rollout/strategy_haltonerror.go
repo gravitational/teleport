@@ -125,20 +125,18 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*aut
 
 func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
 	// check wait days
-	if group.ConfigWaitDays != 0 {
+	if group.ConfigWaitHours != 0 {
 		if previousGroup == nil {
-			return false, trace.BadParameter("The first group cannot have non-zero wait days")
+			return false, trace.BadParameter("The first group cannot have non-zero wait hours")
 		}
 
 		previousStart := previousGroup.StartTime.AsTime()
 		if previousStart.IsZero() || previousStart.Unix() == 0 {
-			return false, trace.BadParameter("The previous group doesn't have a start time, cannot check the 'wait_days' criteria")
+			return false, trace.BadParameter("the previous group doesn't have a start time, cannot check the 'wait_hours' criteria")
 		}
 
-		// Take the day of the previous group start, add 'wait_days' and truncate to midnight.
-		y, m, d := previousStart.AddDate(0, 0, int(group.ConfigWaitDays)).Date()
-		// Check if the wait_day criteria is OK, if we are at least after 'wait_days' since the previous start.
-		if now.Before(time.Date(y, m, d, 0, 0, 0, 0, previousStart.Location())) {
+		// Check if the wait_hours criteria is OK, if we are at least after 'wait_hours' hours since the previous start.
+		if now.Before(previousGroup.StartTime.AsTime().Add(time.Duration(group.ConfigWaitHours) * time.Hour)) {
 			return false, nil
 		}
 	}
