@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -68,9 +69,9 @@ type UnifiedResourceCacheConfig struct {
 
 // UnifiedResourceCache contains a representation of all resources that are displayable in the UI
 type UnifiedResourceCache struct {
-	rw  sync.RWMutex
-	log *log.Entry
-	cfg UnifiedResourceCacheConfig
+	rw     sync.RWMutex
+	logger *slog.Logger
+	cfg    UnifiedResourceCacheConfig
 	// nameTree is a BTree with items sorted by (hostname)/name/type
 	nameTree *btree.BTreeG[*item]
 	// typeTree is a BTree with items sorted by type/(hostname)/name
@@ -101,10 +102,8 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 	}
 
 	m := &UnifiedResourceCache{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: cfg.Component,
-		}),
-		cfg: cfg,
+		logger: slog.With(teleport.ComponentKey, cfg.Component),
+		cfg:    cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
@@ -267,7 +266,10 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Ke
 	}
 
 	if len(res) == backend.DefaultRangeLimit {
-		c.log.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+		c.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)",
+			"start_key", startKey,
+			"range_limit", backend.DefaultRangeLimit,
+		)
 	}
 
 	return res, nextKey, nil
@@ -747,7 +749,11 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 	for _, event := range events {
 		if event.Resource == nil {
-			c.log.Warnf("Unexpected event: %v.", event)
+			c.logger.WarnContext(ctx, "Unexpected event",
+				"event_type", event.Type,
+				"resource_kind", event.Resource.GetKind(),
+				"resource_name", event.Resource.GetName(),
+			)
 			continue
 		}
 
@@ -775,15 +781,15 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
 
 				default:
-					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
+					c.logger.WarnContext(ctx, "unsupported Resource153 type", "resource_type", logutils.TypeAttr(unwrapped))
 				}
 
 			default:
-				c.log.Warnf("unsupported Resource type %T.", r)
+				c.logger.WarnContext(ctx, "unsupported Resource type", "resource_type", logutils.TypeAttr(r))
 			}
 
 		default:
-			c.log.Warnf("unsupported event type %s.", event.Type)
+			c.logger.WarnContext(ctx, "unsupported event type", "event_type", event.Type)
 			continue
 		}
 	}
