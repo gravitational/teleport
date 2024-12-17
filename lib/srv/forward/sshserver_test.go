@@ -20,6 +20,7 @@ package forward
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"os/user"
@@ -30,7 +31,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,7 +57,7 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 	assertSHA1Signer := func(t *testing.T, signer ssh.Signer) {
 		require.Equal(t, ssh.CertAlgoRSAv01, signer.PublicKey().Type())
 
-		// We should not be able to case the signer to ssh.AlgorithmSigner.
+		// We should not be able to cast the signer to ssh.AlgorithmSigner.
 		// Otherwise, x/crypto will use SHA-2-512 for signing.
 		_, ok := signer.(ssh.AlgorithmSigner)
 		require.False(t, ok)
@@ -70,13 +74,15 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 		want      func(t *testing.T, got []ssh.Signer)
 	}{
 		{
-			name: "simple",
+			name: "RSA host certificate",
 			signersCb: func(t *testing.T) []ssh.Signer {
-				signer, err := apisshutils.MakeTestSSHCA()
+				caSigner, err := apisshutils.MakeTestSSHCA()
 				require.NoError(t, err)
-				cert, err := apisshutils.MakeRealHostCert(signer)
+				hostKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 				require.NoError(t, err)
-				return []ssh.Signer{cert}
+				hostCert, err := apisshutils.MakeRealHostCertWithKey(hostKey.Signer, caSigner)
+				require.NoError(t, err)
+				return []ssh.Signer{hostCert}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// We expect 2 certificates, order matters.
@@ -86,16 +92,46 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 			},
 		},
 		{
-			name: "public key only",
+			name: "RSA host public key",
 			signersCb: func(t *testing.T) []ssh.Signer {
-				signer, err := apisshutils.MakeTestSSHCA()
+				hostKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 				require.NoError(t, err)
-				return []ssh.Signer{signer}
+				hostSigner, err := ssh.NewSignerFromSigner(hostKey.Signer)
+				require.NoError(t, err)
+				return []ssh.Signer{hostSigner}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// public key should not be copied
 				require.Len(t, signers, 1)
 				require.Equal(t, ssh.KeyAlgoRSA, signers[0].PublicKey().Type())
+			},
+		},
+		{
+			name: "Ed25519 host certificate",
+			signersCb: func(t *testing.T) []ssh.Signer {
+				caSigner, err := apisshutils.MakeTestSSHCA()
+				require.NoError(t, err)
+				hostCert, err := apisshutils.MakeRealHostCert(caSigner)
+				require.NoError(t, err)
+				return []ssh.Signer{hostCert}
+			},
+			want: func(t *testing.T, signers []ssh.Signer) {
+				require.Len(t, signers, 1)
+				require.Equal(t, ssh.CertAlgoED25519v01, signers[0].PublicKey().Type())
+			},
+		},
+		{
+			name: "Ed25519 host key",
+			signersCb: func(t *testing.T) []ssh.Signer {
+				_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+				require.NoError(t, err)
+				hostSigner, err := ssh.NewSignerFromSigner(hostKey)
+				require.NoError(t, err)
+				return []ssh.Signer{hostSigner}
+			},
+			want: func(t *testing.T, signers []ssh.Signer) {
+				require.Len(t, signers, 1)
+				require.Equal(t, ssh.KeyAlgoED25519, signers[0].PublicKey().Type())
 			},
 		},
 	}
@@ -155,6 +191,7 @@ func TestDirectTCPIP(t *testing.T) {
 	cases := []struct {
 		name           string
 		login          string
+		accessChecker  services.AccessChecker
 		expectAccepted bool
 		expectRejected bool
 	}{
@@ -184,7 +221,7 @@ func TestDirectTCPIP(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          utils.NewSlogLoggerForTests(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -220,17 +257,18 @@ func TestCheckTCPIPForward(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          utils.NewSlogLoggerForTests(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
-			err := s.checkTCPIPForwardRequest(&ssh.Request{
-				Type:      teleport.TCPIPForwardRequest,
-				WantReply: false,
-				Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
-					Addr: "localhost",
-					Port: 0,
-				}),
-			})
+			err := s.checkTCPIPForwardRequest(context.Background(),
+				&ssh.Request{
+					Type:      teleport.TCPIPForwardRequest,
+					WantReply: false,
+					Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
+						Addr: "localhost",
+						Port: 0,
+					}),
+				})
 			tt.assert(t, err)
 		})
 	}

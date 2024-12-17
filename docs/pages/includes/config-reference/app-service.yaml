@@ -22,6 +22,8 @@ app_service:
       # Optional: For access to cloud provider APIs, specify the cloud
       # provider. Allowed values are "AWS", "Azure", and "GCP".
       cloud: ""
+      # Optional: Free-form description of the application.
+      description: "Kubernetes Dashboard to development cluster"
       # URI of Application. For TCP applications
       # use tcp, ex: tcp://localhost:5432.
       uri: "http://10.0.1.27:8000"
@@ -33,6 +35,48 @@ app_service:
       # to limit access to applications
       labels:
          env: "prod"
+
+      # # Optional list of Teleport application names that require a session for this app to function correctly.
+      # # When launching this app, any app listed here will also be launched, and a session will be created.
+      # # These sessions follow their respective RBAC policies.
+      # required_apps:
+      #   - "my-api"
+      #   - "prod-database"
+      #   # Add more required app names as needed
+
+      # # Optional CORS policy is used for preflight requests only. It does not overwrite the contained
+      # # app's CORS policy per route but is used by Teleport to respond to unauthenticated OPTION requests.
+      # # Important Notes:
+      # # - Each field in the CORS spec is optional.
+      # # - The allowed_headers field accepts wildcard entries. However, in requests with "allow_credentials: true",
+      # #   a wildcard is treated as the literal header name "*" without special semantics.
+      # # - The Authorization header can't be set with a wildcard and always needs to be listed explicitly.
+      # cors:
+      #   # Specifies which origins are allowed to make cross-origin requests.
+      #   allowed_origins:
+      #     - "https://example.com"
+      #     - "https://app.example.com"
+      #   # HTTP methods that are allowed when accessing the resource.
+      #   allowed_methods:
+      #     - "GET"
+      #     - "POST"
+      #     - "PUT"
+      #     - "DELETE"
+      #     - "OPTIONS"
+      #   # HTTP headers that can be used during the actual request.
+      #   allowed_headers:
+      #     - "Content-Type"
+      #     - "Authorization"
+      #     - "X-Custom-Header"
+      #   # Headers that browsers are allowed to access.
+      #   exposed_headers:
+      #     - "Content-Type"
+      #     - "X-Custom-Response-Header"
+      #   # Indicates whether the request can include credentials.
+      #   allow_credentials: true
+      #   # Indicates how long (in seconds) the results of a preflight request can be cached.
+      #   max_age: 3600
+
       # Optional Dynamic Labels
       commands:
       - name: "os"

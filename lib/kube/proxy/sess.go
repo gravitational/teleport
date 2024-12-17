@@ -39,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
@@ -498,7 +497,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
-	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
@@ -749,7 +747,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	s.started = true
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
-	if !s.sess.noAuditEvents {
+	if s.sess.isLocalKubernetesCluster {
 		s.terminalSizeQueue.callback = func(termSize terminalResizeMessage) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
@@ -982,7 +980,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		return trace.Wrap(err)
 	}
 
-	// we only want to emit the session.join when someone tries to join a session via
+	// We only want to emit the session.join when someone tries to join a session via
 	// tsh kube join and not when the original session owner terminal streams are
 	// connected to the Kubernetes session.
 	if emitJoinEvent {
@@ -993,6 +991,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if _, err := p.Client.stdoutStream().Write(recentWrites); err != nil {
 		s.log.Warnf("Failed to write history to client: %v.", err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	// increment the party track waitgroup.
 	// It is decremented when session.leave() finishes its execution.
@@ -1017,10 +1016,17 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Mode == types.SessionPeerMode {
 		s.io.AddReader(stringID, p.Client.stdinStream())
 	}
-
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
+	// Send the participant mode and controls to the additional participant
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
+		err := srv.MsgParticipantCtrls(p.Client.stdoutStream(), p.Mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
+	// Allow the moderator to force terminate the session
 	if p.Mode == types.SessionModeratorMode {
 		s.weakEventsWaiter.Add(1)
 		go func() {
@@ -1095,7 +1101,6 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 		}
 	}
-
 	return nil
 }
 
@@ -1458,7 +1463,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
 	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
-		kubeapitypes.StrategicMergePatchType,
+		apimachinerytypes.StrategicMergePatchType,
 		waitingCont.Spec.Patch,
 		metav1.PatchOptions{},
 		"ephemeralcontainers")

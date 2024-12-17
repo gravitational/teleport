@@ -19,9 +19,8 @@
 package reversetunnel
 
 import (
+	"slices"
 	"sync"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 // NewConnectedProxyGetter creates a new ConnectedProxyGetter instance.
@@ -50,7 +49,7 @@ func (g *ConnectedProxyGetter) setProxyIDs(ids []string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if cmp.Equal(g.ids, ids) {
+	if slices.Equal(g.ids, ids) {
 		return
 	}
 

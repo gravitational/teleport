@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Option } from 'shared/components/Select';
@@ -49,7 +48,7 @@ export function CustomInputFieldForAsterisks({
       label={`Enter a custom ${nameKind} name:`}
       value={value}
       onChange={e => onValueChange(e.target.value)}
-      isDisabled={disabled}
+      disabled={disabled}
       placeholder={`custom-${nameKind.replace(' ', '-')}-name`}
       rule={requiredField(
         `${capitalizeFirstLetter(nameKind)} name is required`

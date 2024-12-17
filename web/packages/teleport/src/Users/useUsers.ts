@@ -21,6 +21,8 @@ import { useAttempt } from 'shared/hooks';
 
 import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
@@ -85,24 +87,16 @@ export default function useUsers({
   }
 
   async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u, ExcludeUserField.Traits, webauthnResponse)
+      .createUser(u, ExcludeUserField.Traits, mfaResponse)
       .then(result => setUsers([result, ...users]))
       .then(() =>
-        ctx.userService.createResetPasswordToken(
-          u.name,
-          'invite',
-          webauthnResponse
-        )
+        ctx.userService.createResetPasswordToken(u.name, 'invite', mfaResponse)
       );
   }
 
-  function onInviteCollaboratorsClose(newUsers?: User[]) {
-    if (newUsers && newUsers.length > 0) {
-      setUsers([...newUsers, ...users]);
-    }
-
+  function onInviteCollaboratorsClose() {
     setInviteCollaboratorsOpen(false);
     setOperation({ type: 'none' });
   }
@@ -119,14 +113,28 @@ export default function useUsers({
     return items.map(r => r.name);
   }
 
+  function onDismissUsersMauNotice() {
+    storageService.setUsersMAUAcknowledged();
+  }
+
   useEffect(() => {
     attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
+
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
+
+  const usersAcl = ctx.storeUser.getUserAccess();
 
   return {
     attempt,
     users,
     fetchRoles,
+    usersAcl,
     operation,
     onStartCreate,
     onStartDelete,
@@ -143,6 +151,8 @@ export default function useUsers({
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
   };
 }
 

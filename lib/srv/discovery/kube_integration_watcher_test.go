@@ -31,7 +31,6 @@ import (
 	eksV1 "github.com/aws/aws-sdk-go/service/eks"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestServer_getKubeFetchers(t *testing.T) {
@@ -380,7 +380,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						AWS: tc.awsMatchers,
 					},
 					Emitter:        authClient,
-					Log:            logrus.New(),
+					Log:            libutils.NewSlogLoggerForTests(),
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -584,4 +584,4 @@ func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Con
 	return "", nil
 }
 
-var _ awsoidc.EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+var _ awsoidc.EnrollEKSClusterClient = &mockEnrollEKSClusterClient{}

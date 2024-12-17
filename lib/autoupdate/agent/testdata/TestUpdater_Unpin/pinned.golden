@@ -1,0 +1,9 @@
+version: v1
+kind: update_config
+spec:
+    proxy: ""
+    enabled: false
+    pinned: false
+status:
+    active:
+        version: ""

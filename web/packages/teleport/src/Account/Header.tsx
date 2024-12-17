@@ -49,7 +49,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0].background}
+        bg={theme.colors.interactive.tonal.neutral[0]}
         lineHeight={0}
         p={2}
         borderRadius={3}

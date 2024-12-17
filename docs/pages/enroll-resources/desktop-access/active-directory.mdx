@@ -66,7 +66,7 @@ It may also be easier to comprehend what the script does by following the manual
 
 To use the `tctl` generated configuration script, run the following command:
 
-```bash
+```code
 # Generate the script and save it to a file named configure-ad.ps1.
 tctl desktop bootstrap > configure-ad.ps1
 ```
@@ -435,15 +435,23 @@ the performance of remote desktop connections.
 
 1. Right-click **Configure RemoteFX**, select **Edit**, select **Enabled**, then click **OK**.
 
+   <Figure align="left" bordered caption="Enable RemoteFX (Step 1)">
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-1.png)
+   </Figure>
+
 1. Now left-click **Remote Session Environment**
    (**`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Environment`** in the left pane)
    and from the items in the right pane, right-click **Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1**, select **Edit**, select **Enabled**, then click **OK**.
 
-   <Figure align="left" bordered caption="Enable RemoteFX">
-   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx.png)
+   <Figure align="left" bordered caption="Enable RemoteFX (Step 2)">
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-2.png)
    </Figure>
 
 1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
+
+   <Figure align="left" bordered caption="Enable RemoteFX (Step 3)">
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-3.png)
+   </Figure>
 
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:

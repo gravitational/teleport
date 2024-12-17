@@ -24,10 +24,11 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -38,13 +39,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -261,9 +261,14 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
 	fmt.Fprintln(cf.Stdout(), title)
-	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name"})
+	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
-		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster})
+		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
+		if err != nil {
+			slog.WarnContext(cf.Context, "Failed to generate context name.", "error", err)
+			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
+		}
+		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
 	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
 }
@@ -316,7 +321,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	// Generate a new private key for the proxy. The client's existing private key may be
 	// a hardware-backed private key, which cannot be added to the local proxy kube config.
-	localClientKey, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(cf.Context, tc.GetCurrentSignatureAlgorithmSuite, cryptosuites.UserTLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClientKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +350,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Certs:        certs,
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
-		Logger:       log,
+		Logger:       logger,
 		CloseContext: cf.Context,
 	})
 
@@ -369,7 +378,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		kubeProxy.kubeConfigPath = os.Getenv(proxyKubeConfigEnvVar)
 		if kubeProxy.kubeConfigPath == "" {
 			_, port, _ := net.SplitHostPort(kubeProxy.forwardProxy.GetAddr())
-			kubeProxy.kubeConfigPath = path.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
+			kubeProxy.kubeConfigPath = filepath.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
 		}
 	}
 
@@ -584,7 +593,6 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 			RequesterName:     requesterName,
 			TTL:               tc.KeyTTL,
 		},
-		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

@@ -24,7 +24,7 @@ import (
 	"hash/fnv"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -162,7 +162,7 @@ func (a *gcpApp) Close() error {
 }
 
 func (a *gcpApp) getGcloudConfigPath() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name, "gcloud")
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name, "gcloud")
 }
 
 // removeBotoConfig removes config files written by WriteBotoConfig.
@@ -175,15 +175,15 @@ func (a *gcpApp) removeBotoConfig() []error {
 }
 
 func (a *gcpApp) getBotoConfigDir() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name)
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name)
 }
 
 func (a *gcpApp) getBotoConfigPath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
 }
 
 func (a *gcpApp) getExternalAccountFilePath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
 }
 
 // getBotoConfig returns minimal boto configuration, referencing an external account file.
@@ -369,8 +369,23 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchGCPApp)
-	if err != nil {
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

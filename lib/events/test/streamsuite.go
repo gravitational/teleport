@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -151,6 +152,41 @@ func StreamWithPermutedParameters(t *testing.T, handler events.MultipartHandler,
 			StreamWithParameters(t, handler, pc)
 		})
 	}
+}
+
+// StreamEmpty verifies stream upload with zero events gets correctly discarded. This behavior is
+// necessary in order to prevent a bug where agents might think they have failed to create a multipart
+// upload and create a new one, resulting in duplicate recordings overwriiting each other.
+func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sid := session.NewID()
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:          handler,
+		MinUploadBytes:    1024,
+		ConcurrentUploads: 2,
+	})
+	require.NoError(t, err)
+
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	select {
+	case status := <-stream.Status():
+		require.Equal(t, status.LastEventIndex, int64(-1))
+	case <-time.After(time.Second):
+		t.Fatalf("Timed out waiting for status update.")
+	}
+
+	require.NoError(t, stream.Complete(ctx))
+
+	f, err := os.CreateTemp("", string(sid))
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	fixtures.AssertNotFound(t, handler.Download(ctx, sid, f))
 }
 
 // StreamWithParameters tests stream upload and subsequent download and reads the results

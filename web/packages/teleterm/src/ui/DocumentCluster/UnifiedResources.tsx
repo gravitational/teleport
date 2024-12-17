@@ -33,11 +33,9 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text, Link, H1 } from 'design';
+import { Flex, ButtonPrimary, Text, Link, H1, ResourceIcon } from 'design';
 
 import * as icons from 'design/Icon';
-import Image from 'design/Image';
-import stack from 'design/assets/resources/stack.png';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -76,7 +74,7 @@ import {
   ConnectAppActionButton,
   AccessRequestButton,
 } from './ActionButtons';
-import { useResourcesContext, ResourcesContext } from './resourcesContext';
+import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -104,7 +102,7 @@ export function UnifiedResources(props: {
       [rootClusterUri]
     )
   );
-  const { onResourcesRefreshRequest } = useResourcesContext();
+  const { onResourcesRefreshRequest } = useResourcesContext(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
 
   const { unifiedResourcePreferences } = userPreferences;
@@ -189,6 +187,10 @@ export function UnifiedResources(props: {
 
   const requestStarted = accessRequestsService.getAddedItemsCount() > 0;
 
+  const getAddedItemsCount = useCallback(() => {
+    return accessRequestsService.getAddedItemsCount();
+  }, [accessRequestsService]);
+
   const getAccessRequestButton = useCallback(
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
@@ -219,6 +221,13 @@ export function UnifiedResources(props: {
     ]
   );
 
+  const bulkAddResources = useCallback(
+    (resources: UnifiedResourceResponse[]) => {
+      accessRequestsService.addAllOrRemoveAllResources(resources);
+    },
+    [accessRequestsService]
+  );
+
   return (
     <Resources
       getAccessRequestButton={getAccessRequestButton}
@@ -232,6 +241,8 @@ export function UnifiedResources(props: {
       canUseConnectMyComputer={canUseConnectMyComputer}
       openConnectMyComputerDocument={openConnectMyComputerDocument}
       onResourcesRefreshRequest={onResourcesRefreshRequest}
+      bulkAddResources={bulkAddResources}
+      getAddedItemsCount={getAddedItemsCount}
       discoverUrl={discoverUrl}
       integratedAccessRequests={integratedAccessRequests}
       // Reset the component state when query params object change.
@@ -252,9 +263,11 @@ const Resources = memo(
     canAddResources: boolean;
     canUseConnectMyComputer: boolean;
     openConnectMyComputerDocument(): void;
-    onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+    onResourcesRefreshRequest(listener: () => void): { cleanup(): void };
     discoverUrl: string;
-    getAccessRequestButton?: (resource: UnifiedResourceResponse) => JSX.Element;
+    getAccessRequestButton: (resource: UnifiedResourceResponse) => JSX.Element;
+    getAddedItemsCount: () => number;
+    bulkAddResources: (resources: UnifiedResourceResponse[]) => void;
     integratedAccessRequests: IntegratedAccessRequests;
   }) => {
     const appContext = useAppContext();
@@ -316,10 +329,48 @@ const Resources = memo(
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
       const { cleanup } = onResourcesRefreshRequest(() => {
-        fetch({ clear: true });
+        void fetch({ clear: true });
       });
       return cleanup;
     }, [onResourcesRefreshRequest, fetch]);
+
+    const { getAccessRequestButton } = props;
+    // The action callback in the requestAccess action has access to
+    // `SharedUnifiedResource['resource']`, but `props.bulkAddResources` accepts
+    // `UnifiedResourceResponse`. Because of that, we need to to have the
+    // getUnifiedResourceFromSharedResource function.
+    const { sharedResources, getUnifiedResourceFromSharedResource } =
+      useMemo(() => {
+        const sharedResources: SharedUnifiedResource[] = [];
+        const sharedResourceToUnifiedResource = new Map<
+          SharedUnifiedResource['resource'],
+          UnifiedResourceResponse
+        >();
+
+        resources.forEach(resource => {
+          let sharedResource = mapToSharedResource(resource);
+          const accessRequestButton = getAccessRequestButton(resource);
+          if (accessRequestButton) {
+            sharedResource.ui.ActionButton = accessRequestButton;
+          }
+
+          sharedResources.push(sharedResource);
+          sharedResourceToUnifiedResource.set(
+            sharedResource.resource,
+            resource
+          );
+        });
+
+        const getUnifiedResourceFromSharedResource =
+          sharedResourceToUnifiedResource.get.bind(
+            sharedResourceToUnifiedResource
+          );
+
+        return {
+          sharedResources,
+          getUnifiedResourceFromSharedResource,
+        };
+      }, [resources, getAccessRequestButton]);
 
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
@@ -340,6 +391,29 @@ const Resources = memo(
         params={props.queryParams}
         setParams={props.onParamsChange}
         unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+        bulkActions={
+          props.integratedAccessRequests.supported === 'yes'
+            ? [
+                {
+                  key: 'requestAccess',
+                  Icon: icons.AddCircle,
+                  text:
+                    props.getAddedItemsCount() > 0
+                      ? 'Add/Remove to Request'
+                      : 'Request Access',
+                  disabled: false,
+                  action: selectedResources =>
+                    props.bulkAddResources(
+                      selectedResources.map(sharedResource =>
+                        getUnifiedResourceFromSharedResource(
+                          sharedResource.resource
+                        )
+                      )
+                    ),
+                },
+              ]
+            : []
+        }
         unifiedResourcePreferences={
           props.userPreferences.unifiedResourcePreferences
         }
@@ -352,15 +426,7 @@ const Resources = memo(
             ? props.integratedAccessRequests.availabilityFilter
             : undefined
         }
-        resources={resources.map(r => {
-          const { resource, ui } = mapToSharedResource(r);
-          return {
-            resource,
-            ui: {
-              ActionButton: props.getAccessRequestButton(r) || ui.ActionButton,
-            },
-          };
-        })}
+        resources={sharedResources}
         resourcesFetchAttempt={attempt}
         fetchResources={fetch}
         availableKinds={[
@@ -500,7 +566,7 @@ function NoResources(props: {
     );
     $content = (
       <>
-        <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
+        <ResourceIcon name="server" mx="auto" mb={4} height="100px" />
         <H1 mb={2}>Add your first resource to Teleport</H1>
         <Text color="text.slightlyMuted">
           {props.canUseConnectMyComputer ? (

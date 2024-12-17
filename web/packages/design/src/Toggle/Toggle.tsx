@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import styled from 'styled-components';
 
 export function Toggle({
@@ -160,7 +160,6 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   }
 
   &:disabled:checked + ${StyledSlider} {
-    background: ${props =>
-      props.theme.colors.interactive.tonal.success[2].background};
+    background: ${props => props.theme.colors.interactive.tonal.success[2]};
   }
 `;

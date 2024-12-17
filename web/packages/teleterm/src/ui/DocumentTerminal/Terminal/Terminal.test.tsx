@@ -33,10 +33,6 @@ beforeAll(() => {
   Logger.init(new NullService());
 });
 
-beforeEach(() => {
-  userEvent.setup();
-});
-
 // TODO(gzdunek): Add tests for copying text.
 // Unfortunately, simulating text selection with a single right click or
 // mouseMove doesn't work.
@@ -45,11 +41,12 @@ beforeEach(() => {
 
 test('keyboard shortcut pastes text', async () => {
   const appContext = new MockAppContext({ platform: 'win32' });
+  const user = userEvent.setup();
 
   render(<ConfiguredTerminal appContext={appContext} />);
 
   await navigator.clipboard.writeText('some-command');
-  await userEvent.keyboard('{Control>}{Shift>}V'); // Ctrl+Shift+V
+  await user.keyboard('{Control>}{Shift>}V'); // Ctrl+Shift+V
 
   await waitFor(() => {
     expect(screen.getByText('some-command')).toBeInTheDocument();
@@ -75,14 +72,15 @@ test.each([
   },
 ])(`$name`, async testCase => {
   const appContext = testCase.getAppContext();
+  const user = userEvent.setup();
 
   render(<ConfiguredTerminal appContext={appContext} />);
 
-  await userEvent.keyboard('some-command ');
+  await user.keyboard('some-command');
   const terminalContent = await screen.findByText('some-command');
 
-  await navigator.clipboard.writeText('--flag=test');
-  await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
+  await navigator.clipboard.writeText(' --flag=test');
+  await user.pointer({ keys: '[MouseRight]', target: terminalContent });
 
   await waitFor(() => {
     expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
@@ -91,7 +89,7 @@ test.each([
 
 test("mouse right click opens context menu when 'terminal.rightClick: menu' is configured", async () => {
   const appContext = new MockAppContext();
-  jest.spyOn(appContext.mainProcessClient, 'openTerminalContextMenu');
+  const user = userEvent.setup();
   appContext.configService.set('terminal.rightClick', 'menu');
   const openContextMenu = jest.fn();
 
@@ -102,11 +100,10 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
     />
   );
 
-  await userEvent.keyboard('some-command ');
+  await user.keyboard('some-command');
   const terminalContent = await screen.findByText('some-command');
 
-  await navigator.clipboard.writeText('--flag=test');
-  await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
+  await user.pointer({ keys: '[MouseRight]', target: terminalContent });
 
   await waitFor(() => {
     expect(openContextMenu).toHaveBeenCalledTimes(1);

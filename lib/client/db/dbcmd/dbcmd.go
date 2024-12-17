@@ -24,7 +24,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -697,7 +697,7 @@ func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 			c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName))
 	}
 
-	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
+	baseDir := filepath.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
 	tempCfg, err := opensearch.WriteConfig(baseDir, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)

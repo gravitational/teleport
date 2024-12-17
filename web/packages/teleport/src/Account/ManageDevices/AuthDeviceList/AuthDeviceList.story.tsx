@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import * as Icon from 'design/Icon';
 
 import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
@@ -110,5 +108,14 @@ const devices: MfaDevice[] = [
     lastUsedDate: new Date(1614481052000),
     type: 'webauthn',
     usage: 'passwordless',
+  },
+  {
+    id: '5',
+    description: 'sso provider',
+    name: 'okta',
+    registeredDate: new Date(1612493852000),
+    lastUsedDate: new Date(1614481052000),
+    type: 'sso',
+    usage: 'mfa',
   },
 ];

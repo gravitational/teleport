@@ -114,14 +114,22 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
+		var app *prehogv1a.SessionStartAppMetadata
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = TCPSessionType
+			// IsMultiPort for now is the only type of app metadata, so don't include it unless it's a TCP
+			// app.
+			app = &prehogv1a.SessionStartAppMetadata{
+				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
+			}
 		}
+
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -136,6 +144,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				Origin:            e.DesktopLabels[types.OriginLabel],
 				WindowsDomain:     e.Domain,
 				AllowUserCreation: e.AllowUserCreation,
+				Nla:               e.NLA,
 			},
 
 			// Note: Unlikely for this to ever be a bot session, but included
@@ -291,6 +300,19 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			out.NumTablesPermissions += entry.Counts[databaseobjectimportrule.ObjectKindTable]
 		}
 		return out
+	case *apievents.AccessPathChanged:
+		return &AccessGraphAccessPathChangedEvent{
+			AffectedResourceType:   e.AffectedResourceType,
+			AffectedResourceSource: e.AffectedResourceSource,
+		}
+	case *apievents.CrownJewelCreate:
+		return &AccessGraphCrownJewelCreateEvent{}
+	case *apievents.SessionRecordingAccess:
+		return &SessionRecordingAccessEvent{
+			SessionType: e.SessionType,
+			UserName:    e.User,
+			Format:      e.Format,
+		}
 	}
 
 	return nil

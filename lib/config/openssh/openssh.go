@@ -19,20 +19,14 @@
 package openssh
 
 import (
-	"bytes"
-	"os/exec"
-	"regexp"
-	"strconv"
+	"io"
 	"strings"
 	"text/template"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxyCommandQuote prepares a string for insertion into the ssh_config
@@ -57,7 +51,6 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
     UserKnownHostsFile "{{ $dot.KnownHostsPath }}"
     IdentityFile "{{ $dot.IdentityFilePath }}"
     CertificateFile "{{ $dot.CertificateFilePath }}"
-    HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
     {{- if ne $dot.Username "" }}
     User "{{ $dot.Username }}"
 {{- end }}
@@ -110,15 +103,7 @@ type SSHConfigParameters struct {
 
 type sshTmplParams struct {
 	SSHConfigParameters
-	sshConfigOptions
 }
-
-// openSSHVersionRegex is a regex used to parse OpenSSH version strings.
-var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor>\d+)(?:p(?P<patch>\d+))?`)
-
-// openSSHMinVersionForHostAlgos is the first version that understands all host keys required by us.
-// HostKeyAlgorithms will be added to ssh config if the version is above listed here.
-var openSSHMinVersionForHostAlgos = semver.New("7.8.0")
 
 // SSHConfigApps represent apps that support ssh config generation.
 type SSHConfigApps string
@@ -128,130 +113,14 @@ const (
 	TbotApp SSHConfigApps = teleport.ComponentTBot
 )
 
-// parseSSHVersion attempts to parse the local SSH version, used to determine
-// certain config template parameters for client version compatibility.
-func parseSSHVersion(versionString string) (*semver.Version, error) {
-	versionTokens := strings.Split(versionString, " ")
-	if len(versionTokens) == 0 {
-		return nil, trace.BadParameter("invalid version string: %s", versionString)
-	}
-
-	versionID := versionTokens[0]
-	matches := openSSHVersionRegex.FindStringSubmatch(versionID)
-	if matches == nil {
-		return nil, trace.BadParameter("cannot parse version string: %q", versionID)
-	}
-
-	major, err := strconv.Atoi(matches[1])
-	if err != nil {
-		return nil, trace.Wrap(err, "invalid major version number: %s", matches[1])
-	}
-
-	minor, err := strconv.Atoi(matches[2])
-	if err != nil {
-		return nil, trace.Wrap(err, "invalid minor version number: %s", matches[2])
-	}
-
-	patch := 0
-	if matches[3] != "" {
-		patch, err = strconv.Atoi(matches[3])
-		if err != nil {
-			return nil, trace.Wrap(err, "invalid patch version number: %s", matches[3])
-		}
-	}
-
-	return &semver.Version{
-		Major: int64(major),
-		Minor: int64(minor),
-		Patch: int64(patch),
-	}, nil
-}
-
-// GetSystemSSHVersion attempts to query the system SSH for its current version.
-func GetSystemSSHVersion() (*semver.Version, error) {
-	var out bytes.Buffer
-
-	cmd := exec.Command("ssh", "-V")
-	cmd.Stderr = &out
-
-	err := cmd.Run()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return parseSSHVersion(out.String())
-}
-
-type sshConfigOptions struct {
-	// NewerHostKeyAlgorithmsSupported when true sets HostKeyAlgorithms OpenSSH configuration option
-	// to SHA256/512 compatible algorithms. Otherwise, SHA-1 is being used.
-	NewerHostKeyAlgorithmsSupported bool
-}
-
-func (c *sshConfigOptions) String() string {
-	sb := &strings.Builder{}
-	sb.WriteString("sshConfigOptions: ")
-
-	if c.NewerHostKeyAlgorithmsSupported {
-		sb.WriteString("HostKeyAlgorithms will include SHA-256, SHA-512 and SHA-1")
-	} else {
-		sb.WriteString("HostKeyAlgorithms will include SHA-1")
-	}
-
-	return sb.String()
-}
-
-func isNewerHostKeyAlgorithmsSupported(ver *semver.Version) bool {
-	return !ver.LessThan(*openSSHMinVersionForHostAlgos)
-}
-
-func getSSHConfigOptions(sshVer *semver.Version) *sshConfigOptions {
-	return &sshConfigOptions{
-		NewerHostKeyAlgorithmsSupported: isNewerHostKeyAlgorithmsSupported(sshVer),
-	}
-}
-
-func getDefaultSSHConfigOptions() *sshConfigOptions {
-	return &sshConfigOptions{
-		NewerHostKeyAlgorithmsSupported: true,
-	}
-}
-
-type SSHConfig struct {
-	getSSHVersion func() (*semver.Version, error)
-	log           logrus.FieldLogger
-}
-
-// NewSSHConfig creates a SSHConfig initialized with provided values or defaults otherwise.
-func NewSSHConfig(getSSHVersion func() (*semver.Version, error), log logrus.FieldLogger) *SSHConfig {
-	if getSSHVersion == nil {
-		getSSHVersion = GetSystemSSHVersion
-	}
-	if log == nil {
-		log = utils.NewLogger()
-	}
-	return &SSHConfig{getSSHVersion: getSSHVersion, log: log}
-}
-
-func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameters) error {
-	var sshOptions *sshConfigOptions
-	version, err := c.getSSHVersion()
-	if err != nil {
-		c.log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
-		sshOptions = getDefaultSSHConfigOptions()
-	} else {
-		c.log.Debugf("Found OpenSSH version %s", version)
-		sshOptions = getSSHConfigOptions(version)
-	}
+// WriteSSHConfig generates an ssh_config file for OpenSSH clients.
+func WriteSSHConfig(w io.Writer, config *SSHConfigParameters) error {
 	if config.Port == 0 {
 		config.Port = defaults.SSHServerListenPort
 	}
 
-	c.log.Debugf("Using SSH options: %s", sshOptions)
-
-	if err := sshConfigTemplate.Execute(sb, sshTmplParams{
+	if err := sshConfigTemplate.Execute(w, sshTmplParams{
 		SSHConfigParameters: *config,
-		sshConfigOptions:    *sshOptions,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -268,9 +137,8 @@ var muxedSSHConfigTemplate = template.Must(template.New("muxed-ssh-config").Func
 Host *.{{ $clusterName }}
     Port {{ $dot.Port }}
     UserKnownHostsFile {{ proxyCommandQuote $dot.KnownHostsPath }}
-    HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
     IdentityFile none
-    IdentityAgent {{ proxyCommandQuote $dot.AgentSocketPath }}    
+    IdentityAgent {{ proxyCommandQuote $dot.AgentSocketPath }}
     ProxyCommand {{range $v := $dot.ProxyCommand}}{{ proxyCommandQuote $v }} {{end}}{{ proxyCommandQuote $dot.MuxSocketPath }} '%h:%p|{{ $clusterName }}'
     ProxyUseFDPass yes
 {{- end }}
@@ -292,29 +160,71 @@ type MuxedSSHConfigParameters struct {
 
 type muxedSSHTmplParams struct {
 	MuxedSSHConfigParameters
-	sshConfigOptions
 }
 
-// GetMuxedSSHConfig generates a ssh_config file for the ssh-multiplexer service.
-func (c *SSHConfig) GetMuxedSSHConfig(sb *strings.Builder, config *MuxedSSHConfigParameters) error {
-	var sshOptions *sshConfigOptions
-	version, err := c.getSSHVersion()
-	if err != nil {
-		c.log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
-		sshOptions = getDefaultSSHConfigOptions()
-	} else {
-		c.log.Debugf("Found OpenSSH version %s", version)
-		sshOptions = getSSHConfigOptions(version)
-	}
+// WriteMuxedSSHConfig generates a ssh_config file for the ssh-multiplexer service.
+func WriteMuxedSSHConfig(w io.Writer, config *MuxedSSHConfigParameters) error {
 	if config.Port == 0 {
 		config.Port = defaults.SSHServerListenPort
 	}
 
-	c.log.Debugf("Using SSH options: %s", sshOptions)
-
-	if err := muxedSSHConfigTemplate.Execute(sb, muxedSSHTmplParams{
+	if err := muxedSSHConfigTemplate.Execute(w, muxedSSHTmplParams{
 		MuxedSSHConfigParameters: *config,
-		sshConfigOptions:         *sshOptions,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+var clusterSSHConfigTmpl = template.Must(template.New("cluster-ssh-config").Funcs(template.FuncMap{
+	"proxyCommandQuote": proxyCommandQuote,
+}).Parse(
+	`# Cluster-specific ssh_config generated by {{ .AppName }} for cluster '{{ .ClusterName }}' via proxy '{{ .ProxyHost }}:{{ .ProxyPort }}'
+UserKnownHostsFile "{{ .KnownHostsPath }}"
+IdentityFile "{{ .IdentityFilePath }}"
+CertificateFile "{{ .CertificateFilePath }}"
+Port {{ .Port }}
+ProxyCommand {{ proxyCommandQuote .ExecutablePath }} ssh-proxy-command --destination-dir={{ proxyCommandQuote .DestinationDir }} --proxy-server={{ proxyCommandQuote (print .ProxyHost ":" .ProxyPort) }} --cluster={{ proxyCommandQuote .ClusterName }} {{ if .TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{ if .ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{ if .Resume }}--resume{{ else }}--no-resume{{ end }} --user=%r --host=%h --port=%p
+`))
+
+// ClusterSSHConfigParameters is the parameter set for GetClusterSSHConfig.
+type ClusterSSHConfigParameters struct {
+	AppName             SSHConfigApps
+	ClusterName         string
+	KnownHostsPath      string
+	IdentityFilePath    string
+	CertificateFilePath string
+	ProxyHost           string
+	ProxyPort           string
+	ExecutablePath      string
+	DestinationDir      string
+	Port                int
+	ConnectionUpgrade   bool
+	TLSRouting          bool
+	Insecure            bool
+	FIPS                bool
+	Resume              bool
+}
+
+type clusterSSHConfigTmplParams struct {
+	ClusterSSHConfigParameters
+}
+
+// WriteClusterSSHConfig generate a ssh_config that proxies SSH connections via
+// tbot and through to a single Teleport cluster. It performs no matching on
+// the hostname.
+//
+// As it does not use the Host match directive, it is also includable within
+// another ssh_config, which allows for more complex and customized
+// configurations.
+func WriteClusterSSHConfig(sb *strings.Builder, config *ClusterSSHConfigParameters) error {
+	if config.Port == 0 {
+		config.Port = defaults.SSHServerListenPort
+	}
+
+	if err := clusterSSHConfigTmpl.Execute(sb, clusterSSHConfigTmplParams{
+		ClusterSSHConfigParameters: *config,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

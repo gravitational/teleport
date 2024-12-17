@@ -55,7 +55,7 @@ function makeDesktopRecording({
     duration,
     durationText,
     sid,
-    createdDate: time,
+    createdDate: new Date(time),
     users: user,
     hostname: desktop_name,
     description,
@@ -66,6 +66,7 @@ function makeDesktopRecording({
 
 function makeSshOrKubeRecording({
   participants,
+  user,
   time,
   session_start,
   session_stop,
@@ -84,9 +85,13 @@ function makeSshOrKubeRecording({
   );
 
   let hostname = server_hostname || 'N/A';
+  // SSH interactive/non-interactive and k8s interactive sessions user participants are in the participants field.
+  let userParticipants = participants;
   // For Kubernetes sessions, put the full pod name as 'hostname'.
   if (proto === 'kube') {
     hostname = `${kubernetes_cluster}/${kubernetes_pod_namespace}/${kubernetes_pod_name}`;
+    // For non-interactive k8s sessions the participant is the Teleport user running the command
+    if (!interactive) userParticipants = [user];
   }
 
   // Description set to play for interactive so users can search by "play".
@@ -100,8 +105,8 @@ function makeSshOrKubeRecording({
     duration,
     durationText,
     sid,
-    createdDate: time,
-    users: participants ? participants.join(', ') : [],
+    createdDate: new Date(time),
+    users: userParticipants ? userParticipants.join(', ') : [],
     hostname,
     description,
     recordingType: kubernetes_cluster ? 'k8s' : 'ssh',
@@ -151,7 +156,7 @@ function makeDatabaseRecording({
     duration,
     durationText,
     sid,
-    createdDate: time,
+    createdDate: new Date(time),
     users: user,
     hostname: db_service,
     description,

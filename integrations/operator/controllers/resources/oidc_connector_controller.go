@@ -29,11 +29,13 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 )
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
 type oidcConnectorClient struct {
 	teleportClient *client.Client
+	kubeClient     kclient.Client
 }
 
 // Get gets the Teleport oidc_connector of a given name
@@ -59,10 +61,23 @@ func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, name))
 }
 
+func (r oidcConnectorClient) Mutate(ctx context.Context, new, _ types.OIDCConnector, crKey kclient.ObjectKey) error {
+	secret := new.GetClientSecret()
+	if secretlookup.IsNeeded(secret) {
+		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, secret)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		new.SetClientSecret(resolvedSecret)
+	}
+	return nil
+}
+
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
 func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	oidcClient := &oidcConnectorClient{
 		teleportClient: tClient,
+		kubeClient:     client,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](

@@ -23,11 +23,11 @@ package accesspoint
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -98,11 +98,19 @@ type Config struct {
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
+	UserTasks               services.UserTasks
 	UserLoginStates         services.UserLoginStates
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
+	WorkloadIdentity        cache.WorkloadIdentityReader
+	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
+	AutoUpdateService       services.AutoUpdateServiceGetter
+	ProvisioningStates      services.ProvisioningStates
+	IdentityCenter          services.IdentityCenter
+	PluginStaticCredentials services.PluginStaticCredentials
+	GitServers              services.GitServers
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -122,7 +130,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Creating in-memory backend for %v.", cfg.CacheName)
+	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
 	mem, err := memory.New(memory.Config{
 		Context:   cfg.Context,
 		EventsOff: !cfg.EventsSystem,
@@ -152,7 +160,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	cacheCfg := &cache.Config{
+	cacheCfg := cache.Config{
 		Context:         cfg.Context,
 		Backend:         reporter,
 		Component:       teleport.Component(component...),
@@ -167,6 +175,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
 		ClusterConfig:           cfg.ClusterConfig,
+		AutoUpdateService:       cfg.AutoUpdateService,
 		CrownJewels:             cfg.CrownJewels,
 		DatabaseObjects:         cfg.DatabaseObjects,
 		DatabaseServices:        cfg.DatabaseServices,
@@ -191,11 +200,18 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Trust:                   cfg.Trust,
 		UserGroups:              cfg.UserGroups,
 		UserLoginStates:         cfg.UserLoginStates,
+		UserTasks:               cfg.UserTasks,
 		Users:                   cfg.Users,
 		WebSession:              cfg.WebSession,
 		WebToken:                cfg.WebToken,
+		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
+		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
+		ProvisioningStates:      cfg.ProvisioningStates,
+		IdentityCenter:          cfg.IdentityCenter,
+		PluginStaticCredentials: cfg.PluginStaticCredentials,
+		GitServers:              cfg.GitServers,
 	}
 
-	return cache.New(cfg.Setup(*cacheCfg))
+	return cache.New(cfg.Setup(cacheCfg))
 }

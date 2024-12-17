@@ -46,8 +46,19 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 build:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
 
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BINARY)
+darwin-signed-build: build
+	$(NOTARIZE_BINARIES)
+
 .PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
+else
 release: build
+endif
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir $(RELEASE_NAME)
 	cp -rf $(BINARY) \

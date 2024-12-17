@@ -83,20 +83,20 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
 
-	if config.Type == types.DatabaseClientCA {
-		// Always use pre-generated RSA key for the db_client CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if config.Type == types.SAMLIDPCA {
-		// The SAML IdP uses xmldsig RSA SHA256 signature method
-		// http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
-		// to sign the SAML assertion, so the key must be an RSA key.
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
 		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
 	}
 	if len(config.PrivateKeys) > 0 {
 		// Allow test to override the private key.
 		keyPEM = config.PrivateKeys[0]
 	}
+
 	if keyPEM != nil {
 		var err error
 		key, err = keys.ParsePrivateKey(keyPEM)
@@ -104,9 +104,10 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			panic(err)
 		}
 	} else {
-		// If config.PrivateKeys was not set and this is not the db_client CA,
-		// generate an ECDSA key. Signatures are ~10x faster than RSA and
-		// generating a new key is actually faster than parsing a PEM fixture.
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
 			panic(err)
@@ -167,7 +168,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
@@ -487,6 +488,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
+	srv.Spec.Hostname = "llama"
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
@@ -512,6 +514,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
+	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
@@ -532,6 +535,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
+	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -599,32 +603,34 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 }
 
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetReverseTunnels(context.Background())
+	ctx := context.Background()
+
+	out, err := s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-	require.NoError(t, s.PresenceS.UpsertReverseTunnel(tunnel))
+	require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
 
-	out, err = s.PresenceS.GetReverseTunnels(context.Background())
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+	err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetReverseTunnels(context.Background())
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("", []string{"127.0.0.1:1234"}))
 	require.True(t, trace.IsBadParameter(err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{""}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{""}))
 	require.True(t, trace.IsBadParameter(err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{}))
 	require.True(t, trace.IsBadParameter(err))
 }
 
@@ -1882,12 +1888,12 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-				require.NoError(t, s.PresenceS.UpsertReverseTunnel(tunnel))
+				require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
 
 				out, err := s.PresenceS.GetReverseTunnels(context.Background())
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+				err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
 				require.NoError(t, err)
 
 				return out[0]

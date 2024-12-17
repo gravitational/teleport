@@ -21,7 +21,6 @@ package local
 import (
 	"context"
 	"encoding/json"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -31,8 +30,8 @@ import (
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
-// This function returns `trace.AlreadyExistsError` if one or more resources
-// would be overwritten, and `trace.NotImplementedError` if any resources
+// If any resources already exist they are skipped and not overwritten.
+// This function returns a `trace.NotImplementedError` if any resources
 // are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
@@ -42,20 +41,9 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// ensure all items do not exist before continuing.
-	for _, item := range items {
-		_, err = b.Get(ctx, item.Key)
-		if !trace.IsNotFound(err) {
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.AlreadyExists("resource %q already exists", string(item.Key))
-		}
-	}
-	// create all items.
 	for _, item := range items {
 		_, err := b.Create(ctx, item)
-		if err != nil {
+		if !trace.IsAlreadyExists(err) && err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -351,6 +339,12 @@ func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 		return nil, trace.Wrap(err)
 	}
 	user.SetLocalAuth(auth)
+
+	if auth != nil {
+		// when reading with secrets, we can populate the data automatically.
+		user.SetWeakestDevice(getWeakestMFADeviceKind(auth.MFA))
+	}
+
 	return user, nil
 }
 
@@ -428,20 +422,21 @@ func itemFromLock(l types.Lock) (*backend.Item, error) {
 // has order N cost.
 
 // fullUsersPrefix is the entire string preceding the name of a user in a key
-var fullUsersPrefix = string(backend.NewKey(webPrefix, usersPrefix)) + "/"
+var fullUsersPrefix = backend.ExactKey(webPrefix, usersPrefix)
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from
 // backend key values.
-func splitUsernameAndSuffix(key string) (name string, suffix string, err error) {
-	if !strings.HasPrefix(key, fullUsersPrefix) {
-		return "", "", trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
+func splitUsernameAndSuffix(key backend.Key) (name string, suffix []string, err error) {
+	if !key.HasPrefix(fullUsersPrefix) {
+		return "", nil, trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
 	}
-	key = strings.TrimPrefix(key, fullUsersPrefix)
-	idx := strings.Index(key, "/")
-	if idx < 1 || idx >= len(key) {
-		return "", "", trace.BadParameter("expected format <name>/<suffix>, got %q", key)
+	k := key.TrimPrefix(fullUsersPrefix)
+
+	components := k.Components()
+	if len(components) < 2 {
+		return "", nil, trace.BadParameter("expected format <name>/<suffix>, got %q", key)
 	}
-	return key[:idx], key[idx+1:], nil
+	return components[0], k.Components()[1:], nil
 }
 
 // collectUserItems handles the case where multiple items pertain to the same user resource.
@@ -450,12 +445,11 @@ func splitUsernameAndSuffix(key string) (name string, suffix string, err error) 
 func collectUserItems(items []backend.Item) (users map[string]userItems, rem []backend.Item, err error) {
 	users = make(map[string]userItems)
 	for _, item := range items {
-		key := string(item.Key)
-		if !strings.HasPrefix(key, fullUsersPrefix) {
+		if !item.Key.HasPrefix(fullUsersPrefix) {
 			rem = append(rem, item)
 			continue
 		}
-		name, suffix, err := splitUsernameAndSuffix(key)
+		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -489,20 +483,20 @@ type userItems struct {
 }
 
 // Set attempts to set a field by suffix.
-func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
-	switch suffix {
-	case paramsPrefix:
+func (u *userItems) Set(suffix []string, item backend.Item) (ok bool) {
+	switch {
+	case len(suffix) == 0:
+		return false
+	case suffix[0] == paramsPrefix:
 		u.params = &item
-	case pwdPrefix:
+	case suffix[0] == pwdPrefix:
 		u.pwd = &item
-	case webauthnLocalAuthPrefix:
+	case suffix[0] == webauthnLocalAuthPrefix:
 		u.webauthnLocalAuth = &item
+	case suffix[0] == mfaDevicePrefix:
+		u.mfa = append(u.mfa, &item)
 	default:
-		if strings.HasPrefix(suffix, mfaDevicePrefix) {
-			u.mfa = append(u.mfa, &item)
-		} else {
-			return false
-		}
+		return false
 	}
 	return true
 }

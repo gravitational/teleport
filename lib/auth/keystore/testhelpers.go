@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -97,7 +98,7 @@ func awsKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		return servicecfg.KeystoreConfig{}, false
 	}
 	return servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: awsKMSAccount,
 			AWSRegion:  awsKMSRegion,
 		},
@@ -214,7 +215,9 @@ func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Mana
 	return &Manager{
 		backendForNewKeys:     softwareBackend,
 		usableSigningBackends: []backend{softwareBackend},
-		authPrefGetter:        &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1},
+		currentSuiteGetter: cryptosuites.GetSuiteFunc(func(context.Context) (types.SignatureAlgorithmSuite, error) {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+		}),
 	}
 }
 

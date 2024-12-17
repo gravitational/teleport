@@ -235,6 +235,8 @@ the Discovery Service.
 In order to enable Azure instance discovery the `discovery_service.azure` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
@@ -250,6 +252,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
       subscriptions: ["<subscription>"]
@@ -306,5 +309,3 @@ logs can be found on the targeted VM at
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).
-- The complete default installer can be found [with the Teleport source
-](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

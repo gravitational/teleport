@@ -1,11 +1,11 @@
 # Teleport OIDC connector
 # 
-# Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
-# https://goteleport.com/docs/enterprise/sso/oidc/
+# Please note that the OIDC connector will work in Teleport Enterprise only.
 
 variable "oidc_secret" {}
 
 resource "teleport_oidc_connector" "example" {
+  version = "v3"
   metadata = {
     name = "example"
     labels = {

@@ -3,6 +3,10 @@ title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
 ---
 
+<Admonition type="note">
+Trusted clusters are only available for self-hosted Teleport clusters.
+</Admonition>
+
 As you learned in [Core Concepts](../../../core-concepts.mdx), a Teleport cluster
 consists of the Teleport Auth Service, the Teleport Proxy Service, and the 
 Teleport services that manage access to resources in your infrastructure.
@@ -106,7 +110,7 @@ configured with a single sign-on identity provider that authenticates her identi
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso.mdx).
+through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso/sso.mdx).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root 
@@ -163,7 +167,7 @@ To complete the steps in this guide, verify your environment meets the following
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 
-  [Join Services to your Cluster](../../../enroll-resources/agents/join-services-to-your-cluster.mdx).
+  [Join Services to your Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -259,16 +263,16 @@ your Teleport username:
    Replace `rootcluster.example.com` with the Teleport root cluster domain and 
    `myuser` with your Teleport username.
 
-1. Create a file called `user.yaml` with your current user configuration by running 
-a command similar to the following:
+1. Open your user resource in your editor by running a command similar to the
+   following:
 
    ```code
-   $ tctl get user/<Var name="myuser" /> > user.yaml
+   $ tctl edit user/<Var name="myuser" />
    ```
 
    Replace `myuser` with your Teleport username.
 
-1. Open the `user.yaml` file in a text editor and add the `visitor` login:
+1. Add the `visitor` login:
    
    ```diff
       traits:
@@ -278,11 +282,7 @@ a command similar to the following:
         - root
    ```
 
-1. Apply your changes by running the following command:
-   
-   ```code
-   $ tctl create -f user.yaml
-   ```
+1. Apply your changes by saving and closing the file in your editor.
 
 ## Step 3/6. Establish trust between clusters
 
@@ -746,10 +746,10 @@ your Teleport username:
    Replace `leafcluster.example.com` with the Teleport leaf cluster domain and 
    `myuser` with your Teleport username.
 
-1. Retrieve the resource configuration by running the following command:
+1. Edit the resource configuration by running the following command:
 
    ```code
-   $ tctl get trusted_cluster/<Var name="rootcluster.example.com" /> > trusted_cluster.yaml
+   $ tctl edit trusted_cluster/<Var name="rootcluster.example.com" />
    ```
 
 1. Set the `spec.enabled` field to `false`:
@@ -763,12 +763,9 @@ your Teleport username:
         - visitor
    ```
 
-1. Update the trusted cluster configuration by running the following command:
+1. Update the trusted cluster configuration by saving and closing the file in
+   your editor.
 
-   ```code
-   $ tctl create --force trusted_cluster.yaml
-   ```
-      
    This command closes the reverse tunnel between your leaf cluster and your root cluster.
    It also deactivates the root cluster's certificate authority on the leaf cluster.
 

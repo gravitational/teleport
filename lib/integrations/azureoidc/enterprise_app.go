@@ -52,7 +52,7 @@ var appRoles = []string{
 //   - Provides Teleport with OIDC authentication to Azure
 //   - Is given the permissions to access certain Microsoft Graph API endpoints for this tenant.
 //   - Provides SSO to the Teleport cluster via SAML.
-func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnectorName string) (string, string, error) {
+func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnectorName string, skipOIDCSetup bool) (string, string, error) {
 	var appID, tenantID string
 
 	tenantID, err := getTenantID()
@@ -120,8 +120,12 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		}
 	}
 
-	if err := createFederatedAuthCredential(ctx, graphClient, *app.ID, proxyPublicAddr); err != nil {
-		return appID, tenantID, trace.Wrap(err, "failed to create an OIDC federated auth credential")
+	// Skip OIDC setup if requested.
+	// This is useful for clusters that can't use OIDC because they are not reachable from the public internet.
+	if !skipOIDCSetup {
+		if err := createFederatedAuthCredential(ctx, graphClient, *app.ID, proxyPublicAddr); err != nil {
+			return appID, tenantID, trace.Wrap(err, "failed to create an OIDC federated auth credential")
+		}
 	}
 
 	acsURL, err := url.Parse(proxyPublicAddr)

@@ -17,8 +17,8 @@
  */
 
 import React, { Suspense, useEffect } from 'react';
-import ThemeProvider, { updateFavicon } from 'design/ThemeProvider';
 
+import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';

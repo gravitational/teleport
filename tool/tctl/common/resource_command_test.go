@@ -41,7 +41,9 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -689,7 +691,11 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "localhost1"
+  uri: "tcp://localhost1"
+  tcp_ports:
+  - port: 1234
+  - port: 30000
+    end_port: 30768
 ---
 kind: app
 version: v3
@@ -1196,7 +1202,11 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "localhost1",
+		URI: "tcp://localhost1",
+		TCPPorts: []*types.PortRange{
+			&types.PortRange{Port: 1234},
+			&types.PortRange{Port: 30000, EndPort: 30768},
+		},
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1404,6 +1414,22 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindAppServer,
 			create: testCreateAppServer,
+		},
+		{
+			kind:   types.KindStaticHostUser,
+			create: testCreateStaticHostUser,
+		},
+		{
+			kind:   types.KindAutoUpdateConfig,
+			create: testCreateAutoUpdateConfig,
+		},
+		{
+			kind:   types.KindAutoUpdateVersion,
+			create: testCreateAutoUpdateVersion,
+		},
+		{
+			kind:   types.KindDynamicWindowsDesktop,
+			create: testCreateDynamicWindowsDesktop,
 		},
 	}
 
@@ -1818,7 +1844,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factors: [otp, sso]
   type: local
 version: v2
 `
@@ -1835,16 +1861,18 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	var expected types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
+	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
 
-	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+	var revised types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
+	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
+	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
+	revised.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
@@ -1911,11 +1939,15 @@ func testCreateAppServer(t *testing.T, clt *authclient.Client) {
 kind: app_server
 metadata:
   name: my-integration
+  labels:
+    account_id: "123456789012"
 spec:
   app:
     kind: app
     metadata:
       name: my-integration
+      labels:
+        account_id: "123456789012"
     spec:
       uri: https://console.aws.amazon.com
       integration: my-integration
@@ -1959,7 +1991,7 @@ version: v3
 	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
 	require.Len(t, appServers, 1)
 
-	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com")
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com", map[string]string{"account_id": "123456789012"})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
 		expectedAppServer,
@@ -2203,6 +2235,185 @@ spec:
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateStaticHostUser(t *testing.T, clt *authclient.Client) {
+	// Ensure that our test user does not exist
+	resourceName := "alice"
+	resourceKey := types.KindStaticHostUser + "/" + resourceName
+	_, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "unexpected error: %v", err)
+
+	const userYAML = `kind: static_host_user
+version: v2
+metadata:
+  name: alice
+spec:
+  matchers:
+    - node_labels:
+      - name: foo
+        values: ["bar"]
+      groups:
+        - foo
+        - bar
+      uid: 1234
+      gid: 5678
+    - node_labels_expression: 'labels["foo"] == labels["bar"]'
+      groups:
+        - baz
+        - quux
+      sudoers: ["abc1234"]
+`
+
+	// Create the host user
+	userYAMLPath := filepath.Join(t.TempDir(), "host_user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.NoError(t, err)
+	hostUsers := mustDecodeJSON[[]*userprovisioningpb.StaticHostUser](t, buf)
+	require.Len(t, hostUsers, 1)
+
+	var expected userprovisioningpb.StaticHostUser
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*userprovisioningpb.StaticHostUser{&expected},
+		hostUsers,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.GetMetadata().Revision = uuid.NewString()
+	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err), "unexpected error: %v", err)
+
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools:
+    mode: enabled
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateConfig
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateConfig{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
+}
+
+func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools:
+    target_version: 1.2.3
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateVersion
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateVersion{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
+}
+
+func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: dynamic_windows_desktop
+metadata:
+  name: test
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  addr: test
+version: v1
+`
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected types.DynamicWindowsDesktopV1
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expected.SetRevision(resources[0].GetRevision())
+
+	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {

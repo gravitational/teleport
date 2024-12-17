@@ -106,14 +106,12 @@ func TestAuthorizedKeys(t *testing.T) {
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
 	),
 	)
-
 	// Clear the requests
 	client.clear()
 
 	cancel()
 	err = group.Wait()
 	require.NoError(t, err)
-
 }
 
 func createFSData(t *testing.T) string {
@@ -201,6 +199,14 @@ func (f *fakeClient) Send(req *accessgraphsecretsv1pb.ReportAuthorizedKeysReques
 	defer f.mu.Unlock()
 	f.reqReceived = append(f.reqReceived, req)
 	return nil
+}
+
+func (f *fakeClient) CloseSend() error {
+	return nil
+}
+
+func (f *fakeClient) Recv() (*accessgraphsecretsv1pb.ReportAuthorizedKeysResponse, error) {
+	return nil, nil
 }
 
 func (f *fakeClient) clear() {

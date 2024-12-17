@@ -19,12 +19,8 @@
 package gatewaytest
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -36,6 +32,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -162,7 +160,7 @@ func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tls
 	subj, err := identity.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
@@ -174,8 +172,8 @@ func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tls
 	})
 	require.NoError(t, err)
 
-	keyRaw := x509.MarshalPKCS1PrivateKey(privateKey)
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
+	keyPEM, err := keys.MarshalPrivateKey(privateKey)
+	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
 	return cert

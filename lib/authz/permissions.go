@@ -796,6 +796,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{types.Wildcard},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -815,6 +818,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
+					types.NewRule(types.KindGitServer, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -868,6 +872,9 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GitHubPermissions: []types.GitHubPermission{{
+				Organizations: []string{types.Wildcard},
+			}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -913,10 +920,15 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
 				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
+				types.NewRule(types.KindAutoUpdateConfig, services.RO()),
+				types.NewRule(types.KindAutoUpdateVersion, services.RO()),
+				types.NewRule(types.KindAutoUpdateAgentRollout, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				types.NewRule(types.KindAuditQuery, services.RO()),
 				types.NewRule(types.KindSecurityReport, services.RO()),
 				types.NewRule(types.KindSecurityReportState, services.RO()),
+				types.NewRule(types.KindUserTask, services.RO()),
+				types.NewRule(types.KindGitServer, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1007,6 +1019,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+						types.NewRule(types.KindStaticHostUser, services.RO()),
 					},
 				},
 			})
@@ -1109,6 +1122,9 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GitHubPermissions: []types.GitHubPermission{{
+						Organizations: []string{types.Wildcard},
+					}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
@@ -1171,6 +1187,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 				},
 			})
@@ -1194,6 +1211,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindDiscoveryConfig, services.RO()),
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindUserTask, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
@@ -1225,7 +1243,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
-						// Okta can manage access lists and roles it creates.
+						types.NewRule(types.KindAccessList, services.RO()),
+						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
 							Verbs:     services.RW(),
@@ -1499,6 +1518,13 @@ func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+// MFA challenges that allow reuse will not be accepted.
+//
+// In the majority of cases, allowing reuse is ok and can result in better UX. Forbidding
+// reuse should be reserved for critical actions (e.g. CA rotation, cert generation) and
+// other actions that are not expected to be performed in bulk (e.g. access request reviews).
+//
+// See https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md#when-to-extend-reuse
 func (c *Context) AuthorizeAdminAction() error {
 	switch c.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
@@ -1508,7 +1534,13 @@ func (c *Context) AuthorizeAdminAction() error {
 }
 
 // AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
-// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+// admin actions. MFA challenges that allow reuse will be accepted.
+//
+// In the majority of cases, allowing reuse is ok and can result in better UX. Forbidding
+// reuse should be reserved for critical actions (e.g. CA rotation, cert generation) and
+// other actions that are not expected to be performed in bulk (e.g. access request reviews).
+//
+// See https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md#when-to-extend-reuse
 func (c *Context) AuthorizeAdminActionAllowReusedMFA() error {
 	if c.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
 		return nil

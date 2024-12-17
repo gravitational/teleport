@@ -87,7 +87,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		Emitter:           asyncEmitter,
 		AccessPoint:       accessPoint,
 		ServerID:          process.Config.HostUUID,
-		Log:               process.log,
+		Log:               process.logger,
 		ClusterName:       conn.ClusterName(),
 		ClusterFeatures:   process.GetClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,

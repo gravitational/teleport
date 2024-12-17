@@ -27,18 +27,11 @@ To customize the default installer script, execute the following command on
 your workstation:
 
 ```code
-$ tctl get installer/default-installer > teleport-default-installer.yaml
+$ tctl edit installer/default-installer
 ```
 
-The resulting `teleport-default-installer.yaml` can be edited to
-change what gets executed when enrolling discovered instances.
-
-After making the desired changes to the default installer, the
-resource can be updated by executing:
-
-```code
-$ tctl create -f teleport-default-installer.yaml
-```
+After making the desired changes to the default installer, save and close the
+file in your text editor. 
 
 Multiple `installer` resources can exist and be specified in the
 `{{ matcher }}.install.script_name` section of a `discovery_service.{{ matcher }}` list item in
@@ -46,6 +39,7 @@ Multiple `installer` resources can exist and be specified in the
 
 ```yaml
 discovery_service:
+  # ...
   {{ matcher }}:
     - types: {{ matchTypes }}
       tags:

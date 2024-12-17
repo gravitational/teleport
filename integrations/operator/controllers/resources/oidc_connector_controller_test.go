@@ -21,15 +21,19 @@ package resources_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -43,6 +47,7 @@ var oidcSpec = types.OIDCConnectorSpecV3{
 		Roles: []string{"roleA"},
 	}},
 	RedirectURLs: []string{"https://redirect"},
+	MaxAge:       &types.MaxAge{Value: types.Duration(time.Hour)},
 }
 
 type oidcTestingPrimitives struct {
@@ -134,4 +139,52 @@ func TestOIDCConnectorDeletionDrift(t *testing.T) {
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
 	testlib.ResourceUpdateTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+}
+
+func TestOIDCConnectorSecretLookup(t *testing.T) {
+	test := &oidcTestingPrimitives{}
+	setup := testlib.SetupTestEnv(t)
+	test.Init(setup)
+	ctx := context.Background()
+
+	crName := validRandomResourceName("oidc")
+	secretName := validRandomResourceName("oidc-secret")
+	secretKey := "client-secret"
+	secretValue := validRandomResourceName("secret-value")
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: setup.Namespace.Name,
+			Annotations: map[string]string{
+				secretlookup.AllowLookupAnnotation: crName,
+			},
+		},
+		StringData: map[string]string{
+			secretKey: secretValue,
+		},
+		Type: v1.SecretTypeOpaque,
+	}
+	kubeClient := setup.K8sClient
+	require.NoError(t, kubeClient.Create(ctx, secret))
+
+	oidc := &resourcesv3.TeleportOIDCConnector{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      crName,
+			Namespace: setup.Namespace.Name,
+		},
+		Spec: resourcesv3.TeleportOIDCConnectorSpec(oidcSpec),
+	}
+
+	oidc.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
+
+	require.NoError(t, kubeClient.Create(ctx, oidc))
+
+	testlib.FastEventually(t, func() bool {
+		oidc, err := test.GetTeleportResource(ctx, crName)
+		if err != nil {
+			return false
+		}
+		return oidc.GetClientSecret() == secretValue
+	})
 }

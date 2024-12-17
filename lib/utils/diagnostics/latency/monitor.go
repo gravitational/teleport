@@ -127,7 +127,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialPingInterval <= 0 {
-		c.InitialReportInterval = fullJitter(500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.FullJitter(500 * time.Millisecond)
 	}
 
 	if c.ReportInterval <= 0 {
@@ -135,7 +135,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialReportInterval <= 0 {
-		c.InitialReportInterval = halfJitter(1500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.HalfJitter(1500 * time.Millisecond)
 	}
 
 	if c.Clock == nil {
@@ -144,12 +144,6 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
-
-var (
-	seventhJitter = retryutils.NewSeventhJitter()
-	fullJitter    = retryutils.NewFullJitter()
-	halfJitter    = retryutils.NewHalfJitter()
-)
 
 // NewMonitor creates an unstarted [Monitor] with the provided configuration. To
 // begin sampling connection latencies [Monitor.Run] must be called.
@@ -197,7 +191,7 @@ func (m *Monitor) Run(ctx context.Context) {
 			if err := m.reporter.Report(ctx, m.GetStats()); err != nil {
 				log.WithError(err).Warn("failed to report latency stats")
 			}
-			m.reportTimer.Reset(seventhJitter(m.reportInterval))
+			m.reportTimer.Reset(retryutils.SeventhJitter(m.reportInterval))
 		case <-ctx.Done():
 			return
 		}
@@ -216,7 +210,7 @@ func (m *Monitor) pingLoop(ctx context.Context, pinger Pinger, timer clockwork.T
 			} else {
 				latency.Store(m.clock.Now().Sub(then).Milliseconds())
 			}
-			timer.Reset(seventhJitter(m.pingInterval))
+			timer.Reset(retryutils.SeventhJitter(m.pingInterval))
 		}
 	}
 }

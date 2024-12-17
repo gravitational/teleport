@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // JoinServiceClient is a client for the JoinService, which runs on both the
@@ -199,4 +200,14 @@ func (c *JoinServiceClient) RegisterUsingTPMMethod(
 	}
 
 	return certs, nil
+}
+
+// RegisterUsingToken registers the caller using a token and returns signed
+// certs.
+// This is used where a more specific RPC has not been introduced for the join
+// method.
+func (c *JoinServiceClient) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	return c.grpcClient.RegisterUsingToken(ctx, req)
 }

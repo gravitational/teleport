@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,6 +53,7 @@ import (
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 	testDir := t.TempDir()
+	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
 	// Test setup: creating a teleport instance running auth and proxy
 	clusterName := "root.example.com"
@@ -126,6 +129,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	t.Parallel()
 	testDir := t.TempDir()
+	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
 	// Test setup: creating a teleport instance running auth and proxy
 	clusterName := "root.example.com"
@@ -235,7 +239,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewLoggerForTests(),
+		Log:                  utils.NewSlogLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -258,9 +262,9 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
-		Log:                   clientConfig.Log,
+		Log:                   slog.Default(),
 		InsecureSkipTLSVerify: clientConfig.Insecure,
-		ClusterCAs:            clientConfig.TLS.RootCAs,
+		GetClusterCAs:         client.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 	})
 	require.NoError(t, err)
 
@@ -288,7 +292,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewLoggerForTests(),
+		Log:                  utils.NewSlogLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -346,4 +350,21 @@ func connectWithCredentialsFromVars(t *testing.T, vars map[string]string, clt *a
 	require.NoError(t, err)
 	_, err = botClt.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// metricRegistryBlackHole is a fake prometheus.Registerer that accepts every metric and do nothing.
+// This is a workaround for different teleport component using the global registry but registering incompatible metrics.
+// Those issues can surface during integration tests starting Teleport auth, proxy, and tbot.
+// The long-term fix is to have every component use its own registry instead of the global one.
+type metricRegistryBlackHole struct {
+}
+
+func (m metricRegistryBlackHole) Register(_ prometheus.Collector) error {
+	return nil
+}
+
+func (m metricRegistryBlackHole) MustRegister(_ ...prometheus.Collector) {}
+
+func (m metricRegistryBlackHole) Unregister(_ prometheus.Collector) bool {
+	return true
 }

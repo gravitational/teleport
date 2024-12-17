@@ -38,8 +38,9 @@ export const PathInput = forwardRef<HTMLInputElement, FieldInputProps>(
     return (
       <Validation>
         {({ validator }) => (
-          <StyledFieldInput
+          <FieldInput
             {...props}
+            size="small"
             onFocus={moveCaretAtEnd}
             ref={ref}
             spellCheck={false}
@@ -54,10 +55,3 @@ export const PathInput = forwardRef<HTMLInputElement, FieldInputProps>(
     );
   }
 );
-
-const StyledFieldInput = styled(FieldInput)`
-  input {
-    font-size: 14px;
-    height: 32px;
-  }
-`;

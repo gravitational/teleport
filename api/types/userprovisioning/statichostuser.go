@@ -20,7 +20,7 @@ package userprovisioning
 
 import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -28,7 +28,7 @@ import (
 func NewStaticHostUser(name string, spec *userprovisioningpb.StaticHostUserSpec) *userprovisioningpb.StaticHostUser {
 	return &userprovisioningpb.StaticHostUser{
 		Kind:    types.KindStaticHostUser,
-		Version: types.V1,
+		Version: types.V2,
 		Metadata: &headerv1.Metadata{
 			Name: name,
 		},

@@ -81,6 +81,7 @@ const history = {
     this._pageRefresh(url);
   },
 
+  // TODO (avatus): make this return a path only if a full URI is present
   getRedirectParam() {
     return getUrlParameter('redirect_uri', this.original().location.search);
   },

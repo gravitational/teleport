@@ -22,10 +22,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
-	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -33,91 +34,16 @@ import (
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// TODO(Joerger): DELETE IN 16.0.0
-func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
-	err := c.APIClient.RotateCertAuthority(ctx, req)
-	if trace.IsNotImplemented(err) {
-		// Fall back to HTTP implementation.
-		_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(err)
-}
-
-type rotateExternalCertAuthorityRawReq struct {
-	CA json.RawMessage `json:"ca"`
-}
-
-// TODO(Joerger): DELETE IN 16.0.0
-func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	err := c.APIClient.RotateExternalCertAuthority(ctx, ca)
-	if trace.IsNotImplemented(err) {
-		// Fall back to HTTP implementation.
-		data, err := services.MarshalCertAuthority(ca)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
-			&rotateExternalCertAuthorityRawReq{CA: data})
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(err)
-}
-
-func (c *Client) deleteRemoteClusterLegacy(ctx context.Context, clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
-	return trace.Wrap(err)
-}
-
-// DeleteRemoteCluster deletes remote cluster by name
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) DeleteRemoteCluster(ctx context.Context, name string) error {
-	err := c.APIClient.DeleteRemoteCluster(ctx, name)
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
-	}
-	return c.deleteRemoteClusterLegacy(ctx, name)
-}
-
-func (c *Client) getRemoteClustersLegacy(ctx context.Context) ([]types.RemoteCluster, error) {
-	out, err := c.Get(ctx, c.Endpoint("remoteclusters"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.RemoteCluster, 0, len(items))
-	for _, raw := range items {
-		conn, err := services.UnmarshalRemoteCluster(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns = append(conns, conn)
-	}
-	return conns, nil
-}
-
-// GetRemoteClusters returns a list of remote clusters
-// Prefer using ListRemoteClusters.
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	var rcs []types.RemoteCluster
+// GetReverseTunnels returns the list of created reverse tunnels
+// TODO(noah): DELETE IN 18.0.0
+func (c *Client) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
+	var rcs []types.ReverseTunnel
 	pageToken := ""
 	for {
-		page, nextToken, err := c.APIClient.ListRemoteClusters(ctx, 0, pageToken)
+		page, nextToken, err := c.APIClient.ListReverseTunnels(ctx, 0, pageToken)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				return c.getRemoteClustersLegacy(ctx)
+				return c.getReverseTunnelsLegacy(ctx)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -129,55 +55,113 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 	}
 }
 
-func (c *Client) getRemoteClusterLegacy(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name")
-	}
-	out, err := c.Get(ctx, c.Endpoint("remoteclusters", clusterName), url.Values{})
+func (c *Client) getReverseTunnelsLegacy(ctx context.Context) ([]types.ReverseTunnel, error) {
+	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRemoteCluster(out.Bytes())
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnels := make([]types.ReverseTunnel, len(items))
+	for i, raw := range items {
+		tunnel, err := services.UnmarshalReverseTunnel(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tunnels[i] = tunnel
+	}
+	return tunnels, nil
 }
 
-// GetRemoteCluster returns remote cluster by name
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.RemoteCluster, error) {
-	res, err := c.APIClient.GetRemoteCluster(ctx, name)
+// UpsertReverseTunnel upserts a reverse tunnel
+// TODO: DELETE IN 18.0.0
+func (c *Client) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
+	_, err := c.APIClient.UpsertReverseTunnel(ctx, tunnel)
 	if err == nil {
-		return res, nil
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.upsertReverseTunnelLegacy(context.Background(), tunnel)
+}
+
+type upsertReverseTunnelRawReq struct {
+	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
+}
+
+func (c *Client) upsertReverseTunnelLegacy(ctx context.Context, tunnel types.ReverseTunnel) error {
+	data, err := services.MarshalReverseTunnel(tunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertReverseTunnelRawReq{
+		ReverseTunnel: data,
+	}
+	_, err = c.PostJSON(ctx, c.Endpoint("reversetunnels"), args)
+	return trace.Wrap(err)
+}
+
+// DeleteReverseTunnel deletes reverse tunnel by name
+// TODO(noah): DELETE IN 18.0.0
+func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
+	err := c.APIClient.DeleteReverseTunnel(ctx, name)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.deleteReverseTunnelLegacy(ctx, name)
+}
+
+func (c *Client) deleteReverseTunnelLegacy(ctx context.Context, domainName string) error {
+	// this is to avoid confusing error in case if domain empty for example
+	// HTTP route will fail producing generic not found error
+	// instead we catch the error here
+	if strings.TrimSpace(domainName) == "" {
+		return trace.BadParameter("empty domain name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("reversetunnels", domainName))
+	return trace.Wrap(err)
+}
+
+// RegisterUsingToken calls the auth service API to register a new node using a
+// registration token which was previously issued via CreateToken/UpsertToken.
+func (c *Client) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := c.APIClient.RegisterUsingToken(ctx, req)
+	if err == nil {
+		return certs, nil
 	}
 	if !trace.IsNotImplemented(err) {
 		return nil, trace.Wrap(err)
 	}
-	return c.getRemoteClusterLegacy(ctx, name)
+
+	return c.registerUsingTokenLegacy(ctx, req)
 }
 
-// UpdateRemoteCluster updates a remote cluster.
-// TODO(noah): DELETE IN 17.0.0 and update api/client.go to call new endpoint
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
-	rcV3, ok := rc.(*types.RemoteClusterV3)
-	if !ok {
-		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
-	}
-	out, err := c.APIClient.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
-		RemoteCluster: rcV3,
-	})
-	if err == nil {
-		return out, nil
-	}
-	if !trace.IsNotImplemented(err) {
+func (c *HTTPClient) registerUsingTokenLegacy(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// This is a little weird during the migration period of the old endpoints
-	// to grpc. Here, we need to call Update via gRPC and Get via HTTP.
-	if err := c.APIClient.UpdateRemoteCluster(ctx, rc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fetchedRC, err := c.getRemoteClusterLegacy(ctx, rc.GetName())
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return fetchedRC, nil
+
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &certs, nil
 }

@@ -23,7 +23,7 @@ package cgroup
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -62,7 +62,7 @@ func TestRootCreate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure that it exists.
-	cgroupPath := path.Join(service.teleportRoot, sessionID)
+	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 	require.DirExists(t, cgroupPath)
 
 	// Remove cgroup.
@@ -112,7 +112,7 @@ func TestRootCreateCustomRootPath(t *testing.T) {
 			err = service.Create(sessionID)
 			require.NoError(t, err)
 
-			cgroupPath := path.Join(service.teleportRoot, sessionID)
+			cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 			require.DirExists(t, cgroupPath)
 			require.Contains(t, cgroupPath, rootPath)
 
@@ -159,7 +159,7 @@ func TestRootCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure the cgroup no longer exists.
-	cgroupPath := path.Join(service.teleportRoot, sessionID)
+	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 	require.NoDirExists(t, cgroupPath)
 }
 
@@ -181,7 +181,7 @@ func TestRootSkipUnmount(t *testing.T) {
 	require.NoError(t, err)
 
 	sessionID := uuid.NewString()
-	sessionPath := path.Join(service.teleportRoot, sessionID)
+	sessionPath := filepath.Join(service.teleportRoot, sessionID)
 	require.NoError(t, service.Create(sessionID))
 
 	require.DirExists(t, sessionPath)
@@ -190,7 +190,7 @@ func TestRootSkipUnmount(t *testing.T) {
 	require.NoError(t, service.Close(skipUnmount))
 
 	require.DirExists(t, service.teleportRoot)
-	require.NoDirExists(t, path.Join(service.teleportRoot, sessionID))
+	require.NoDirExists(t, filepath.Join(service.teleportRoot, sessionID))
 
 	require.NoError(t, service.unmount())
 

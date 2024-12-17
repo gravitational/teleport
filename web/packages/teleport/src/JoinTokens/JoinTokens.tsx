@@ -42,7 +42,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { MenuButton } from 'shared/components/MenuAction';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useTeleport } from 'teleport';
@@ -392,8 +392,9 @@ function TokenDelete({
             {` ${token.safeName}`}
           </Text>
           . This will not remove any resources that used this token to join the
-          cluster. This will remove the ability for any new resources to join
-          with this token and any non-renewable resource from renewing.
+          cluster. This will remove the ability for any new resources or
+          resources using non-renewable certificates from joining with this
+          token.
         </Text>
       </DialogContent>
       <DialogFooter>
@@ -445,7 +446,7 @@ const ActionCell = ({
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING Tokens are defined using{' '}
       <Link
         color="text.main"
         target="_blank"

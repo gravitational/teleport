@@ -18,7 +18,7 @@
 
 import Table, { LabelCell } from 'design/DataTable';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 
@@ -65,8 +65,8 @@ export function BotList({
             key: 'roles',
             headerText: 'Roles',
             isSortable: true,
-            onSort: (a: string[], b: string[]) =>
-              a.toString().localeCompare(b.toString()),
+            onSort: (a, b) =>
+              a.roles.toString().localeCompare(b.roles.toString()),
             render: ({ roles }) => <LabelCell data={roles} />,
           },
           {

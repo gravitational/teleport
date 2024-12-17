@@ -44,7 +44,7 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Const
 
 		return AtomicWriteShim{
 			Backend:  bk,
-			sentinel: []byte(uuid.New().String()),
+			sentinel: backend.NewKey(uuid.New().String()),
 		}, clock, nil
 	})
 }
@@ -52,7 +52,7 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Const
 // AtomicWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
 type AtomicWriteShim struct {
 	backend.Backend
-	sentinel []byte
+	sentinel backend.Key
 }
 
 // sca builds a sentinel conditional action to be added to calls to AtomicWrite to force them to

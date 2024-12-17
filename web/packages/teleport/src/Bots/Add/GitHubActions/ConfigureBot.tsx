@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -26,6 +26,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { Text } from 'design';
 
 import FieldInput from 'shared/components/FieldInput';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { Alert } from 'design/Alert';
 
@@ -168,7 +169,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   fontWeight="lighter"
                   fontSize="1"
                 >
-                  (optional)
+                  (required field)
                 </Text>
               </Text>
               <FieldInput
@@ -181,6 +182,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     login: e.target.value,
                   })
                 }
+                rule={requiredField('SSH user is required')}
               />
             </FormItem>
 

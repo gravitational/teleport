@@ -196,3 +196,13 @@ func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
 func (o *DatabaseOutput) Type() string {
 	return DatabaseOutputType
 }
+
+// SupportedDatabaseFormatStrings returns a constant list of all valid
+// DatabaseFormat values as strings.
+func SupportedDatabaseFormatStrings() (ret []string) {
+	for _, v := range databaseFormats {
+		ret = append(ret, string(v))
+	}
+
+	return
+}

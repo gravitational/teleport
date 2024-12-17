@@ -46,26 +46,11 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Teleport Community Edition/Teleport Enterprise">
-
 3. Download the Teleport Windows Auth setup program:
 
 ```code
 $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe
 ```
-
-</TabItem>
-<TabItem label="Teleport Enterprise Cloud">
-
-3. Download the Teleport Windows Auth setup program:
-
-```code
-$ curl.exe -fo teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe
-```
-
-</TabItem>
-</Tabs>
 
 4. Double-click the executable you downloaded to run the Teleport Windows Auth Setup program
 interactively and select the Teleport certificate that you exported when prompted.
@@ -77,6 +62,10 @@ interactively and select the Teleport certificate that you exported when prompte
    - Disables Network Level Authentication (NLA) for remote desktop services.
    - Enables RemoteFX compression, if using Teleport version 15 or newer.
 
+  Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
+  [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
+  must be disabled.
+
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
 
@@ -85,7 +74,7 @@ If you want to automate the installation process, you can run the setup program 
 an administrative Command Prompt or PowerShell console with the following command:
 
 ```code
-$ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
+$ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
 ```
 
 ## Step 2/4. Configure the Windows Desktop Service
@@ -246,7 +235,7 @@ To configure a role for desktop access:
 
    Depending on how you configure role-based access controls for Windows, Teleport can create local user logins
    automatically from the `windows_desktop_logins` you specify. For more information about enabling Teleport
-   to create local Windows logins, see [Logins](./rbac.mdx#logins).
+   to create local Windows logins, see [Automatic User Creation](../../reference/agent-services/desktop-access-reference/user-creation.mdx).
 
 1. Apply the new role to your cluster by running the following command:
 

@@ -21,17 +21,16 @@ package machineidv1
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -56,6 +55,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodToken,
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
+	types.JoinMethodBitbucket,
 }
 
 // BotResourceName returns the default name for resources associated with the
@@ -108,7 +108,7 @@ type BotServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      Cache
 	Backend    Backend
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -127,11 +127,10 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
 		return nil, trace.BadParameter("reporter is required")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("logger is required")
 	}
 
-	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "bot.service")
-	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -154,7 +153,7 @@ type BotService struct {
 	cache      Cache
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -223,17 +222,23 @@ func (bs *BotService) ListBots(
 
 		role, err := bs.cache.GetRole(ctx, BotResourceName(botName))
 		if err != nil {
-			bs.logger.WithError(err).WithFields(logrus.Fields{
-				"bot.name": botName,
-			}).Warn("Failed to fetch role for bot during ListBots. Bot will be omitted from results.")
+			bs.logger.WarnContext(
+				ctx,
+				"Failed to fetch role for bot during ListBots. Bot will be omitted from results",
+				"error", err,
+				"bot_name", botName,
+			)
 			continue
 		}
 
 		bot, err := botFromUserAndRole(u, role)
 		if err != nil {
-			bs.logger.WithError(err).WithFields(logrus.Fields{
-				"bot.name": botName,
-			}).Warn("Failed to convert bot during ListBots. Bot will be omitted from results.")
+			bs.logger.WarnContext(
+				ctx,
+				"Failed to convert bot during ListBots. Bot will be omitted from results",
+				"error", err,
+				"bot_name", botName,
+			)
 			continue
 		}
 		bots = append(bots, bot)
@@ -303,7 +308,10 @@ func (bs *BotService) CreateBot(
 			Name: bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WithError(err).Warn("Failed to emit BotCreate audit event.")
+		bs.logger.WarnContext(
+			ctx, "Failed to emit BotCreate audit event",
+			"error", err,
+		)
 	}
 
 	return bot, nil
@@ -396,7 +404,10 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 			Name: bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WithError(err).Warn("Failed to emit BotCreate audit event.")
+		bs.logger.WarnContext(
+			ctx, "Failed to emit BotCreate audit event",
+			"error", err,
+		)
 	}
 
 	return bot, nil
@@ -491,7 +502,10 @@ func (bs *BotService) UpdateBot(
 			Name: req.Bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WithError(err).Warn("Failed to emit BotUpdate audit event.")
+		bs.logger.WarnContext(
+			ctx, "Failed to emit BotUpdate audit event",
+			"error", err,
+		)
 	}
 
 	bot, err := botFromUserAndRole(user, role)
@@ -575,7 +589,10 @@ func (bs *BotService) DeleteBot(
 			Name: req.BotName,
 		},
 	}); err != nil {
-		bs.logger.WithError(err).Warn("Failed to emit BotDelete audit event.")
+		bs.logger.WarnContext(
+			ctx, "Failed to emit BotDelete audit event",
+			"error", err,
+		)
 	}
 
 	return &emptypb.Empty{}, nil

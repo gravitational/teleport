@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Text, Box, Flex, Link, Mark } from 'design';
 import { Danger } from 'design/Alert';
 import { Info } from 'design/Icon';
@@ -112,7 +112,6 @@ export function MutualTlsView({
                 resizable={true}
                 autoFocus
                 textAreaCss={`
-                font-size: 14px;
                 height: 100px;
                 width: 800px;
                 `}
@@ -156,9 +155,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
             },
           ]}
         />
-        <Text mt={1}>
-          Restart the database server to apply the configuration.
-        </Text>
+        <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/#step-25-create-a-certificatekey-pair" />
       </Box>
     );
   }
@@ -247,9 +244,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
-                  <Text mt={1}>
-                    Restart the database server to apply the configuration.
-                  </Text>
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -280,9 +275,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
-                  <Text mt={1}>
-                    Restart the database server to apply the configuration.
-                  </Text>
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -302,3 +295,14 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 }
+
+const RestartDatabaseText = ({ link }: { link: string }) => (
+  <Text mt={1}>
+    Restart the database server to apply the configuration. The certificate is
+    valid for 90 days so this will require installing an{' '}
+    <Link href={link} target="_blank">
+      updated certificate
+    </Link>{' '}
+    and restarting the database server before that to continue access.
+  </Text>
+);

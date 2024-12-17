@@ -143,3 +143,17 @@ func IsValidNamespace(s string) bool {
 }
 
 var validNamespace = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+
+// ValidateNamespaceDefault ensures that the namespace is the "default"
+// namespace.
+// This is a precursor to a hard-removal of namespaces.
+func ValidateNamespaceDefault(ns string) error {
+	if ns == defaults.Namespace {
+		return nil
+	}
+
+	const message = "" +
+		"namespace %q invalid, custom namespaces are deprecated; " +
+		"the namespace field should be omitted or set to %q"
+	return trace.BadParameter(message, ns, defaults.Namespace)
+}

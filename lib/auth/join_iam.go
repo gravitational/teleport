@@ -264,7 +264,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting token")
 	}
 	if provisionToken.GetJoinMethod() != types.JoinMethodIAM {
 		return trace.AccessDenied("this token does not support the IAM join method")
@@ -273,25 +273,25 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	// parse the incoming http request to the sts:GetCallerIdentity endpoint
 	identityRequest, err := parseSTSRequest(req.StsIdentityRequest)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "parsing STS request")
 	}
 
 	// validate that the host, method, and headers are correct and the expected
 	// challenge is included in the signed portion of the request
 	if err := validateSTSIdentityRequest(identityRequest, challenge, cfg); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "validating STS request")
 	}
 
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
 	identity, err := executeSTSIdentityRequest(ctx, a.httpClientForAWSSTS, identityRequest)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "executing STS request")
 	}
 
 	// check that the node identity matches an allow rule for this token
 	if err := checkIAMAllowRules(identity, provisionToken.GetName(), provisionToken.GetAllowRules()); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "checking allow rules")
 	}
 
 	return nil
@@ -328,13 +328,13 @@ func withFips(fips bool) iamRegisterOption {
 	}
 }
 
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// RegisterUsingIAMMethodWithOpts registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(
+func (a *Server) RegisterUsingIAMMethodWithOpts(
 	ctx context.Context,
 	challengeResponse client.RegisterIAMChallengeResponseFunc,
 	opts ...iamRegisterOption,
@@ -357,34 +357,47 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	challenge, err := generateIAMChallenge()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "generating IAM challenge")
 	}
 
 	req, err := challengeResponse(challenge)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting challenge response")
 	}
 	joinRequest = req.RegisterUsingTokenRequest
 
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "validating request parameters")
 	}
 
 	// perform common token checks
 	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "completing common token checks")
 	}
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	if err := a.checkIAMRequest(ctx, challenge, req, cfg); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "checking iam request")
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
 		certs, err := a.generateCertsBot(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
-		return certs, trace.Wrap(err)
+		return certs, trace.Wrap(err, "generating bot certs")
 	}
 	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
-	return certs, trace.Wrap(err)
+	return certs, trace.Wrap(err, "generating certs")
+}
+
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// The caller must provide a ChallengeResponseFunc which returns a
+// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
+// including the challenge as a signed header.
+func (a *Server) RegisterUsingIAMMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterIAMChallengeResponseFunc,
+) (certs *proto.Certs, err error) {
+	return a.RegisterUsingIAMMethodWithOpts(ctx, challengeResponse)
 }

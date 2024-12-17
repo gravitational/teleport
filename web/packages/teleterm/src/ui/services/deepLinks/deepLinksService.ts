@@ -27,7 +27,6 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
-const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
     private runtimeSettings: RuntimeSettings,
@@ -96,14 +95,14 @@ export class DeepLinksService {
   }
 
   /**
-   * askAuthorizeDeviceTrust opens a dialog asking the user if they'd like to authorize
+   * askAuthorizeDeviceTrust opens a document asking the user if they'd like to authorize
    * a web session with device trust. If confirmed, the web session will be upgraded and the
-   * user will be directed back to the web UI
+   * user will be directed back to the web UI.
    */
   private async askAuthorizeDeviceTrust(
     url: AuthenticateWebDeviceDeepURL
   ): Promise<void> {
-    const { id, token } = url.searchParams;
+    const { id, token, redirect_uri } = url.searchParams;
 
     const result = await this.loginAndSetActiveWorkspace(url);
     if (!result.isAtDesiredWorkspace) {
@@ -111,29 +110,19 @@ export class DeepLinksService {
     }
 
     const { rootClusterUri } = result;
-    const rootCluster = this.clustersService.findCluster(rootClusterUri);
-
-    this.modalsService.openRegularDialog({
-      kind: 'device-trust-authorize',
+    const documentService =
+      this.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+    const doc = documentService.createAuthorizeWebSessionDocument({
       rootClusterUri,
-      onCancel: () => {
-        window.open(`https://${rootCluster.proxyHost}/web`);
-      },
-      onAuthorize: async () => {
-        const result = await this.clustersService.authenticateWebDevice(
-          rootClusterUri,
-          {
-            id,
-            token,
-          }
-        );
-        // open url to confirm the token. This endpoint verifies the token and "upgrades"
-        // the web session and redirects to "/web"
-        window.open(
-          `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`
-        );
+      webSessionRequest: {
+        id,
+        token,
+        username: url.username,
+        redirectUri: redirect_uri,
       },
     });
+    documentService.add(doc);
+    documentService.open(doc.uri);
   }
 
   /**

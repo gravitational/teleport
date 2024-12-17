@@ -1,0 +1,24 @@
+"listdatabases-iam" will perform the following action:
+
+Attach an inline IAM policy named "ListDatabases" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBClusters",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeVpcs"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "ListDatabases",
+    "RoleName": "integrationrole"
+}
+

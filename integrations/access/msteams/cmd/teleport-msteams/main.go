@@ -111,15 +111,8 @@ func run(configPath string, debug bool) error {
 		return trace.Wrap(err)
 	}
 
-	logConfig := conf.Log
 	if debug {
-		logConfig.Severity = "debug"
-	}
-	if err = logger.Setup(logConfig); err != nil {
-		return err
-	}
-	if debug {
-		logger.Standard().Debugf("DEBUG logging enabled")
+		conf.Log.Severity = "debug"
 	}
 
 	app, err := msteams.NewApp(*conf)

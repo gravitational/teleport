@@ -33,7 +33,11 @@ import { NotificationsService } from '../notifications';
 import { ModalsService } from '../modals';
 
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
-import { Workspace, WorkspacesService } from './workspacesService';
+import {
+  Workspace,
+  WorkspacesService,
+  WorkspacesState,
+} from './workspacesService';
 import { DocumentCluster, DocumentsService } from './documentsService';
 
 import type * as tshd from 'teleterm/services/tshd/types';
@@ -137,6 +141,117 @@ describe('restoring workspace', () => {
       },
     });
   });
+
+  it('location is set to first document if it points to non-existing document', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_2',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/non-existing-doc',
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    await workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(cluster.uri).previous).toStrictEqual({
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_2',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/terminal_shell_uri_1',
+    });
+  });
+});
+
+describe('state persistence', () => {
+  it('doc.authorize_web_session is not stored to disk', () => {
+    const cluster = makeRootCluster();
+    const workspacesState: WorkspacesState = {
+      rootClusterUri: cluster.uri,
+      isInitialized: true,
+      workspaces: {
+        [cluster.uri]: {
+          accessRequests: {
+            isBarCollapsed: true,
+            pending: getEmptyPendingAccessRequest(),
+          },
+          localClusterUri: cluster.uri,
+          documents: [
+            {
+              kind: 'doc.terminal_shell',
+              uri: '/docs/terminal_shell_uri',
+              title: '/Users/alice/Documents',
+            },
+            {
+              kind: 'doc.authorize_web_session',
+              uri: '/docs/authorize_web_session',
+              rootClusterUri: cluster.uri,
+              title: 'Authorize Web Session',
+              webSessionRequest: {
+                id: '',
+                token: '',
+                redirectUri: '',
+                username: '',
+              },
+            },
+          ],
+          location: '/docs/authorize_web_session',
+        },
+      },
+    };
+    const { workspacesService, statePersistenceService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {},
+    });
+
+    workspacesService.setState(() => workspacesState);
+
+    expect(statePersistenceService.saveWorkspacesState).toHaveBeenCalledTimes(
+      1
+    );
+    expect(statePersistenceService.saveWorkspacesState).toHaveBeenCalledWith({
+      rootClusterUri: cluster.uri,
+      workspaces: {
+        [cluster.uri]: expect.objectContaining({
+          documents: [
+            {
+              kind: 'doc.terminal_shell',
+              uri: '/docs/terminal_shell_uri',
+              title: '/Users/alice/Documents',
+            },
+          ],
+          location: '/docs/authorize_web_session',
+        }),
+      },
+    });
+  });
 });
 
 describe('setActiveWorkspace', () => {
@@ -216,6 +331,31 @@ describe('setActiveWorkspace', () => {
     expect(isAtDesiredWorkspace).toBe(false);
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
+
+  it('does not switch the workspace if the cluster has a profile status error', async () => {
+    const { workspacesService, notificationsService } = getTestSetup({
+      cluster: makeRootCluster({
+        connected: false,
+        loggedInUser: undefined,
+        profileStatusError: 'no YubiKey device connected',
+      }),
+      persistedWorkspaces: {},
+    });
+
+    jest.spyOn(notificationsService, 'notifyError');
+
+    const { isAtDesiredWorkspace } =
+      await workspacesService.setActiveWorkspace('/clusters/foo');
+
+    expect(isAtDesiredWorkspace).toBe(false);
+    expect(notificationsService.notifyError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Could not set cluster as active',
+        description: 'no YubiKey device connected',
+      })
+    );
+    expect(workspacesService.getRootClusterUri()).toBeUndefined();
+  });
 });
 
 function getTestSetup(options: {
@@ -230,6 +370,12 @@ function getTestSetup(options: {
   >;
   const modalsService = new ModalsServiceMock();
 
+  jest.mock('../notifications');
+  const NotificationsServiceMock = NotificationsService as jest.MockedClass<
+    typeof NotificationsService
+  >;
+  const notificationsService = new NotificationsServiceMock();
+
   const statePersistenceService: Partial<StatePersistenceService> = {
     getWorkspacesState: () => ({
       workspaces: options.persistedWorkspaces,
@@ -240,6 +386,7 @@ function getTestSetup(options: {
   const clustersService: Partial<ClustersService> = {
     findCluster: jest.fn(() => cluster),
     getRootClusters: () => [cluster].filter(Boolean),
+    syncRootClustersAndCatchErrors: async () => {},
   };
 
   let clusterDocument: DocumentCluster;
@@ -250,7 +397,7 @@ function getTestSetup(options: {
   const workspacesService = new WorkspacesService(
     modalsService,
     clustersService as ClustersService,
-    new NotificationsService(),
+    notificationsService,
     statePersistenceService as StatePersistenceService
   );
 
@@ -264,5 +411,11 @@ function getTestSetup(options: {
       },
     }) as Partial<DocumentsService> as DocumentsService;
 
-  return { workspacesService, clusterDocument, modalsService };
+  return {
+    workspacesService,
+    clusterDocument,
+    modalsService,
+    notificationsService,
+    statePersistenceService,
+  };
 }

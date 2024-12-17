@@ -40,8 +40,6 @@ SOFTWARE.
 
 */
 
-import React from 'react';
-
 import { Icon, IconProps } from '../Icon';
 
 /*
@@ -55,7 +53,7 @@ export function Minus({ size = 24, color, ...otherProps }: IconProps) {
     <Icon size={size} color={color} className="icon icon-minus" {...otherProps}>
       <path
         d="M3.75 12H20.25"
-        stroke="black"
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

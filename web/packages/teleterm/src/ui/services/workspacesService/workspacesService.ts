@@ -17,7 +17,6 @@
  */
 
 import { z } from 'zod';
-import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import {
@@ -43,6 +42,11 @@ import {
   RootClusterUri,
   routing,
 } from 'teleterm/ui/uri';
+
+import {
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
 
 import {
   AccessRequestsService,
@@ -220,10 +224,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
-  useState() {
-    return useStore(this);
-  }
-
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
     super.setState(nextState);
     this.persistState();
@@ -263,7 +263,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
   ): UnifiedResourcePreferences {
-    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+    return (
+      this.state.workspaces[rootClusterUri].unifiedResourcePreferences ||
+      getDefaultUnifiedResourcePreferences()
+    );
   }
 
   /**
@@ -274,7 +277,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(
+  async setActiveWorkspace(
     clusterUri: RootClusterUri,
     /**
      * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
@@ -316,7 +319,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return Promise.resolve({ isAtDesiredWorkspace: true });
     }
 
-    const cluster = this.clustersService.findCluster(clusterUri);
+    let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
       this.notificationsService.notifyError({
         title: 'Could not set cluster as active',
@@ -326,6 +329,28 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
       return Promise.resolve({ isAtDesiredWorkspace: false });
+    }
+
+    if (cluster.profileStatusError) {
+      await this.clustersService.syncRootClustersAndCatchErrors();
+      // Update the cluster.
+      cluster = this.clustersService.findCluster(clusterUri);
+      // If the problem persists (because, for example, the user still hasn't
+      // connected the hardware key) show a notification and return early.
+      if (cluster.profileStatusError) {
+        const notificationId = this.notificationsService.notifyError({
+          title: 'Could not set cluster as active',
+          description: cluster.profileStatusError,
+          action: {
+            content: 'Retry',
+            onClick: () => {
+              this.notificationsService.removeNotification(notificationId);
+              this.setActiveWorkspace(clusterUri);
+            },
+          },
+        });
+        return { isAtDesiredWorkspace: false };
+      }
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -405,7 +430,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             currentDocuments: workspaceDefaultState.documents,
           })
             ? {
-                location: persistedWorkspace.location,
+                location: getLocationToRestore(
+                  persistedWorkspaceDocuments,
+                  persistedWorkspace.location
+                ),
                 documents: persistedWorkspaceDocuments,
               }
             : undefined,
@@ -545,10 +573,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
+      const documentsToPersist = getDocumentsToPersist(
+        workspace.previous?.documents || workspace.documents
+      );
+
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
-        documents: workspace.previous?.documents || workspace.documents,
+        documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
@@ -566,6 +598,7 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
@@ -590,3 +623,32 @@ const unifiedResourcePreferencesSchema = z
 type UnifiedResourcePreferencesSchemaAsRequired = Required<
   z.infer<typeof unifiedResourcePreferencesSchema>
 >;
+
+/**
+ * useWorkspaceServiceState is a replacement for the legacy useStore hook. Many components within
+ * teleterm depend on the behavior of useStore which re-renders the component on any change within
+ * the store. Most of the time, those components don't even use the state returned by useStore.
+ *
+ * @deprecated Prefer useStoreSelector with a selector that picks only what the callsite is going
+ * to use. useWorkspaceServiceState re-renders the component on any change within any workspace.
+ */
+export const useWorkspaceServiceState = () => {
+  return useStoreSelector('workspacesService', identitySelector);
+};
+
+function getDocumentsToPersist(documents: Document[]): Document[] {
+  return (
+    documents
+      // We don't persist 'doc.authorize_web_session' because we don't want to store
+      // a session token and id on disk.
+      // Moreover, the user would not be able to authorize a session at a later time anyway.
+      .filter(d => d.kind !== 'doc.authorize_web_session')
+  );
+}
+
+function getLocationToRestore(
+  documents: Document[],
+  location: DocumentUri
+): DocumentUri | undefined {
+  return documents.find(d => d.uri === location) ? location : documents[0]?.uri;
+}

@@ -56,6 +56,7 @@ type remoteCommandRequest struct {
 	onResize           resizeCallback
 	context            context.Context
 	pingPeriod         time.Duration
+	idleTimeout        time.Duration
 }
 
 func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
@@ -156,7 +157,7 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		return nil, trace.ConnectionProblem(trace.BadParameter("missing connection"), "missing connection")
 	}
 
-	conn.SetIdleTimeout(IdleTimeout)
+	conn.SetIdleTimeout(req.idleTimeout)
 
 	var handler protocolHandler
 	switch protocol {

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { action } from '@storybook/addon-actions';
 
 import { Restore } from 'design/Icon';
 
-import { Box, Link } from '..';
+import { Box } from '..';
 
 import { Alert, AlertProps, Banner } from './Alert';
 
@@ -102,23 +102,14 @@ export const Banners = () => (
     >
       Greetings, professor Falken.
     </Banner>
-    <Banner kind="neutral" dismissible>
-      <Link href="#">Neutral link</Link>
-    </Banner>
-    <Banner kind="info" dismissible>
-      <Link href="#">Info link</Link>
-    </Banner>
-    <Banner kind="warning" dismissible>
-      <Link href="#">Warning link</Link>
-    </Banner>
-    <Banner kind="danger" dismissible>
-      <Link href="#">Danger link</Link>
-    </Banner>
-    <Banner kind="success" dismissible>
-      <Link href="#">Success link</Link>
-    </Banner>
-    <Banner kind="primary" dismissible>
-      <Link href="#">Primary link</Link>
+    <Banner
+      dismissible
+      primaryAction={{
+        content: 'Click me!',
+        href: 'https://goteleport.com/support/',
+      }}
+    >
+      Banner with a link button
     </Banner>
   </>
 );
@@ -128,14 +119,10 @@ const commonProps: AlertProps = {
   dismissible: true,
   primaryAction: {
     content: 'Primary Action',
-    onClick: () => {
-      alert('Primary button clicked');
-    },
+    onClick: action('primaryAction.onClick'),
   },
   secondaryAction: {
     content: 'Secondary Action',
-    onClick: () => {
-      alert('Secondary button clicked');
-    },
+    onClick: action('secondaryAction.onClick'),
   },
 };

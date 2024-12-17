@@ -66,6 +66,8 @@ type Session struct {
 	AuthContext *authz.Context
 	// StartTime is the time the session started.
 	StartTime time.Time
+	// PostgresPID is the Postgres backend PID for the session.
+	PostgresPID uint32
 }
 
 // String returns string representation of the session parameters.

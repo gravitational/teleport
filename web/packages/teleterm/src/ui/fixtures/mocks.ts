@@ -38,6 +38,7 @@ export class MockAppContext extends AppContext {
       vnetClient,
       ptyServiceClient,
       setupTshdEventContextBridgeService: () => {},
+      getPathForFile: () => '',
     });
   }
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, H3, Subtitle3 } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
@@ -101,7 +101,9 @@ export function TestConnection({
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+              onMfaResponse={async res =>
+                testConnection(makeTestConnRequest(), res)
+              }
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />
@@ -154,7 +156,7 @@ export function TestConnection({
             <Box width="500px">
               <FieldSelect
                 label={'Kubernetes User'}
-                labelTip={
+                helperText={
                   userOpts.length === 0
                     ? 'Defaulted to your teleport username'
                     : ''

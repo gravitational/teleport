@@ -1,0 +1,47 @@
+# example teleport-datadog configuration TOML file
+[teleport]
+# Teleport Auth/Proxy Server address.
+#
+# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+addr = "example.com:3025"
+
+# Credentials.
+#
+# When using --format=file:
+# identity = "/var/lib/teleport/plugins/datadog/auth_id"    # Identity file
+# refresh_identity = true                                   # Refresh identity file on a periodic basis.
+#
+# When using --format=tls:
+# client_key = "/var/lib/teleport/plugins/datadog/auth.key" # Teleport TLS secret key
+# client_crt = "/var/lib/teleport/plugins/datadog/auth.crt" # Teleport TLS certificate
+# root_cas = "/var/lib/teleport/plugins/datadog/auth.cas"   # Teleport CA certs
+
+[datadog]
+# Datadog API Endpoint specifies the Datadog API endpoint.
+# See documentation for supported Datadog Sites: https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site.
+# Make sure to specify the "api.*" subdomain.
+api_endpoint = "https://api.datadoghq.com"
+
+# Datadog API Key accepts a key value or a filepath if the value starts with a '/'.
+api_key = "api_key"
+
+# Datadog Application Key accepts a key value or a filepath if the value starts with a '/'.
+application_key = "application_key"
+
+# Datadog Severity specifies the severity level of incidents.
+severity = "SEV-3"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide datadog user_email/team recipients for access requests for specific roles.
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "dev-team"
+# "*" = ["cloud@email.com", "cloud-team"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/datadog.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

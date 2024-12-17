@@ -693,19 +693,32 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 	return table, nil
 }
 
-// getKubeResourcePartialMetadataObject checks if obj is of type *metav1.PartialObjectMetadata
+// getKubeResourcePartialMetadataObject checks if obj satisfies namespaceNamer or namer interfaces
 // otherwise returns an error.
 func getKubeResourcePartialMetadataObject(kind, verb string, obj runtime.Object) (types.KubernetesResource, error) {
+	type namer interface {
+		GetName() string
+	}
+	type namespaceNamer interface {
+		GetNamespace() string
+		namer
+	}
 	switch o := obj.(type) {
-	case *metav1.PartialObjectMetadata:
+	case namespaceNamer:
 		return types.KubernetesResource{
-			Namespace: o.Namespace,
-			Name:      o.Name,
+			Namespace: o.GetNamespace(),
+			Name:      o.GetName(),
 			Kind:      kind,
 			Verbs:     []string{verb},
 		}, nil
+	case namer:
+		return types.KubernetesResource{
+			Name:  o.GetName(),
+			Kind:  kind,
+			Verbs: []string{verb},
+		}, nil
 	default:
-		return types.KubernetesResource{}, trace.BadParameter("expected *metav1.PartialObjectMetadata object, got %T", obj)
+		return types.KubernetesResource{}, trace.BadParameter("unexpected %T type", obj)
 	}
 }
 

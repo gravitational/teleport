@@ -50,12 +50,12 @@ type OktaService struct {
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
+func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     oktaImportRuleMaxPageSize,
 		ResourceKind:  types.KindOktaImportRule,
-		BackendPrefix: oktaImportRulePrefix,
+		BackendPrefix: backend.NewKey(oktaImportRulePrefix),
 		MarshalFunc:   services.MarshalOktaImportRule,
 		UnmarshalFunc: services.UnmarshalOktaImportRule,
 	})
@@ -64,10 +64,10 @@ func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaServic
 	}
 
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
-		BackendPrefix: oktaAssignmentPrefix,
+		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
 		MarshalFunc:   services.MarshalOktaAssignment,
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})

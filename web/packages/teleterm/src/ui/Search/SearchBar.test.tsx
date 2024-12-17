@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor, act } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
@@ -338,7 +337,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   await waitFor(() => {
     expect(screen.getByTestId('Modal')).toBeInTheDocument();
   });
-  expect(screen.getByTestId('Modal')).toHaveTextContent('Login to');
+  expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
   act(() => screen.getByLabelText('Close').click());

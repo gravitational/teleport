@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
@@ -54,7 +53,7 @@ const mockDbLabels = [{ name: 'env', value: 'prod' }];
 
 const integrationName = 'aws-oidc-integration';
 const region: Regions = 'us-east-2';
-const awsoidcRoleArn = 'role-arn';
+const awsoidcRoleName = 'role-arn';
 
 const mockAwsRdsDb: AwsRdsDatabase = {
   engine: 'postgres',
@@ -65,6 +64,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   accountId: 'account-id-1',
   resourceId: 'resource-id-1',
   vpcId: 'vpc-123',
+  securityGroups: ['sg-1', 'sg-2'],
   region: region,
   subnets: ['subnet1', 'subnet2'],
 };
@@ -74,7 +74,7 @@ const mocKIntegration: Integration = {
   name: integrationName,
   resourceType: 'integration',
   spec: {
-    roleArn: `doncare/${awsoidcRoleArn}`,
+    roleArn: `arn:aws:iam::123456789012:role/${awsoidcRoleName}`,
     issuerS3Bucket: '',
     issuerS3Prefix: '',
   },
@@ -239,7 +239,7 @@ function getMockedContexts() {
   };
 
   jest
-    .spyOn(integrationService, 'deployAwsOidcService')
+    .spyOn(integrationService, 'deployDatabaseServices')
     .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({

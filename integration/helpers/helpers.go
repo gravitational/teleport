@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -44,6 +45,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -52,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -129,10 +132,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	}
 
 	// Create an exec.Command and tell it where to find the SSH agent.
-	cmd, err := exec.Command(sshpath, execArgs...), nil
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	cmd := exec.Command(sshpath, execArgs...)
 	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
 
 	return cmd, nil
@@ -189,12 +189,26 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 }
 
 func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
-	keyRing, err := client.GenerateRSAKeyRing()
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
 	require.NoError(t, err)
+	return mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
+}
+
+func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	require.NoError(t, err)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	require.NoError(t, err)
+	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
 	keyRing.ClusterName = tc.Secrets.SiteName
 
+	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            keyRing.PrivateKey.MarshalSSHPublicKey(),
+		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		TLSPubKey:      tlsPub,
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -212,10 +226,16 @@ func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl 
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	keyRing := MustCreateUserKeyRing(t, tc, username, ttl)
+	key, err := cryptosuites.GenerateKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	}, cryptosuites.UserTLS)
+	require.NoError(t, err)
+	// Identity files must use the same key for SSH and TLS.
+	sshKey, tlsKey := key, key
+	keyRing := mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
@@ -449,6 +469,38 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
+}
+
+// MakeAgentServer creates SSH agent Service
+// It receives the Proxy Address, a Token (to join the cluster).
+func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
+	// Proxy uses self-signed certificates in tests.
+	lib.SetInsecureDevMode(true)
+
+	cfg.Hostname = "localhost"
+	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.SetAuthServerAddress(proxyAddr)
+	cfg.SetToken(token)
+	cfg.SSH.Enabled = true
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.Databases.Enabled = false
+	cfg.Log = utils.NewLoggerForTests()
+
+	agent, err := service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, agent.Start())
+
+	t.Cleanup(func() {
+		assert.NoError(t, agent.Close())
+	})
+
+	_, err = agent.WaitForEventTimeout(30*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "agent server didn't start after 10s")
+
+	return agent
 }
 
 // MustCreateListener creates a tcp listener at 127.0.0.1 with random port.

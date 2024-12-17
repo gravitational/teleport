@@ -46,7 +46,7 @@ export interface AccessList {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list.
+     * spec is the specification for the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListSpec spec = 2;
      */
@@ -59,32 +59,32 @@ export interface AccessList {
     status?: AccessListStatus;
 }
 /**
- * AccessListSpec is the specification for an access list.
+ * AccessListSpec is the specification for an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListSpec
  */
 export interface AccessListSpec {
     /**
-     * description is an optional plaintext description of the access list.
+     * description is an optional plaintext description of the Access List.
      *
      * @generated from protobuf field: string description = 1;
      */
     description: string;
     /**
-     * owners is a list of owners of the access list.
+     * owners is a list of owners of the Access List.
      *
      * @generated from protobuf field: repeated teleport.accesslist.v1.AccessListOwner owners = 2;
      */
     owners: AccessListOwner[];
     /**
-     * audit describes the frequency that this access list must be audited.
+     * audit describes the frequency that this Access List must be audited.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListAudit audit = 3;
      */
     audit?: AccessListAudit;
     /**
      * membership_requires describes the requirements for a user to be a member of
-     * the access list. For a membership to an access list to be effective, the
+     * the Access List. For a membership to an Access List to be effective, the
      * user must meet the requirements of Membership_requires and must be in the
      * members list.
      *
@@ -93,7 +93,7 @@ export interface AccessListSpec {
     membershipRequires?: AccessListRequires;
     /**
      * ownership_requires describes the requirements for a user to be an owner of
-     * the access list. For ownership of an access list to be effective, the user
+     * the Access List. For ownership of an Access List to be effective, the user
      * must meet the requirements of ownership_requires and must be in the owners
      * list.
      *
@@ -101,26 +101,26 @@ export interface AccessListSpec {
      */
     ownershipRequires?: AccessListRequires;
     /**
-     * grants describes the access granted by membership to this access list.
+     * grants describes the access granted by membership to this Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants grants = 6;
      */
     grants?: AccessListGrants;
     /**
-     * title is a plaintext short description of the access list.
+     * title is a plaintext short description of the Access List.
      *
      * @generated from protobuf field: string title = 8;
      */
     title: string;
     /**
-     * owner_grants describes the access granted by owners to this access list.
+     * owner_grants describes the access granted by owners to this Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants owner_grants = 11;
      */
     ownerGrants?: AccessListGrants;
 }
 /**
- * AccessListOwner is an owner of an access list.
+ * AccessListOwner is an owner of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListOwner
  */
@@ -145,9 +145,16 @@ export interface AccessListOwner {
      * @generated from protobuf field: teleport.accesslist.v1.IneligibleStatus ineligible_status = 3;
      */
     ineligibleStatus: IneligibleStatus;
+    /**
+     * membership_kind describes the type of membership, either
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 4;
+     */
+    membershipKind: MembershipKind;
 }
 /**
- * AccessListAudit describes the audit configuration for an access list.
+ * AccessListAudit describes the audit configuration for an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListAudit
  */
@@ -209,7 +216,7 @@ export interface Notifications {
     start?: Duration;
 }
 /**
- * AccessListRequires describes a requirement section for an access list. A user
+ * AccessListRequires describes a requirement section for an Access List. A user
  * must meet the following criteria to obtain the specific access to the list.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListRequires
@@ -230,29 +237,29 @@ export interface AccessListRequires {
     traits: Trait[];
 }
 /**
- * AccessListGrants describes what access is granted by membership to the access
- * list.
+ * AccessListGrants describes what access is granted by membership to the Access
+ * List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListGrants
  */
 export interface AccessListGrants {
     /**
-     * roles are the roles that are granted to users who are members of the access
-     * list.
+     * roles are the roles that are granted to users who are members of the Access
+     * List.
      *
      * @generated from protobuf field: repeated string roles = 1;
      */
     roles: string[];
     /**
      * traits are the traits that are granted to users who are members of the
-     * access list.
+     * Access List.
      *
      * @generated from protobuf field: repeated teleport.trait.v1.Trait traits = 2;
      */
     traits: Trait[];
 }
 /**
- * Member describes a member of an access list.
+ * Member describes a member of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.Member
  */
@@ -264,50 +271,50 @@ export interface Member {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list member.
+     * spec is the specification for the Access List member.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MemberSpec spec = 2;
      */
     spec?: MemberSpec;
 }
 /**
- * MemberSpec is the specification for an access list member.
+ * MemberSpec is the specification for an Access List member.
  *
  * @generated from protobuf message teleport.accesslist.v1.MemberSpec
  */
 export interface MemberSpec {
     /**
-     * associated access list
+     * associated Access List
      *
      * @generated from protobuf field: string access_list = 1;
      */
     accessList: string;
     /**
-     * name is the name of the member of the access list.
+     * name is the name of the member of the Access List.
      *
      * @generated from protobuf field: string name = 2;
      */
     name: string;
     /**
-     * joined is when the user joined the access list.
+     * joined is when the user joined the Access List.
      *
      * @generated from protobuf field: google.protobuf.Timestamp joined = 3;
      */
     joined?: Timestamp;
     /**
-     * expires is when the user's membership to the access list expires.
+     * expires is when the user's membership to the Access List expires.
      *
      * @generated from protobuf field: google.protobuf.Timestamp expires = 4;
      */
     expires?: Timestamp;
     /**
-     * reason is the reason this user was added to the access list.
+     * reason is the reason this user was added to the Access List.
      *
      * @generated from protobuf field: string reason = 5;
      */
     reason: string;
     /**
-     * added_by is the user that added this user to the access list.
+     * added_by is the user that added this user to the Access List.
      *
      * @generated from protobuf field: string added_by = 6;
      */
@@ -319,9 +326,16 @@ export interface MemberSpec {
      * @generated from protobuf field: teleport.accesslist.v1.IneligibleStatus ineligible_status = 7;
      */
     ineligibleStatus: IneligibleStatus;
+    /**
+     * membership_kind describes the type of membership, either
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 9;
+     */
+    membershipKind: MembershipKind;
 }
 /**
- * Review is a review of an access list.
+ * Review is a review of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.Review
  */
@@ -333,20 +347,20 @@ export interface Review {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list review.
+     * spec is the specification for the Access List review.
      *
      * @generated from protobuf field: teleport.accesslist.v1.ReviewSpec spec = 2;
      */
     spec?: ReviewSpec;
 }
 /**
- * ReviewSpec is the specification for an access list review.
+ * ReviewSpec is the specification for an Access List review.
  *
  * @generated from protobuf message teleport.accesslist.v1.ReviewSpec
  */
 export interface ReviewSpec {
     /**
-     * access_list is the name of the access list that this review is for.
+     * access_list is the name of the Access List that this review is for.
      *
      * @generated from protobuf field: string access_list = 1;
      */
@@ -418,11 +432,29 @@ export interface ReviewChanges {
  */
 export interface AccessListStatus {
     /**
-     * member_count is the number of members in the in the access list.
+     * member_count is the number of members in the Access List.
      *
      * @generated from protobuf field: optional uint32 member_count = 1;
      */
     memberCount?: number;
+    /**
+     * member_list_count is the number of nested list members in the Access List.
+     *
+     * @generated from protobuf field: optional uint32 member_list_count = 2;
+     */
+    memberListCount?: number;
+    /**
+     * owner_of describes Access Lists where this Access List is an explicit owner.
+     *
+     * @generated from protobuf field: repeated string owner_of = 3;
+     */
+    ownerOf: string[];
+    /**
+     * member_of describes Access Lists where this Access List is an explicit member.
+     *
+     * @generated from protobuf field: repeated string member_of = 4;
+     */
+    memberOf: string[];
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -473,6 +505,32 @@ export enum ReviewDayOfMonth {
      * @generated from protobuf enum value: REVIEW_DAY_OF_MONTH_LAST = 31;
      */
     LAST = 31
+}
+/**
+ * MembershipKind represents the different kinds of list membership
+ *
+ * @generated from protobuf enum teleport.accesslist.v1.MembershipKind
+ */
+export enum MembershipKind {
+    /**
+     * MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
+     * unknown membership kind, defaulting to being treated as type USER
+     *
+     * @generated from protobuf enum value: MEMBERSHIP_KIND_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * MEMBERSHIP_KIND_USER represents list members that are normal users
+     *
+     * @generated from protobuf enum value: MEMBERSHIP_KIND_USER = 1;
+     */
+    USER = 1,
+    /**
+     * MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
+     *
+     * @generated from protobuf enum value: MEMBERSHIP_KIND_LIST = 2;
+     */
+    LIST = 2
 }
 /**
  * IneligibleStatus describes how the user is ineligible.
@@ -679,7 +737,8 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         super("teleport.accesslist.v1.AccessListOwner", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] }
+            { no: 3, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
+            { no: 4, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] }
         ]);
     }
     create(value?: PartialMessage<AccessListOwner>): AccessListOwner {
@@ -687,6 +746,7 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         message.name = "";
         message.description = "";
         message.ineligibleStatus = 0;
+        message.membershipKind = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessListOwner>(this, message, value);
         return message;
@@ -704,6 +764,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
                     break;
                 case /* teleport.accesslist.v1.IneligibleStatus ineligible_status */ 3:
                     message.ineligibleStatus = reader.int32();
+                    break;
+                case /* teleport.accesslist.v1.MembershipKind membership_kind */ 4:
+                    message.membershipKind = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -726,6 +789,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         /* teleport.accesslist.v1.IneligibleStatus ineligible_status = 3; */
         if (message.ineligibleStatus !== 0)
             writer.tag(3, WireType.Varint).int32(message.ineligibleStatus);
+        /* teleport.accesslist.v1.MembershipKind membership_kind = 4; */
+        if (message.membershipKind !== 0)
+            writer.tag(4, WireType.Varint).int32(message.membershipKind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1070,7 +1136,8 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
             { no: 4, name: "expires", kind: "message", T: () => Timestamp },
             { no: 5, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "added_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] }
+            { no: 7, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
+            { no: 9, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] }
         ]);
     }
     create(value?: PartialMessage<MemberSpec>): MemberSpec {
@@ -1080,6 +1147,7 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
         message.reason = "";
         message.addedBy = "";
         message.ineligibleStatus = 0;
+        message.membershipKind = 0;
         if (value !== undefined)
             reflectionMergePartial<MemberSpec>(this, message, value);
         return message;
@@ -1109,6 +1177,9 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
                     break;
                 case /* teleport.accesslist.v1.IneligibleStatus ineligible_status */ 7:
                     message.ineligibleStatus = reader.int32();
+                    break;
+                case /* teleport.accesslist.v1.MembershipKind membership_kind */ 9:
+                    message.membershipKind = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1143,6 +1214,9 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
         /* teleport.accesslist.v1.IneligibleStatus ineligible_status = 7; */
         if (message.ineligibleStatus !== 0)
             writer.tag(7, WireType.Varint).int32(message.ineligibleStatus);
+        /* teleport.accesslist.v1.MembershipKind membership_kind = 9; */
+        if (message.membershipKind !== 0)
+            writer.tag(9, WireType.Varint).int32(message.membershipKind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1357,11 +1431,16 @@ export const ReviewChanges = new ReviewChanges$Type();
 class AccessListStatus$Type extends MessageType<AccessListStatus> {
     constructor() {
         super("teleport.accesslist.v1.AccessListStatus", [
-            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "member_list_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "owner_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "member_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.ownerOf = [];
+        message.memberOf = [];
         if (value !== undefined)
             reflectionMergePartial<AccessListStatus>(this, message, value);
         return message;
@@ -1373,6 +1452,15 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
             switch (fieldNo) {
                 case /* optional uint32 member_count */ 1:
                     message.memberCount = reader.uint32();
+                    break;
+                case /* optional uint32 member_list_count */ 2:
+                    message.memberListCount = reader.uint32();
+                    break;
+                case /* repeated string owner_of */ 3:
+                    message.ownerOf.push(reader.string());
+                    break;
+                case /* repeated string member_of */ 4:
+                    message.memberOf.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1389,6 +1477,15 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
         /* optional uint32 member_count = 1; */
         if (message.memberCount !== undefined)
             writer.tag(1, WireType.Varint).uint32(message.memberCount);
+        /* optional uint32 member_list_count = 2; */
+        if (message.memberListCount !== undefined)
+            writer.tag(2, WireType.Varint).uint32(message.memberListCount);
+        /* repeated string owner_of = 3; */
+        for (let i = 0; i < message.ownerOf.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.ownerOf[i]);
+        /* repeated string member_of = 4; */
+        for (let i = 0; i < message.memberOf.length; i++)
+            writer.tag(4, WireType.LengthDelimited).string(message.memberOf[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

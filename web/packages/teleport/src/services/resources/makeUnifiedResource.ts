@@ -20,7 +20,7 @@ import { UnifiedResource, UnifiedResourceKind } from '../agents';
 import makeApp from '../apps/makeApps';
 import { makeDatabase } from '../databases/makeDatabase';
 import { makeDesktop } from '../desktops/makeDesktop';
-import makeKube from '../kube/makeKube';
+import { makeKube } from '../kube/makeKube';
 import makeNode from '../nodes/makeNode';
 
 export function makeUnifiedResource(json: any): UnifiedResource {

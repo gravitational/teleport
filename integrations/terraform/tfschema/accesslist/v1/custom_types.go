@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Gravitational, Inc.
+Copyright 2024 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,85 +16,14 @@ limitations under the License.
 
 package v1
 
-import (
-	"context"
-	"fmt"
+import "github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
+var (
+	GenSchemaDuration = resource153.GenSchemaDuration
+	CopyToDuration    = resource153.CopyToDuration
+	CopyFromDuration  = resource153.CopyFromDuration
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	GenSchemaTimestamp = resource153.GenSchemaTimestamp
+	CopyToTimestamp    = resource153.CopyToTimestamp
+	CopyFromTimestamp  = resource153.CopyFromTimestamp
 )
-
-func GenSchemaTimestamp(_ context.Context) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type:     tfschema.UseRFC3339Time(),
-	}
-}
-
-func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Timestamp) {
-	value, ok := v.(tfschema.TimeValue)
-	if !ok {
-		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to String", v))
-		return
-	}
-
-	if value.IsNull() {
-		*o = nil
-	} else {
-		*o = timestamppb.New(value.Value)
-	}
-}
-
-func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Type, v attr.Value) attr.Value {
-	value, ok := v.(tfschema.TimeValue)
-	if !ok {
-		value = tfschema.TimeValue{}
-	}
-
-	if o == nil {
-		value.Null = true
-		return value
-	}
-
-	value.Value = (*o).AsTime()
-
-	return value
-}
-
-func GenSchemaDuration(_ context.Context) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type:     tfschema.DurationType{},
-	}
-}
-
-func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Duration) {
-	value, ok := v.(tfschema.DurationValue)
-	if !ok {
-		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to String", v))
-		return
-	}
-
-	*o = durationpb.New(value.Value)
-}
-
-func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type, v attr.Value) attr.Value {
-	value, ok := v.(tfschema.DurationValue)
-	if !ok {
-		value = tfschema.DurationValue{}
-	}
-
-	if o == nil {
-		value.Null = true
-		return value
-	}
-
-	value.Value = (*o).AsDuration()
-
-	return value
-}

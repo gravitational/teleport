@@ -21,11 +21,13 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -37,6 +39,19 @@ type IntegrationAWSOIDCSpec struct {
 	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
 	// IssuerS3Prefix is the prefix for the bucket above.
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
+
+	// Audience is used to record a name of a plugin or a discover service in Teleport
+	// that depends on this integration.
+	// Audience value can be empty or configured with supported preset audience type.
+	// Preset audience may impose specific behavior on the integration CRUD API,
+	// such as preventing integration from update or deletion. Empty audience value
+	// should be treated as a default and backward-compatible behavior of the integration.
+	Audience string `json:"audience,omitempty"`
+}
+
+// IntegrationGitHub contains the specific fields for the `github` subkind integration.
+type IntegrationGitHub struct {
+	Organization string `json:"organization"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -53,6 +68,64 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+type IntegrationWithSummary struct {
+	*Integration
+	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	// AWSEKS contains the summary for the AWS EKS resources for this integration.
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+}
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+type ResourceTypeSummary struct {
+	// RulesCount is the number of enrollment rules that are using this integration.
+	// A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+	// If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+	// Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+	// Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+	// Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+	RulesCount int `json:"rulesCount,omitempty"`
+	// ResourcesFound contains the count of resources found by this integration.
+	ResourcesFound int `json:"resourcesFound,omitempty"`
+	// ResourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+	ResourcesEnrollmentFailed int `json:"resourcesEnrollmentFailed,omitempty"`
+	// ResourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
+	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
+	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+	// Only applicable for AWS RDS resource summary.
+	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
+}
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+type IntegrationDiscoveryRule struct {
+	// ResourceType indicates the type of resource that this rule targets.
+	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+	// Example: ec2, rds, eks
+	ResourceType string `json:"resourceType,omitempty"`
+	// Region where this rule applies to.
+	Region string `json:"region,omitempty"`
+	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
+	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
+	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
+	// LastSync contains the time when this rule was used.
+	// If empty, it indicates that the rule is not being used.
+	LastSync *time.Time `json:"lastSync,omitempty"`
+}
+
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+type IntegrationDiscoveryRules struct {
+	// Rules is the list of integration rules.
+	Rules []IntegrationDiscoveryRule `json:"rules"`
+	// NextKey is the position to resume listing rules.
+	NextKey string `json:"nextKey,omitempty"`
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -61,6 +134,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// GitHub contains the fields for `github` subkind integration.
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -76,6 +151,16 @@ func (r *Integration) CheckAndSetDefaults() error {
 
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	switch r.SubKind {
+	case types.IntegrationSubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing spec for GitHub integrations")
+		}
+		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -150,6 +235,15 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
+			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+		}
+	case types.IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for GitHub integrations")
+		}
+		ret.GitHub = &IntegrationGitHub{
+			Organization: spec.Organization,
 		}
 	}
 
@@ -213,7 +307,7 @@ type AWSOIDCDeployServiceRequest struct {
 
 	// DatabaseAgentMatcherLabels are the labels to be used when deploying a Database Service.
 	// Those are the resource labels that the Service will monitor and proxy connections to.
-	DatabaseAgentMatcherLabels []Label `json:"databaseAgentMatcherLabels"`
+	DatabaseAgentMatcherLabels []ui.Label `json:"databaseAgentMatcherLabels"`
 }
 
 // AWSOIDCDeployServiceResponse contains the resources that were used to deploy a Teleport Service.
@@ -285,6 +379,8 @@ type AWSOIDCEnrollEKSClustersRequest struct {
 	ClusterNames []string `json:"clusterNames"`
 	// EnableAppDiscovery specifies if Teleport Kubernetes App discovery should be enabled inside enrolled clusters.
 	EnableAppDiscovery bool `json:"enableAppDiscovery"`
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels []ui.Label `json:"extraLabels"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
@@ -514,4 +610,12 @@ type AWSOIDCPingResponse struct {
 	ARN string `json:"arn"`
 	// UserID is the unique identifier of the calling entity.
 	UserID string `json:"userId"`
+}
+
+// AWSOIDCPingRequest contains ping request fields.
+type AWSOIDCPingRequest struct {
+	// RoleARN is optional, and used for cases such as
+	// pinging to check validity before upserting an
+	// AWS OIDC integration.
+	RoleARN string `json:"roleArn,omitempty"`
 }

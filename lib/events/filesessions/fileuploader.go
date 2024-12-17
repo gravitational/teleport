@@ -22,12 +22,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -73,9 +73,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 	}
 
 	h := &Handler{
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.SchemeFile),
-		}),
+		logger: slog.With(teleport.ComponentKey, teleport.SchemeFile),
 		Config: cfg,
 	}
 	return h, nil
@@ -86,8 +84,8 @@ func NewHandler(cfg Config) (*Handler, error) {
 type Handler struct {
 	// Config is a file sessions config
 	Config
-	// Entry is a file entry
-	*log.Entry
+	// logger emits logs messages
+	logger *slog.Logger
 }
 
 // Closer releases connection and resources associated with log if any

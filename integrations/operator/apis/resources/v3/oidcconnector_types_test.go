@@ -21,9 +21,11 @@ package v3
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
@@ -50,6 +52,11 @@ func TestTeleportOIDCConnectorSpec_MarshalJSON(t *testing.T) {
 			TeleportOIDCConnectorSpec{RedirectURLs: wrappers.Strings{"foo", "bar"}},
 			`{"redirect_url":["foo","bar"],"issuer_url":"","client_id":"","client_secret":""}`,
 		},
+		{
+			"MaxAge",
+			TeleportOIDCConnectorSpec{MaxAge: &types.MaxAge{Value: types.Duration(time.Hour)}},
+			`{"max_age":"1h0m0s","issuer_url":"","client_id":"","client_secret":""}`,
+		},
 	}
 	for _, tc := range tests {
 		tc := tc
@@ -57,6 +64,42 @@ func TestTeleportOIDCConnectorSpec_MarshalJSON(t *testing.T) {
 			result, err := json.Marshal(tc.spec)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedJSON, string(result))
+		})
+	}
+}
+func TestTeleportOIDCConnectorSpec_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name         string
+		expectedSpec TeleportOIDCConnectorSpec
+		inputJSON    string
+	}{
+		{
+			"Empty string",
+			TeleportOIDCConnectorSpec{RedirectURLs: wrappers.Strings{""}},
+			`{"redirect_url":[""],"issuer_url":"","client_id":"","client_secret":""}`,
+		},
+		{
+			"Single string",
+			TeleportOIDCConnectorSpec{RedirectURLs: wrappers.Strings{"foo"}},
+			`{"redirect_url":["foo"],"issuer_url":"","client_id":"","client_secret":""}`,
+		},
+		{
+			"Multiple strings",
+			TeleportOIDCConnectorSpec{RedirectURLs: wrappers.Strings{"foo", "bar"}},
+			`{"redirect_url":["foo","bar"],"issuer_url":"","client_id":"","client_secret":""}`,
+		},
+		{
+			"MaxAge",
+			TeleportOIDCConnectorSpec{MaxAge: &types.MaxAge{Value: types.Duration(time.Hour)}},
+			`{"max_age":"1h0m0s","issuer_url":"","client_id":"","client_secret":""}`,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var spec TeleportOIDCConnectorSpec
+			require.NoError(t, json.Unmarshal([]byte(tc.inputJSON), &spec))
+			require.Equal(t, tc.expectedSpec, spec)
 		})
 	}
 }

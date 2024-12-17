@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 136 - Modern Signature Algorithms
@@ -51,14 +51,16 @@ key types and algorithms Teleport uses today (2048-bit RSA everywhere).
 
 The `balanced-v1` suite will use a modern set of algorithms selected to
 balance security, compatibility, and performance.
-The proposed selection for this suite is to use Ed25519 as the default choice,
-and ECDSA with the NIST P-256 curve in cases where Teleport is likely to
-interact with third-party software that does not support Ed25519.
-The exception is the database CA, where it looks like it will be necessary to
-continue using RSA in order to continue supporting our current Snowflake
-integration.
-We will continue using 2048-bit keys wherever RSA is used, to avoid the
-performance penalty of using larger keys.
+The proposed selection for this suite is to use Ed25519 for SSH keys,
+and ECDSA with the NIST P-256 curve for TLS keys.
+Exceptions:
+- The `db` and `db_client` CAs will continue using RSA for compatibility with
+  certain databases (Snowflake) that don't support ECDSA.
+- The `saml_idp` and `oidc_idp` CAs with continue using RSA because their
+  specifications require RSA support, and many integrations only support RSA.
+  In the future we may add support for optional RSA and ECDSA simultaneously.
+
+We will continue using 2048-bit keys wherever RSA is used.
 
 The `fips-v1` suite will only use key types and signature algorithms that are
 approved by FIPS 186-5 *and* are supported in Go's `GOEXPERIMENT=boringcrypto`
@@ -73,7 +75,7 @@ is selected.
 The `fips-v1` algorithm suite will be available without FIPS mode, to enable
 migration to FIPS mode.
 
-The `hsm-v1` suite will be based off of the `balanced-v1` suite, but all uses of
+The `hsm-v1` suite will be based off of the `balanced-v1` suite, but uses of
 Ed25519 *for CA keys only* will be replaced by ECDSA with the NIST P-256 curve.
 This is necessary and sufficient for all of the HSMs and KMSs we currently
 support and test for (YubiHSM2, AWS CloudHSM, and GCP KMS).
@@ -83,19 +85,18 @@ to the algorithms supported by the HSM.
 
 ### Default suite
 
-For all Teleport clusters where the Auth server's teleport.yaml config file has
-`version: v3` (the current latest version), the default suite will be `legacy`.
-Changing the default will be a breaking change, so we will introduce a config v4
-to change the default.
+For all existing clusters before this change is released in v17.0.0, the default
+suite will remain `legacy`.
+It will not be updated unless a cluster admin manually updates the configuration
+to use a new suite.
 
-In config v4 the default suite will be:
-
+For all new clusters deployed on v17.0.0+, the default suite will be:
 * `fips-v1` if the Auth server was started in FIPS mode
 * `hsm-v1` if the Auth server has any HSM or KMS configured (and is not in FIPS mode)
 * `balanced-v1` otherwise
 
-If the suite is explicitly set in the teleport.yaml or
-`cluster_auth_preference`, it will be honoured and no default will be necessary.
+If the suite is explicitly set in the configuration, it will be honoured and no
+default will be necessary.
 
 ### Configuration
 
@@ -120,8 +121,9 @@ teleport:
   auth_service:
     enabled: true
 
-    # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
-    signature_algorithm_suite: balanced-v1
+    authentication:
+      # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
+      signature_algorithm_suite: balanced-v1
 ```
 
 ```yaml
@@ -132,6 +134,12 @@ spec:
   # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
   signature_algorithm_suite: balanced-v1
 ```
+
+Cloud users will only be allowed to configure the `legacy`, `hsm-v1`, or
+`fips-v1` suite.
+The `balanced-v1` suite will not be allowed, so that all CA key algorithms will
+remain compatible with our HSM and KMS integrations, to give Cloud the option to
+import keys into an HSM or KMS in the future.
 
 ### `balanced-v1` suite
 
@@ -157,10 +165,17 @@ The following key types will be used when the configured algorithm suite is
   * JWT CA
     * JWT: ECDSA with NIST P-256
   * OIDC IdP CA
-    * JWT: ECDSA with NIST P-256
+    * JWT: 2048-bit RSA
+      * the OIDC spec requires RSA support
   * SAML IdP CA
     * TLS: 2048-bit RSA
       * much of the SAML ecosystem still only supports RSA
+  * SPIFFE CA
+    * TLS: ECDSA with NIST P-256
+    * JWT: 2048-bit RSA
+      * should be OIDC-compatible, the OIDC spec requires RSA support
+  * Okta CA
+    * JWT: ECDSA with NIST P-256
 * Subject key types
   * users via `tsh login`
     * SSH: Ed25519 (SSH cert signed by user CA)
@@ -170,13 +185,14 @@ The following key types will be used when the configured algorithm suite is
     * SSH: Ed25519 (SSH cert signed by user CA)
     * TLS: ECDSA with NIST P-256 (X.509 cert signed by user CA)
   * Teleport hosts
-    * SSH: Ed25519 (SSH cert signed by host CA)
-    * TLS: ECDSA with NIST P-256 (X.509 cert signed by host CA)
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
   * OpenSSH hosts
     * SSH: Ed25519 (SSH cert signed by host CA)
   * proxy -> Agentless/OpenSSH certs
     * SSH: Ed25519 (SSH certs signed by OpenSSH CA)
   * proxy -> database agent
+    * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
+  * proxy kubernetes client
     * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
   * database agent -> self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database Client CA)
@@ -195,6 +211,13 @@ The following key types will be used when the configured algorithm suite is
     * this is a current limitation of our rdpclient implementation, we could
       change this with some effort, and I don't think it would be a breaking
       change (we could do it within `balanced-v1`).
+  * tbot identity
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
+  * tbot impersonated identities
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
+  * tbot SPIFFE SVIDs
+    * TLS: ECDSA with NIST P-256 (X.509 cert signed by spiffe CA)
+    * JWT: 2048-bit RSA (JWT signed by spiffe CA)
 
 This suite will *not* be compatible with clusters running in FIPS mode and/or
 configured to use an HSM or KMS for CAs.
@@ -394,13 +417,11 @@ keys: jwt
 uses: signing JWTs as an OIDC provider.
 
 * current/`legacy` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
-* proposed `balanced-v1` key type: `ES256` (ECDSA with NIST P-256 and SHA256)
-* proposed `fips-v1` key type: `ES256` (ECDSA with NIST P-256 and SHA256)
+* proposed `balanced-v1` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
+* proposed `fips-v1` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
 * reasoning:
-  * `ES256` is `Recommended+` for JWS implementations by RFC 7518,
-    this is stronger than `RS256` which is only `Recommended`
-    * <https://datatracker.ietf.org/doc/html/rfc7518#section-3>
-  * `Ed25519` is not mentioned in RFC 7518
+  * `RS256` MUST be included in `id_token_signing_alg_values_supported`
+    * <https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata>
 
 #### SAML IdP CA
 
@@ -550,6 +571,14 @@ overwritten, we will use an OS file lock on the key file whenever reading or
 writing the pair of files, to avoid a race condition that could cause key/cert
 pair that don't match to be read or written.
 
+#### Identity files
+
+Our current identity file format only supports a single private key used for
+both the SSH and TLS certificate.
+When a user requests an identity file, we will use the UserTLS key algorithm for
+the current suite when generated the key, and use it for both SSH and TLS.
+Identity files are becoming less relevant as Machine ID replaces their usecases.
+
 #### Kubernetes
 
 In the interest of keeping `tsh kube credentials` performant for cases where it
@@ -565,25 +594,29 @@ current credentials by calling `tsh kube credentials`.
 
 ### HSMs and KMS
 
-Admins should configure the `hsm-v1` suite when using any HSM or KMS.
+Admins should configure the `hsm-v1` suite when using any HSM or KMS. The
+`fips-v1` and `legacy` suites are also valid.
 
-When the default suite is changed in config v4, it will default to `hsm-v1` if
+When the default suite is changed in v17.0.0, it will default to `hsm-v1` if
 any HSM or KMS is configured.
 If a specific PKCS#11 HSM does not support one of the algorithms, we will do our
 best to return an informative error message to the user and block the CA
 rotation before the misconfigured algorithm could take effect.
 
-If a cluster has an HSM and an admin explicitly configures the `balanced-v1`
-suite, we can warn but try to support it in case their PKCS#11 HSM supports
-Ed25519, and fail early with explicit logs if there's an error.
+The `balanced-v1` suite will not be supported when an HSM is configured.
+Our PKCS#11 library does not support generating Ed25519 keys.
+AWS KMS does not support Ed25519 keys.
 
 #### Cloud
 
 Cloud will be able to select their preferred default suite by configuring it in
-the `teleport.yaml`.
+the `teleport.yaml` or a bootstrap `cluster_auth_preference` resource.
+We should update the default to `hsm-v1` when v17.0.0 is released.
 Cloud users will be able to change the CA algorithms by modifying the
 `cluster_auth_preference` and performing the necessary CA rotations.
-We should update the default to `balanced-v1` when config v4 is released.
+Only the `legacy`, `hsm-v1`, and `fips-v1` suites will be allowed for cloud
+tenants to support to possibility of importing CA keys into an HSM or KMS in the
+future.
 
 ### Backward Compatibility
 
@@ -811,7 +844,7 @@ happening in the future.
 
 ## Rejected alternatives
 
-### Configurable algorithms per protocol
+### Configurable algorithms per protocol (rejected)
 
 Introduce a new config to `teleport.yaml` and `cluster_auth_preference`
 to control the key types and signature algorithms used by Teleport CAs and all

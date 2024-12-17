@@ -22,12 +22,12 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,11 +67,6 @@ func New(_ context.Context, opts ...Option) *Keygen {
 	}
 
 	return k
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute.
-func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
-	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
@@ -125,8 +119,11 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Role, principals)
+	slog.DebugContext(
+		context.TODO(),
+		"Generated SSH host certificate.",
+		"role", c.Role, "principals", principals,
+	)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -150,7 +147,13 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.TTL != 0 {
 		b := k.clock.Now().UTC().Add(c.TTL)
 		validBefore = uint64(b.Unix())
-		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
+		slog.DebugContext(
+			context.TODO(),
+			"Generated user key with expiry.",
+			"allowed_logins", c.AllowedLogins,
+			"valid_before_unix_ts", validBefore,
+			"valid_before", b,
+		)
 	}
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user
@@ -218,6 +221,12 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if credID := c.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
 	}
+	if c.GitHubUserID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = c.GitHubUserID
+	}
+	if c.GitHubUsername != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = c.GitHubUsername
+	}
 
 	if c.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -226,10 +235,10 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		if cert.CriticalOptions == nil {
 			cert.CriticalOptions = make(map[string]string)
 		}
-		//IPv4, all bits matter
+		// IPv4, all bits matter
 		ip := c.PinnedIP + "/32"
 		if strings.Contains(c.PinnedIP, ":") {
-			//IPv6
+			// IPv6
 			ip = c.PinnedIP + "/128"
 		}
 		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip

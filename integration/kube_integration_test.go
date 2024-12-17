@@ -69,7 +69,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -343,10 +341,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := teleport.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, teleport.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -516,34 +512,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	// forward local port to target port 80 of the nginx container
-	localPort := newPortValue()
-
-	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
-		ports:        []string{fmt.Sprintf("%v:80", localPort)},
-		podName:      testPod,
-		podNamespace: testNamespace,
-	})
-	require.NoError(t, err)
-
-	forwarderCh := make(chan error)
-	go func() { forwarderCh <- forwarder.ForwardPorts() }()
-	defer func() {
-		assert.NoError(t, <-forwarderCh, "Forward ports exited with error")
-	}()
-
-	select {
-	case <-time.After(5 * time.Second):
-		t.Fatalf("Timeout waiting for port forwarding.")
-	case <-forwarder.readyC:
-	}
-	defer close(forwarder.stopC)
-
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.NoError(t, resp.Body.Close())
-
 	// impersonating client requests will bse denied
 	_, impersonatingProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:             teleport,
@@ -553,18 +521,72 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	localPort = newPortValue()
-	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
-		ports:        []string{fmt.Sprintf("%v:80", localPort)},
-		podName:      testPod,
-		podNamespace: testNamespace,
-	})
-	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		builder func(*rest.Config, kubePortForwardArgs) (*kubePortForwarder, error)
+	}{
+		{
+			name:    "SPDY portForwarder",
+			builder: newPortForwarder,
+		},
+		{
+			name:    "SPDY over Websocket portForwarder",
+			builder: newPortForwarderSPDYOverWebsocket,
+		},
+	}
 
-	// This request should be denied
-	err = impersonatingForwarder.ForwardPorts()
-	require.Error(t, err)
-	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
+	for _, tt := range tests {
+		t.Run(tt.name,
+			func(t *testing.T) {
+				// forward local port to target port 80 of the nginx container
+				listener, err := net.Listen("tcp", "localhost:0")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, listener.Close())
+				})
+
+				localPort := listener.Addr().(*net.TCPAddr).Port
+
+				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
+					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					podName:      testPod,
+					podNamespace: testNamespace,
+				})
+				require.NoError(t, err)
+
+				forwarderCh := make(chan error)
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+
+				select {
+				case <-time.After(5 * time.Second):
+					t.Fatalf("Timeout waiting for port forwarding.")
+				case <-forwarder.readyC:
+				}
+				t.Cleanup(func() {})
+
+				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+
+				close(forwarder.stopC)
+				require.NoError(t, <-forwarderCh, "Forward ports exited with error")
+
+				impersonatingForwarder, err := tt.builder(impersonatingProxyClientConfig, kubePortForwardArgs{
+					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					podName:      testPod,
+					podNamespace: testNamespace,
+				})
+				require.NoError(t, err)
+
+				// This request should be denied
+				err = impersonatingForwarder.ForwardPorts()
+				require.Error(t, err)
+				require.Regexp(t, ".*impersonation request has been denied.*|.*403 Forbidden.*", err.Error())
+			},
+		)
+	}
+
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
@@ -634,7 +656,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -769,7 +791,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -778,10 +800,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, aux.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -915,7 +935,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -1052,10 +1072,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -1449,7 +1467,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	sessCreatorTerm := NewTerminal(250)
 	group := &errgroup.Group{}
 	group.Go(func() error {
-		cmd := []string{"/bin/sh", "echo", "hello from an ephemeral container"}
+		cmd := []string{"/bin/sh", "-c", "echo hello from an ephemeral container"}
 		debugPod, _, err := generateDebugContainer(contName, cmd, pod)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1554,7 +1572,7 @@ func generateDebugContainer(name string, cmd []string, pod *v1.Pod) (*v1.Pod, *v
 	ec := &v1.EphemeralContainer{
 		EphemeralContainerCommon: v1.EphemeralContainerCommon{
 			Name:                     name,
-			Image:                    "alpine:latest",
+			Image:                    localPodImage,
 			Command:                  cmd,
 			ImagePullPolicy:          v1.PullIfNotPresent,
 			Stdin:                    true,
@@ -1596,7 +1614,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}
@@ -1910,6 +1927,13 @@ func newNamespace(name string) *v1.Namespace {
 	}
 }
 
+// localPodImage is a container image that is used for testing
+// It's a docker image that runs a simple web server
+// that listens on port 80 and returns "Hello, World!" on GET /
+// This image is vendored in the Teleport repository in the
+// fixtures/alpine directory. Check the Dockerfile there for details.
+const localPodImage = "alpine-webserver:v1"
+
 func newPod(ns, name string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1919,7 +1943,7 @@ func newPod(ns, name string) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{{
 				Name:  "nginx",
-				Image: "nginx:alpine",
+				Image: localPodImage,
 			}},
 		},
 	}
@@ -1946,6 +1970,27 @@ type kubePortForwarder struct {
 	*portforward.PortForwarder
 	stopC  chan struct{}
 	readyC chan struct{}
+}
+
+func newPortForwarderSPDYOverWebsocket(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubePortForwarder, error) {
+	u, err := url.Parse(kubeConfig.Host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.Scheme = "https"
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v/portforward", args.podNamespace, args.podName)
+
+	tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(u, kubeConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stopC, readyC := make(chan struct{}), make(chan struct{})
+	fwd, err := portforward.New(tunnelingDialer, args.ports, stopC, readyC, nil, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kubePortForwarder{PortForwarder: fwd, stopC: stopC, readyC: readyC}, nil
 }
 
 func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubePortForwarder, error) {

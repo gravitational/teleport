@@ -113,8 +113,17 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	}
 	// db clients should trust the Database Server CA when establishing
 	// connection to a database, so return that CA's certs in the response.
-	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
+	//
+	// The only exception is the SQL Server with PKINIT integration, where the
+	// `kinit` command line needs our client CA to trust the user certificates
+	// we pass.
+	returnedCAType := types.DatabaseCA
+	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
+		returnedCAType = types.DatabaseClientCA
+	}
+
+	returnedCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       returnedCAType,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
@@ -122,7 +131,7 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	}
 	return &proto.DatabaseCertResponse{
 		Cert:    cert,
-		CACerts: services.GetTLSCerts(dbServerCA),
+		CACerts: services.GetTLSCerts(returnedCA),
 	}, nil
 }
 

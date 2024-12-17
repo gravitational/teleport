@@ -228,15 +228,15 @@ Create the role:
 $ tctl create -f db-impersonator.yaml
 ```
 
-Retrieve your Teleport user's dynamic configuration resource so you can add the
-`db-impersonator` role:
+Open your Teleport user's dynamic configuration resource in your editor so you
+can add the `db-impersonator` role:
 
 ```code
 $ TELEPORT_USER=<your user>
-$ tctl get user/${TELEPORT_USER?} > myuser.yaml
+$ tctl edit user/${TELEPORT_USER?}
 ```
 
-Edit `myuser.yaml` to add the `db-impersonator` role:
+Add the `db-impersonator` role:
 
 ```diff
 spec:
@@ -248,11 +248,7 @@ spec:
      is_locked: false
 ```
 
-Update your user:
-
-```code
-$ tctl create -f myuser.yaml
-```
+Update your user by saving and closing the file in your editor.
 
 Log out of your Teleport cluster and log in again. You will now be able to run
 `tctl auth sign` for database-specific certificate formats.

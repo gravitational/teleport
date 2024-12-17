@@ -1,0 +1,43 @@
+Starting with 16.2, Teleport comes with a built-in role for the Terraform provider: `terraform-provider`.
+
+<Details title="RBAC for versions before v16.2">
+    On older version you will need to create the Terraform role yourself.
+    Write the following `role.yaml` manifest:
+
+    ```yaml
+    kind: role
+    version: v7
+    metadata:
+      name: terraform-provider
+    spec:
+      allow:
+        db_labels:
+          '*': '*'
+        app_labels:
+          '*': '*'
+        node_labels:
+          '*': '*'
+        rules:
+          - resources:
+            - app
+            - cluster_auth_preference
+            - cluster_networking_config
+            - db
+            - device
+            - github
+            - login_rule
+            - oidc
+            - okta_import_rule
+            - role
+            - saml
+            - session_recording_config
+            - token
+            - trusted_cluster
+            - user
+            - access_list
+            - node
+            verbs: ['list','create','read','update','delete']
+    ```
+
+    Use `tctl create -f ./role.yaml` to create the role.
+</Details>

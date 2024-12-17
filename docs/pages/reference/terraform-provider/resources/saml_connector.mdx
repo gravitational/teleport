@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_saml_connector Terraform resource
+sidebar_label: saml_connector
 description: This page describes the supported values of the teleport_saml_connector resource of the Teleport Terraform provider.
 ---
 
@@ -13,10 +14,10 @@ description: This page describes the supported values of the teleport_saml_conne
 ```hcl
 # Teleport SAML connector
 # 
-# Please note that SAML connector will work in Enterprise version only. Check the setup docs:
-# https://goteleport.com/docs/enterprise/sso/okta/
+# Please note that the SAML connector will work in Teleport Enterprise only.
 
 resource "teleport_saml_connector" "example" {
+  version = "v2"
   # This block will tell Terraform to never update private key from our side if a keys are managed 
   # from an outside of Terraform.
 
@@ -86,7 +87,9 @@ Optional:
 - `display` (String) Display controls how this connector is displayed.
 - `entity_descriptor` (String, Sensitive) EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.
 - `entity_descriptor_url` (String) EntityDescriptorURL is a URL that supplies a configuration XML.
+- `force_authn` (Number) ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.
 - `issuer` (String) Issuer is the identity provider issuer.
+- `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
 - `provider` (String) Provider is the external identity provider.
 - `service_provider_issuer` (String) ServiceProviderIssuer is the issuer of the service provider (Teleport).
 - `signing_key_pair` (Attributes) SigningKeyPair is an x509 key pair used to sign AuthnRequest. (see [below for nested schema](#nested-schema-for-specsigning_key_pair))
@@ -116,6 +119,19 @@ Optional:
 
 - `allowed_https_hostnames` (List of String) a list of hostnames allowed for https client redirect URLs
 - `insecure_allowed_cidr_ranges` (List of String) a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+
+
+### Nested Schema for `spec.mfa`
+
+Optional:
+
+- `cert` (String) Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.
+- `enabled` (Boolean) Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+- `entity_descriptor` (String) EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.
+- `entity_descriptor_url` (String) EntityDescriptorUrl is a URL that supplies a configuration XML.
+- `force_authn` (Number) ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.
+- `issuer` (String) Issuer is the identity provider issuer. Usually set from EntityDescriptor.
+- `sso` (String) SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.
 
 
 ### Nested Schema for `spec.signing_key_pair`

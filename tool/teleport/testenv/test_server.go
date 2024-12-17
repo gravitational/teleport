@@ -48,11 +48,11 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -166,6 +167,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	})
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
+	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
 	// Disable session recording to prevent writing to disk after the test concludes.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
@@ -257,6 +259,10 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
 	}
+
+	if cfg.Auth.Enabled && cfg.Apps.Enabled {
+		waitForApps(t, auth, cfg.Apps.Apps)
+	}
 }
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
@@ -291,6 +297,34 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 		case <-ctx.Done():
 			t.Fatal("Databases not registered after 10s")
+		}
+	}
+}
+
+func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			var registered int
+			for _, app := range apps {
+				for _, a := range all {
+					if a.GetName() == app.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(apps) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("Apps not registered after 10s")
 		}
 	}
 }
@@ -413,13 +447,18 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
-func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }
 
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
 }
 
 // IsEnterpriseBuild returns false for [cliModules].
@@ -486,13 +525,15 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	caCheckers, err := sshutils.GetCheckers(openSSHCA)
 	require.NoError(t, err)
 
-	key, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
 	require.NoError(t, err)
 
 	nodeUUID := uuid.New().String()
 	hostCertBytes, err := authServer.GenerateHostCert(
 		ctx,
-		key.MarshalSSHPublicKey(),
+		ssh.MarshalAuthorizedKey(sshPub),
 		"",
 		"",
 		[]string{nodeUUID, nodeHostname, Loopback},
@@ -504,7 +545,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 
 	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
 	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key.Signer)
+	signer, err := ssh.NewSignerFromSigner(key)
 	require.NoError(t, err)
 	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
 	require.NoError(t, err)
@@ -529,7 +570,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
@@ -567,6 +608,11 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			cert, ok := key.(*ssh.Certificate)
 			if !ok {
 				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
 			}
 
 			for _, pubKey := range caPubKeys {
@@ -658,7 +704,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	t.Helper()
 
 	cfg := process.Config
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 
 	identity, err := storage.ReadLocalIdentity(
@@ -672,7 +718,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = utils.NewLogger()
+	authConfig.Log = cfg.Logger
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)

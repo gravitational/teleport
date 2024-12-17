@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/versioncontrol"
 )
@@ -145,7 +144,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 		// note: we add an extra millisecond since FullJitter can sometimes return 0, but our interval helpers interpret FirstDuration=0
 		// as meaning that we don't want a custom first duration. this is usually fine, but since the actual export interval is so long,
 		// it is important that a shorter first duration is always observed.
-		c.FirstExport = time.Millisecond + utils.FullJitter(c.UnhealthyThreshold/2)
+		c.FirstExport = time.Millisecond + retryutils.FullJitter(c.UnhealthyThreshold/2)
 	}
 
 	return nil
@@ -168,7 +167,7 @@ func NewExporter[C contextLike](cfg ExporterConfig[C]) (*Exporter[C], error) {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		Driver: retryutils.NewExponentialDriver(cfg.UnhealthyThreshold / 16),
 		Max:    cfg.UnhealthyThreshold,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 
 	if err != nil {
@@ -204,9 +203,9 @@ func (e *Exporter[C]) event(event testEvent) {
 
 func (e *Exporter[C]) run(ctx context.Context) {
 	exportInterval := interval.New(interval.Config{
-		FirstDuration: utils.FullJitter(e.cfg.FirstExport),
+		FirstDuration: retryutils.FullJitter(e.cfg.FirstExport),
 		Duration:      e.cfg.ExportInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer exportInterval.Stop()
 
@@ -367,7 +366,9 @@ func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	}
 
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte(rsp.KubeControllerSchedule),
 	})
 
@@ -378,7 +379,9 @@ func (e *kubeDriver) Reset(ctx context.Context) error {
 	// kube backend doesn't support deletes right now, so just set
 	// the key to empty.
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte{},
 	})
 

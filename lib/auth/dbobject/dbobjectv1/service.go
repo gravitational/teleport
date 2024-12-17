@@ -20,9 +20,9 @@ package dbobjectv1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ type Backend interface {
 type DatabaseObjectServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    Backend
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 }
 
 // NewDatabaseObjectService returns a new instance of the DatabaseObjectService.
@@ -55,7 +55,7 @@ func NewDatabaseObjectService(cfg DatabaseObjectServiceConfig) (*DatabaseObjectS
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "db_object")
+		cfg.Logger = slog.With(teleport.ComponentKey, "db_object")
 	}
 	return &DatabaseObjectService{
 		logger:     cfg.Logger,
@@ -72,7 +72,7 @@ type DatabaseObjectService struct {
 
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 }
 
 func (rs *DatabaseObjectService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {
@@ -87,7 +87,7 @@ func (rs *DatabaseObjectService) authorize(ctx context.Context, adminAction bool
 	}
 
 	if adminAction {
-		err = authCtx.AuthorizeAdminAction()
+		err = authCtx.AuthorizeAdminActionAllowReusedMFA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -153,7 +153,6 @@ func (rs *DatabaseObjectService) CreateDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-
 }
 
 // UpsertDatabaseObject creates a new DatabaseObject or forcefully updates an existing DatabaseObject.

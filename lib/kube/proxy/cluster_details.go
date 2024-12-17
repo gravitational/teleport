@@ -64,7 +64,7 @@ type kubeDetails struct {
 	// that are supported by the cluster.
 	// The codec factory is updated periodically to include the latest custom resources
 	// that are added to the cluster.
-	kubeCodecs serializer.CodecFactory
+	kubeCodecs *serializer.CodecFactory
 	// rbacSupportedTypes is the list of supported types for RBAC for the cluster.
 	// The list is updated periodically to include the latest custom resources
 	// that are added to the cluster.
@@ -131,11 +131,9 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		go dynLabels.Start()
 	}
 
-	kubeClient := creds.getKubeClient()
-
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, kubeClient)
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -145,7 +143,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		isClusterOffline = true
 	}
 
-	kubeVersion, err := kubeClient.Discovery().ServerVersion()
+	kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
 	}
@@ -173,7 +171,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		First:  firstPeriod,
 		Step:   backoffRefreshStep,
 		Max:    defaultRefreshPeriod,
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 		Clock:  cfg.clock,
 	})
 	if err != nil {
@@ -204,7 +202,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 					continue
 				}
 
-				kubeVersion, err := kubeClient.Discovery().ServerVersion()
+				kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
 				if err != nil {
 					cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
 				}
@@ -245,7 +243,7 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 	if k.isClusterOffline {
 		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
-	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
+	return k.kubeCodecs, k.rbacSupportedTypes, nil
 }
 
 // getObjectGVK returns the default GVK (if any) registered for the specified request path.
@@ -342,6 +340,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, r
 		region := cluster.GetAWSConfig().Region
 		opts := []cloud.AWSOptionsFn{
 			cloud.WithAmbientCredentials(),
+			cloud.WithoutSessionCache(),
 		}
 		if awsAssume := getAWSResourceMatcherToCluster(cluster, resourceMatchers); awsAssume != nil {
 			opts = append(opts, cloud.WithAssumeRole(awsAssume.AssumeRoleARN, awsAssume.ExternalID))

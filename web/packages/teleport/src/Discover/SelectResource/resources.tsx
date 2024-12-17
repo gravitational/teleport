@@ -46,7 +46,7 @@ const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
 
 export const SERVERS: ResourceSpec[] = [
   {
-    name: 'Ubuntu 14.04+',
+    name: 'Ubuntu 18.04+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'ubuntu', 'linux'],
     icon: 'linux',
@@ -54,7 +54,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
-    name: 'Debian 8+',
+    name: 'Debian 11+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'debian', 'linux'],
     icon: 'linux',
@@ -62,7 +62,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
-    name: 'RHEL/CentOS 7+',
+    name: 'RHEL 8+/CentOS Stream 9+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux'],
     icon: 'linux',
@@ -94,7 +94,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
-    name: 'EC2 Auto Enrollment',
+    name: 'EC2 Auto Enrollment via SSM',
     kind: ResourceKind.Server,
     keywords: [
       ...baseServerKeywords,

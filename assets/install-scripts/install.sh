@@ -207,7 +207,7 @@ install_via_zypper() {
 }
 
 
-# download .tar.gz file via curl/wget, unzip it and run the install sript
+# download .tar.gz file via curl/wget, unzip it and run the install script
 install_via_curl() {
   TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
 
@@ -373,16 +373,22 @@ install_teleport() {
   echo ""
   echo "The following commands are now available:"
   if type teleport &>/dev/null; then
-    echo "  teleport - The daemon that runs the Auth Service, Proxy Service, and other Teleport services."
+    echo "  teleport        - The daemon that runs the Auth Service, Proxy Service, and other Teleport services."
   fi
   if type tsh &>/dev/null; then
-    echo "  tsh      - A tool that lets end users interact with Teleport."
+    echo "  tsh             - A tool that lets end users interact with Teleport."
   fi
   if type tctl &>/dev/null; then
-    echo "  tctl     - An administrative tool that can configure the Teleport Auth Service."
+    echo "  tctl            - An administrative tool that can configure the Teleport Auth Service."
   fi
   if type tbot &>/dev/null; then
-    echo "  tbot     - Teleport Machine ID client."
+    echo "  tbot            - Teleport Machine ID client."
+  fi
+  if type fdpass-teleport &>/dev/null; then
+    echo "  fdpass-teleport - Teleport Machine ID client."
+  fi
+  if type teleport-update &>/dev/null; then
+    echo "  teleport-update - Teleport auto-update agent."
   fi
 }
 

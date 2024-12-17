@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -45,6 +46,8 @@ const (
 )
 
 func main() {
+	// This initializes the legacy logrus logger. This has been kept in place
+	// in case any of the dependencies are still using logrus.
 	logger.Init()
 
 	ctx := kong.Parse(
@@ -55,9 +58,23 @@ func main() {
 		kong.Description(pluginDescription),
 	)
 
+	logCfg := logger.Config{
+		Severity: "info",
+		Output:   "stderr",
+		Format:   "text",
+	}
 	if cli.Debug {
 		enableLogDebug()
+		logCfg.Severity = "debug"
 	}
+	log, err := logCfg.NewSLogLogger()
+	if err != nil {
+		fmt.Println(trace.DebugReport(trace.Wrap(err, "initializing logger")))
+		os.Exit(-1)
+	}
+	// Whilst this package mostly dependency injects slog, upstream dependencies
+	// may still use the default slog logger.
+	slog.SetDefault(log)
 
 	switch {
 	case ctx.Command() == "version":
@@ -69,12 +86,12 @@ func main() {
 			os.Exit(-1)
 		}
 	case ctx.Command() == "start":
-		err := start()
+		err := start(log)
 
 		if err != nil {
 			lib.Bail(err)
 		} else {
-			logger.Standard().Info("Successfully shut down")
+			log.InfoContext(context.TODO(), "Successfully shut down")
 		}
 	}
 }
@@ -89,8 +106,8 @@ func enableLogDebug() {
 }
 
 // start spawns the main process
-func start() error {
-	app, err := NewApp(&cli.Start)
+func start(log *slog.Logger) error {
+	app, err := NewApp(&cli.Start, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}

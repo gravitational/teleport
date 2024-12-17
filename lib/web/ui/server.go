@@ -27,15 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/ui"
 )
-
-// Label describes label for webapp
-type Label struct {
-	// Name is this label name
-	Name string `json:"name"`
-	// Value is this label value
-	Value string `json:"value"`
-}
 
 // Server describes a server for webapp
 type Server struct {
@@ -54,7 +47,7 @@ type Server struct {
 	// Addrr is this server ip address
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
-	Labels []Label `json:"tags"`
+	Labels []ui.Label `json:"tags"`
 	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
 	// AWS contains metadata for instances hosted in AWS.
@@ -74,40 +67,11 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
-// sortedLabels is a sort wrapper that sorts labels by name
-type sortedLabels []Label
-
-func (s sortedLabels) Len() int {
-	return len(s)
-}
-
-func (s sortedLabels) Less(i, j int) bool {
-	labelA := strings.ToLower(s[i].Name)
-	labelB := strings.ToLower(s[j].Name)
-
-	for _, sortName := range types.BackSortedLabelPrefixes {
-		name := strings.ToLower(sortName)
-		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
-			return false // labelA should be at the end
-		}
-		if !strings.Contains(labelA, name) && strings.Contains(labelB, name) {
-			return true // labelB should be at the end
-		}
-	}
-
-	// If neither label contains any of the sendToBackOfSortNames, sort them as usual
-	return labelA < labelB
-}
-
-func (s sortedLabels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // MakeServer creates a server object for the web ui
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -139,12 +103,14 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
 type EKSCluster struct {
-	Name       string  `json:"name"`
-	Region     string  `json:"region"`
-	Arn        string  `json:"arn"`
-	Labels     []Label `json:"labels"`
-	JoinLabels []Label `json:"joinLabels"`
-	Status     string  `json:"status"`
+	Name                 string     `json:"name"`
+	Region               string     `json:"region"`
+	Arn                  string     `json:"arn"`
+	Labels               []ui.Label `json:"labels"`
+	JoinLabels           []ui.Label `json:"joinLabels"`
+	Status               string     `json:"status"`
+	EndpointPublicAccess bool       `json:"endpointPublicAccess"`
+	AuthenticationMode   string     `json:"authenticationMode"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -154,7 +120,7 @@ type KubeCluster struct {
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
@@ -167,7 +133,7 @@ type KubeCluster struct {
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -185,12 +151,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     makeLabels(cluster.Labels),
-			JoinLabels: makeLabels(cluster.JoinLabels),
-			Status:     cluster.Status,
+			Name:                 cluster.Name,
+			Region:               cluster.Region,
+			Arn:                  cluster.Arn,
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
+			Status:               cluster.Status,
+			EndpointPublicAccess: cluster.EndpointPublicAccess,
+			AuthenticationMode:   cluster.AuthenticationMode,
 		})
 	}
 	return uiEKSClusters
@@ -202,7 +170,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.Acces
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -225,7 +193,7 @@ type KubeResource struct {
 	// Name is the name of the Kubernetes resource.
 	Name string `json:"name"`
 	// Labels is a map of static associated with a Kubernetes resource.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// Namespace is the Kubernetes namespace where the resource is located.
 	Namespace string `json:"namespace"`
 	// KubeCluster is the Kubernetes cluster the resource blongs to.
@@ -237,7 +205,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 	uiKubeResources := make([]KubeResource, 0, len(resources))
 	for _, resource := range resources {
 		staticLabels := resource.GetStaticLabels()
-		uiLabels := makeLabels(staticLabels)
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels)
 
 		uiKubeResources = append(uiKubeResources,
 			KubeResource{
@@ -325,7 +293,7 @@ type Database struct {
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
 	// URI of the database.
@@ -338,6 +306,9 @@ type Database struct {
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportsInteractive is a flag to indicate the database supports
+	// interactive sessions using database REPLs.
+	SupportsInteractive bool `json:"supports_interactive,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -354,22 +325,35 @@ const (
 	LabelStatus = "status"
 )
 
+// DatabaseInteractiveChecker is used to check if the database supports
+// interactive sessions using database REPLs.
+type DatabaseInteractiveChecker interface {
+	IsSupported(protocol string) bool
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
-	uiLabels := makeLabels(database.GetAllLabels())
+func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	dbNames := accessChecker.EnumerateDatabaseNames(database)
+	var dbUsers []string
+	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+		dbUsers = res.Allowed()
+	}
+
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                database.GetKind(),
+		Name:                database.GetName(),
+		Desc:                database.GetDescription(),
+		Protocol:            database.GetProtocol(),
+		Type:                database.GetType(),
+		Labels:              uiLabels,
+		DatabaseUsers:       dbUsers,
+		DatabaseNames:       dbNames.Allowed(),
+		Hostname:            stripProtocolAndPort(database.GetURI()),
+		URI:                 database.GetURI(),
+		RequiresRequest:     requiresRequest,
+		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
 	}
 
 	if database.IsAWSHosted() {
@@ -387,10 +371,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 
@@ -435,7 +419,7 @@ type Desktop struct {
 	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// HostID is the ID of the Windows Desktop Service reporting the desktop.
 	HostID string `json:"host_id"`
 	// Logins is the list of logins this user can use on this desktop.
@@ -455,7 +439,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 		return addr
 	}
 
-	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		Kind:            windowsDesktop.GetKind(),
@@ -478,12 +462,12 @@ type DesktopService struct {
 	// Addr is the network address the Windows Desktop Service can be reached at.
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 }
 
 // MakeDesktopService converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	uiLabels := makeLabels(desktopService.GetAllLabels())
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(desktopService.GetAllLabels())
 
 	return DesktopService{
 		Name:     desktopService.GetName(),

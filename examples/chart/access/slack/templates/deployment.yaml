@@ -72,7 +72,7 @@ spec:
             defaultMode: 0600
         - name: teleport-identity
           secret:
-            secretName: "{{ .Values.teleport.identitySecretName }}"
+            secretName: {{ include "slack.identitySecretName" . | quote }}
             defaultMode: 0600
         - name: {{ .Values.secretVolumeName }}
           secret:

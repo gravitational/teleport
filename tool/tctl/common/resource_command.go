@@ -42,6 +42,8 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -50,7 +52,10 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -152,6 +157,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
+		types.KindDynamicWindowsDesktop:    rc.createDynamicWindowsDesktop,
 		types.KindAccessList:               rc.createAccessList,
 		types.KindDiscoveryConfig:          rc.createDiscoveryConfig,
 		types.KindAuditQuery:               rc.createAuditQuery,
@@ -166,6 +172,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
+		types.KindWorkloadIdentity:         rc.createWorkloadIdentity,
+		types.KindStaticHostUser:           rc.createStaticHostUser,
+		types.KindUserTask:                 rc.createUserTask,
+		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
+		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
+		types.KindGitServer:                rc.createGitServer,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -181,6 +193,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindVnetConfig:              rc.updateVnetConfig,
 		types.KindAccessGraphSettings:     rc.updateAccessGraphSettings,
 		types.KindPlugin:                  rc.updatePlugin,
+		types.KindStaticHostUser:          rc.updateStaticHostUser,
+		types.KindUserTask:                rc.updateUserTask,
+		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
+		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
+		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
+		types.KindGitServer:               rc.updateGitServer,
 	}
 	rc.config = config
 
@@ -703,6 +721,14 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
@@ -736,6 +762,14 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -794,6 +828,14 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -879,6 +921,45 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	return nil
 }
 
+func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("application %q already exists", wd.GetName())
+			}
+			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	appServer, err := services.UnmarshalAppServer(raw.Raw)
 	if err != nil {
@@ -960,6 +1041,28 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	resource, err := services.UnmarshalUserTask(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.UserTasksServiceClient()
+	if rc.force {
+		if _, err := c.UpsertUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been updated\n", resource.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
 func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
 	if err != nil {
@@ -977,6 +1080,32 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 	return nil
 }
 
+func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalWorkloadIdentity(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.WorkloadIdentityResourceServiceClient()
+	if rc.force {
+		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: in,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw)
 	if err != nil {
@@ -986,6 +1115,18 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalUserTask(resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UserTasksServiceClient().UpdateUserTask(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1318,6 +1459,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		case types.IntegrationSubKindGitHub:
+			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -1419,6 +1562,39 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c := client.StaticHostUserClient()
+	if rc.force {
+		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+	} else {
+		if _, err := c.CreateStaticHostUser(ctx, hostUser); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().Name)
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.StaticHostUserClient().UpdateStaticHostUser(ctx, hostUser); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	singletonResources := []string{
@@ -1429,6 +1605,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindInstaller,
 		types.KindUIConfig,
 		types.KindNetworkRestrictions,
+		types.KindAutoUpdateConfig,
+		types.KindAutoUpdateVersion,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1471,7 +1649,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
 	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(rc.ref.Name); err != nil {
+		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)
@@ -1609,6 +1787,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	case types.KindDynamicWindowsDesktop:
+		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: rc.ref.Name})
@@ -1723,6 +1906,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
 
+	case types.KindUserTask:
+		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
+
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
 		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
@@ -1812,6 +2001,34 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentity:
+		if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	case types.KindStaticHostUser:
+		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	case types.KindGitServer:
+		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
+	case types.KindAutoUpdateConfig:
+		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateConfig has been deleted\n")
+	case types.KindAutoUpdateVersion:
+		if err := client.DeleteAutoUpdateVersion(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateVersion has been deleted\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2371,6 +2588,41 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 		}
 		return &windowsDesktopCollection{desktops: out}, nil
+	case types.KindDynamicWindowsDesktop:
+		dynamicDesktopClient := client.DynamicDesktopClient()
+		if rc.ref.Name != "" {
+			desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &dynamicWindowsDesktopCollection{
+				desktops: []types.DynamicWindowsDesktop{desktop},
+			}, nil
+		}
+
+		pageToken := ""
+		desktops := make([]types.DynamicWindowsDesktop, 0, 100)
+		for {
+			d, next, err := dynamicDesktopClient.ListDynamicWindowsDesktops(ctx, 100, pageToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if rc.ref.Name == "" {
+				desktops = append(desktops, d...)
+			} else {
+				for _, desktop := range desktops {
+					if desktop.GetName() == rc.ref.Name {
+						desktops = append(desktops, desktop)
+					}
+				}
+			}
+			pageToken = next
+			if next == "" {
+				break
+			}
+		}
+
+		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
 			tokens, err := client.GetTokens(ctx)
@@ -2734,6 +2986,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return &integrationCollection{integrations: resources}, nil
+	case types.KindUserTask:
+		userTasksClient := client.UserTasksClient()
+		if rc.ref.Name != "" {
+			uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
+		}
+
+		var tasks []*usertasksv1.UserTask
+		nextToken := ""
+		for {
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tasks = append(tasks, resp...)
+
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &userTaskCollection{items: tasks}, nil
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
 		if rc.ref.Name != "" {
@@ -2890,6 +3167,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
+	case types.KindWorkloadIdentity:
+		if rc.ref.Name != "" {
+			resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentity
+		pageToken := ""
+		for {
+			resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentities...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
@@ -2929,6 +3236,91 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &botInstanceCollection{items: instances}, nil
+	case types.KindStaticHostUser:
+		hostUserClient := client.StaticHostUserClient()
+		if rc.ref.Name != "" {
+			hostUser, err := hostUserClient.GetStaticHostUser(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{hostUser}}, nil
+		}
+
+		var hostUsers []*userprovisioningpb.StaticHostUser
+		var nextToken string
+		for {
+			resp, token, err := hostUserClient.ListStaticHostUsers(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			hostUsers = append(hostUsers, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &staticHostUserCollection{items: hostUsers}, nil
+	case types.KindAutoUpdateConfig:
+		config, err := client.GetAutoUpdateConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateConfigCollection{config}, nil
+	case types.KindAutoUpdateVersion:
+		version, err := client.GetAutoUpdateVersion(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAccessMonitoringRule:
+		if rc.ref.Name != "" {
+			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
+		}
+
+		var rules []*accessmonitoringrulesv1pb.AccessMonitoringRule
+		nextToken := ""
+		for {
+			resp, token, err := client.AccessMonitoringRuleClient().ListAccessMonitoringRules(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			rules = append(rules, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &accessMonitoringRuleCollection{items: rules}, nil
+	case types.KindGitServer:
+		var page, servers []types.Server
+
+		// TODO(greedy52) use unified resource request once available.
+		if rc.ref.Name != "" {
+			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &serverCollection{servers: append(servers, server)}, nil
+		}
+		var err error
+		var token string
+		for {
+			page, token, err = client.GitServerClient().ListGitServers(ctx, 0, token)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			servers = append(servers, page...)
+			if token == "" {
+				break
+			}
+		}
+		// TODO(greedy52) consider making dedicated git server collection.
+		return &serverCollection{servers: servers}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -2990,10 +3382,15 @@ func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc s
 	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
 		return trace.AlreadyExists("non-default %s already exists", resDesc)
 	}
-	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
+}
+
+func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
+	managedByStatic := storedRes.Origin() == types.OriginConfigFile
+	if managedByStatic && !confirm {
 		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
-If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
 	}
 	return nil
 }
@@ -3272,5 +3669,96 @@ func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Println("access_graph_settings has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateConfig(ctx, config)
+	} else {
+		_, err = client.CreateAutoUpdateConfig(ctx, config)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_config has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_config has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateVersion(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateVersion(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_version has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
+	} else {
+		_, err = client.GitServerClient().CreateGitServer(ctx, server)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been created\n", server.GetName())
+	return nil
+}
+func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalGitServer(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }

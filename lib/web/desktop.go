@@ -22,17 +22,12 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/sha1"
 	"crypto/tls"
-	"encoding/base64"
-	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -42,7 +37,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -51,11 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
@@ -99,7 +91,7 @@ func (h *Handler) createDesktopConnection(
 	ctx := r.Context()
 
 	sendTDPError := func(err error) error {
-		sendErr := sendTDPNotification(ws, err, tdp.SeverityError)
+		sendErr := sendTDPAlert(ws, err, tdp.SeverityError)
 		if sendErr != nil {
 			return sendErr
 		}
@@ -322,7 +314,7 @@ func (h *Handler) issueCerts(
 	withheld *[]tdp.Message,
 ) (certs *proto.Certs, err error) {
 	if mfaRequired {
-		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq, withheld)
+		certs, err = h.performSessionMFACeremony(ctx, ws, sctx, certsReq, withheld)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -361,92 +353,94 @@ func (h *Handler) createDesktopTLSConfig(
 	return tlsConfig, nil
 }
 
-// performMFACeremony completes the mfa ceremony and returns the raw TLS certificate
+// performSessionMFACeremony completes the mfa ceremony and returns the raw TLS certificate
 // on success. The user will be prompted to tap their security key by the UI
 // in order to perform the assertion.
-func (h *Handler) performMFACeremony(
+func (h *Handler) performSessionMFACeremony(
 	ctx context.Context,
 	ws *websocket.Conn,
 	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
 	withheld *[]tdp.Message,
 ) (_ *proto.Certs, err error) {
-	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
+	ctx, span := h.tracer.Start(ctx, "desktop/performSessionMFACeremony")
 	defer func() {
 		span.RecordError(err)
 		span.End()
 	}()
 
-	promptMFA := mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-		codec := tdpMFACodec{}
+	mfaCeremony := &mfa.Ceremony{
+		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				codec := tdpMFACodec{}
 
-		// Send the challenge over the socket.
-		msg, err := codec.Encode(
-			&client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-			},
-			defaults.WebsocketWebauthnChallenge,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		span.AddEvent("waiting for user to complete mfa ceremony")
-		var buf []byte
-		// Loop through incoming messages until we receive an MFA message that lets us
-		// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
-		// screen resizes) are withheld for later.
-		for {
-			var ty int
-			ty, buf, err = ws.ReadMessage()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if ty != websocket.BinaryMessage {
-				return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
-			}
-			if len(buf) == 0 {
-				return nil, trace.BadParameter("empty message received")
-			}
-
-			if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-				// This is not an MFA message, withhold it for later.
-				msg, err := tdp.Decode(buf)
-				h.log.Debugf("Received non-MFA message, withholding:", msg)
+				// Send the challenge over the socket.
+				msg, err := codec.Encode(
+					&client.MFAAuthenticateChallenge{
+						WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
+					},
+					defaults.WebsocketMFAChallenge,
+				)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				*withheld = append(*withheld, msg)
-				continue
-			}
 
-			break
-		}
+				if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					return nil, trace.Wrap(err)
+				}
 
-		assertion, err := codec.DecodeResponse(buf, defaults.WebsocketWebauthnChallenge)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		span.AddEvent("mfa ceremony completed")
+				span.AddEvent("waiting for user to complete mfa ceremony")
+				var buf []byte
+				// Loop through incoming messages until we receive an MFA message that lets us
+				// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
+				// screen resizes) are withheld for later.
+				for {
+					var ty int
+					ty, buf, err = ws.ReadMessage()
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					if ty != websocket.BinaryMessage {
+						return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+					}
+					if len(buf) == 0 {
+						return nil, trace.BadParameter("empty message received")
+					}
 
-		return assertion, nil
-	})
+					if tdp.MessageType(buf[0]) != tdp.TypeMFA {
+						// This is not an MFA message, withhold it for later.
+						msg, err := tdp.Decode(buf)
+						h.log.Debugf("Received non-MFA message, withholding:", msg)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						*withheld = append(*withheld, msg)
+						continue
+					}
 
-	_, newCerts, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+					break
+				}
+
+				assertion, err := codec.DecodeResponse(buf, defaults.WebsocketMFAChallenge)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				span.AddEvent("mfa ceremony completed")
+
+				return assertion, nil
+			})
+		},
+		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
+	}
+
+	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
-		MFAPrompt:         promptMFA,
+		MFACeremony:       mfaCeremony,
 		MFAAgainstRoot:    true,
 		MFARequiredReq:    nil, // No need to verify.
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq: certsReq,
-		KeyRing:  nil, // We just want the certs.
+		CertsReq:          certsReq,
+		KeyRing:           nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -483,7 +477,8 @@ type connector struct {
 // to any of the services or if it encounters an error that is not a connection problem.
 func (c *connector) connectToWindowsService(
 	clusterName string,
-	desktopServiceIDs []string) (conn net.Conn, version string, err error) {
+	desktopServiceIDs []string,
+) (conn net.Conn, version string, err error) {
 	for _, id := range desktopServiceIDs {
 		conn, ver, err := c.tryConnect(clusterName, id)
 		if err != nil && !trace.IsConnectionProblem(err) {
@@ -560,7 +555,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				if !isFatal {
 					severity = tdp.SeverityWarning
 				}
-				sendErr := sendTDPNotification(ws, err, severity)
+				sendErr := sendTDPAlert(ws, err, severity)
 
 				// If the error wasn't fatal and we successfully
 				// sent it back to the client, continue.
@@ -664,99 +659,10 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
-func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	tokenStr := p.ByName("token")
-	if tokenStr == "" {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	ctx := r.Context()
-
-	// verify that the token exists
-	token, err := h.GetProxyClient().GetToken(ctx, tokenStr)
-	if err != nil {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	proxyServers, err := h.GetProxyClient().GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if len(proxyServers) == 0 {
-		return "", trace.NotFound("no proxy servers found")
-	}
-
-	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certAuthority, err := h.GetProxyClient().GetCertAuthority(
-		ctx,
-		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
-		false,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(certAuthority.GetActiveKeys().TLS) != 1 {
-		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
-	}
-
-	var internalResourceID string
-	for labelKey, labelValues := range token.GetSuggestedLabels() {
-		if labelKey == types.InternalResourceIDLabel {
-			internalResourceID = strings.Join(labelValues, " ")
-			break
-		}
-	}
-
-	keyPair := certAuthority.GetActiveKeys().TLS[0]
-	block, _ := pem.Decode(keyPair.Cert)
-	if block == nil {
-		return nil, trace.BadParameter("no PEM data in CA data")
-	}
-
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
-		"caCertPEM":          string(keyPair.Cert),
-		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
-		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
-		"provisionToken":     tokenStr,
-		"internalResourceID": internalResourceID,
-	})
-
-	return nil, trace.Wrap(err)
-}
-
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
-func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADDS)
-	return nil, trace.Wrap(err)
-}
-
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
-func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
-	return nil, trace.Wrap(err)
-}
-
-// sendTDPNotification sends a tdp Notification over the supplied websocket with the
+// sendTDPAlert sends a tdp Notification over the supplied websocket with the
 // error message of err.
-func sendTDPNotification(ws *websocket.Conn, err error, severity tdp.Severity) error {
-	msg := tdp.Notification{Message: err.Error(), Severity: severity}
+func sendTDPAlert(ws *websocket.Conn, err error, severity tdp.Severity) error {
+	msg := tdp.Alert{Message: err.Error(), Severity: severity}
 	b, err := msg.Encode()
 	if err != nil {
 		return trace.Wrap(err)

@@ -123,6 +123,7 @@ Delegated join methods are:
 - [`gitlab`](#gitlab-gitlab)
 - [`kubernetes`](#kubernetes-kubernetes)
 - [`tpm`](#trusted-platform-module-tpm)
+- [`terraform_cloud`](#terraform-cloud-terraform_cloud)
 
 ### Renewable vs non-renewable
 
@@ -243,7 +244,7 @@ They are time-bound and are typically created just before joining an instance to
 the Teleport cluster.
 
 They can be created by the CLI (a strong random value is picked when not specified, default TTL is 30 minutes):
-```shell
+```code
 $ tctl tokens add --type discovery,app --ttl 15m
 ```
 
@@ -263,8 +264,6 @@ When a MachineID bot uses an ephemeral join token, the token is deleted.
 The IAM join method is available to any Teleport process running anywhere with access to IAM credentials,
 such as an EC2 instance with an attached IAM role. No specific permissions or IAM policy is required: an
 IAM role with no attached policies is sufficient. No IAM credentials are required on the Teleport Auth Service.
-
-Support for joining a cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 This is the recommended method to join workload running on AWS.
 
@@ -301,10 +300,9 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 ### Azure managed identity: `azure`
 
-The Azure join method is available in Teleport 12.1+. It is available to any
-Teleport process running in an Azure Virtual Machine. Support for joining a
-cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy
-is available in Teleport 13.0+.
+The Azure join method is available to any Teleport process running in an
+Azure Virtual Machine. Support for joining a cluster with the Proxy Service
+behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
@@ -385,9 +383,6 @@ clusters in Kubernetes.
 This method should be preferred when available as tokens are revoked as soon as
 the pod enters the `Terminated` state.
 
-The Kubernetes in-cluster join method is available in self-hosted versions of
-Teleport 12+.
-
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
@@ -425,4 +420,35 @@ to contain the new Kubernetes signing keys (update the
 
 <Admonition type="note" title="See Also">
 - [Deploying Machine ID on Linux: TPM](../enroll-resources/machine-id/deployment/linux-tpm.mdx)
+</Admonition>
+
+### Terraform Cloud: `terraform_cloud`
+
+This join method is used to authenticate using Terraform Cloud Workload
+Identity. It is typically used by the Teleport Terraform provider on either
+HCP Terraform or self-hosted Terraform Enterprise. It can not be used to join
+Terraform runs on other platforms and dedicated join methods should be used
+instead.
+
+<Admonition type="warning" title="Enterprise">
+Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
+</Admonition>
+
+(!docs/pages/includes/provision-token/terraform-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+</Admonition>
+
+### Bitbucket Pipelines: `bitbucket`
+
+This join method is used to authenticate using Bitbucket's support for OpenID
+Connect, and is typically used to allow either Machine ID's `tbot` or the
+Teleport Terraform provider to authenticate to Teleport without use of shared
+secrets.
+
+(!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Bitbucket Pipelines](../enroll-resources/machine-id/deployment/bitbucket.mdx)
 </Admonition>

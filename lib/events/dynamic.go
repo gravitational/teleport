@@ -1,5 +1,4 @@
-/*
- * Teleport
+/** Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,10 +18,11 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -183,6 +183,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionCommandResultEvent:
+		e = &events.DatabaseSessionCommandResult{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPermissionsUpdateEvent:
@@ -270,6 +272,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
@@ -358,6 +362,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case UserLoginAccessListInvalidEvent:
+		e = &events.UserLoginAccessListInvalid{}
 	case SecReportsAuditQueryRunEvent:
 		e = &events.AuditQueryRun{}
 	case SecReportsReportRunEvent:
@@ -420,8 +426,59 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.PluginUpdate{}
 	case PluginDeleteEvent:
 		e = &events.PluginDelete{}
+
+	case StaticHostUserCreateEvent:
+		e = &events.StaticHostUserCreate{}
+	case StaticHostUserUpdateEvent:
+		e = &events.StaticHostUserUpdate{}
+	case StaticHostUserDeleteEvent:
+		e = &events.StaticHostUserDelete{}
+
+	case CrownJewelCreateEvent:
+		e = &events.CrownJewelCreate{}
+	case CrownJewelUpdateEvent:
+		e = &events.CrownJewelUpdate{}
+	case CrownJewelDeleteEvent:
+		e = &events.CrownJewelDelete{}
+
+	case UserTaskCreateEvent:
+		e = &events.UserTaskCreate{}
+	case UserTaskUpdateEvent:
+		e = &events.UserTaskUpdate{}
+	case UserTaskDeleteEvent:
+		e = &events.UserTaskDelete{}
+
+	case SFTPSummaryEvent:
+		e = &events.SFTPSummary{}
+
+	case AutoUpdateConfigCreateEvent:
+		e = &events.AutoUpdateConfigCreate{}
+	case AutoUpdateConfigUpdateEvent:
+		e = &events.AutoUpdateConfigUpdate{}
+	case AutoUpdateConfigDeleteEvent:
+		e = &events.AutoUpdateConfigDelete{}
+
+	case AutoUpdateVersionCreateEvent:
+		e = &events.AutoUpdateVersionCreate{}
+	case AutoUpdateVersionUpdateEvent:
+		e = &events.AutoUpdateVersionUpdate{}
+	case AutoUpdateVersionDeleteEvent:
+		e = &events.AutoUpdateVersionDelete{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
+
+	case WorkloadIdentityCreateEvent:
+		e = &events.WorkloadIdentityCreate{}
+	case WorkloadIdentityUpdateEvent:
+		e = &events.WorkloadIdentityUpdate{}
+	case WorkloadIdentityDeleteEvent:
+		e = &events.WorkloadIdentityDelete{}
+
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
+		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)

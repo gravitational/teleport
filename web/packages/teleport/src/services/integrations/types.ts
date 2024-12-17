@@ -33,18 +33,27 @@ import { Node } from '../nodes';
  * while "plugin" resource is only supported in enterprise. Plugin
  * type exists in OS for easier typing when combining the resources
  * into one list.
+ *
+ * Generics:
+ *  T is resource type "integration" or "plugin"
+ *  K is the kind of integration (eg: aws-oidc) or plugin (eg: okta)
+ *  SP is the provider-specific spec of integration or plugin
+ *  SD is the provider-specific status containing status details
+ *   - currently only defined for plugin resource
  */
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc,
+  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+  SD extends Record<string, any> = null,
 > = {
   resourceType: T;
   kind: K;
-  spec?: S;
+  spec?: SP;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
+  status?: SD;
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
@@ -53,11 +62,43 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  GitHub = 'github',
 }
+
+/**
+ * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
+ * audience field.
+ */
+export enum IntegrationAudience {
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  /**
+   * audience is used to record name of a plugin or discover services in Teleport
+   * that depends on this integration.
+   */
+  audience?: IntegrationAudience;
+};
+
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
 };
 
 export enum IntegrationStatusCode {
@@ -118,12 +159,40 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type Plugin<SP = any, D = any> = Integration<
+  'plugin',
+  PluginKind,
+  SP,
+  PluginStatus<D>
+>;
+
+export type PluginStatus<D = any> = {
+  /**
+   * the status code of the plugin
+   */
+  code: IntegrationStatusCode;
+  /**
+   * the time the plugin was last run
+   */
+  lastRun: Date;
+  /**
+   * the last error message from the plugin
+   */
+  errorMessage: string;
+  /**
+   * contains provider-specific status information
+   */
+  details?: D;
+};
+
 export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
   | PluginMattermostSpec
-  | PluginOpsgenieSpec;
+  | PluginOpsgenieSpec
+  | PluginDatadogSpec
+  | PluginEmailSpec
+  | PluginMsTeamsSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -141,14 +210,9 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
-  | 'entra-id';
-
-export type PluginStatus<S = any> = {
-  name: string;
-  type: PluginKind;
-  statusCode: IntegrationStatusCode;
-  stats?: S;
-};
+  | 'entra-id'
+  | 'datadog'
+  | 'aws-identity-center';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -167,6 +231,15 @@ export type PluginOktaSpec = {
   // that were deemed not serious enough to fail the plugin installation, but
   // may effect the operation of advanced features like User Sync or SCIM.
   error: string;
+  /**
+   * is the set of usernames that the integration assigns as
+   * owners to any Access Lists that it creates
+   */
+  defaultOwners: string[];
+  /**
+   * the Okta org's base URL
+   */
+  orgUrl: string;
 };
 
 export type PluginSlackSpec = {
@@ -179,8 +252,26 @@ export type PluginMattermostSpec = {
   reportToEmail: string;
 };
 
+export type PluginMsTeamsSpec = {
+  appID: string;
+  tenantID: string;
+  teamsAppID: string;
+  region: string;
+  defaultRecipient: string;
+};
+
 export type PluginOpsgenieSpec = {
   defaultSchedules: string[];
+};
+
+export type PluginDatadogSpec = {
+  apiEndpoint: string;
+  fallbackRecipient: string;
+};
+
+export type PluginEmailSpec = {
+  sender: string;
+  fallbackRecipient: string;
 };
 
 export type IntegrationCreateRequest = {
@@ -192,6 +283,41 @@ export type IntegrationCreateRequest = {
 export type IntegrationListResponse = {
   items: Integration[];
   nextKey?: string;
+};
+
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+export type IntegrationWithSummary = {
+  name: string;
+  subKind: string;
+  awsoidc: IntegrationSpecAwsOidc;
+  // AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+  awsec2: ResourceTypeSummary;
+  // AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+  awsrds: ResourceTypeSummary;
+  // AWSEKS contains the summary for the AWS EKS resources for this integration.
+  awseks: ResourceTypeSummary;
+};
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+export type ResourceTypeSummary = {
+  // rulesCount is the number of enrollment rules that are using this integration.
+  // A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+  // If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+  // Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+  // Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+  // Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+  rulesCount: number;
+  // resourcesFound contains the count of resources found by this integration.
+  resourcesFound: number;
+  // resourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+  resourcesEnrollmentFailed: number;
+  // resourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+  resourcesEnrollmentSuccess: number;
+  // discoverLastSync contains the time when this integration tried to auto-enroll resources.
+  discoverLastSync: number;
+  // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+  // Only applicable for AWS RDS resource summary.
+  ecsDatabaseServiceCount: number;
 };
 
 // awsRegionMap maps the AWS regions to it's region name
@@ -281,6 +407,10 @@ export type AwsRdsDatabase = {
   subnets: string[];
   // vpcId is the AWS VPC ID for the DB.
   vpcId: string;
+  /**
+   * securityGroups is a list of AWS security group IDs attached to the DB.
+   */
+  securityGroups: string[];
   // region is the AWS cloud region that this database is from.
   region: Regions;
   // status contains this Instance status.
@@ -329,6 +459,15 @@ export type AwsOidcDeployServiceRequest = {
   vpcId: string;
   accountId: string;
 };
+
+/**
+ * AwsOidcPolicyPreset specifies preset policy to apply
+ * to the AWS IAM role created for the OIDC integration.
+ */
+export enum AwsOidcPolicyPreset {
+  Unspecified = '',
+  AwsIdentityCenter = 'aws-identity-center',
+}
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
 type DeployDatabaseServiceDeployment = {
@@ -381,6 +520,19 @@ export type AwsEksCluster = {
    * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
    */
   joinLabels: Label[];
+
+  /**
+   * AuthenticationMode is the cluster's configured authentication mode.
+   * You can read more about the Authentication Modes here: https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
+   */
+  authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
+
+  /**
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
+   * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
+   * in order to deploy the helm chart.
+   */
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {
@@ -552,12 +704,30 @@ export type SecurityGroupRule = {
   toPort: string;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   cidrs: Cidr[];
+  // Groups is a list of rules that allow another security group referenced
+  // by ID.
+  groups: GroupIdRule[];
 };
 
 export type Cidr = {
-  // CIDR is the IP range using CIDR notation.
+  /**
+   * CIDR is the IP range using CIDR notation.
+   */
   cidr: string;
-  // Description contains a small text describing the CIDR.
+  /**
+   *  Description contains a small text describing the CIDR.
+   */
+  description: string;
+};
+
+export type GroupIdRule = {
+  /**
+   * GroupId is the ID of the security group that is allowed by the rule.
+   */
+  groupId: string;
+  /**
+   * Description contains a small text describing the rule.
+   */
   description: string;
 };
 

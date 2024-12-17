@@ -36,7 +36,9 @@ export const ButtonIconContainer = styled.div<{ open?: boolean }>`
 
   background: ${props =>
     props.open ? props.theme.colors.spotBackground[0] : ''};
-  &:hover {
+  &:hover,
+  &:focus-visible {
+    outline: none;
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

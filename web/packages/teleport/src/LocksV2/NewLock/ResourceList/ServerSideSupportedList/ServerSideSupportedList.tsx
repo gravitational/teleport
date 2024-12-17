@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { Flex } from 'design';
 import { StyledPanel } from 'design/DataTable/StyledTable';
@@ -153,7 +153,6 @@ export function ServerSideSupportedList(props: CommonListProps) {
         }}
         hideAdvancedSearch={props.selectedResourceKind === 'role'} // Roles don't support advanced search.
         filter={resourceFilter}
-        showSearchBar={true}
         disableSearch={fetchStatus === 'loading'}
       />
       {table}

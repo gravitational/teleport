@@ -157,7 +157,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindUserGroup:
+		types.KindUserGroup,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 		specResource = resource
 	case types.KindKubeServer:
 		if seenMap != nil {

@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"slices"
 	"time"
@@ -136,7 +135,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -196,7 +195,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -261,7 +260,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 	}
 	var requests []types.AccessRequest
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -341,7 +340,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -412,10 +411,8 @@ func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Currently, this logic is used only internally (no API exposed), and
-	// there is only one place that calls it. If this ever changes, we will
-	// need to do a CompareAndSwap here.
-	if _, err := s.Put(ctx, item); err != nil {
+
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

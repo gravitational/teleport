@@ -10,27 +10,59 @@ work with Teleport.
 
 ### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- A running Teleport cluster. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../admin-guides/deploy-a-cluster/linux-demo.mdx).
 
-- (!docs/pages/includes/tctl.mdx!)
+- The `tsh` client tool. Visit [Installation](../installation.mdx) for instructions on downloading
+  `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx) guide for a graphical desktop client
+  that includes `tsh`.
+
+- To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
+
+  ```code
+  $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
+  ```
+
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../enroll-resources/database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Get information about the host and port where your database is available so you
+can configure your GUI client to access the database.
 
-<Tabs>
-<TabItem label="Authenticated Proxy">
+#### Using a local proxy server
+
+Use the `tsh proxy db` command to start a local TLS proxy your GUI database
+client will be connecting to. This command requires that you use Teleport
+Enterprise (Cloud) or, if self-hosting Teleport, have enabled [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx) mode.
+
+Run a command similar to the following::
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
+```
+
+Use the displayed local proxy host/port and credentials paths when configuring
+your GUI client below. When entering the hostname, use `localhost` rather than
+`127.0.0.1`.
+
 Starting the local database proxy with the `--tunnel` flag will create an
 authenticated tunnel that you can use to connect to your database instances.
 You won't need to configure any credentials when connecting to this tunnel.
 
 Here is an example on how to start the proxy:
 
-```bash
+```code
 # Start the local proxy.
 $ tsh proxy db --tunnel <database-name>
 Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
@@ -46,30 +78,11 @@ $ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database
 Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
 
-</TabItem>
-<TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../admin-guides/management/operations/tls-routing.mdx)
-mode where each database protocol is multiplexed on the same web proxy port, use
-the following command to start a local TLS proxy your GUI database client will
-be connecting to:
+#### Using a remote host and port
 
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-</TabItem>
-<TabItem label="Separate ports">
-If you're not using TLS routing, run the following command to see the database
-connection information:
+If you are self-hosting Teleport and not using [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx), run the
+following command to see the database connection information:
 
 ```code
 # View configuration for the database you're logged in to.
@@ -94,32 +107,6 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
-
-Use the following command to start a local TLS proxy your GUI database client
-will be connecting to:
-
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-
-</TabItem>
-
-</Tabs>
 
 ## MongoDB Compass
 
@@ -143,6 +130,15 @@ provided and be able to validate the certificate presented by your Teleport
 Proxy Service's web endpoint.
 
 ![MongoDB Compass more options](../../img/database-access/compass-more-options@2x.png)
+
+The following fields in the More Options tab must correspond to paths printed by
+the `tsh proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Certificate Authority|`ca_file`|
+|Client Certificate|`cert_file`|
+|Client Private Key|`key_file`|
 
 Click on the "Connect" button.
 
@@ -191,6 +187,15 @@ paths to your CA, certificate, and private key files (see
 [Get connection information](./gui-clients.mdx#get-connection-information)):
 
 ![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
+
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|SSL Key File|`key_file`|
+|SSL CERT File|`cert_file`|
+|SSL CA File|`ca_file`|
 
 Optionally, click "Test Connection" to verify connectivity:
 
@@ -270,6 +275,15 @@ certificate, key and root certificate from the configuration above:
 
 ![pgAdmin SSL](../../img/database-access/pgadmin-ssl@2x.png)
 
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Client certificate|`cert_file`|
+|Client certificate key|`key_file`|
+|Root certificate|`ca_file`|
+
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
 
@@ -317,8 +331,16 @@ Provide your Redis username as `Username` and password as `Password`.
 
 ![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
 
-Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
-Copy the private key and certificate to corresponding fields.
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the contents
+of the files at the paths returned by the `tsh proxy db` command you ran earlier
+and paste them into their corresponding fields. See the table below for the
+Redis Insight fields that correspond to each path:
+
+|Field|Path|
+|---|---|
+|CA Certificate|`ca_file`|
+|Client Certificate|`cert_file`|
+|Private Key|`key_file`|
 
 Click `Add Redis Database`.
 

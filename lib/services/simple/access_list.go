@@ -55,12 +55,12 @@ type AccessListService struct {
 // NewAccessListService creates a new AccessListService. This is a simple, cache focused
 // backend service that doesn't perform any of the validation that the main backend service
 // does.
-func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
+func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListMaxPageSize,
 		ResourceKind:  types.KindAccessList,
-		BackendPrefix: accessListPrefix,
+		BackendPrefix: backend.NewKey(accessListPrefix),
 		MarshalFunc:   services.MarshalAccessList,
 		UnmarshalFunc: services.UnmarshalAccessList,
 	})
@@ -69,10 +69,10 @@ func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListMemberMaxPageSize,
 		ResourceKind:  types.KindAccessListMember,
-		BackendPrefix: accessListMemberPrefix,
+		BackendPrefix: backend.NewKey(accessListMemberPrefix),
 		MarshalFunc:   services.MarshalAccessListMember,
 		UnmarshalFunc: services.UnmarshalAccessListMember,
 	})
@@ -81,10 +81,10 @@ func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListReviewMaxPageSize,
 		ResourceKind:  types.KindAccessListReview,
-		BackendPrefix: accessListReviewPrefix,
+		BackendPrefix: backend.NewKey(accessListReviewPrefix),
 		MarshalFunc:   services.MarshalAccessListReview,
 		UnmarshalFunc: services.UnmarshalAccessListReview,
 	})
@@ -132,9 +132,24 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
-	count, err := a.memberService.WithPrefix(accessListName).CountResources(ctx)
-	return uint32(count), trace.Wrap(err)
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
+	members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
+	if err != nil {
+		return 0, 0, trace.Wrap(err)
+	}
+
+	var count uint32
+	var listCount uint32
+
+	for _, member := range members {
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			listCount++
+		} else {
+			count++
+		}
+	}
+
+	return count, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -188,4 +203,28 @@ func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) erro
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	members, nextToken, err := a.memberService.ListResources(ctx, pageSize, pageToken)
 	return members, nextToken, trace.Wrap(err)
+}
+
+// UnconditionalUpsertAccessList creates or updates an Access List resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalUpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	return a.service.UpsertResource(ctx, accessList)
+}
+
+// UnconditionalDeleteAccessList removes the specified Access List resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalDeleteAccessList(ctx context.Context, name string) error {
+	return a.service.DeleteResource(ctx, name)
+}
+
+// UnconditionalUpsertAccessListMember creates or updates an Access List Member resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalUpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	return a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
+}
+
+// UnconditionalDeleteAccessListMember removes the specified Access List Member resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalDeleteAccessListMember(ctx context.Context, accessList, memberName string) error {
+	return a.memberService.WithPrefix(accessList).DeleteResource(ctx, memberName)
 }

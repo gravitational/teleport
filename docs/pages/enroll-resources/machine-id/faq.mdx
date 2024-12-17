@@ -3,6 +3,10 @@ title: Machine ID FAQ
 description: Frequently asked questions about Teleport Machine ID
 ---
 
+This page provides answers to frequently asked questions about Machine ID. For a
+list of frequently asked questions about Teleport in general, see [Frequently
+Asked Questions](../../faq.mdx).
+
 ## Can Machine ID be used within CI/CD jobs?
 
 On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
@@ -17,6 +21,7 @@ best where a supported join method exists. These are:
 - Azure
 - Kubernetes
 - Spacelift
+- Terraform Cloud
 
 On CI/CD platforms where you control the runner environment (e.g self-hosted
 Jenkins runner), Machine ID can run as a daemon on the runner and the generated
@@ -25,7 +30,7 @@ runs.
 
 ## Can Machine ID be used with Trusted Clusters ?
 
-From Teleport 12.2, you can use Machine ID for SSH Access in trusted leaf clusters.
+You can use Machine ID for SSH access in trusted leaf clusters.
 
 We currently do not support access to applications, databases, or Kubernetes
 clusters in leaf clusters.

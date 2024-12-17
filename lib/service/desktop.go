@@ -144,7 +144,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
-			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
@@ -194,10 +194,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return tlsCopy, nil
 	}
 
-	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	connLimiter := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter.MaxConnections)
+
 	var publicAddr string
 	switch {
 	case useTunnel:
@@ -238,6 +236,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
 		Hostname:                     cfg.Hostname,
 		ConnectedProxyGetter:         proxyGetter,
+		ResourceMatchers:             cfg.WindowsDesktop.ResourceMatchers,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -269,7 +268,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				mux.Entry.WithError(err).Error("mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "mux encountered error serving", "mux_id", mux.ID, "error", err)
 			}
 		}()
 

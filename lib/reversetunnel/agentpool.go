@@ -189,7 +189,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
 		Max:       maxBackoff,
-		Jitter:    retryutils.NewJitter(),
+		Jitter:    retryutils.DefaultJitter,
 		AutoReset: 4,
 	})
 	if err != nil {

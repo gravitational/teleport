@@ -46,6 +46,7 @@ type portForwardRequest struct {
 	context            context.Context
 	targetDialer       httpstream.Dialer
 	pingPeriod         time.Duration
+	idleTimeout        time.Duration
 }
 
 func (p portForwardRequest) String() string {
@@ -70,17 +71,16 @@ func parsePortString(pString string) (uint16, error) {
 // runPortForwardingHTTPStreams upgrades the clients using SPDY protocol.
 // It supports multiplexing and HTTP streams and can be used per-request.
 func runPortForwardingHTTPStreams(req portForwardRequest) error {
-	_, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{PortForwardProtocolV1Name})
+	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
-	if err != nil {
-		return trace.ConnectionProblem(err, "error upgrading connection")
-	}
 	defer targetConn.Close()
 
+	_, err = httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{PortForwardProtocolV1Name})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	streamChan := make(chan httpstream.Stream, 1)
 
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
@@ -103,8 +103,10 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 		targetConn:            targetConn,
 	}
 	defer h.Close()
-	h.Debugf("Setting port forwarding streaming connection idle timeout to %v", IdleTimeout)
-	conn.SetIdleTimeout(IdleTimeout)
+
+	h.Debugf("Setting port forwarding streaming connection idle timeout to %s.", req.idleTimeout)
+	conn.SetIdleTimeout(req.idleTimeout)
+
 	h.run()
 	return nil
 }

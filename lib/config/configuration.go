@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -266,6 +267,9 @@ type CommandLineFlags struct {
 
 	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
+
+	// DisableDebugService disables the debug service.
+	DisableDebugService bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -273,6 +277,10 @@ type CommandLineFlags struct {
 type IntegrationConfAccessGraphAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAzureOIDC contains the arguments of
@@ -289,6 +297,9 @@ type IntegrationConfAzureOIDC struct {
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
 	AccessGraphEnabled bool
+
+	// SkipOIDCConfiguration is a flag indicating that OIDC configuration should be skipped.
+	SkipOIDCConfiguration bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -304,6 +315,10 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEICEIAM contains the arguments of
@@ -313,6 +328,10 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSAppAccessIAM contains the arguments of
@@ -320,6 +339,10 @@ type IntegrationConfEICEIAM struct {
 type IntegrationConfAWSAppAccessIAM struct {
 	// RoleName is the AWS Role associated with the Integration
 	RoleName string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEC2SSMIAM contains the arguments of
@@ -342,6 +365,10 @@ type IntegrationConfEC2SSMIAM struct {
 	// IntegrationName is the Teleport AWS OIDC Integration name.
 	// Used for resource tagging.
 	IntegrationName string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -351,6 +378,10 @@ type IntegrationConfEKSIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSOIDCIdP contains the arguments of
@@ -365,6 +396,11 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -374,6 +410,10 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -462,8 +502,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
-	if fc.Debug.Enabled() {
-		cfg.DebugService.Enabled = true
+	if fc.Debug.Disabled() {
+		cfg.DebugService.Enabled = false
 	}
 
 	if fc.AccessGraph.Enabled {
@@ -596,9 +636,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Limits.MaxConnections > 0 {
 			l.MaxConnections = fc.Limits.MaxConnections
 		}
-		if fc.Limits.MaxUsers > 0 {
-			l.MaxNumberOfUsers = fc.Limits.MaxUsers
-		}
+
 		for _, rate := range fc.Limits.Rates {
 			l.Rates = append(l.Rates, limiter.Rate{
 				Period:  rate.Period,
@@ -751,6 +789,8 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
+	// We'll want to deduplicate the logic next time we refactor the logging setup
 	logger := log.StandardLogger()
 
 	var w io.Writer
@@ -983,6 +1023,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:           fc.Auth.TunnelStrategy,
 			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
+			SSHDialTimeout:           fc.Auth.SSHDialTimeout,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1126,11 +1167,15 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	if kmsConfig.Account == "" {
 		return trace.BadParameter("must set account in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
 	if kmsConfig.Region == "" {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
+	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+		AWSAccount:  kmsConfig.Account,
+		AWSRegion:   kmsConfig.Region,
+		MultiRegion: kmsConfig.MultiRegion,
+		Tags:        kmsConfig.Tags,
+	}
 	return nil
 }
 
@@ -1709,6 +1754,9 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		if fc.Discovery.AccessGraph.PollInterval > 0 {
+			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
+		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
@@ -1986,7 +2034,20 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
 			Cloud:              application.Cloud,
+			RequiredAppNames:   application.RequiredApps,
 		}
+
+		if application.CORS != nil {
+			app.CORS = &servicecfg.CORS{
+				AllowedOrigins:   application.CORS.AllowedOrigins,
+				AllowedMethods:   application.CORS.AllowedMethods,
+				AllowedHeaders:   application.CORS.AllowedHeaders,
+				ExposedHeaders:   application.CORS.ExposedHeaders,
+				AllowCredentials: application.CORS.AllowCredentials,
+				MaxAge:           application.CORS.MaxAge,
+			}
+		}
+
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
 			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)
@@ -2005,6 +2066,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ExternalID: application.AWS.ExternalID,
 			}
 		}
+
+		if len(application.TCPPorts) != 0 {
+			app.TCPPorts = make([]servicecfg.PortRange, 0, len(application.TCPPorts))
+			for _, portRange := range application.TCPPorts {
+				app.TCPPorts = append(app.TCPPorts, servicecfg.PortRange{
+					Port:    portRange.Port,
+					EndPort: portRange.EndPort,
+				})
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2195,6 +2267,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
+	for _, matcher := range fc.WindowsDesktop.ResourceMatchers {
+		cfg.WindowsDesktop.ResourceMatchers = append(cfg.WindowsDesktop.ResourceMatchers, services.ResourceMatcher{
+			Labels: matcher.Labels,
+		})
+	}
+
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
@@ -2299,7 +2377,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
-	// load /etc/teleport.yaml and apply it's values:
+	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2517,6 +2595,20 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
+	if cfg.Auth.Preference.Origin() != types.OriginDefaults {
+		// Only check the signature algorithm suite if the auth preference was
+		// actually set in the config file. If it wasn't set and the default is
+		// used, the algorithm suite will be overwritten in initializeAuthPreference
+		// based on the FIPS and HSM settings, and any already persisted auth preference.
+		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+			FIPS:          clf.FIPS,
+			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
+			Cloud:         modules.GetModules().Features().Cloud,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// apply --skip-version-check flag.
 	if clf.SkipVersionCheck {
 		cfg.SkipVersionCheck = clf.SkipVersionCheck
@@ -2645,6 +2737,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err != nil {
 			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
 		}
+	}
+
+	if clf.DisableDebugService {
+		cfg.DebugService.Enabled = false
+	}
+
+	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+		cfg.Proxy.QUICProxyPeering = true
 	}
 
 	return nil

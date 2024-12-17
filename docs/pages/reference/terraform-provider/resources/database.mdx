@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_database Terraform resource
+sidebar_label: database
 description: This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_database r
 # Teleport Database
 
 resource "teleport_database" "example" {
+  version = "v3"
   metadata = {
     name        = "example"
     description = "Test database"
@@ -162,6 +164,7 @@ Optional:
 - `iam_auth` (Boolean) IAMAuth indicates whether database IAM authentication is enabled.
 - `instance_id` (String) InstanceID is the RDS instance identifier.
 - `resource_id` (String) ResourceID is the RDS instance resource identifier (db-xxx).
+- `security_groups` (List of String) SecurityGroups is a list of attached security groups for the RDS instance.
 - `subnets` (List of String) Subnets is a list of subnets for the RDS instance.
 - `vpc_id` (String) VPCID is the VPC where the RDS is running.
 

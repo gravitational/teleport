@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_user Terraform resource
+sidebar_label: user
 description: This page describes the supported values of the teleport_user resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_user resou
 # Teleport User resource
 
 resource "teleport_user" "example" {
+  version = "v2"
   # Tells Terraform that the role could not be destroyed while this user exists
   depends_on = [
     teleport_role.example
@@ -91,7 +93,7 @@ Optional:
 - `oidc_identities` (Attributes List) OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specoidc_identities))
 - `roles` (List of String) Roles is a list of roles assigned to user
 - `saml_identities` (Attributes List) SAMLIdentities lists associated SAML identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specsaml_identities))
-- `traits` (Map of List of String)
+- `traits` (Map of List of String) Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.
 - `trusted_device_ids` (List of String) TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user->device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.
 
 ### Nested Schema for `spec.github_identities`
@@ -100,6 +102,7 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
+- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -109,6 +112,7 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
+- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -118,6 +122,7 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
+- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -126,5 +131,6 @@ Optional:
 
 Optional:
 
+- `mfa_weakest_device` (Number) mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.
 - `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
 

@@ -20,9 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode } from './types';
+import { IntegrationStatusCode, IntegrationAudience } from './types';
 
-test('fetchIntegration() response (a integration)', async () => {
+test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
@@ -36,6 +36,7 @@ test('fetchIntegration() response (a integration)', async () => {
     resourceType: 'integration',
     spec: {
       roleArn: 'arn-123',
+      origin: undefined,
     },
     statusCode: IntegrationStatusCode.Running,
   });
@@ -51,14 +52,20 @@ test('fetchIntegration() response (a integration)', async () => {
     name: undefined,
     spec: {
       roleArn: undefined,
+      origin: undefined,
     },
   });
 });
 
-test('fetchIntegrations() response (list)', async () => {
+test('fetch integration list: fetchIntegrations()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue({
-    items: [awsOidcIntegration, nonAwsOidcIntegration],
+    items: [
+      awsOidcIntegration,
+      awsOidcIntegrationWithAudience,
+      githubIntegration,
+      nonAwsOidcIntegration,
+    ],
     nextKey: 'some-key',
   });
 
@@ -73,7 +80,29 @@ test('fetchIntegrations() response (list)', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
+          audience: undefined,
         },
+        statusCode: IntegrationStatusCode.Running,
+      },
+      {
+        kind: 'aws-oidc',
+        name: 'aws-oidc-integration2',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-12345',
+          audience: 'aws-identity-center',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+      {
+        kind: 'github',
+        name: 'github-my-org',
+        resourceType: 'integration',
+        spec: {
+          roleArn: undefined,
+          audience: undefined,
+        },
+        details: 'GitHub Organization "my-org"',
         statusCode: IntegrationStatusCode.Running,
       },
       {
@@ -82,6 +111,7 @@ test('fetchIntegrations() response (list)', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: undefined,
+          audience: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -121,6 +151,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: 'account-id-1',
         resourceId: 'resource-id-1',
         vpcId: 'vpc-123',
+        subnets: [],
+        securityGroups: [],
       },
       {
         engine: 'mysql',
@@ -131,6 +163,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: undefined,
         resourceId: undefined,
         vpcId: undefined,
+        subnets: [],
+        securityGroups: [],
       },
       {
         engine: 'mysql',
@@ -141,6 +175,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: undefined,
         resourceId: undefined,
         vpcId: undefined,
+        subnets: [],
+        securityGroups: [],
       },
     ],
     nextToken: 'next-token',
@@ -198,6 +234,22 @@ const awsOidcIntegration = {
   name: 'aws-oidc-integration',
   subKind: 'aws-oidc',
   awsoidc: { roleArn: 'arn-123' },
+};
+
+const awsOidcIntegrationWithAudience = {
+  name: 'aws-oidc-integration2',
+  subKind: 'aws-oidc',
+  awsoidc: {
+    roleArn: 'arn-12345',
+    audience: IntegrationAudience.AwsIdentityCenter,
+  },
+};
+const githubIntegration = {
+  name: 'github-my-org',
+  subKind: 'github',
+  github: {
+    organization: 'my-org',
+  },
 };
 
 const mockAwsDbs = [

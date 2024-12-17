@@ -102,25 +102,25 @@ const Indicator = styled.span<{ rbSize?: RadioButtonSize }>`
 
   input:enabled + & {
     background: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
   }
 
   input:enabled:hover + &,
   .teleport-radio-button__force-hover input + & {
     background-color: ${props =>
-      props.theme.colors.interactive.solid.primary.hover.background};
+      props.theme.colors.interactive.solid.primary.hover};
   }
 
   input:enabled:focus-visible + &,
   .teleport-radio-button__force-focus-visible input + & {
     background-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
   }
 
   input:enabled:active + &,
   .teleport-radio-button__force-active input + & {
     background-color: ${props =>
-      props.theme.colors.interactive.solid.primary.active.background};
+      props.theme.colors.interactive.solid.primary.active};
   }
 
   input:disabled + & {
@@ -169,13 +169,13 @@ export const RadioButtonInternal = styled.input.attrs({ type: 'radio' })<{
   &:enabled {
     &:checked {
       border-color: ${props =>
-        props.theme.colors.interactive.solid.primary.default.background};
+        props.theme.colors.interactive.solid.primary.default};
     }
 
     &:hover,
     .teleport-radio-button__force-hover & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
       box-shadow:
         0px 2px 1px -1px rgba(0, 0, 0, 0.2),
@@ -185,24 +185,23 @@ export const RadioButtonInternal = styled.input.attrs({ type: 'radio' })<{
       &:checked {
         background-color: transparent;
         border-color: ${props =>
-          props.theme.colors.interactive.solid.primary.hover.background};
+          props.theme.colors.interactive.solid.primary.hover};
       }
     }
 
     &:focus-visible,
     .teleport-radio-button__force-focus-visible & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
       border-color: ${props =>
-        props.theme.colors.interactive.solid.primary.default.background};
+        props.theme.colors.interactive.solid.primary.default};
       outline: 3px solid
-        ${props =>
-          props.theme.colors.interactive.solid.primary.default.background};
+        ${props => props.theme.colors.interactive.solid.primary.default};
       outline-offset: -1px;
 
       &:checked {
         border-color: ${props =>
-          props.theme.colors.interactive.solid.primary.default.background};
+          props.theme.colors.interactive.solid.primary.default};
         background-color: transparent;
       }
     }
@@ -210,12 +209,12 @@ export const RadioButtonInternal = styled.input.attrs({ type: 'radio' })<{
     &:active,
     .teleport-radio-button__force-active & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+        props.theme.colors.interactive.tonal.neutral[1]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
         border-color: ${props =>
-          props.theme.colors.interactive.solid.primary.active.background};
+          props.theme.colors.interactive.solid.primary.active};
         background-color: transparent;
       }
     }

@@ -18,7 +18,6 @@
 
 import Table, { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
-import React from 'react';
 import styled from 'styled-components';
 
 import { Participant, Session, SessionKind } from 'teleport/services/session';
@@ -63,10 +62,9 @@ export default function SessionList(props: Props) {
         },
         {
           key: 'durationText',
-          altSortKey: 'created',
           headerText: 'Duration',
           isSortable: true,
-          onSort: (a, b) => b - a,
+          onSort: (a, b) => b.created.getTime() - a.created.getTime(),
         },
         {
           altKey: 'join-btn',

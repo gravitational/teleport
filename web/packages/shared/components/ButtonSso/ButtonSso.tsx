@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import * as Icons from 'design/Icon';
 
 import { ButtonProps, ButtonSecondary } from 'design/Button';
 
 import { ResourceIcon } from 'design/ResourceIcon';
 
-import { AuthProviderType } from 'shared/services';
+import { AuthProviderType, SSOType } from 'shared/services';
 
 const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
@@ -41,16 +41,7 @@ type Props = ButtonProps<'button'> & {
   title: string;
 };
 
-type SSOType =
-  | 'microsoft'
-  | 'github'
-  | 'bitbucket'
-  | 'google'
-  | 'openid'
-  | 'okta'
-  | 'unknown';
-
-function SSOIcon({ type }: { type: SSOType }) {
+export function SSOIcon({ type }: { type: SSOType }) {
   const commonResourceIconProps = {
     width: '24px',
     height: '24px',

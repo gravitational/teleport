@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
@@ -56,10 +56,10 @@ var (
 const timeoutMessage = "unable to complete the request due to a timeout, please try again in a few minutes"
 
 // HandlerFunc specifies HTTP handler function that returns error
-type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
+type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error)
 
 // StdHandlerFunc specifies HTTP handler function that returns error
-type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, error)
+type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (any, error)
 
 // ErrorWriter is a function responsible for writing the error into response
 // body.
@@ -163,7 +163,7 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 			errHeader := csrf.VerifyHTTPHeader(r)
 			errForm := csrf.VerifyFormField(r)
 			if errForm != nil && errHeader != nil {
-				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				slog.WarnContext(r.Context(), "unable to validate CSRF token", "header_error", errHeader, "form_error", errForm)
 				trace.WriteError(w, trace.AccessDenied("access denied"))
 				return
 			}
@@ -173,21 +173,33 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 }
 
 // ReadJSON reads HTTP json request and unmarshals it
-// into passed interface{} obj
-func ReadJSON(r *http.Request, val interface{}) error {
+// into passed any obj. A reasonable maximum size is enforced
+// to mitigate resource exhaustion attacks.
+func ReadJSON(r *http.Request, val any) error {
+	return readJSON(r, val, teleport.MaxHTTPRequestSize)
+}
+
+// ReadJSON reads an HTTP JSON request and unmarshals it
+// into val. A small maximum size is enforced to mitigate
+// resource exhaustion attacks.
+func ReadResourceJSON(r *http.Request, val any) error {
+	return readJSON(r, val, teleport.MaxResourceSize)
+}
+
+func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		log.Warningf("Error parsing media type for reading JSON: %v", err)
+		slog.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)
 		return trace.BadParameter("invalid request")
 	}
 
 	if contentType != "application/json" {
-		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		slog.WarnContext(r.Context(), "Invalid HTTP request header content-type for reading JSON", "content_type", contentType)
 		return trace.BadParameter("invalid request")
 	}
 
-	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+	data, err := utils.ReadAtMost(r.Body, maxSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -304,12 +316,6 @@ func (r *ResponseStatusRecorder) WriteHeader(status int) {
 
 // Flush optionally flushes the inner ResponseWriter if it supports that.
 // Otherwise, Flush is a noop.
-//
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
-// pending data on streaming HTTP responses (like streaming pod logs).
-//
-// Without this, oxy/forward will handle streaming responses by accumulating
-// ~32kb of response in a buffer before flushing it.
 func (r *ResponseStatusRecorder) Flush() {
 	if r.flusher != nil {
 		r.flusher.Flush()

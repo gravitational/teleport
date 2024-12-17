@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -32,7 +33,6 @@ import (
 	"testing"
 	"time"
 
-	gspanner "cloud.google.com/go/spanner"
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	elastic "github.com/elastic/go-elasticsearch/v8"
@@ -52,20 +52,22 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -78,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -98,7 +101,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
@@ -757,6 +760,10 @@ func TestGCPRequireSSL(t *testing.T) {
 		Username:   user,
 	})
 	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: ephemeralCert.Certificate[0],
+	})
 
 	// Setup database servers for Postgres and MySQL with a mock GCP API that
 	// will require SSL and return the ephemeral certificate created above.
@@ -766,7 +773,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
-			EphemeralCert: ephemeralCert,
+			EphemeralCert: string(certPEM),
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1669,12 +1676,12 @@ func (c *testContext) postgresClientLocalProxy(ctx context.Context, teleportUser
 
 // mysqlClient connects to test MySQL through database access as a specified
 // Teleport user and database account.
-func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
+func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
 	return c.mysqlClientWithAddr(c.mysqlListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mysqlClientWithAddr is like mysqlClient but allows to override connection address.
-func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
+func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
 	return mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1690,7 +1697,7 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 }
 
 // mysqlClientLocalProxy connects to test MySQL through local ALPN proxy.
-func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, *alpnproxy.LocalProxy, error) {
+func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (mysql.TestClientConn, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolMySQL,
@@ -2138,7 +2145,7 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
-func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*gspanner.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*spanner.SpannerTestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolSpanner,
@@ -2151,7 +2158,7 @@ func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService
 		return nil, nil, trace.Wrap(err)
 	}
 
-	db, err := spanner.MakeTestClient(ctx, common.TestClientConfig{
+	clt, err := spanner.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient:      c.authClient,
 		AuthServer:      c.authServer,
 		Address:         proxy.GetAddr(),
@@ -2163,7 +2170,7 @@ func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return db, proxy, nil
+	return clt, proxy, nil
 }
 
 type roleOptFn func(types.Role)
@@ -2250,7 +2257,7 @@ func (c *testContext) Close() error {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	SetShuffleFunc(ShuffleSort)
+	SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
@@ -2382,7 +2389,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2417,7 +2424,7 @@ type agentParams struct {
 	// ResourceMatchers are optional database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
-	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
+	GetServerInfoFn func(database types.Database) func(context.Context) (*types.DatabaseServerV3, error)
 	// OnReconcile sets database resource reconciliation callback.
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
@@ -2517,9 +2524,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient: c.authClient,
-		Clients:    &clients.TestCloudClients{},
-		Clock:      c.clock,
+		AuthClient:  c.authClient,
+		AccessPoint: c.authClient,
+		Clients:     &clients.TestCloudClients{},
+		Clock:       c.clock,
 	})
 	require.NoError(t, err)
 
@@ -2534,13 +2542,25 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         utils.NewLoggerForTests(),
+		Logger:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
 	if p.Recorder == nil {
 		p.Recorder = libevents.NewDiscardRecorder()
 	}
+
+	// Auth client for this database server identity.
+	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: p.HostID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleDatabase},
+		Hostname: "test",
+	})
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
@@ -2579,13 +2599,27 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
+		InventoryHandle:          inventoryHandle,
 		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-		require.NoError(t, server.ForceHeartbeat())
+
+		// Explicitly send a heartbeat for any statically defined dbs.
+		for _, db := range p.Databases {
+			select {
+			case sender := <-inventoryHandle.Sender():
+				dbServer, err := server.getServerInfo(ctx, db)
+				require.NoError(t, err)
+				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+					DatabaseServer: dbServer,
+				}))
+			case <-time.After(20 * time.Second):
+				t.Fatal("timed out waiting for inventory handle sender")
+			}
+		}
 	}
 
 	return server

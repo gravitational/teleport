@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.14 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.15 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '9cff14fd97814baf8a9a07d8447960a64d616ada' ] && \
+    [ "$(git rev-parse HEAD)" = 'c523121f902fde2929909dc7f76b13ceb4961efe' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -318,7 +318,7 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.12.3
+RUN go install github.com/daixiang0/gci@v0.13.5
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1

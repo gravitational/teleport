@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -125,8 +125,8 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 		return trace.Wrap(err)
 	}
 
-	aptTeleportSourceListFile := path.Join(pm.fsRootPrefix, aptTeleportSourceListFileRelative)
-	aptTeleportPublicKeyFile := path.Join(pm.fsRootPrefix, aptTeleportPublicKeyFileRelative)
+	aptTeleportSourceListFile := filepath.Join(pm.fsRootPrefix, aptTeleportSourceListFileRelative)
+	aptTeleportPublicKeyFile := filepath.Join(pm.fsRootPrefix, aptTeleportPublicKeyFileRelative)
 	// Format for teleport repo entry should look like this:
 	// deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} $RepoChannel"
 	teleportRepoMetadata := fmt.Sprintf("deb [signed-by=%s] %s%s %s %s", aptTeleportPublicKeyFile, aptRepoEndpoint, linuxInfo.ID, linuxInfo.VersionCodename, repoChannel)

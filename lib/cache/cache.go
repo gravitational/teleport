@@ -38,13 +38,16 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -62,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 var (
@@ -99,6 +103,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
 	types.KindDatabaseObject:        {},
+	types.KindGitServer:             {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -159,6 +164,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -185,6 +191,17 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindStaticHostUser},
+		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoUpdateConfig},
+		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindUserTask},
+		{Kind: types.KindProvisioningPrincipalState},
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterPrincipalAssignment},
+		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPluginStaticCredentials},
+		{Kind: types.KindGitServer},
+		{Kind: types.KindWorkloadIdentity},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -227,6 +244,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -237,6 +255,11 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindAutoUpdateConfig},
+		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindUserTask},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -383,6 +406,7 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
 	return cfg
@@ -402,6 +426,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindApp},
 		{Kind: types.KindDiscoveryConfig},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindUserTask},
 		{Kind: types.KindProxy},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
@@ -491,6 +516,7 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfiguration
+	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -509,10 +535,12 @@ type Cache struct {
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
+	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
+	userTasksCache               services.UserTasks
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
@@ -525,6 +553,11 @@ type Cache struct {
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
+	provisioningStatesCache      *local.ProvisioningStateService
+	identityCenterCache          *local.IdentityCenterService
+	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
+	gitServersCache              *local.GitServerService
+	workloadIdentityCache        workloadIdentityCacher
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -639,6 +672,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// AutoUpdateService is an autoupdate service.
+	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
 	// Users is a users service
@@ -675,6 +710,8 @@ type Config struct {
 	WebToken types.WebTokenInterface
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
+	// DynamicWindowsDesktops is a dynamic Windows desktop service.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -687,6 +724,8 @@ type Config struct {
 	DiscoveryConfigs services.DiscoveryConfigs
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
+	// UserTasks is the user tasks service.
+	UserTasks services.UserTasks
 	// SecEvents is the security report service.
 	SecReports services.SecReports
 	// AccessLists is the access lists service.
@@ -701,6 +740,9 @@ type Config struct {
 	SPIFFEFederations SPIFFEFederationReader
 	// StaticHostUsers is the static host user service.
 	StaticHostUsers services.StaticHostUser
+	// WorkloadIdentity is the upstream Workload Identities service that we're
+	// caching
+	WorkloadIdentity WorkloadIdentityReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -746,6 +788,17 @@ type Config struct {
 	// EnableRelativeExpiry turns on purging expired items from the cache even
 	// if delete events have not been received from the backend.
 	EnableRelativeExpiry bool
+
+	// ProvisioningStates is the upstream ProvisioningStates service that we're
+	// caching
+	ProvisioningStates services.ProvisioningStates
+
+	// IdentityCenter is the upstream Identity Center service that we're caching
+	IdentityCenter services.IdentityCenter
+	// PluginStaticCredentials is the plugin static credentials services
+	PluginStaticCredentials services.PluginStaticCredentials
+	// GitServers is the Git server service.
+	GitServers services.GitServerGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -870,7 +923,19 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	userTasksCache, err := local.NewUserTasksService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -918,6 +983,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	autoUpdateCache, err := local.NewAutoUpdateService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -942,7 +1013,44 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	identityService, err := local.NewIdentityServiceV2(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	dynamicDesktopsService, err := local.NewDynamicWindowsDesktopService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: config.Backend})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	gitServersCache, err := local.NewGitServerService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -956,8 +1064,9 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
+		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
-		usersCache:                   local.NewIdentityService(config.Backend),
+		usersCache:                   identityService,
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
@@ -967,19 +1076,21 @@ func New(config Config) (*Cache, error) {
 		crownJewelsCache:             crownJewelCache,
 		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
 		databasesCache:               local.NewDatabasesService(config.Backend),
-		appSessionCache:              local.NewIdentityService(config.Backend),
-		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
-		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
-		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
+		appSessionCache:              identityService,
+		snowflakeSessionCache:        identityService,
+		samlIdPSessionCache:          identityService,
+		webSessionCache:              identityService.WebSessions(),
+		webTokenCache:                identityService.WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
+		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
-		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
+		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
@@ -990,6 +1101,11 @@ func New(config Config) (*Cache, error) {
 		kubeWaitingContsCache:        kubeWaitingContsCache,
 		spiffeFederationCache:        spiffeFederationCache,
 		staticHostUsersCache:         staticHostUserCache,
+		provisioningStatesCache:      provisioningStatesCache,
+		identityCenterCache:          identityCenterCache,
+		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
+		gitServersCache:              gitServersCache,
+		workloadIdentityCache:        workloadIdentityCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1016,10 +1132,10 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		First:  retryutils.FullJitter(c.MaxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  c.Clock,
 	})
 	if err != nil {
@@ -1342,8 +1458,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	if c.EnableRelativeExpiry {
 		relativeExpiryInterval = interval.New(interval.Config{
 			Duration:      c.Config.RelativeExpiryCheckInterval,
-			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 	defer relativeExpiryInterval.Stop()
@@ -1881,6 +1997,81 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.reader.GetClusterName(opts...)
 }
 
+type autoUpdateCacheKey struct {
+	kind string
+}
+
+var _ map[autoUpdateCacheKey]struct{} // compile-time hashability check
+
+// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateConfigs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+			cfg, err := rg.reader.GetAutoUpdateConfig(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedConfig).(*autoupdate.AutoUpdateConfig), nil
+	}
+	return rg.reader.GetAutoUpdateConfig(ctx)
+}
+
+// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateVersions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+			version, err := rg.reader.GetAutoUpdateVersion(ctx)
+			return version, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
+	}
+	return rg.reader.GetAutoUpdateVersion(ctx)
+}
+
+// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentRollouts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedAgentRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+			version, err := rg.reader.GetAutoUpdateAgentRollout(ctx)
+			return version, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedAgentRollout).(*autoupdate.AutoUpdateAgentRollout), nil
+	}
+	return rg.reader.GetAutoUpdateAgentRollout(ctx)
+}
+
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
 	defer span.End()
@@ -2069,19 +2260,6 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetAuthServers()
-}
-
-// GetReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies is a part of auth.Cache implementation
@@ -2735,6 +2913,32 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	return rg.reader.ListWindowsDesktopServices(ctx, req)
 }
 
+// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDynamicWindowsDesktop(ctx, name)
+}
+
+// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
+func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
@@ -2863,6 +3067,45 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	}
 	defer rg.Release()
 	return rg.reader.GetIntegration(ctx, name)
+}
+
+// ListUserTasks returns a list of UserTask resources.
+func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string) ([]*usertasksv1.UserTask, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userTasks)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListUserTasks(ctx, pageSize, nextKey)
+}
+
+// ListUserTasksByIntegration returns a list of UserTask resources filtered by an integration.
+func (c *Cache) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasksByIntegration")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userTasks)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListUserTasksByIntegration(ctx, pageSize, nextKey, integration)
+}
+
+// GetUserTask returns the specified UserTask resource.
+func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserTask")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userTasks)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetUserTask(ctx, name)
 }
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
@@ -3121,13 +3364,13 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 }
 
 // CountAccessListMembers will count all access list members.
-func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.accessListMembers)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, 0, trace.Wrap(err)
 	}
 	defer rg.Release()
 	return rg.reader.CountAccessListMembers(ctx, accessListName)
@@ -3338,4 +3581,44 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.Ac
 		return clone, nil
 	}
 	return rg.reader.GetAccessGraphSettings(ctx)
+}
+
+func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
+}
+
+// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
+func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListAccountAssignments(ctx, pageSize, pageToken)
 }

@@ -27,7 +27,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -286,7 +285,8 @@ func writeProfile(t *testing.T, p *profile.Profile) {
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
-	require.NoError(t, os.WriteFile(p.UserKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserSSHKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserTLSKeyPath(), keyPEM, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCertPath(), tlsCert, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
 	require.NoError(t, os.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
@@ -444,7 +444,7 @@ Private-MAC: 8951bbe929e0714a61df01bc8fbc5223e3688f174aee29339931984fb9224c7d`)
 
 func TestDynamicIdentityFileCreds(t *testing.T) {
 	dir := t.TempDir()
-	identityPath := path.Join(dir, "identity")
+	identityPath := filepath.Join(dir, "identity")
 
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: keyPEM,
@@ -471,6 +471,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok := cred.Expiry()
@@ -529,6 +530,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err = tls.X509KeyPair(secondTLSCertPem, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok = cred.Expiry()

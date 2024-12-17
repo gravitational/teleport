@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -76,7 +75,7 @@ func TestKubeLogin(t *testing.T) {
 
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
-		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 		// Test "tsh proxy kube root-cluster1".
 
@@ -554,7 +553,7 @@ func TestKubeSelection(t *testing.T) {
 				// clients work in the same profile dir.
 				tshHome, _ := mustLogin(t, s)
 				// Set kubeconfig to a non-exist file to avoid loading other things.
-				kubeConfigPath := path.Join(tshHome, "kube-config")
+				kubeConfigPath := filepath.Join(tshHome, "kube-config")
 				var cmdRunner func(*exec.Cmd) error
 				if len(test.wantProxied) > 0 {
 					cmdRunner = func(cmd *exec.Cmd) error {

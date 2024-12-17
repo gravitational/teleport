@@ -119,6 +119,11 @@ type Profile struct {
 
 	// SSHDialTimeout is the timeout value that should be used for SSH connections.
 	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
+	// SSOHost is the host of the SSO provider used to log in. Clients can check this value, along
+	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
+	// Connect in the proxy host allow list.
+	SSOHost string `yaml:"sso_host,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -142,7 +147,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserTLSKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,7 +256,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
+	priv, err := keys.LoadPrivateKey(p.UserSSHKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -449,9 +454,14 @@ func (p *Profile) ProxyKeyDir() string {
 	return keypaths.ProxyKeyDir(p.Dir, p.Name())
 }
 
-// UserKeyPath returns the path to the profile's private key.
-func (p *Profile) UserKeyPath() string {
-	return keypaths.UserKeyPath(p.Dir, p.Name(), p.Username)
+// UserSSHKeyPath returns the path to the profile's SSH private key.
+func (p *Profile) UserSSHKeyPath() string {
+	return keypaths.UserSSHKeyPath(p.Dir, p.Name(), p.Username)
+}
+
+// UserTLSKeyPath returns the path to the profile's TLS private key.
+func (p *Profile) UserTLSKeyPath() string {
+	return keypaths.UserTLSKeyPath(p.Dir, p.Name(), p.Username)
 }
 
 // TLSCertPath returns the path to the profile's TLS certificate.

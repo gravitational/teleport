@@ -30,7 +30,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
@@ -70,28 +69,6 @@ func (s *Service) StartHeadlessWatcher(rootClusterURI string, waitInit bool) err
 	return trace.Wrap(err)
 }
 
-// StartHeadlessWatchers starts headless watchers for all connected clusters.
-func (s *Service) StartHeadlessWatchers() error {
-	s.headlessWatcherClosersMu.Lock()
-	defer s.headlessWatcherClosersMu.Unlock()
-
-	clusters, err := s.cfg.Storage.ListRootClusters()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, c := range clusters {
-		if c.Connected() {
-			// Don't wait for the headless watcher to initialize as this could slow down startup.
-			if err := s.startHeadlessWatcher(c, false /* waitInit */); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
 // startHeadlessWatcher starts a headless watcher for the given cluster.
 //
 // If waitInit is true, this method will wait for the watcher to connect to the
@@ -106,10 +83,10 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 
 	maxBackoffDuration := defaults.MaxWatcherBackoff
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(maxBackoffDuration / 10),
+		First:  retryutils.FullJitter(maxBackoffDuration / 10),
 		Step:   maxBackoffDuration / 5,
 		Max:    maxBackoffDuration,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  s.cfg.Clock,
 	})
 	if err != nil {
@@ -294,10 +271,10 @@ func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *typ
 		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
 	}
 
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := s.headlessAuthSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	defer s.importantModalSemaphore.Release()
+	defer s.headlessAuthSemaphore.Release()
 
 	_, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(ctx, req)
 	return trace.Wrap(err)

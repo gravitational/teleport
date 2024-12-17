@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/holster/v3/collections"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -59,6 +59,7 @@ var postTextTemplate = template.Must(template.New("description").Parse(
 {{else if eq .Status "PENDING"}}**Approve**: ` + "`tsh request review --approve {{.ID}}`" + `
 **Deny**: ` + "`tsh request review --deny {{.ID}}`" + `{{end}}`,
 ))
+
 var reviewCommentTemplate = template.Must(template.New("review comment").Parse(
 	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
@@ -81,11 +82,14 @@ type Bot struct {
 	webProxyURL *url.URL
 }
 
-type getMeKey struct{}
-type getChannelByTeamNameAndNameKey struct {
-	team string
-	name string
-}
+type (
+	getMeKey                       struct{}
+	getChannelByTeamNameAndNameKey struct {
+		team string
+		name string
+	}
+)
+
 type getUserByEmail struct {
 	email string
 }
@@ -108,7 +112,10 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 		}
 	}
 
-	cache := collections.NewLRUCache(mmCacheSize)
+	cache, err := lru.New[any, etagCacheEntry](mmCacheSize)
+	if err != nil {
+		return Bot{}, trace.Wrap(err, "failed to create cache")
+	}
 
 	client := resty.
 		NewWithClient(&http.Client{
@@ -116,6 +123,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			Transport: &http.Transport{
 				MaxConnsPerHost:     mmMaxConns,
 				MaxIdleConnsPerHost: mmMaxConns,
+				Proxy:               http.ProxyFromEnvironment,
 			},
 		}).
 		SetBaseURL(conf.Mattermost.URL).
@@ -173,14 +181,9 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			return nil
 		}
 
-		val, ok := cache.Get(cacheKey)
+		res, ok := cache.Get(cacheKey)
 		if !ok {
 			return nil
-		}
-
-		res, ok := val.(etagCacheEntry)
-		if !ok {
-			return trace.Errorf("etag cache entry of unknown type %T", val)
 		}
 
 		req.SetHeader("If-None-Match", res.etag)
@@ -517,6 +520,11 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		Kind: kind,
 		Data: nil,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }
 
 func userResult(resp *resty.Response) (User, error) {

@@ -62,7 +62,7 @@ export default function useTdpClientCanvas(props: Props) {
     clipboardSharingState,
     setClipboardSharingState,
     setDirectorySharingState,
-    setWarnings,
+    setAlerts,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -174,7 +174,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
   const clientOnTdpWarning = (warning: string) => {
-    setWarnings(prevState => {
+    setAlerts(prevState => {
       return [
         ...prevState,
         {
@@ -186,6 +186,8 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
+  // TODO(zmb3): this is not what an info-level alert should do.
+  // rename it to something like onGracefulDisconnect
   const clientOnTdpInfo = (info: string) => {
     setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
@@ -347,7 +349,7 @@ type Props = {
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;
-  setWarnings: Setter<NotificationItem[]>;
+  setAlerts: Setter<NotificationItem[]>;
 };
 
 /**

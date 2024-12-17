@@ -23,7 +23,7 @@ import { Danger } from 'design/Alert';
 
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
-import NodeList from 'teleport/components/NodeList';
+import { NodeList } from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import Document from 'teleport/Console/Document';
 
@@ -47,8 +47,6 @@ export default function DocumentNodes(props: Props) {
     params,
     setParams,
     setSort,
-    pathname,
-    replaceHistory,
     fetchStatus,
     attempt,
     createSshSession,
@@ -112,8 +110,6 @@ export default function DocumentNodes(props: Props) {
             params={params}
             setParams={setParams}
             setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
             onLabelClick={onLabelClick}
           />
         )}

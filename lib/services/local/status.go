@@ -136,7 +136,10 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 	}
 
 	_, err = s.Backend.Put(ctx, backend.Item{
-		Key:      backend.NewKey(clusterAlertPrefix, alert.Metadata.Name),
+		// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+		// alerts that include a / in their name. Without reconstructing the key it would be impossible
+		// for the sanitization layer to analyze the individual components separately.
+		Key:      backend.NewKey(clusterAlertPrefix).AppendKey(backend.KeyFromString(alert.Metadata.Name)),
 		Value:    val,
 		Expires:  alert.Metadata.Expiry(),
 		Revision: rev,
@@ -145,7 +148,10 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 }
 
 func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) error {
-	err := s.Backend.Delete(ctx, backend.NewKey(clusterAlertPrefix, alertID))
+	// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+	// alerts that include a / in their name. Without reconstructing the key it would be impossible
+	// for the sanitization layer to analyze the individual components separately.
+	err := s.Backend.Delete(ctx, backend.NewKey(clusterAlertPrefix).AppendKey(backend.KeyFromString(alertID)))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("cluster alert %q not found", alertID)
 	}
@@ -164,7 +170,10 @@ func (s *StatusService) CreateAlertAck(ctx context.Context, ack types.AlertAckno
 	}
 
 	_, err = s.Backend.Create(ctx, backend.Item{
-		Key:     backend.NewKey(alertAckPrefix, ack.AlertID),
+		// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
+		// alerts that include a / in their name. Without reconstructing the key it would be impossible
+		// for the sanitization layer to analyze the individual components separately.
+		Key:     backend.NewKey(alertAckPrefix).AppendKey(backend.KeyFromString(ack.AlertID)),
 		Value:   val,
 		Expires: ack.Expires,
 	})

@@ -35,7 +35,7 @@ regular maintenance window.
 
 - A Teleport Enterprise cluster. If you do not have one, [sign
   up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](upgrading.mdx) to read about manual updates.
+  Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport agents that are not yet enrolled in automatic updates.
@@ -49,8 +49,7 @@ If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
 
 Before enabling automatic upgrades in your self-hosted Teleport cluster, you
 must enable a **version server**. This section shows you how to enable a version
-server in your cluster. Automatic upgrades in self-hosted Teleport clusters
-require at least v14.3.7 or v15.1.3. 
+server in your cluster. 
 
 ### Configure a maintenance schedule
 
@@ -317,10 +316,10 @@ This section assumes that the name of your `teleport-kube-agent` release is
    
 1. Check for any deployment issues by checking the updater logs:
    
-    ```code
-    $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
-    2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
-    ```
+   ```code
+   $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
+   2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
+   ```
 
 ## Troubleshooting
 

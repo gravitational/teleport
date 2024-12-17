@@ -15,14 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 
 import { useTheme } from 'styled-components';
 import { Box, Indicator } from 'design';
 
 import * as stores from 'teleport/Console/stores/types';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
+import { useMfa } from 'teleport/lib/useMfa';
 import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
 
 import Document from 'teleport/Console/Document';
@@ -39,11 +39,11 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
-  const webauthn = useWebAuthn(tty);
+  const mfa = useMfa(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, webauthn.requested]);
+  }, [visible, mfa.requested]);
   const theme = useTheme();
 
   const terminal = (
@@ -63,13 +63,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {webauthn.requested && (
-        <AuthnDialog
-          onContinue={webauthn.authenticate}
-          onCancel={closeDocument}
-          errorText={webauthn.errorText}
-        />
-      )}
+      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />

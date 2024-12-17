@@ -31,7 +31,7 @@ import (
 	discoveryv3pb "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
@@ -39,6 +39,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,21 +59,25 @@ const (
 	envoyAllBundlesName = "ALL"
 )
 
+type bundleSetGetter interface {
+	GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error)
+}
+
 // spiffeSDSHandler implements an Envoy SDS API.
 //
 // This effectively replaces the Workload API for Envoy, but functions in a
 // very similar way.
 type spiffeSDSHandler struct {
-	log    *slog.Logger
-	cfg    *config.SPIFFEWorkloadAPIService
-	botCfg *config.BotConfig
+	log              *slog.Logger
+	cfg              *config.SPIFFEWorkloadAPIService
+	botCfg           *config.BotConfig
+	trustBundleCache bundleSetGetter
 
-	clientAuthenticator         func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
-	trustBundleGetter           func() *x509bundle.Bundle
-	trustBundleUpdateSubscriber func() (ch chan struct{}, unsubscribe func())
-	svidFetcher                 func(
+	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
+	svidFetcher         func(
 		ctx context.Context,
 		log *slog.Logger,
+		localBundle *spiffebundle.Bundle,
 		svidRequests []config.SVIDRequest,
 	) ([]*workloadpb.X509SVID, error)
 }
@@ -104,11 +109,23 @@ func (s *spiffeSDSHandler) FetchSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
-	return s.generateResponse(
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting trust bundle set")
+	}
+
+	// Filter SVIDs down to those accessible to this workload
+	svids, err := s.svidFetcher(
 		ctx,
 		log,
-		creds,
-		s.trustBundleGetter(),
+		bundleSet.Local, filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds))
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching X509 SVIDs")
+	}
+
+	return s.generateResponse(
+		bundleSet,
+		svids,
 		req,
 	)
 }
@@ -162,14 +179,16 @@ func (s *spiffeSDSHandler) StreamSecrets(
 		return trace.Wrap(err, "authenticating client")
 	}
 
-	reloadCh, unsubscribe := s.trustBundleUpdateSubscriber()
-	defer unsubscribe()
-
 	log.DebugContext(
 		ctx,
 		"SecretDiscoveryService.StreamSecrets stream started",
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
+
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting trust bundle set")
+	}
 
 	// Push incoming messages into a chan for the main loop to handle
 	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
@@ -197,11 +216,15 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	renewalTimer.Stop()
 	defer renewalTimer.Stop()
 
+	// Filter SVIDs down to those accessible to this workload
+	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
+
 	// Track the last response and last request to allow us to handle ACK/NACK
 	// and versioning.
 	var (
 		lastResp *discoveryv3pb.DiscoveryResponse
 		lastReq  *discoveryv3pb.DiscoveryRequest
+		svids    []*workloadpb.X509SVID
 	)
 	for {
 		select {
@@ -270,15 +293,32 @@ func (s *spiffeSDSHandler) StreamSecrets(
 				continue
 			}
 
-		case <-reloadCh:
-			// If there's been a CA rotation, we need to send a new response.
+		case <-bundleSet.Stale():
+			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting trust bundle set")
+			}
+			if !newBundleSet.Local.Equal(bundleSet.Local) {
+				// If the "local" trust domain's CA has changed, we need to
+				// reissue the SVIDs.
+				svids = nil
+			}
+			bundleSet = newBundleSet
 		case <-renewalTimer.C:
 			// Handle renewal time!
 			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
 		}
 
+		// Fetch the SVIDs if necessary
+		if svids == nil {
+			svids, err = s.svidFetcher(ctx, log, bundleSet.Local, availableSVIDs)
+			if err != nil {
+				return trace.Wrap(err, "fetching X509 SVIDs")
+			}
+		}
+
 		resp, err := s.generateResponse(
-			ctx, log, creds, s.trustBundleGetter(), lastReq,
+			bundleSet, svids, lastReq,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating response")
@@ -329,10 +369,8 @@ func elementsMatch(a, b []string) bool {
 }
 
 func (s *spiffeSDSHandler) generateResponse(
-	ctx context.Context,
-	log *slog.Logger,
-	attest workloadattest.Attestation,
-	tb *x509bundle.Bundle,
+	bundleSet *spiffe.BundleSet,
+	svids []*workloadpb.X509SVID,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
 	// names holds all names requested by the client
@@ -349,19 +387,11 @@ func (s *spiffeSDSHandler) generateResponse(
 	returnAll := len(names) == 0
 
 	var resources []*anypb.Any
-
-	// Filter SVIDs down to those accessible to this workload
-	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, attest)
-	// Fetch the SVIDs and convert them into the SDS cert type.
-	svids, err := s.svidFetcher(ctx, log, availableSVIDs)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching X509 SVIDs")
-	}
 	for i, svid := range svids {
 		// Now we need to filter the SVIDs down to those requested by the
 		// client.
 		// There's a special case here, if they've requested the default SVID,
-		// we want to ensure that the first SVID is returned and it's name
+		// we want to ensure that the first SVID is returned and its name
 		// overrridden.
 
 		switch {
@@ -384,23 +414,27 @@ func (s *spiffeSDSHandler) generateResponse(
 
 	// Convert trust bundle to SDS validator type.
 	switch {
-	case returnAll || names[tb.TrustDomain().IDString()]:
+	case returnAll || names[bundleSet.Local.TrustDomain().IDString()]:
 		// If this name was explicitly specified or no names were specified,
 		// we use the proper trust domain ID as the resource name.
 		validator, err := newTLSV3ValidationContext(
-			tb, "",
+			[]*spiffebundle.Bundle{
+				bundleSet.Local,
+			}, bundleSet.Local.TrustDomain().IDString(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
 		}
 		resources = append(resources, validator)
-		delete(names, tb.TrustDomain().IDString())
+		delete(names, bundleSet.Local.TrustDomain().IDString())
 	case names[envoyDefaultBundleName]:
 		// If they've requested the default bundle, we send the connected trust
 		// domain's bundle - but - we override the name to match what they
 		// expect.
 		validator, err := newTLSV3ValidationContext(
-			tb, envoyDefaultBundleName,
+			[]*spiffebundle.Bundle{
+				bundleSet.Local,
+			}, envoyDefaultBundleName,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
@@ -408,13 +442,12 @@ func (s *spiffeSDSHandler) generateResponse(
 		resources = append(resources, validator)
 		delete(names, envoyDefaultBundleName)
 	case names[envoyAllBundlesName]:
-		// TODO: When federation support is added, the behavior of this case
-		// shall change to return the connected trust domain's bundle
-		// concatenated with all federated bundles. For now, we return the
-		// connected trust domain's bundle - but - we override the name to
-		// match what they expect.
+		// Return all the trust bundles as part of a single validation context.
+		// We'll also override the name to match what they requested.
+		bundles := maps.Values(bundleSet.Federated)
+		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
-			tb, envoyAllBundlesName,
+			bundles, envoyAllBundlesName,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
@@ -423,8 +456,42 @@ func (s *spiffeSDSHandler) generateResponse(
 		delete(names, envoyAllBundlesName)
 	}
 
-	// TODO: When federation support is added, return any federated bundles
-	// if named or returnAll.
+	if returnAll {
+		for _, bundle := range bundleSet.Federated {
+			validator, err := newTLSV3ValidationContext(
+				[]*spiffebundle.Bundle{
+					bundle,
+				}, bundle.TrustDomain().IDString(),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating TLS validation context")
+			}
+			resources = append(resources, validator)
+		}
+	} else {
+		// For any remaining names, see if they match any federated trust bundles.
+		for _, name := range maps.Keys(names) {
+			var found *spiffebundle.Bundle
+			for _, bundle := range bundleSet.Federated {
+				if name == bundle.TrustDomain().IDString() {
+					found = bundle
+					break
+				}
+			}
+			if found != nil {
+				validator, err := newTLSV3ValidationContext(
+					[]*spiffebundle.Bundle{
+						found,
+					}, found.TrustDomain().IDString(),
+				)
+				if err != nil {
+					return nil, trace.Wrap(err, "creating TLS validation context")
+				}
+				resources = append(resources, validator)
+				delete(names, name)
+			}
+		}
+	}
 
 	// If any names are left-over, we've not been able to service them so
 	// we should return an explicit error rather than omitting data.
@@ -500,26 +567,28 @@ func newTLSV3Certificate(
 const envoySPIFFECertValidator = "envoy.tls.cert_validator.spiffe"
 
 func newTLSV3ValidationContext(
-	tb *x509bundle.Bundle, overrideResourceName string,
+	bundles []*spiffebundle.Bundle, resourceName string,
 ) (*anypb.Any, error) {
-	caBytes, err := tb.Marshal()
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling trust bundle")
-	}
+	var trustDomains []*tlsv3pb.SPIFFECertValidatorConfig_TrustDomain
+	for _, bundle := range bundles {
+		caBytes, err := bundle.X509Bundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling trust bundle")
+		}
 
-	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto#extensions-transport-sockets-tls-v3-spiffecertvalidatorconfig-trustdomain
-	trustDomains := []*tlsv3pb.SPIFFECertValidatorConfig_TrustDomain{
-		{
+		// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto#extensions-transport-sockets-tls-v3-spiffecertvalidatorconfig-trustdomain
+		trustDomain := &tlsv3pb.SPIFFECertValidatorConfig_TrustDomain{
 			// From API reference:
 			//   Note that this must not have “spiffe://” prefix.
-			Name: tb.TrustDomain().Name(),
+			Name: bundle.TrustDomain().Name(),
 			TrustBundle: &corev3pb.DataSource{
 				Specifier: &corev3pb.DataSource_InlineBytes{
 					// Must be concatenated PEM-wrapped X509 certificates
 					InlineBytes: caBytes,
 				},
 			},
-		},
+		}
+		trustDomains = append(trustDomains, trustDomain)
 	}
 
 	// Generate the typed config for the SPIFFE TLS cert validator extension
@@ -535,7 +604,7 @@ func newTLSV3ValidationContext(
 	secret := &tlsv3pb.Secret{
 		// We intentionally use the full IDString here in contrast to the
 		// short name used in the TrustDomain config block.
-		Name: tb.TrustDomain().IDString(),
+		Name: resourceName,
 		Type: &tlsv3pb.Secret_ValidationContext{
 			ValidationContext: &tlsv3pb.CertificateValidationContext{
 				// We use a custom validation context for SPIFFE to provide
@@ -546,9 +615,6 @@ func newTLSV3ValidationContext(
 				},
 			},
 		},
-	}
-	if overrideResourceName != "" {
-		secret.Name = overrideResourceName
 	}
 
 	return anypb.New(secret)

@@ -31,9 +31,7 @@ Here are the steps we'll walkthrough:
 Create a user `api-admin` with the built-in role `editor`:
 
 ```code
-# Run this directly on your Auth Server unless you are using Teleport Cloud
-# Add a user and login via the Proxy Service
-$ sudo tctl users add api-admin --roles=editor
+$ tctl users add api-admin --roles=editor
 ```
 
 ## Step 2/3. Generate client credentials
@@ -129,4 +127,4 @@ $ go run main.go
 - Read about Teleport [API architecture](../../reference/architecture/api-architecture.mdx) for an in-depth overview of the API and API clients.
 - Read [API authorization](../../reference/architecture/api-architecture.mdx) to learn more about defining custom roles for your API client.
 - Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
-- Familiarize yourself with the [admin manual](../management/admin.mdx) to make the best use of the API.
+- Familiarize yourself with the [admin manual](../management/admin/admin.mdx) to make the best use of the API.

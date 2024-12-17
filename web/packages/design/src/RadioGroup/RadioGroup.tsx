@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 
-import { FieldRadio } from 'shared/components/FieldRadio';
+import { FieldRadio } from 'design/FieldRadio';
 
 import { Flex } from 'design';
-import { RadioButton, RadioButtonSize } from 'design/RadioButton/RadioButton';
+import { RadioButton, RadioButtonSize } from 'design/RadioButton';
 import { FlexProps } from 'design/Flex';
 
 interface RadioObjectOption {

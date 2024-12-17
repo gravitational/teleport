@@ -48,6 +48,11 @@ const (
 	OktaService_UpdateOktaAssignmentStatus_FullMethodName = "/teleport.okta.v1.OktaService/UpdateOktaAssignmentStatus"
 	OktaService_DeleteOktaAssignment_FullMethodName       = "/teleport.okta.v1.OktaService/DeleteOktaAssignment"
 	OktaService_DeleteAllOktaAssignments_FullMethodName   = "/teleport.okta.v1.OktaService/DeleteAllOktaAssignments"
+	OktaService_ValidateClientCredentials_FullMethodName  = "/teleport.okta.v1.OktaService/ValidateClientCredentials"
+	OktaService_CreateIntegration_FullMethodName          = "/teleport.okta.v1.OktaService/CreateIntegration"
+	OktaService_UpdateIntegration_FullMethodName          = "/teleport.okta.v1.OktaService/UpdateIntegration"
+	OktaService_GetApps_FullMethodName                    = "/teleport.okta.v1.OktaService/GetApps"
+	OktaService_GetGroups_FullMethodName                  = "/teleport.okta.v1.OktaService/GetGroups"
 )
 
 // OktaServiceClient is the client API for OktaService service.
@@ -82,6 +87,16 @@ type OktaServiceClient interface {
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(ctx context.Context, in *DeleteAllOktaAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ValidateClientCredentials checks if the provided client credentials are valid.
+	ValidateClientCredentials(ctx context.Context, in *ValidateClientCredentialsRequest, opts ...grpc.CallOption) (*ValidateClientCredentialsResponse, error)
+	// EnrollIntegration enrolls a new integration with the specified parameters.
+	CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*CreateIntegrationResponse, error)
+	// UpdateIntegration updates the settings or properties of an existing integration.
+	UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*UpdateIntegrationResponse, error)
+	// GetApps retrieves a list of apps from Okta based on specified filter criteria.
+	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
+	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
+	GetGroups(ctx context.Context, in *GetGroupsRequest, opts ...grpc.CallOption) (*GetGroupsResponse, error)
 }
 
 type oktaServiceClient struct {
@@ -222,6 +237,56 @@ func (c *oktaServiceClient) DeleteAllOktaAssignments(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *oktaServiceClient) ValidateClientCredentials(ctx context.Context, in *ValidateClientCredentialsRequest, opts ...grpc.CallOption) (*ValidateClientCredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateClientCredentialsResponse)
+	err := c.cc.Invoke(ctx, OktaService_ValidateClientCredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaServiceClient) CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*CreateIntegrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateIntegrationResponse)
+	err := c.cc.Invoke(ctx, OktaService_CreateIntegration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaServiceClient) UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*UpdateIntegrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateIntegrationResponse)
+	err := c.cc.Invoke(ctx, OktaService_UpdateIntegration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaServiceClient) GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAppsResponse)
+	err := c.cc.Invoke(ctx, OktaService_GetApps_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *oktaServiceClient) GetGroups(ctx context.Context, in *GetGroupsRequest, opts ...grpc.CallOption) (*GetGroupsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGroupsResponse)
+	err := c.cc.Invoke(ctx, OktaService_GetGroups_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OktaServiceServer is the server API for OktaService service.
 // All implementations must embed UnimplementedOktaServiceServer
 // for forward compatibility.
@@ -254,6 +319,16 @@ type OktaServiceServer interface {
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error)
+	// ValidateClientCredentials checks if the provided client credentials are valid.
+	ValidateClientCredentials(context.Context, *ValidateClientCredentialsRequest) (*ValidateClientCredentialsResponse, error)
+	// EnrollIntegration enrolls a new integration with the specified parameters.
+	CreateIntegration(context.Context, *CreateIntegrationRequest) (*CreateIntegrationResponse, error)
+	// UpdateIntegration updates the settings or properties of an existing integration.
+	UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*UpdateIntegrationResponse, error)
+	// GetApps retrieves a list of apps from Okta based on specified filter criteria.
+	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
+	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
+	GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error)
 	mustEmbedUnimplementedOktaServiceServer()
 }
 
@@ -302,6 +377,21 @@ func (UnimplementedOktaServiceServer) DeleteOktaAssignment(context.Context, *Del
 }
 func (UnimplementedOktaServiceServer) DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllOktaAssignments not implemented")
+}
+func (UnimplementedOktaServiceServer) ValidateClientCredentials(context.Context, *ValidateClientCredentialsRequest) (*ValidateClientCredentialsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateClientCredentials not implemented")
+}
+func (UnimplementedOktaServiceServer) CreateIntegration(context.Context, *CreateIntegrationRequest) (*CreateIntegrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateIntegration not implemented")
+}
+func (UnimplementedOktaServiceServer) UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*UpdateIntegrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateIntegration not implemented")
+}
+func (UnimplementedOktaServiceServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+}
+func (UnimplementedOktaServiceServer) GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
 }
 func (UnimplementedOktaServiceServer) mustEmbedUnimplementedOktaServiceServer() {}
 func (UnimplementedOktaServiceServer) testEmbeddedByValue()                     {}
@@ -558,6 +648,96 @@ func _OktaService_DeleteAllOktaAssignments_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OktaService_ValidateClientCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateClientCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).ValidateClientCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_ValidateClientCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).ValidateClientCredentials(ctx, req.(*ValidateClientCredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaService_CreateIntegration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateIntegrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).CreateIntegration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_CreateIntegration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).CreateIntegration(ctx, req.(*CreateIntegrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaService_UpdateIntegration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateIntegrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).UpdateIntegration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_UpdateIntegration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).UpdateIntegration(ctx, req.(*UpdateIntegrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).GetApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_GetApps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).GetApps(ctx, req.(*GetAppsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OktaService_GetGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).GetGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_GetGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).GetGroups(ctx, req.(*GetGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // OktaService_ServiceDesc is the grpc.ServiceDesc for OktaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -616,6 +796,26 @@ var OktaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllOktaAssignments",
 			Handler:    _OktaService_DeleteAllOktaAssignments_Handler,
+		},
+		{
+			MethodName: "ValidateClientCredentials",
+			Handler:    _OktaService_ValidateClientCredentials_Handler,
+		},
+		{
+			MethodName: "CreateIntegration",
+			Handler:    _OktaService_CreateIntegration_Handler,
+		},
+		{
+			MethodName: "UpdateIntegration",
+			Handler:    _OktaService_UpdateIntegration_Handler,
+		},
+		{
+			MethodName: "GetApps",
+			Handler:    _OktaService_GetApps_Handler,
+		},
+		{
+			MethodName: "GetGroups",
+			Handler:    _OktaService_GetGroups_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

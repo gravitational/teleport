@@ -7,7 +7,7 @@ You can use Teleport's API to automatically register resources in your
 infrastructure with your Teleport cluster.
 
 Teleport already supports the automatic discovery of [Kubernetes
-clusters](../../enroll-resources/auto-discovery/kubernetes.mdx) in AWS, Azure, and
+clusters](../../enroll-resources/auto-discovery/kubernetes/kubernetes.mdx) in AWS, Azure, and
 Google Cloud, as well as
 [servers](../../enroll-resources/auto-discovery/servers/ec2-discovery.mdx) on
 Amazon EC2.  To support other resources and cloud providers, you can use the API
@@ -953,11 +953,11 @@ discovery solution.
 
 Teleport includes its own automatic resource discovery solution, the Teleport
 Discovery Service, and you can [consult its
-source](https://github.com/gravitational/teleport/tree/master/lib/srv/discovery)
+source](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/lib/srv/discovery)
 to see how Teleport implements its discovery logic.
 
 The Teleport code repository contains [examples of production-ready Teleport API
-clients](https://github.com/gravitational/teleport/tree/(=teleport.version=)/examples/).
+clients](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/).
 While we currently do not maintain plugins that auto-discover resources, you
 can use these examples to see how to implement configuration parsing, retries,
 and other tasks.

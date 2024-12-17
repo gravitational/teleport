@@ -604,6 +604,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessListMemberDeleteAllForAccessList{
 			AccessListMemberDeleteAllForAccessList: e,
 		}
+	case *UserLoginAccessListInvalid:
+		out.Event = &OneOf_UserLoginAccessListInvalid{
+			UserLoginAccessListInvalid: e,
+		}
 	case *AuditQueryRun:
 		out.Event = &OneOf_AuditQueryRun{
 			AuditQueryRun: e,
@@ -724,6 +728,96 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *PluginDelete:
 		out.Event = &OneOf_PluginDelete{
 			PluginDelete: e,
+		}
+	case *StaticHostUserCreate:
+		out.Event = &OneOf_StaticHostUserCreate{
+			StaticHostUserCreate: e,
+		}
+	case *StaticHostUserUpdate:
+		out.Event = &OneOf_StaticHostUserUpdate{
+			StaticHostUserUpdate: e,
+		}
+	case *StaticHostUserDelete:
+		out.Event = &OneOf_StaticHostUserDelete{
+			StaticHostUserDelete: e,
+		}
+	case *CrownJewelCreate:
+		out.Event = &OneOf_CrownJewelCreate{
+			CrownJewelCreate: e,
+		}
+	case *CrownJewelUpdate:
+		out.Event = &OneOf_CrownJewelUpdate{
+			CrownJewelUpdate: e,
+		}
+	case *CrownJewelDelete:
+		out.Event = &OneOf_CrownJewelDelete{
+			CrownJewelDelete: e,
+		}
+	case *UserTaskCreate:
+		out.Event = &OneOf_UserTaskCreate{
+			UserTaskCreate: e,
+		}
+	case *UserTaskUpdate:
+		out.Event = &OneOf_UserTaskUpdate{
+			UserTaskUpdate: e,
+		}
+	case *UserTaskDelete:
+		out.Event = &OneOf_UserTaskDelete{
+			UserTaskDelete: e,
+		}
+	case *SFTPSummary:
+		out.Event = &OneOf_SFTPSummary{
+			SFTPSummary: e,
+		}
+	case *AutoUpdateConfigCreate:
+		out.Event = &OneOf_AutoUpdateConfigCreate{
+			AutoUpdateConfigCreate: e,
+		}
+	case *AutoUpdateConfigUpdate:
+		out.Event = &OneOf_AutoUpdateConfigUpdate{
+			AutoUpdateConfigUpdate: e,
+		}
+	case *AutoUpdateConfigDelete:
+		out.Event = &OneOf_AutoUpdateConfigDelete{
+			AutoUpdateConfigDelete: e,
+		}
+
+	case *AutoUpdateVersionCreate:
+		out.Event = &OneOf_AutoUpdateVersionCreate{
+			AutoUpdateVersionCreate: e,
+		}
+	case *AutoUpdateVersionUpdate:
+		out.Event = &OneOf_AutoUpdateVersionUpdate{
+			AutoUpdateVersionUpdate: e,
+		}
+	case *AutoUpdateVersionDelete:
+		out.Event = &OneOf_AutoUpdateVersionDelete{
+			AutoUpdateVersionDelete: e,
+		}
+	case *ContactCreate:
+		out.Event = &OneOf_ContactCreate{
+			ContactCreate: e,
+		}
+	case *ContactDelete:
+		out.Event = &OneOf_ContactDelete{
+			ContactDelete: e,
+		}
+
+	case *WorkloadIdentityCreate:
+		out.Event = &OneOf_WorkloadIdentityCreate{
+			WorkloadIdentityCreate: e,
+		}
+	case *WorkloadIdentityUpdate:
+		out.Event = &OneOf_WorkloadIdentityUpdate{
+			WorkloadIdentityUpdate: e,
+		}
+	case *WorkloadIdentityDelete:
+		out.Event = &OneOf_WorkloadIdentityDelete{
+			WorkloadIdentityDelete: e,
+		}
+	case *GitCommand:
+		out.Event = &OneOf_GitCommand{
+			GitCommand: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

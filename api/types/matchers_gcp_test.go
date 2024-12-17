@@ -92,12 +92,12 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "wildcard is invalid for project ids",
+			name: "wildcard is valid for project ids",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"*"},
 			},
-			errCheck: isBadParameterErr,
+			errCheck: require.NoError,
 		},
 		{
 			name: "invalid type",

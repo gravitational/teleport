@@ -78,17 +78,6 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
-	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
-		Client:     conf.Client,
-		PluginType: types.PluginTypePagerDuty,
-		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
-			return &common.Recipient{
-				Name: name,
-				ID:   name,
-				Kind: common.RecipientKindSchedule,
-			}, nil
-		},
-	})
 	app.mainJob = lib.NewServiceJob(app.run)
 
 	return app, nil
@@ -182,6 +171,23 @@ func (a *App) init(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	amrhConf := accessmonitoring.RuleHandlerConfig{
+		Client:     a.teleport,
+		PluginType: types.PluginTypePagerDuty,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+	}
+	if a.conf.OnAccessMonitoringRuleCacheUpdateCallback != nil {
+		amrhConf.OnCacheUpdateCallback = a.conf.OnAccessMonitoringRuleCacheUpdateCallback
+	}
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(amrhConf)
 
 	if pong, err = a.checkTeleportVersion(ctx); err != nil {
 		return trace.Wrap(err)
@@ -337,7 +343,7 @@ func (a *App) getNotifyServiceName(ctx context.Context, req types.AccessRequest)
 		return recipientSetService.ToSlice()[0].Name, nil
 	}
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.NotifyService
-	// We cannot use common.GetServiceNamesFromAnnotations here as it sorts the
+	// We cannot use common.GetNamesFromAnnotations here as it sorts the
 	// list and might change the first element.
 	// The proper way would be to support notifying multiple services
 	slice, ok := req.GetSystemAnnotations()[annotationKey]
@@ -356,7 +362,7 @@ func (a *App) getNotifyServiceName(ctx context.Context, req types.AccessRequest)
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.Services
-	return common.GetServiceNamesFromAnnotations(req, annotationKey)
+	return common.GetNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {

@@ -106,19 +106,39 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	return nil
 }
 
-// VerifyACL verifies whether the ACL of the given file allows writes from the
+// VerifyLegacyACL verifies whether the ACL of the given file allows writes from the
 // bot user.
 //
 //nolint:staticcheck // staticcheck does not like our nop implementations.
-func VerifyACL(path string, opts *ACLOptions) error {
+func VerifyLegacyACL(path string, opts *ACLOptions) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
-// ConfigureACL configures ACLs of the given file to allow writes from the bot
+// VerifyACL loads the ACL for the file at the given path and compares it to
+// the expected ACL as determined by the given list of reader selectors,
+// returning a list of issues found. This is not implemented for Windows
+// targets.
+//
+//nolint:staticcheck // staticcheck does not like our nop implementations.
+func VerifyACL(path string, readers []*ACLSelector) ([]string, error) {
+	return nil, trace.NotImplemented("ACLs not supported on this platform")
+}
+
+// ConfigureACL configures a bot-user-owned ACL at the given path such that it
+// can be read by the given list of readers. If the list is empty, appropriate
+// non-ACL permissions will be set to ensure only the bot user can read the
+// file. This is not implemented for Windows targets.
+//
+//nolint:staticcheck // staticcheck does not like our nop implementations.
+func ConfigureACL(path string, readers []*ACLSelector) error {
+	return trace.NotImplemented("ACLs are not supported on this platform")
+}
+
+// ConfigureLegacyACL configures ACLs of the given file to allow writes from the bot
 // user.
 //
 //nolint:staticcheck // staticcheck does not like our nop implementations.
-func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
+func ConfigureLegacyACL(path string, owner *user.User, opts *ACLOptions) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
@@ -137,6 +157,6 @@ func HasSecureWriteSupport() bool {
 
 // IsOwnedBy checks that the file at the given path is owned by the given user.
 // Returns a trace.NotImplemented() on unsupported platforms.
-func IsOwnedBy(_ fs.FileInfo, _ *user.User) (bool, error) {
+func IsOwnedBy(_ fs.FileInfo, _ int) (bool, error) {
 	return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
 }

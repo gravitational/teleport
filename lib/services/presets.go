@@ -28,8 +28,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
@@ -117,9 +119,16 @@ func NewPresetEditorRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+					Local: &types.SSHLocalPortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+				ForwardAgent: types.NewBool(true),
+				BPF:          apidefaults.EnhancedEvents(),
 				RecordSession: &types.RecordSession{
 					Desktop: types.NewBoolOption(false),
 				},
@@ -180,6 +189,13 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAccessGraphSettings, RW()),
 					types.NewRule(types.KindSPIFFEFederation, RW()),
 					types.NewRule(types.KindNotification, RW()),
+					types.NewRule(types.KindStaticHostUser, RW()),
+					types.NewRule(types.KindUserTask, RW()),
+					types.NewRule(types.KindIdentityCenter, RW()),
+					types.NewRule(types.KindContact, RW()),
+					types.NewRule(types.KindWorkloadIdentity, RW()),
+					types.NewRule(types.KindAutoUpdateVersion, RW()),
+					types.NewRule(types.KindAutoUpdateConfig, RW()),
 				},
 			},
 		},
@@ -205,10 +221,17 @@ func NewPresetAccessRole() types.Role {
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+					Local: &types.SSHLocalPortForwarding{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+				ForwardAgent:  types.NewBool(true),
+				BPF:           apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
 				Namespaces:            []string{apidefaults.Namespace},
@@ -558,6 +581,32 @@ func NewSystemOktaRequesterRole() types.Role {
 	return role
 }
 
+// NewSystemIdentityCenterAccessRole creates a role that allows access to AWS
+// IdentityCenter resources via Access Requests
+func NewSystemIdentityCenterAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemIdentityCenterAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access AWS IAM Identity Center resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AccountAssignments: defaultAllowAccountAssignments(true)[teleport.SystemIdentityCenterAccessRoleName],
+			},
+		},
+	}
+}
+
 // NewPresetTerraformProviderRole returns a new pre-defined role for the Teleport Terraform provider.
 // This role can edit any Terraform-supported resource.
 func NewPresetTerraformProviderRole() types.Role {
@@ -575,12 +624,14 @@ func NewPresetTerraformProviderRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				// In Teleport, you can only see what you have access to. To be able to reconcile
-				// Apps, Databases, and Nodes, Terraform must be able to access them all.
+				// Apps, Databases, Dynamic Windows Desktops, and Nodes, Terraform must be able to
+				// access them all.
 				// For Databases and Nodes, Terraform cannot actually access them because it has no
 				// Login/user set.
-				AppLabels:      map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-				NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
 				Rules: []types.Rule{
 					{
@@ -591,6 +642,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindClusterMaintenanceConfig,
 							types.KindClusterNetworkingConfig,
 							types.KindDatabase,
+							types.KindDynamicWindowsDesktop,
 							types.KindDevice,
 							types.KindGithub,
 							types.KindLoginRule,
@@ -603,6 +655,11 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindToken,
 							types.KindTrustedCluster,
 							types.KindUser,
+							types.KindBot,
+							types.KindInstaller,
+							types.KindAccessMonitoringRule,
+							types.KindStaticHostUser,
+							types.KindWorkloadIdentity,
 						},
 						Verbs: RW(),
 					},
@@ -689,6 +746,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 				SearchAsRoles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 			},
 			teleport.SystemOktaRequesterRoleName: {
@@ -712,16 +770,33 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 				PreviewAsRoles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 				Roles: []string{
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
+					teleport.SystemIdentityCenterAccessRoleName,
 				},
 			},
 		}
 	}
 
 	return map[string]*types.AccessReviewConditions{}
+}
+
+func defaultAllowAccountAssignments(enterprise bool) map[string][]types.IdentityCenterAccountAssignment {
+	if enterprise {
+		return map[string][]types.IdentityCenterAccountAssignment{
+			teleport.SystemIdentityCenterAccessRoleName: {
+				{
+					Account:       types.Wildcard,
+					PermissionSet: types.Wildcard,
+				},
+			},
+		}
+	}
+
+	return map[string][]types.IdentityCenterAccountAssignment{}
 }
 
 // AddRoleDefaults adds default role attributes to a preset role.
@@ -825,18 +900,18 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
-	if role.GetAccessRequestConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
-		if arc != nil {
-			role.SetAccessRequestConditions(types.Allow, *arc)
-			changed = true
-		}
+	if roleUpdated := applyAccessRequestConditionDefaults(role, enterprise); roleUpdated {
+		changed = true
 	}
 
-	if role.GetAccessReviewConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
-		if arc != nil {
-			role.SetAccessReviewConditions(types.Allow, *arc)
+	if roleUpdated := applyAccessReviewConditionDefaults(role, enterprise); roleUpdated {
+		changed = true
+	}
+
+	if len(role.GetIdentityCenterAccountAssignments(types.Allow)) == 0 {
+		assignments := defaultAllowAccountAssignments(enterprise)[role.GetName()]
+		if assignments != nil {
+			role.SetIdentityCenterAccountAssignments(types.Allow, assignments)
 			changed = true
 		}
 	}
@@ -846,6 +921,72 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	}
 
 	return role, nil
+}
+
+func mergeStrings(dst, src []string) (merged []string, changed bool) {
+	items := utils.NewSet[string](dst...)
+	items.Add(src...)
+	if len(items) == len(dst) {
+		return dst, false
+	}
+	dst = items.Elements()
+	slices.Sort(dst)
+	return dst, true
+}
+
+func applyAccessRequestConditionDefaults(role types.Role, enterprise bool) bool {
+	defaults := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
+	if defaults == nil {
+		return false
+	}
+
+	target := role.GetAccessRequestConditions(types.Allow)
+	changed := false
+	if target.IsEmpty() {
+		target = *defaults
+		changed = true
+	} else {
+		var rolesUpdated bool
+
+		target.Roles, rolesUpdated = mergeStrings(target.Roles, defaults.Roles)
+		changed = changed || rolesUpdated
+
+		target.SearchAsRoles, rolesUpdated = mergeStrings(target.SearchAsRoles, defaults.SearchAsRoles)
+		changed = changed || rolesUpdated
+	}
+
+	if changed {
+		role.SetAccessRequestConditions(types.Allow, target)
+	}
+
+	return changed
+}
+
+func applyAccessReviewConditionDefaults(role types.Role, enterprise bool) bool {
+	defaults := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
+	if defaults == nil {
+		return false
+	}
+
+	target := role.GetAccessReviewConditions(types.Allow)
+	changed := false
+	if target.IsEmpty() {
+		target = *defaults
+		changed = true
+	} else {
+		var rolesUpdated bool
+
+		target.Roles, rolesUpdated = mergeStrings(target.Roles, defaults.Roles)
+		changed = changed || rolesUpdated
+
+		target.PreviewAsRoles, rolesUpdated = mergeStrings(target.PreviewAsRoles, defaults.PreviewAsRoles)
+		changed = changed || rolesUpdated
+	}
+
+	if changed {
+		role.SetAccessReviewConditions(types.Allow, target)
+	}
+	return changed
 }
 
 func labelMatchersUnset(role types.Role, kind string) (bool, error) {

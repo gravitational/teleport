@@ -36,13 +36,13 @@ auth_service:
 </TabItem>
 <TabItem label="Cloud-Hosted" scope={["cloud","team"]}>
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-In `cap.yaml`, ensure that the value of `spec.second_factor` is `otp`,
+In the resource, ensure that the value of `spec.second_factor` is `otp`,
 `webauthn`, or `on`:
 
 ```yaml
@@ -54,11 +54,7 @@ spec:
   second_factor: "otp"
 ```
 
-Apply your change:
-
-```code
-$ tctl create -f cap.yaml
-```
+Apply your change by saving and closing the file in your editor.
 
 </TabItem>
 </Tabs>
@@ -284,7 +280,7 @@ Two `user`s can grant elevated privileges to another `user` temporarily without 
 - [Per-session MFA](../../access-controls/guides/per-session-mfa.mdx)
 - [Dual authorization](../../access-controls/guides/dual-authz.mdx)
 - [Role templates, allow/deny rules, and traits](../../access-controls/guides/role-templates.mdx)
-- [Access Requests](../../access-controls/access-requests.mdx)
+- [Access Requests](../../access-controls/access-requests/access-requests.mdx)
 
 ### Background reading
 - [Authentication connectors](../../../reference/access-controls/authentication.mdx)

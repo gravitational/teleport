@@ -362,7 +362,7 @@ export class WindowsManager {
  * */
 function getWindowUrl(isDev: boolean): string {
   if (isDev) {
-    return 'https://localhost:8080/';
+    return 'http://localhost:8080/';
   }
 
   // The returned URL is percent-encoded.

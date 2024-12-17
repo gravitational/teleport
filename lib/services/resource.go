@@ -175,7 +175,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
-	case types.KindDatabaseServer:
+	case types.KindDatabaseServer, "db_servers":
 		return types.KindDatabaseServer, nil
 	case types.KindNetworkRestrictions:
 		return types.KindNetworkRestrictions, nil
@@ -185,10 +185,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindApp, nil
 	case types.KindAppServer, "app_servers":
 		return types.KindAppServer, nil
-	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
+	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service", "windows_desktop_services":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
 		return types.KindWindowsDesktop, nil
+	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
+		return types.KindDynamicWindowsDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:
@@ -243,6 +245,20 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessGraphSettings, nil
 	case types.KindSPIFFEFederation, types.KindSPIFFEFederation + "s":
 		return types.KindSPIFFEFederation, nil
+	case types.KindWorkloadIdentity, types.KindWorkloadIdentity + "s", "workload_identities", "workloadidentity", "workloadidentities", "workloadidentitys":
+		return types.KindWorkloadIdentity, nil
+	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
+		return types.KindStaticHostUser, nil
+	case types.KindUserTask, types.KindUserTask + "s":
+		return types.KindUserTask, nil
+	case types.KindAutoUpdateConfig:
+		return types.KindAutoUpdateConfig, nil
+	case types.KindAutoUpdateVersion:
+		return types.KindAutoUpdateVersion, nil
+	case types.KindAutoUpdateAgentRollout:
+		return types.KindAutoUpdateAgentRollout, nil
+	case types.KindGitServer, types.KindGitServer + "s":
+		return types.KindGitServer, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

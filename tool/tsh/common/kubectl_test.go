@@ -19,7 +19,7 @@
 package common
 
 import (
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
@@ -112,7 +113,7 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 
 			var localProxyCreated bool
 			var loadedKubeClusters kubeconfig.LocalProxyClusters
-			wantLocalProxyKubeConfigLocation := path.Join(tshHome, uuid.NewString())
+			wantLocalProxyKubeConfigLocation := filepath.Join(tshHome, uuid.NewString())
 
 			closeFn, actualKubeConfigLocation, err := maybeStartKubeLocalProxy(cf,
 				withKubectlArgs(test.inputArgs),
@@ -265,16 +266,18 @@ func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
 }
 
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
-	kubeconfigLocation := path.Join(tshHome, "kubeconfig")
-	priv, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
+	kubeconfigLocation := filepath.Join(tshHome, "kubeconfig")
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	require.NoError(t, err)
 	err = kubeconfig.Update(kubeconfigLocation, kubeconfig.Values{
 		TeleportClusterName: "localhost",
 		ClusterAddr:         "https://localhost:443",
 		KubeClusters:        []string{kubeCluster},
 		Credentials: &client.KeyRing{
-			PrivateKey: priv,
-			TLSCert:    []byte(fixtures.TLSCACertPEM),
+			TLSPrivateKey: priv,
+			TLSCert:       []byte(fixtures.TLSCACertPEM),
 			TrustedCerts: []authclient.TrustedCerts{{
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},

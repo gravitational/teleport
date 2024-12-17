@@ -27,7 +27,7 @@ import {
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { OnboardCard } from 'teleport/components/Onboard';
 
 import { SliderProps, UseTokenState } from './types';
 

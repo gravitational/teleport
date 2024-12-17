@@ -91,7 +91,9 @@ export function ReviewAccessRequest(props: {
         </HeaderTitle>
       </Header>
       {assumeRoleAttempt.status === 'error' && (
-        <Alert kind="danger" children={assumeRoleAttempt.statusText} />
+        <Alert kind="danger" details={assumeRoleAttempt.statusText}>
+          Could not assume the role
+        </Alert>
       )}
       <RequestView
         user={user?.name}

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Flex, Text, ButtonIcon, ButtonText } from 'design';
 import { Plus, Trash } from 'design/Icon';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -206,7 +205,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"

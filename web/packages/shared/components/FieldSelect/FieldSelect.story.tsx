@@ -24,10 +24,28 @@ import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
+import {
+  FieldSelectCreatable,
+  FieldSelectCreatableAsync,
+} from './FieldSelectCreatable';
 
 export default {
   title: 'Shared/FieldSelect',
 };
+
+function noPenguinsAllowed(opt: Option) {
+  return () =>
+    opt.value !== 'linux'
+      ? { valid: true }
+      : { valid: false, message: 'No penguins allowed' };
+}
+
+function noPenguinsAllowedInArray(opt: Option[]) {
+  return () =>
+    opt.every(o => o.value !== 'linux')
+      ? { valid: true }
+      : { valid: false, message: 'No penguins allowed' };
+}
 
 export function Default() {
   const [selectedOption, setSelectedOption] = useState<Option>(OPTIONS[0]);
@@ -35,25 +53,24 @@ export function Default() {
   return (
     <Validation>
       {({ validator }) => {
-        validator.validate();
+        // Prevent rendering loop.
+        if (!validator.state.validating) {
+          validator.validate();
+        }
         return (
           <Flex flexDirection="column">
             <FieldSelect
               label="FieldSelect with search"
-              onChange={option => setSelectedOption(option as Option)}
+              onChange={option => setSelectedOption(option)}
               value={selectedOption}
               isSearchable
               options={OPTIONS}
+              helperText="And a helper text"
             />
             <FieldSelect
               label="FieldSelect with validation rule"
-              onChange={option => setSelectedOption(option as Option)}
-              rule={opt => {
-                return () =>
-                  opt.value !== 'linux'
-                    ? { valid: true }
-                    : { valid: false, message: 'No penguins allowed' };
-              }}
+              onChange={option => setSelectedOption(option)}
+              rule={noPenguinsAllowed}
               value={selectedOption}
               options={OPTIONS}
             />
@@ -66,7 +83,19 @@ export function Default() {
             />
             <FieldSelectAsync
               label="FieldSelectAsync with search"
-              onChange={option => setSelectedOption(option as Option)}
+              onChange={option => setSelectedOption(option)}
+              value={selectedOption}
+              isSearchable
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with search and validation rule"
+              onChange={option => setSelectedOption(option)}
+              rule={noPenguinsAllowed}
               value={selectedOption}
               isSearchable
               loadOptions={async input => {
@@ -94,6 +123,36 @@ export function Default() {
               loadOptions={async () => {
                 await wait(400);
                 return [];
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectCreatable
+              label="FieldSelectCreatable, multi-select"
+              isMulti
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              options={OPTIONS}
+            />
+            <FieldSelectCreatable
+              label="FieldSelectCreatable, multi-select, with validation rule"
+              isMulti
+              rule={noPenguinsAllowedInArray}
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              options={OPTIONS}
+            />
+            <FieldSelectCreatableAsync
+              label="FieldSelectCreatableAsync, multi-select"
+              isMulti
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              defaultOptions={true}
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
               }}
               noOptionsMessage={() => 'No options'}
             />

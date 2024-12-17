@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -41,8 +42,6 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -64,6 +63,7 @@ type podHandler struct {
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
 	log                 *logrus.Entry
+	logger              *slog.Logger
 	userClient          authclient.ClientI
 	localCA             types.CertAuthority
 
@@ -209,7 +209,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	})
 
 	// Start sending ping frames through websocket to the client.
-	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.log, p.Close)
+	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.logger, p.Close)
 
 	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
@@ -241,19 +241,13 @@ func (p *podHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
-			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: p.sctx.cfg.RootClusterName == p.teleportCluster,
+		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},
-		},
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: &certsReq,
 	})

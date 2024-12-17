@@ -59,6 +59,7 @@ export function getDbMeta(): DbMeta {
         rds: {
           region: 'us-east-1',
           vpcId: 'test-vpc',
+          securityGroups: ['sg-1', 'sg-2'],
           resourceId: 'some-rds-resource-id',
           subnets: [],
         },
@@ -77,12 +78,13 @@ export function getDbMeta(): DbMeta {
       region: 'us-east-1',
       engine: 'postgres',
       name: 'rds-1',
-      uri: '',
+      uri: 'example.abc123.ca-central-1.rds.amazonaws.com:3306',
       resourceId: 'some-rds-resource-id',
       accountId: '1234',
       labels: [],
       subnets: [],
       vpcId: '',
+      securityGroups: ['sg-1', 'sg-2'],
       status: 'available',
     },
     awsIntegration: {

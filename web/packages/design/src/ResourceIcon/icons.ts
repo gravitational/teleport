@@ -27,6 +27,8 @@ import algoliaDark from './assets/algolia-dark.svg';
 import algoliaLight from './assets/algolia-light.svg';
 import altisalesDark from './assets/altisales-dark.svg';
 import altisalesLight from './assets/altisales-light.svg';
+import ansibleDark from './assets/ansible-dark.svg';
+import ansibleLight from './assets/ansible-light.svg';
 import anthem from './assets/anthem.svg';
 import apolloIoDark from './assets/apollo.io-dark.svg';
 import apolloIoLight from './assets/apollo.io-light.svg';
@@ -40,9 +42,12 @@ import atlassianbitbucket from './assets/atlassianbitbucket.svg';
 import atlassianjiraservicemanagement from './assets/atlassianjiraservicemanagement.svg';
 import atlassianstatuspage from './assets/atlassianstatuspage.svg';
 import atlassian from './assets/atlassian.svg';
+import auth0Dark from './assets/auth0-dark.svg';
+import auth0Light from './assets/auth0-light.svg';
 import avalara from './assets/avalara.svg';
 import awsDark from './assets/aws-dark.svg';
 import awsLight from './assets/aws-light.svg';
+import awsAccount from './assets/aws-account.svg';
 import azure from './assets/azure.svg';
 import bill from './assets/bill.svg';
 import bonusly from './assets/bonusly.svg';
@@ -105,6 +110,7 @@ import eks from './assets/eks.svg';
 import elastic from './assets/elastic.svg';
 import emailDark from './assets/email-dark.svg';
 import emailLight from './assets/email-light.svg';
+import entraid from './assets/entra-id.svg';
 import eventbrite from './assets/eventbrite.svg';
 import excalidraw from './assets/excalidraw.svg';
 import figma from './assets/figma.svg';
@@ -205,6 +211,8 @@ import oasisopen from './assets/oasisopen.svg';
 import oktaDark from './assets/okta-dark.svg';
 import oktaLight from './assets/okta-light.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
+import oneloginDark from './assets/onelogin-dark.svg';
+import oneloginLight from './assets/onelogin-light.svg';
 import onepasswordDark from './assets/onepassword-dark.svg';
 import onepasswordLight from './assets/onepassword-light.svg';
 import opencomp from './assets/opencomp.svg';
@@ -306,6 +314,8 @@ export {
   algoliaLight,
   altisalesDark,
   altisalesLight,
+  ansibleDark,
+  ansibleLight,
   anthem,
   apolloIoDark,
   apolloIoLight,
@@ -319,9 +329,12 @@ export {
   atlassianjiraservicemanagement,
   atlassianstatuspage,
   atlassian,
+  auth0Dark,
+  auth0Light,
   avalara,
   awsDark,
   awsLight,
+  awsAccount,
   azure,
   bill,
   bonusly,
@@ -384,6 +397,7 @@ export {
   elastic,
   emailDark,
   emailLight,
+  entraid,
   eventbrite,
   excalidraw,
   figma,
@@ -484,6 +498,8 @@ export {
   oktaDark,
   oktaLight,
   onehundredonedomain,
+  oneloginDark,
+  oneloginLight,
   onepasswordDark,
   onepasswordLight,
   opencomp,

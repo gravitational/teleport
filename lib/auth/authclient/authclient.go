@@ -23,10 +23,10 @@ package authclient
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
@@ -44,7 +44,7 @@ type Config struct {
 	// AuthServers is a list of possible auth or proxy server addresses.
 	AuthServers []utils.NetAddr
 	// Log sets the logger for the client to use.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// CircuitBreakerConfig is the configuration for the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
@@ -60,7 +60,7 @@ type Config struct {
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
 func Connect(ctx context.Context, cfg *Config) (*Client, error) {
-	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
+	cfg.Log.DebugContext(ctx, "Auth client connecting", "auth_servers", cfg.AuthServers)
 
 	directClient, err := connectViaAuthDirect(ctx, cfg)
 	if err == nil {

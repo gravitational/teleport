@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"math"
 	"net/http"
@@ -42,15 +43,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -59,6 +61,7 @@ import (
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 const (
@@ -146,6 +149,12 @@ type Config struct {
 
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool
+
+	// CredentialsProvider if supplied is used to override the credentials source.
+	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -200,13 +209,17 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
+	}
+
 	return nil
 }
 
 // Log is a dynamo-db backed storage of events
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
+	// logger is emits log messages
+	logger *slog.Logger
 	// Config is a backend configuration
 	Config
 	svc *dynamodb.Client
@@ -259,10 +272,8 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
-	})
-	l.Info("Initializing event backend.")
+	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
+	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -282,24 +293,36 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+	}
+
+	resolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
-
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(resolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		u, err := url.Parse(cfg.Endpoint)
-		if err != nil {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
@@ -311,25 +334,28 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		})
 	}
 
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
-		Entry:  l,
+		logger: l,
 		Config: cfg,
-		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
+		svc:    client,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	l.InfoContext(ctx, "Connection established to DynamoDB events database",
+		"table", cfg.Tablename,
+		"region", cfg.Region,
+	)
+
 	return b, nil
-}
-
-type staticResolver struct {
-	endpoint *url.URL
-}
-
-func (s *staticResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	return smithyendpoints.Endpoint{URI: *s.endpoint}, nil
 }
 
 type tableStatus int
@@ -500,8 +526,7 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
 		return trace.BadParameter(err.Error())
 	}
-	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
-	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
@@ -518,7 +543,7 @@ func (l *Log) handleConditionError(ctx context.Context, err error, sessionID str
 	if err := l.putAuditEvent(context.WithValue(ctx, conflictHandledContextKey, true), sessionID, in); err != nil {
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}).Debug("Event index overwritten")
+	l.logger.InfoContext(ctx, "Event index overwritten.", "event_id", in.GetID(), "event_type", in.GetType())
 	return nil
 }
 
@@ -538,11 +563,11 @@ func isAWSValidationError(err error) bool {
 }
 
 func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
-	m, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, false
+	trimmedEvent := event.TrimToMaxSize(maxItemSize)
+	if trimmedEvent.Size() >= maxItemSize {
+		return trimmedEvent, false
 	}
-	return m.TrimToMaxSize(maxItemSize), true
+	return trimmedEvent, true
 }
 
 // putAuditEventContextKey represents context keys of putAuditEvent.
@@ -576,11 +601,18 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			l.
-				WithError(err).
-				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
-				Error("Conflict on event session_id and event_index")
-			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
+			if err2 := l.handleConditionError(ctx, err, sessionID, in); err2 != nil {
+				// Only log about the original conflict if updating
+				// the session information fails.
+				l.logger.ErrorContext(ctx, "Conflict on event session_id and event_index",
+					"error", err,
+					"event_type", in.GetType(),
+					"session_id", sessionID,
+					"event_index", in.GetIndex())
+				return trace.Wrap(err2)
+			}
+
+			return nil
 		}
 
 		return err
@@ -619,10 +651,6 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}
 
 	return input, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 func (l *Log) setExpiry(e *event) {
@@ -704,6 +732,14 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 
 	sort.Sort(toSort)
 	return eventArr, lastKey, nil
+}
+
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
 }
 
 // ByTimeAndIndex sorts events by time
@@ -824,15 +860,15 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	logger := l.WithFields(log.Fields{
-		"From":      fromUTC,
-		"To":        toUTC,
-		"Namespace": namespace,
-		"Filter":    filter,
-		"Limit":     limit,
-		"StartKey":  startKey,
-		"Order":     order,
-	})
+	logger := l.logger.With(
+		"from", fromUTC,
+		"to", toUTC,
+		"namespace", namespace,
+		"filter", filter,
+		"limit", limit,
+		"start_key", startKey,
+		"order", order,
+	)
 
 	ef := eventsFetcher{
 		log:        logger,
@@ -902,7 +938,7 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	if startKey == "" {
 		return checkpoint, nil
 	}
-	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
@@ -1116,14 +1152,14 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Waiting until table %q is created", tableName)
+	l.logger.InfoContext(ctx, "Waiting until table is created", "table", tableName)
 	waiter := dynamodb.NewTableExistsWaiter(l.svc)
 	err = waiter.Wait(ctx,
 		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
 		10*time.Minute,
 	)
 	if err == nil {
-		log.Infof("Table %q has been created", tableName)
+		l.logger.InfoContext(ctx, "Table has been created", "table", tableName)
 	}
 
 	return trace.Wrap(err)
@@ -1243,7 +1279,7 @@ type query interface {
 }
 
 type eventsFetcher struct {
-	log *log.Entry
+	log *slog.Logger
 	api query
 
 	totalSize  int
@@ -1384,12 +1420,12 @@ dateLoop:
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			l.log.WithFields(log.Fields{
-				"duration": time.Since(start),
-				"items":    len(out.Items),
-				"forward":  l.forward,
-				"iterator": l.checkpoint.Iterator,
-			}).Debugf("Query completed.")
+			l.log.DebugContext(ctx, "Query completed.",
+				"duration", time.Since(start),
+				"items", len(out.Items),
+				"forward", l.forward,
+				"iterator", l.checkpoint.Iterator,
+			)
 
 			hasLeft := func() bool {
 				return i+1 != len(l.dates)
@@ -1465,12 +1501,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l.log.WithFields(log.Fields{
-		"duration": time.Since(start),
-		"items":    len(out.Items),
-		"forward":  l.forward,
-		"iterator": l.checkpoint.Iterator,
-	}).Debugf("Query completed.")
+	l.log.DebugContext(ctx, "Query completed.",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"forward", l.forward,
+		"iterator", l.checkpoint.Iterator,
+	)
 
 	result, limitReached, err := l.processQueryOutput(out, nil)
 	if err != nil {

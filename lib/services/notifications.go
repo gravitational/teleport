@@ -44,6 +44,7 @@ type Notifications interface {
 	DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error
 	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
+	ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
 	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error)
 	GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error)
 	DeleteUserLastSeenNotification(ctx context.Context, username string) error

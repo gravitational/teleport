@@ -19,5 +19,6 @@
 import darkTheme from './themes/darkTheme';
 import lightTheme from './themes/lightTheme';
 import bblpTheme from './themes/bblpTheme';
+export * from './themes/types';
 
 export { darkTheme, lightTheme, bblpTheme };

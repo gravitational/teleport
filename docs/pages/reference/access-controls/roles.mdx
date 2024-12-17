@@ -12,6 +12,7 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
+- Deny rules should be avoided on roles granted through Access Lists.
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -22,7 +23,7 @@ resources:
 - [Custom API clients](../../admin-guides/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../../admin-guides/infrastructure-as-code.mdx) guide.
+Resources](../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -68,10 +69,11 @@ user:
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
+| `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
-| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
+| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles
 
@@ -434,13 +436,16 @@ All of these are fields within the `allow` and `deny` sections of a Teleport
 role resource.
 
 Labels for resources enrolled with Teleport:
-- `app_labels`
-- `cluster_labels`
-- `db_labels`
-- `db_service_labels`
-- `kubernetes_labels`
-- `node_labels`
-- `windows_desktop_labels`
+
+|Role Field|Teleport Resource|
+|---|---|
+|`app_labels`|[Applications](../../enroll-resources/application-access/controls.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../admin-guides/management/admin/trustedclusters.mdx)|
+|`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
+|`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
+|`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
+|`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
+|`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -556,7 +561,6 @@ logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
 
-
 In role templates, you can refer to these variables using the following two
 formats, where `trait` is the name of the trait:
 
@@ -569,6 +573,13 @@ attribute or OIDC claim called `trait`.
 You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
 syntax to specify a trait.
+
+When using Microsoft Entra ID or ADFS as your IdP, you must use bracket notation, as these
+IdPs assign attribute keys to URLs such as the following:
+
+```text
+http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname
+```
 
 Common examples of external traits available through an identity provider
 include the following:

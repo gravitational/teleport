@@ -19,8 +19,6 @@
 package authz
 
 import (
-	"sync"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -28,7 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/devicetrust/config"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -61,6 +59,28 @@ func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
 		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
 }
 
+// HasDeviceTrustExtensions returns true if the certificate's extension names
+// include all the required device-related extensions.
+// Unlike IsSSHDeviceVerified, this function operates on a list of extensions,
+// such as those in lib/client.ProfileStatus.Extensions.
+func HasDeviceTrustExtensions(extensions []string) bool {
+	hasCertExtensionDeviceID := false
+	hasCertExtensionDeviceAssetTag := false
+	hasCertExtensionDeviceCredentialID := false
+	for _, extension := range extensions {
+		switch extension {
+		case teleport.CertExtensionDeviceID:
+			hasCertExtensionDeviceID = true
+		case teleport.CertExtensionDeviceAssetTag:
+			hasCertExtensionDeviceAssetTag = true
+		case teleport.CertExtensionDeviceCredentialID:
+			hasCertExtensionDeviceCredentialID = true
+		}
+	}
+
+	return hasCertExtensionDeviceAssetTag && hasCertExtensionDeviceID && hasCertExtensionDeviceCredentialID
+}
+
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
 func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {
@@ -73,9 +93,7 @@ func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {
 }
 
 func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified bool) error {
-	mode := config.GetEffectiveMode(dt)
-	maybeLogModeMismatch(mode, dt)
-
+	mode := dtconfig.GetEnforcementMode(dt)
 	switch {
 	case mode != constants.DeviceTrustModeRequired:
 		return nil // OK, extensions not enforced.
@@ -87,16 +105,4 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified boo
 	default:
 		return nil
 	}
-}
-
-var logModeOnce sync.Once
-
-func maybeLogModeMismatch(effective string, dt *types.DeviceTrust) {
-	if dt == nil || dt.Mode == "" || effective == dt.Mode {
-		return
-	}
-
-	logModeOnce.Do(func() {
-		log.Warnf("Device Trust: mode %q requires Teleport Enterprise. Using effective mode %q.", dt.Mode, effective)
-	})
 }

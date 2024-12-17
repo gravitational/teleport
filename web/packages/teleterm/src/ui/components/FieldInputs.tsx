@@ -18,16 +18,12 @@
 
 import FieldInput from 'shared/components/FieldInput';
 import styled from 'styled-components';
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { FieldInputProps } from 'shared/components/FieldInput';
 
-export const ConfigFieldInput = styled(FieldInput)`
-  input {
-    background: inherit;
-    font-size: 14px;
-    height: 34px;
-  }
-`;
+export const ConfigFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
+  (props, ref) => <FieldInput size="small" ref={ref} {...props} />
+);
 
 const ConfigFieldInputWithoutStepper = styled(ConfigFieldInput)`
   input {

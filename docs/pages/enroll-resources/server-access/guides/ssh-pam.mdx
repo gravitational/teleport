@@ -82,9 +82,9 @@ as `service_name` above.
 
 ## Get and set environment variables for PAM modules
 
-Teleport supports setting arbitrary environment variables for PAM modules as of
-version 6.1. These variables can also be role-style SSO claims in the form
-`{{ external.email }}`, where `email` is a claim made by the configured SSO IdP.
+Teleport supports setting arbitrary environment variables for PAM modules. These
+variables can also be role-style SSO claims in the form `{{ external.email }}`,
+where `email` is a claim made by the configured SSO IdP.
 
 To set custom environment variables, update `/etc/teleport.yaml` with:
 

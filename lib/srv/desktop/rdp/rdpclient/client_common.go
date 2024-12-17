@@ -61,6 +61,10 @@ type Config struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
+
 	// Width and Height optionally override the dimensions received from
 	// the browser and force the session to use a particular size.
 	Width, Height uint32

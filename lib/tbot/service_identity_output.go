@@ -25,11 +25,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -40,14 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// sshConfigProxyModeEnv is the environment variable that controls whether or
-// not to use the new proxy command.
-// It supports:
-// - "legacy" (default in v15): use the legacy proxy command
-// - "new" (default in v16): use the new proxy command
-// In v17, it will be removed.
-const sshConfigProxyModeEnv = "TBOT_SSH_CONFIG_PROXY_COMMAND_MODE"
 
 // IdentityOutputService produces credentials which can be used to connect to
 // Teleport's API or SSH.
@@ -66,7 +56,6 @@ type IdentityOutputService struct {
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath   func() (string, error)
-	getEnv           func(key string) string
 	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 }
 
@@ -186,13 +175,12 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		}
 		if err := renderSSHConfig(
 			ctx,
+			s.log,
 			proxyPing,
 			clusterNames,
 			s.cfg.Destination,
 			s.botAuthClient,
 			s.executablePath,
-			openssh.GetSystemSSHVersion,
-			s.getEnv,
 			s.alpnUpgradeCache,
 			s.botCfg,
 		); err != nil {
@@ -249,13 +237,12 @@ type alpnTester interface {
 
 func renderSSHConfig(
 	ctx context.Context,
-	proxyPing *webclient.PingResponse,
+	log *slog.Logger,
+	proxyPing *proxyPingResponse,
 	clusterNames []string,
 	dest bot.Destination,
 	certAuthGetter certAuthGetter,
 	getExecutablePath func() (string, error),
-	getOpenSSHVersion func() (*semver.Version, error),
-	getEnv func(key string) string,
 	alpnTester alpnTester,
 	botCfg *config.BotConfig,
 ) error {
@@ -265,17 +252,22 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return trace.Wrap(err, "determining proxy web addr")
+	}
+
+	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(
 			"proxy %+v has no usable public address: %v",
-			proxyPing.Proxy.SSH.PublicAddr, err,
+			proxyAddr, err,
 		)
 	}
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
-	knownHosts, err := ssh.GenerateKnownHosts(
+	knownHosts, clusterKnownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		certAuthGetter,
 		clusterNames,
@@ -317,15 +309,53 @@ func renderSSHConfig(
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
-	sshConf := openssh.NewSSHConfig(getOpenSSHVersion, nil)
+	// Test if ALPN upgrade is required, this will only be necessary if we
+	// are using TLS routing.
+	connUpgradeRequired := false
+	if proxyPing.Proxy.TLSRoutingEnabled {
+		connUpgradeRequired, err = alpnTester.isUpgradeRequired(
+			ctx, proxyAddr, botCfg.Insecure,
+		)
+		if err != nil {
+			return trace.Wrap(err, "determining if ALPN upgrade is required")
+		}
+	}
 
-	if getEnv(sshConfigProxyModeEnv) == "legacy" {
-		// Deprecated: this block will be removed in v17. It exists so users can
-		// revert to the old behavior if necessary.
-		// TODO(strideynet) DELETE IN 17.0.0
-		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+	// Generate SSH config
+	if err := openssh.WriteSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+		AppName:             openssh.TbotApp,
+		ClusterNames:        clusterNames,
+		KnownHostsPath:      knownHostsPath,
+		IdentityFilePath:    identityFilePath,
+		CertificateFilePath: certificateFilePath,
+		ProxyHost:           proxyHost,
+		ProxyPort:           proxyPort,
+		ExecutablePath:      executablePath,
+		DestinationDir:      absDestPath,
+
+		PureTBotProxyCommand: true,
+		Insecure:             botCfg.Insecure,
+		FIPS:                 botCfg.FIPS,
+		TLSRouting:           proxyPing.Proxy.TLSRoutingEnabled,
+		ConnectionUpgrade:    connUpgradeRequired,
+		// Session resumption is enabled by default, this can be
+		// configurable at a later date if we discover reasons for this to
+		// be disabled.
+		Resume: true,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Generate the per cluster files
+	for _, clusterName := range clusterNames {
+		sshConfigName := fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)
+		knownHostsName := fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)
+		knownHostsPath := filepath.Join(absDestPath, knownHostsName)
+
+		sb := &strings.Builder{}
+		if err := openssh.WriteClusterSSHConfig(sb, &openssh.ClusterSSHConfigParameters{
 			AppName:             openssh.TbotApp,
-			ClusterNames:        clusterNames,
+			ClusterName:         clusterName,
 			KnownHostsPath:      knownHostsPath,
 			IdentityFilePath:    identityFilePath,
 			CertificateFilePath: certificateFilePath,
@@ -333,45 +363,32 @@ func renderSSHConfig(
 			ProxyPort:           proxyPort,
 			ExecutablePath:      executablePath,
 			DestinationDir:      absDestPath,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		// Test if ALPN upgrade is required, this will only be necessary if we
-		// are using TLS routing.
-		connUpgradeRequired := false
-		if proxyPing.Proxy.TLSRoutingEnabled {
-			connUpgradeRequired, err = alpnTester.isUpgradeRequired(
-				ctx, proxyPing.Proxy.SSH.PublicAddr, botCfg.Insecure,
-			)
-			if err != nil {
-				return trace.Wrap(err, "determining if ALPN upgrade is required")
-			}
-		}
 
-		// Generate SSH config
-		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-			AppName:             openssh.TbotApp,
-			ClusterNames:        clusterNames,
-			KnownHostsPath:      knownHostsPath,
-			IdentityFilePath:    identityFilePath,
-			CertificateFilePath: certificateFilePath,
-			ProxyHost:           proxyHost,
-			ProxyPort:           proxyPort,
-			ExecutablePath:      executablePath,
-			DestinationDir:      absDestPath,
-
-			PureTBotProxyCommand: true,
-			Insecure:             botCfg.Insecure,
-			FIPS:                 botCfg.FIPS,
-			TLSRouting:           proxyPing.Proxy.TLSRoutingEnabled,
-			ConnectionUpgrade:    connUpgradeRequired,
-
+			Insecure:          botCfg.Insecure,
+			FIPS:              botCfg.FIPS,
+			TLSRouting:        proxyPing.Proxy.TLSRoutingEnabled,
+			ConnectionUpgrade: connUpgradeRequired,
 			// Session resumption is enabled by default, this can be
 			// configurable at a later date if we discover reasons for this to
 			// be disabled.
 			Resume: true,
 		}); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := destDirectory.Write(ctx, sshConfigName, []byte(sb.String())); err != nil {
+			return trace.Wrap(err)
+		}
+
+		knownHosts, ok := clusterKnownHosts[clusterName]
+		if !ok {
+			log.WarnContext(
+				ctx,
+				"No generated known_hosts for cluster, will skip",
+				"cluster", clusterName,
+			)
+			continue
+		}
+		if err := destDirectory.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
 			return trace.Wrap(err)
 		}
 	}

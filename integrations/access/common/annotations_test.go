@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func TestGetServiceNamesFromAnnotations(t *testing.T) {
+func TestGetNamesFromAnnotations(t *testing.T) {
 	testAnnotationKey := "test-key"
 	tests := []struct {
 		name        string
@@ -75,7 +75,7 @@ func TestGetServiceNamesFromAnnotations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := &types.AccessRequestV3{Spec: types.AccessRequestSpecV3{SystemAnnotations: tt.annotations}}
-			got, err := GetServiceNamesFromAnnotations(request, testAnnotationKey)
+			got, err := GetNamesFromAnnotations(request, testAnnotationKey)
 			tt.assertErr(t, err)
 			require.ElementsMatch(t, tt.want, got)
 		})

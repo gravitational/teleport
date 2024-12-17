@@ -24,7 +24,7 @@ import init, {
 } from 'teleport/ironrdp/pkg/ironrdp';
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
@@ -57,7 +57,7 @@ import type {
   SyncKeys,
   SharedDirectoryTruncateResponse,
 } from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+import type { WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -93,7 +93,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -220,8 +220,8 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
-        case MessageType.NOTIFICATION:
-          this.handleTdpNotification(buffer);
+        case MessageType.ALERT:
+          this.handleTdpAlert(buffer);
           break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
@@ -297,17 +297,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleTdpNotification(buffer: ArrayBuffer) {
-    const notification = this.codec.decodeNotification(buffer);
-    if (notification.severity === Severity.Error) {
-      this.handleError(
-        new Error(notification.message),
-        TdpClientEvent.TDP_ERROR
-      );
-    } else if (notification.severity === Severity.Warning) {
-      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+  handleTdpAlert(buffer: ArrayBuffer) {
+    const alert = this.codec.decodeAlert(buffer);
+    // TODO(zmb3): info and warning should use the same handler
+    if (alert.severity === Severity.Error) {
+      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+    } else if (alert.severity === Severity.Warning) {
+      this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
-      this.handleInfo(notification.message);
+      this.handleInfo(alert.message);
     }
   }
 
@@ -376,7 +374,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(

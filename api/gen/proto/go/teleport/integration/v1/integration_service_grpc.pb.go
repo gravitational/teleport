@@ -35,13 +35,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IntegrationService_ListIntegrations_FullMethodName      = "/teleport.integration.v1.IntegrationService/ListIntegrations"
-	IntegrationService_GetIntegration_FullMethodName        = "/teleport.integration.v1.IntegrationService/GetIntegration"
-	IntegrationService_CreateIntegration_FullMethodName     = "/teleport.integration.v1.IntegrationService/CreateIntegration"
-	IntegrationService_UpdateIntegration_FullMethodName     = "/teleport.integration.v1.IntegrationService/UpdateIntegration"
-	IntegrationService_DeleteIntegration_FullMethodName     = "/teleport.integration.v1.IntegrationService/DeleteIntegration"
-	IntegrationService_DeleteAllIntegrations_FullMethodName = "/teleport.integration.v1.IntegrationService/DeleteAllIntegrations"
-	IntegrationService_GenerateAWSOIDCToken_FullMethodName  = "/teleport.integration.v1.IntegrationService/GenerateAWSOIDCToken"
+	IntegrationService_ListIntegrations_FullMethodName                 = "/teleport.integration.v1.IntegrationService/ListIntegrations"
+	IntegrationService_GetIntegration_FullMethodName                   = "/teleport.integration.v1.IntegrationService/GetIntegration"
+	IntegrationService_CreateIntegration_FullMethodName                = "/teleport.integration.v1.IntegrationService/CreateIntegration"
+	IntegrationService_UpdateIntegration_FullMethodName                = "/teleport.integration.v1.IntegrationService/UpdateIntegration"
+	IntegrationService_DeleteIntegration_FullMethodName                = "/teleport.integration.v1.IntegrationService/DeleteIntegration"
+	IntegrationService_DeleteAllIntegrations_FullMethodName            = "/teleport.integration.v1.IntegrationService/DeleteAllIntegrations"
+	IntegrationService_GenerateAWSOIDCToken_FullMethodName             = "/teleport.integration.v1.IntegrationService/GenerateAWSOIDCToken"
+	IntegrationService_GenerateGitHubUserCert_FullMethodName           = "/teleport.integration.v1.IntegrationService/GenerateGitHubUserCert"
+	IntegrationService_ExportIntegrationCertAuthorities_FullMethodName = "/teleport.integration.v1.IntegrationService/ExportIntegrationCertAuthorities"
 )
 
 // IntegrationServiceClient is the client API for IntegrationService service.
@@ -65,6 +67,10 @@ type IntegrationServiceClient interface {
 	DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, in *GenerateAWSOIDCTokenRequest, opts ...grpc.CallOption) (*GenerateAWSOIDCTokenResponse, error)
+	// GenerateGitHubUserCert signs a SSH certificate for GitHub integration.
+	GenerateGitHubUserCert(ctx context.Context, in *GenerateGitHubUserCertRequest, opts ...grpc.CallOption) (*GenerateGitHubUserCertResponse, error)
+	// ExportIntegrationCertAuthorities exports cert authorities for an integration.
+	ExportIntegrationCertAuthorities(ctx context.Context, in *ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*ExportIntegrationCertAuthoritiesResponse, error)
 }
 
 type integrationServiceClient struct {
@@ -145,6 +151,26 @@ func (c *integrationServiceClient) GenerateAWSOIDCToken(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *integrationServiceClient) GenerateGitHubUserCert(ctx context.Context, in *GenerateGitHubUserCertRequest, opts ...grpc.CallOption) (*GenerateGitHubUserCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateGitHubUserCertResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GenerateGitHubUserCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *integrationServiceClient) ExportIntegrationCertAuthorities(ctx context.Context, in *ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*ExportIntegrationCertAuthoritiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportIntegrationCertAuthoritiesResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_ExportIntegrationCertAuthorities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IntegrationServiceServer is the server API for IntegrationService service.
 // All implementations must embed UnimplementedIntegrationServiceServer
 // for forward compatibility.
@@ -166,6 +192,10 @@ type IntegrationServiceServer interface {
 	DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error)
 	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(context.Context, *GenerateAWSOIDCTokenRequest) (*GenerateAWSOIDCTokenResponse, error)
+	// GenerateGitHubUserCert signs a SSH certificate for GitHub integration.
+	GenerateGitHubUserCert(context.Context, *GenerateGitHubUserCertRequest) (*GenerateGitHubUserCertResponse, error)
+	// ExportIntegrationCertAuthorities exports cert authorities for an integration.
+	ExportIntegrationCertAuthorities(context.Context, *ExportIntegrationCertAuthoritiesRequest) (*ExportIntegrationCertAuthoritiesResponse, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -196,6 +226,12 @@ func (UnimplementedIntegrationServiceServer) DeleteAllIntegrations(context.Conte
 }
 func (UnimplementedIntegrationServiceServer) GenerateAWSOIDCToken(context.Context, *GenerateAWSOIDCTokenRequest) (*GenerateAWSOIDCTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateAWSOIDCToken not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GenerateGitHubUserCert(context.Context, *GenerateGitHubUserCertRequest) (*GenerateGitHubUserCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateGitHubUserCert not implemented")
+}
+func (UnimplementedIntegrationServiceServer) ExportIntegrationCertAuthorities(context.Context, *ExportIntegrationCertAuthoritiesRequest) (*ExportIntegrationCertAuthoritiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportIntegrationCertAuthorities not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
 func (UnimplementedIntegrationServiceServer) testEmbeddedByValue()                            {}
@@ -344,6 +380,42 @@ func _IntegrationService_GenerateAWSOIDCToken_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IntegrationService_GenerateGitHubUserCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateGitHubUserCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GenerateGitHubUserCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GenerateGitHubUserCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GenerateGitHubUserCert(ctx, req.(*GenerateGitHubUserCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IntegrationService_ExportIntegrationCertAuthorities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportIntegrationCertAuthoritiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).ExportIntegrationCertAuthorities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_ExportIntegrationCertAuthorities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).ExportIntegrationCertAuthorities(ctx, req.(*ExportIntegrationCertAuthoritiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IntegrationService_ServiceDesc is the grpc.ServiceDesc for IntegrationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -378,6 +450,14 @@ var IntegrationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateAWSOIDCToken",
 			Handler:    _IntegrationService_GenerateAWSOIDCToken_Handler,
+		},
+		{
+			MethodName: "GenerateGitHubUserCert",
+			Handler:    _IntegrationService_GenerateGitHubUserCert_Handler,
+		},
+		{
+			MethodName: "ExportIntegrationCertAuthorities",
+			Handler:    _IntegrationService_ExportIntegrationCertAuthorities_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

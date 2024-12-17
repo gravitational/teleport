@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { components, ValueContainerProps } from 'react-select';
 import 'react-day-picker/dist/style.css';
 import { Text, Box } from 'design';
 import Dialog from 'design/DialogConfirmation';
-import { displayDate } from 'shared/services/loc';
+import { displayDate } from 'design/datetime';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import Select, { Option } from 'shared/components/Select';
+
+import styled from 'styled-components';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 
@@ -97,9 +99,9 @@ const ValueContainer = ({
   if (isCustom) {
     return (
       <components.ValueContainer {...props}>
-        <Text color="text.main">
+        <ValueText color="text.main">
           {`${displayDate(from)} - ${displayDate(to)}`}
-        </Text>
+        </ValueText>
         {children}
       </components.ValueContainer>
     );
@@ -109,6 +111,11 @@ const ValueContainer = ({
     <components.ValueContainer {...props}>{children}</components.ValueContainer>
   );
 };
+
+/** Positions the value text on the internal react-select grid. */
+const ValueText = styled(Text)`
+  grid-area: 1/1/2/3;
+`;
 
 type Props = {
   ml?: string | number;

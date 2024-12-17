@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -283,6 +285,8 @@ const (
 	// SFTPEvent means a user attempted a file operation
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
+	// SFTPSummaryEvent is emitted at the end of an SFTP transfer.
+	SFTPSummaryEvent = "sftp_summary"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
@@ -733,6 +737,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
 	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
 
+	// UserLoginAccessListInvalidEvent is emitted when a user logs in as a member of an invalid access list, causing the access list to be skipped.
+	UserLoginAccessListInvalidEvent = "user_login.invalid_access_list"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 
@@ -788,27 +795,71 @@ const (
 
 	// IntegrationCreateEvent is emitted when an integration resource is created.
 	IntegrationCreateEvent = "integration.create"
-	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	// IntegrationUpdateEvent is emitted when an integration resource is updated.
 	IntegrationUpdateEvent = "integration.update"
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
 
 	// PluginCreateEvent is emitted when a plugin resource is created.
 	PluginCreateEvent = "plugin.create"
-	//PluginUpdateEvent is emitted when a plugin resource is updated.
+	// PluginUpdateEvent is emitted when a plugin resource is updated.
 	PluginUpdateEvent = "plugin.update"
 	// PluginDeleteEvent is emitted when a plugin resource is deleted.
 	PluginDeleteEvent = "plugin.delete"
+
+	// StaticHostUserCreateEvent is emitted when a static host user resource is created.
+	StaticHostUserCreateEvent = "static_host_user.create"
+	// StaticHostUserUpdateEvent is emitted when a static host user resource is updated.
+	StaticHostUserUpdateEvent = "static_host_user.update"
+	// StaticHostUserDeleteEvent is emitted when a static host user resource is deleted.
+	StaticHostUserDeleteEvent = "static_host_user.delete"
+
+	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
+	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
+	// CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
+	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
+	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
+	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
+
+	// UserTaskCreateEvent is emitted when a user task resource is created.
+	UserTaskCreateEvent = "user_task.create"
+	// UserTaskUpdateEvent is emitted when a user task resource is updated.
+	UserTaskUpdateEvent = "user_task.update"
+	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
+	UserTaskDeleteEvent = "user_task.delete"
+
+	// AutoUpdateConfigCreateEvent is emitted when a AutoUpdateConfig resource is created.
+	AutoUpdateConfigCreateEvent = "auto_update_config.create"
+	// AutoUpdateConfigUpdateEvent is emitted when a AutoUpdateConfig resource is updated.
+	AutoUpdateConfigUpdateEvent = "auto_update_config.update"
+	// AutoUpdateConfigDeleteEvent is emitted when a AutoUpdateConfig resource is deleted.
+	AutoUpdateConfigDeleteEvent = "auto_update_config.delete"
+
+	// AutoUpdateVersionCreateEvent is emitted when a AutoUpdateVersion resource is created.
+	AutoUpdateVersionCreateEvent = "auto_update_version.create"
+	// AutoUpdateVersionUpdateEvent is emitted when a AutoUpdateVersion resource is updated.
+	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
+	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
+	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
+
+	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
+	WorkloadIdentityCreateEvent = "workload_identity.create"
+	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
+	WorkloadIdentityUpdateEvent = "workload_identity.update"
+	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
+	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// GitCommandEvent is emitted when a Git command is executed.
+	GitCommandEvent = "git.command"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
 // a new event name here.
-
-const (
-	// MaxChunkBytes defines the maximum size of a session stream chunk that
-	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
-	MaxChunkBytes = 1024 * 1024 * 5
-)
 
 const (
 	// V1 is the V1 version of slice chunks API,
@@ -823,15 +874,13 @@ const (
 	V3 = 3
 )
 
-var (
-	// SessionRecordingEvents is a list of events that are related to session
-	// recorings.
-	SessionRecordingEvents = []string{
-		SessionEndEvent,
-		WindowsDesktopSessionEndEvent,
-		DatabaseSessionEndEvent,
-	}
-)
+// SessionRecordingEvents is a list of events that are related to session
+// recorings.
+var SessionRecordingEvents = []string{
+	SessionEndEvent,
+	WindowsDesktopSessionEndEvent,
+	DatabaseSessionEndEvent,
+}
 
 // ServerMetadataGetter represents interface
 // that provides information about its server id
@@ -994,19 +1043,6 @@ type AuditLogSessionStreamer interface {
 
 // SessionStreamer supports streaming session chunks or events.
 type SessionStreamer interface {
-	// GetSessionChunk returns a reader which can be used to read a byte stream
-	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-	// beginning) up to maxBytes bytes.
-	//
-	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
-
-	// Returns all events that happen during a session sorted by time
-	// (oldest first).
-	//
-	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
-
 	// StreamSessionEvents streams all events from a given session recording. An
 	// error is returned on the first channel if one is encountered. Otherwise
 	// the event channel is closed when the stream ends. The event channel is
@@ -1080,6 +1116,14 @@ type AuditLogger interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error)
+
+	// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+	// performance over ordering and filtering, and is intended for bulk export of events.
+	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured]
+
+	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
 }
 
 // EventFields instance is attached to every logged event

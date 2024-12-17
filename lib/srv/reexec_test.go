@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -216,7 +217,7 @@ func TestRootNetworkingCommand(t *testing.T) {
 	utils.RequireRoot(t)
 
 	login := utils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, "", "", "")
+	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, err := host.UserDel(login)
@@ -409,4 +410,73 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	readXauthEntry, err := xauthCmd.ReadEntry(display)
 	require.NoError(t, err)
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
+}
+
+func TestRootCheckHomeDir(t *testing.T) {
+	utils.RequireRoot(t)
+
+	tmp := t.TempDir()
+	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
+	require.NoError(t, os.Chmod(tmp, 0777))
+
+	home := filepath.Join(tmp, "home")
+	noAccess := filepath.Join(tmp, "no_access")
+	file := filepath.Join(tmp, "file")
+	notFound := filepath.Join(tmp, "not_found")
+
+	require.NoError(t, os.Mkdir(home, 0700))
+	require.NoError(t, os.Mkdir(noAccess, 0700))
+	_, err := os.Create(file)
+	require.NoError(t, err)
+
+	login := utils.GenerateLocalUsername(t)
+	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// change back to accessible home so deletion works
+		changeHomeDir(t, login, home)
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
+	testUser, err := user.Lookup(login)
+	require.NoError(t, err)
+
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chown(home, uid, gid))
+	require.NoError(t, os.Chown(file, uid, gid))
+
+	hasAccess, err := CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.True(t, hasAccess)
+
+	changeHomeDir(t, login, file)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+
+	changeHomeDir(t, login, notFound)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+
+	changeHomeDir(t, login, noAccess)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+}
+
+func changeHomeDir(t *testing.T, username, home string) {
+	usermodBin, err := exec.LookPath("usermod")
+	assert.NoError(t, err, "usermod binary must be present")
+
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	_, err = cmd.CombinedOutput()
+	assert.NoError(t, err, "changing home should not error")
+	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }

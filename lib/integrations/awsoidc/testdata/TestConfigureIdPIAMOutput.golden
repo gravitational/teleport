@@ -1,0 +1,67 @@
+"awsoidc-idp" will perform the following actions:
+
+1. Create an OpenID Connect identity provider in AWS IAM for your Teleport cluster.
+CreateOpenIDConnectProvider: {
+    "Url": "https://example.com",
+    "ClientIDList": [
+        "discover.teleport"
+    ],
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "mycluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "myintegration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ],
+    "ThumbprintList": [
+        "15dbd260c7465ecca6de2c0b2181187f66ee0d1a"
+    ]
+}
+
+2. Create IAM role "integrationrole" with a custom trust policy.
+CreateRole: {
+    "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Principal": {
+                    "Federated": "arn:aws:iam::123456789012:oidc-provider/example.com"
+                },
+                "Condition": {
+                    "StringEquals": {
+                        "example.com:aud": "discover.teleport"
+                    }
+                }
+            }
+        ]
+    },
+    "RoleName": "integrationrole",
+    "Description": "Used by Teleport to provide access to AWS resources.",
+    "MaxSessionDuration": null,
+    "Path": null,
+    "PermissionsBoundary": null,
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "mycluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "myintegration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ]
+}
+

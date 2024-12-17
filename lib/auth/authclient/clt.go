@@ -33,19 +33,24 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/databaseobject"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -79,7 +84,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -156,7 +161,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithInsecureSkipVerify(cfg.InsecureAddressDiscovery),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
@@ -294,7 +299,7 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive)
 }
 
 // GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -376,7 +381,7 @@ func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 }
 
 // DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
+func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -662,6 +667,11 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+// UserTasksClient returns a client for managing User Task resources.
+func (c *Client) UserTasksClient() services.UserTasks {
+	return c.APIClient.UserTasksServiceClient()
+}
+
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
@@ -810,6 +820,11 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
+func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -885,6 +900,8 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -893,10 +910,17 @@ type OIDCAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates if user wants to generate a web
 	// session after successful authentication
 	CreateWebSession bool `json:"create_web_session"`
@@ -923,16 +947,25 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CSRFToken is associated with user web session token.
 	CSRFToken string `json:"csrf_token"`
 	// CreateWebSession indicates if user wants to generate a web
@@ -968,8 +1001,17 @@ type GithubAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is used to protect against CSRF attacks.
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates that a user wants to generate a web session
 	// after successful authentication.
 	CreateWebSession bool `json:"create_web_session"`
@@ -1275,7 +1317,7 @@ type AuthenticateUserRequest struct {
 	Username string `json:"username"`
 
 	// PublicKey is a public key in ssh authorized_keys format.
-	// Soon to be deprecated in favor of SSHPublicKey, TLSPublicKey
+	// Deprecated: prefer SSHPublicKey and/or TLSPublicKey.
 	PublicKey []byte `json:"public_key,omitempty"`
 
 	// SSHPublicKey is a public key in ssh authorized_keys format.
@@ -1320,24 +1362,53 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
 		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
 	}
-	if len(a.PublicKey) > 0 {
-		// Normalize by splitting PublicKey to SSHPublicKey and TLSPublicKey to
-		// reduce special case handling elsewhere. PublicKey will be deprecated
-		// in 18.0.0.
-		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-		// the separated keys.
-		a.SSHPublicKey = a.PublicKey
-		cryptoPubKey, err := sshutils.CryptoPublicKey(a.PublicKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		a.TLSPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		a.PublicKey = nil
+	var err error
+	a.SSHPublicKey, a.TLSPublicKey, err = UserPublicKeys(a.PublicKey, a.SSHPublicKey, a.TLSPublicKey)
+	a.PublicKey = nil
+	return trace.Wrap(err)
+}
+
+// UserPublicKeys is a helper for the transition from clients sending a single
+// public key for both SSH and TLS, to separate public keys for each protocol.
+// [pubIn] should be the single public key that should be set by any pre-17.0.0
+// client in SSH authorized_keys format. If set, both returned keys will be
+// derived from this. If empty, sshPubIn and tlsPubIn will be returned.
+// [sshPubIn] should be the SSH public key set by any post-17.0.0 client in SSH
+// authorized_keys format.
+// [tlsPubIn] should be the TLS public key set by any post-17.0.0 client in
+// PEM-encoded PKIX or PKCS#1 ASN.1 DER form.
+// [sshPubOut] will be nil or an SSH public key in SSH authorized_keys format.
+// [tlsPubOut] will be nil or a TLS public key in PEM-encoded PKIX or PKCS#1
+// ASN.1 DER form.
+//
+// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+// the separated keys.
+func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []byte, err error) {
+	if len(pubIn) == 0 {
+		return sshPubIn, tlsPubIn, nil
 	}
-	return nil
+	sshPubOut = pubIn
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pubIn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsPubOut, err = keys.MarshalPublicKey(cryptoPubKey)
+	return sshPubOut, tlsPubOut, trace.Wrap(err)
+}
+
+// UserAttestationStatements is a helper for the transition from clients sending
+// a single attestation statement for both SSH and TLS, to separate public keys
+// and attestation statements for each protocol.
+// [attIn] should be the single attestation that should be set by any pre-17.0.0
+// client. If set, it will be returned in both return positions. If nil,
+// sshAttIn and tlsAttIn will be returned.
+// [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
+// set by any post-17.0.0 client.
+func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *keys.AttestationStatement) (sshAttOut, tlsAttOut *keys.AttestationStatement) {
+	if attIn == nil {
+		return sshAttIn, tlsAttIn
+	}
+	return attIn, attIn
 }
 
 // PassCreds is a password credential
@@ -1374,7 +1445,8 @@ type AuthenticateSSHRequest struct {
 	KubernetesCluster string `json:"kubernetes_cluster"`
 
 	// AttestationStatement is an attestation statement associated with the given public key.
-	// Soon to be deprecated in favor of SSHAttestationStatement, TLSAttestationStatement.
+	//
+	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 
 	// SSHAttestationStatement is an attestation statement associated with the
@@ -1398,16 +1470,8 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
 		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	if a.AttestationStatement != nil {
-		// Normalize by splitting AttestationStatement to SSHAttestationStatement
-		// and TLSAttestationStatement to reduce special case handling
-		// elsewhere. AttestingStatement will be deprecated in 18.0.0.
-		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-		// the separated attestation statements.
-		a.SSHAttestationStatement = a.AttestationStatement
-		a.TLSAttestationStatement = a.AttestationStatement
-		a.AttestationStatement = nil
-	}
+	a.SSHAttestationStatement, a.TLSAttestationStatement = UserAttestationStatements(a.AttestationStatement, a.SSHAttestationStatement, a.TLSAttestationStatement)
+	a.AttestationStatement = nil
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1429,6 +1493,8 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1525,6 +1591,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1536,6 +1603,8 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	DynamicDesktopClient() *dynamicwindows.Client
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1559,6 +1628,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// UserTasksServiceClient returns an User Task service client.
+	UserTasksServiceClient() *usertask.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -1813,42 +1885,16 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-}
 
-type CreateAppSessionForV15Client interface {
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
-}
+	// IdentityCenterClient returns Identity Center service client.
+	IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient
 
-// TryCreateAppSessionForClientCertV15 creates an app session if the auth
-// server is pre-v16 and returns the app session ID. This app session ID
-// is needed for user app certs requests before v16.
-// TODO (Joerger): DELETE IN v17.0.0
-func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// ProvisioningServiceClient returns provisioning service client.
+	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
 
-	// If the auth server is v16+, the client does not need to provide a pre-created app session.
-	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
-		return "", nil
-	}
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
 
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          username,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		AWSRoleARN:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GCPServiceAccount,
-		URI:               routeToApp.URI,
-		AppName:           routeToApp.Name,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return ws.GetName(), nil
+	// GitServerClient returns git server client.
+	GitServerClient() *gitserver.Client
 }

@@ -44,18 +44,19 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
@@ -170,6 +171,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 			},
 			"tctl bots rm": {
 				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -446,10 +453,10 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	priv, pub, err := native.GenerateKeyPair()
+	sshKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
+	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -457,13 +464,12 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     priv,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      pub,
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
-				Key:  key,
+				Key:  tlsKey,
 			}},
 		},
 	})
@@ -1024,7 +1030,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		promptCfg.WebauthnSupported = true
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.
@@ -1069,7 +1077,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
@@ -1081,7 +1089,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewLoggerForTests(),
+		Log:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

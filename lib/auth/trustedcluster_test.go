@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	insecurerand "math/rand"
 	"testing"
 	"time"
 
@@ -44,7 +43,6 @@ import (
 func TestRemoteClusterStatus(t *testing.T) {
 	ctx := context.Background()
 	a := newTestAuthServer(ctx, t)
-	rnd := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
 
 	rc, err := types.NewRemoteCluster("rc")
 	require.NoError(t, err)
@@ -53,7 +51,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 
 	// This scenario deals with only one remote cluster, so it never hits the limit on status updates.
 	// TestRefreshRemoteClusters focuses on verifying the update limit logic.
-	a.refreshRemoteClusters(ctx, rnd)
+	a.refreshRemoteClusters(ctx)
 
 	wantRC := rc
 	// Initially, no tunnels exist and status should be "offline".
@@ -83,7 +81,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, a.UpsertTunnelConnection(tc2))
 
-	a.refreshRemoteClusters(ctx, rnd)
+	a.refreshRemoteClusters(ctx)
 
 	// With active tunnels, the status is "online" and last_heartbeat is set to
 	// the latest tunnel heartbeat.
@@ -96,7 +94,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// Delete the latest connection.
 	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
 
-	a.refreshRemoteClusters(ctx, rnd)
+	a.refreshRemoteClusters(ctx)
 
 	// The status should remain the same, since tc1 still exists.
 	// The last_heartbeat should remain the same, since tc1 has an older
@@ -109,7 +107,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// Delete the remaining connection
 	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
 
-	a.refreshRemoteClusters(ctx, rnd)
+	a.refreshRemoteClusters(ctx)
 
 	// The status should switch to "offline".
 	// The last_heartbeat should remain the same.
@@ -162,7 +160,6 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			require.LessOrEqual(t, tt.clustersNeedUpdate, tt.clustersTotal)
 
 			a := newTestAuthServer(ctx, t)
-			rnd := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
 
 			allClusters := make(map[string]types.RemoteCluster)
 			for i := 0; i < tt.clustersTotal; i++ {
@@ -186,7 +183,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 				}
 			}
 
-			a.refreshRemoteClusters(ctx, rnd)
+			a.refreshRemoteClusters(ctx)
 
 			clusters, err := a.GetRemoteClusters(ctx)
 			require.NoError(t, err)
@@ -469,25 +466,14 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
-	_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
-		Token:           validToken,
-		CAs:             []types.CertAuthority{leafClusterCA},
-		TeleportVersion: teleport.Version,
-	})
-	require.NoError(t, err)
-
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
+
+	configureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
+
+	_, err = a.Services.CreateTrustedCluster(ctx, trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ctx, ca)
-	require.NoError(t, err)
-
-	err = a.createReverseTunnel(trustedCluster)
+	err = a.createReverseTunnel(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	t.Run("Invalid role change", func(t *testing.T) {

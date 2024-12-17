@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,8 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	t.Parallel()
 
 	auth, err := NewAuth(AuthConfig{
-		AuthClient: new(authClientMock),
+		AuthClient:  new(authClientMock),
+		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			AzureRedis: libcloudazure.NewRedisClientByAPI(&libcloudazure.ARMRedisMock{
 				Token: "azure-redis-token",
@@ -108,8 +109,9 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	stsMock := &mocks.STSMock{}
 	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
-		Clock:      clock,
-		AuthClient: new(authClientMock),
+		Clock:       clock,
+		AuthClient:  new(authClientMock),
+		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			STS: stsMock,
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
@@ -135,8 +137,9 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	t.Parallel()
 
 	auth, err := NewAuth(AuthConfig{
-		AuthClient: new(authClientMock),
-		Clients:    &cloud.TestCloudClients{},
+		AuthClient:  new(authClientMock),
+		AccessPoint: new(accessPointMock),
+		Clients:     &cloud.TestCloudClients{},
 	})
 	require.NoError(t, err)
 
@@ -343,8 +346,9 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			auth, err := NewAuth(AuthConfig{
-				AuthClient: new(authClientMock),
-				Clients:    tc.clients,
+				AuthClient:  new(authClientMock),
+				AccessPoint: new(accessPointMock),
+				Clients:     tc.clients,
 			})
 			require.NoError(t, err)
 
@@ -365,8 +369,9 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	auth, err := NewAuth(AuthConfig{
-		Clock:      clock,
-		AuthClient: new(authClientMock),
+		Clock:       clock,
+		AuthClient:  new(authClientMock),
+		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			InstanceMetadata: &imdsMock{
 				id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
@@ -584,8 +589,9 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	stsMock := &mocks.STSMock{}
 	clock := clockwork.NewFakeClockAt(time.Date(2001, time.February, 3, 0, 0, 0, 0, time.UTC))
 	auth, err := NewAuth(AuthConfig{
-		Clock:      clock,
-		AuthClient: new(authClientMock),
+		Clock:       clock,
+		AuthClient:  new(authClientMock),
+		AccessPoint: new(accessPointMock),
 		Clients: &cloud.TestCloudClients{
 			STS: stsMock,
 			RDS: &mocks.RDSMock{},
@@ -673,8 +679,9 @@ func TestGetAWSIAMCreds(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			auth, err := NewAuth(AuthConfig{
-				Clock:      clock,
-				AuthClient: new(authClientMock),
+				Clock:       clock,
+				AuthClient:  new(authClientMock),
+				AccessPoint: new(accessPointMock),
 				Clients: &cloud.TestCloudClients{
 					STS: tt.stsMock,
 				},
@@ -970,8 +977,11 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	}, nil
 }
 
+type accessPointMock struct {
+}
+
 // GetAuthPreference always returns types.DefaultAuthPreference().
-func (m *authClientMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+func (m accessPointMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.DefaultAuthPreference(), nil
 }
 

@@ -11,6 +11,18 @@ compromising productivity.
 
 ![The Microsoft Teams Access Request plugin](../../../../img/enterprise/plugins/msteams.png)
 
+<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Microsoft Teams integration"!)
+
+![Create Microsoft Teams Bot](../../../../img/enterprise/plugins/msteams/enroll-bot.png)
+
+Once enrolled you can download the required `app.zip` file from the integrations status page.
+
+![Download app.zip](../../../../img/enterprise/plugins/msteams/app-zip.png)
+
+</Details>
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -256,16 +268,17 @@ the correct information, which you obtained earlier in this guide.
 
 #### `[role_to_recipients]`
 
-The `role_to_recipients` map (`roleToRecipients` for Helm users) configure the users and channels that the
-Microsoft Teams plugin will notify when a user requests access to a specific role. When
-the Microsoft Teams plugin receives an Access Request from the Auth Service, it will
-look up the role being requested and identify the Microsoft Teams users and channels to
-notify.
+The `role_to_recipients` map (`roleToRecipients` for Helm users) configures the
+users and channels that the Microsoft Teams plugin will notify when a user
+requests access to a specific role. When the Microsoft Teams plugin receives an
+Access Request from the Auth Service, it will look up the role being requested
+and identify the Microsoft Teams users and channels to notify.
 
 <Tabs>
 <TabItem label="Executable or Docker">
 
-Here is an example of a `role_to_recipients` map:
+Here is an example of a `role_to_recipients` map. Each value can be a single
+string or an array of strings:
 
 ```toml
 [role_to_recipients]
@@ -276,7 +289,9 @@ Here is an example of a `role_to_recipients` map:
 </TabItem>
 <TabItem label="Helm Chart">
 
-Here is an example of a `role_to_recipients` map:
+In the Helm chart, the `role_to_recipients` field is called `roleToRecipients`
+and uses the following format, where keys are strings and values are arrays of
+strings:
 
 ```toml
 roleToRecipients:
@@ -288,9 +303,8 @@ roleToRecipients:
 </Tabs>
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
-value configures the Teams user (or users) to notify. The value can be a single
-string or an array of strings. Each string must be either the email address of
-a Microsoft Teams user or a channel URL.
+value configures the Teams user (or users) to notify. Each string must be either
+the email address of a Microsoft Teams user or a channel URL.
 
 You can find the URL of a channel by opening the channel and clicking the button
 "Get link to channel":

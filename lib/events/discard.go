@@ -20,13 +20,16 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -42,20 +45,20 @@ func (d *DiscardAuditLog) Close() error {
 	return nil
 }
 
-func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return make([]byte, 0), nil
-}
-
-func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
-	return make([]EventFields, 0), nil
-}
-
 func (d *DiscardAuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
 
 func (d *DiscardAuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
+}
+
+func (d *DiscardAuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Empty[*auditlogpb.ExportEventUnstructured]()
+}
+
+func (d *DiscardAuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Empty[*auditlogpb.EventExportChunk]()
 }
 
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
@@ -122,12 +125,12 @@ func (d *DiscardRecorder) RecordEvent(ctx context.Context, pe apievents.Prepared
 	}
 	event := pe.GetAuditEvent()
 
-	log.WithFields(log.Fields{
-		"event_id":    event.GetID(),
-		"event_type":  event.GetType(),
-		"event_time":  event.GetTime(),
-		"event_index": event.GetIndex(),
-	}).Traceln("Discarding stream event")
+	slog.Log(ctx, logutils.TraceLevel, "Discarding stream event",
+		"event_id", event.GetID(),
+		"event_type", event.GetType(),
+		"event_time", event.GetTime(),
+		"event_index", event.GetIndex(),
+	)
 	return nil
 }
 
@@ -141,12 +144,13 @@ type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
 func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.WithFields(log.Fields{
-		"event_id":    event.GetID(),
-		"event_type":  event.GetType(),
-		"event_time":  event.GetTime(),
-		"event_index": event.GetIndex(),
-	}).Debugf("Discarding event")
+	slog.DebugContext(ctx, "Discarding event",
+		"event_id", event.GetID(),
+		"event_type", event.GetType(),
+		"event_time", event.GetTime(),
+		"event_index", event.GetIndex(),
+	)
+
 	return nil
 }
 

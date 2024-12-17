@@ -22,8 +22,6 @@ import styled from 'styled-components';
 import { Flex, Text, Popover } from 'design';
 import * as icons from 'design/Icon';
 
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { IAppContext } from 'teleterm/ui/types';
@@ -32,6 +30,7 @@ import { KeyboardShortcutAction } from 'teleterm/services/config';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 type MenuItem = {
   title: string;
@@ -48,7 +47,7 @@ type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
-  workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
@@ -61,8 +60,6 @@ function useMenuItems(): MenuItem[] {
   const hasNoActiveWorkspace = !documentsService;
   const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
-  const isRequestingResourcesFromResourcesViewEnabled =
-    activeRootCluster?.showResources === ShowResources.REQUESTABLE;
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
@@ -104,9 +101,7 @@ function useMenuItems(): MenuItem[] {
       },
     },
     {
-      title: isRequestingResourcesFromResourcesViewEnabled
-        ? 'New role request'
-        : 'New access request',
+      title: 'New role request',
       isVisible: areAccessRequestsSupported,
       prependSeparator: true,
       Icon: icons.Add,
@@ -114,9 +109,7 @@ function useMenuItems(): MenuItem[] {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,
           state: 'creating',
-          title: isRequestingResourcesFromResourcesViewEnabled
-            ? 'New Role Request'
-            : 'New Access Request',
+          title: 'New Role Request',
         });
         documentsService.add(doc);
         documentsService.open(doc.uri);
@@ -221,7 +214,7 @@ export function MenuItem({
         as="button"
         type="button"
         disabled={item.isDisabled}
-        title={item.isDisabled && item.disabledText}
+        title={item.isDisabled ? item.disabledText : undefined}
         onClick={handleClick}
       >
         <item.Icon

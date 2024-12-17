@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonPrimary, Text } from 'design';
 
-import { Text } from 'design';
+import { EmailSolid } from 'design/Icon';
 
 import Validation from '../../components/Validation';
+
+import { requiredEmailLike, requiredField } from '../Validation/rules';
 
 import FieldInput from './FieldInput';
 
@@ -30,18 +32,19 @@ export default {
 
 export const Fields = () => (
   <Validation>
-    {() => (
+    {({ validator }) => (
       <>
         <FieldInput
-          mb="6"
           label="Label"
-          labelTip="Optional tabel tip"
+          helperText="Optional helper text"
           name="optional name"
           onChange={() => {}}
           value={'value'}
+          icon={EmailSolid}
+          size="large"
+          rule={requiredEmailLike}
         />
         <FieldInput
-          mb="6"
           label="Label with placeholder"
           name="optional name"
           onChange={() => {}}
@@ -49,7 +52,6 @@ export const Fields = () => (
           value={''}
         />
         <FieldInput
-          mb="6"
           label="Label with tooltip"
           name="optional name"
           onChange={() => {}}
@@ -58,21 +60,24 @@ export const Fields = () => (
           toolTipContent={<Text>Hello world</Text>}
         />
         <FieldInput
-          mb="6"
-          label="Label with labeltip and tooltip"
-          labelTip="the label tip"
+          label="Label with helper text and tooltip"
+          helperText="Helper text"
           toolTipContent={<Text>Hello world</Text>}
           name="optional name"
           onChange={() => {}}
           placeholder="placeholder"
           value={''}
         />
+        <FieldInput placeholder="without label" onChange={() => {}} />
         <FieldInput
-          mb="6"
-          placeholder="without label"
-          validator={() => false}
+          label="Required"
+          rule={requiredField('So required. Much mandatory.')}
           onChange={() => {}}
+          value=""
         />
+        <ButtonPrimary onClick={() => validator.validate()}>
+          Validate
+        </ButtonPrimary>
       </>
     )}
   </Validation>

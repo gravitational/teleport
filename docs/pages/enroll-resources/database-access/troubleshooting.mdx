@@ -22,7 +22,7 @@ due to expired certificates.
 The command used to generate a new certificate is `tctl auth sign`. For example,
 to create a certificate for PostgreSQL, the command looks like this:
 
-```bash
+```code
 # Export Teleport's certificate authority and a generate certificate/key pair
 # for host db.example.com with a 3-month validity period.
 
@@ -116,12 +116,15 @@ We can update a user's roles from the command-line by using either `tctl users u
   ```
   </TabItem>
   <TabItem label="tctl create">
-    First save Alice's user resource to a local file:
-    ```sh
-    $ tctl get users/alice@example.com > alice.yaml
+
+    Open Alice's user resource in your text editor:
+
+    ```code
+    $ tctl edit users/alice@example.com
     ```
 
-    Then modify `alice.yaml` to assign the `access` role:
+    Then modify the resource to assign the `access` role:
+
     ```yaml
     kind: user
     metadata:
@@ -133,11 +136,8 @@ We can update a user's roles from the command-line by using either `tctl users u
         db_names: ["*"]
     ```
 
-    Finally, use `tctl create --force` to update the user
-    (`--force` is required to overwrite an already existing resource).
-    ```sh
-    $ tctl create --force alice.yaml
-    ```
+    Save and close the file to apply your changes.
+
   </TabItem>
 </Tabs>
 

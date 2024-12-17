@@ -24,10 +24,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -67,7 +70,7 @@ func TestKeyStore(t *testing.T) {
 		retrievedKeyRing, err := keyStore.GetKeyRing(idx, WithAllCerts...)
 		require.NoError(t, err)
 		keyRing.TrustedCerts = nil
-		require.Equal(t, keyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, keyRing, retrievedKeyRing)
 
 		// Delete just the db cred, reload & verify it's gone
 		err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
@@ -76,14 +79,14 @@ func TestKeyStore(t *testing.T) {
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
-		require.Equal(t, expectKeyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 		// check for the key, now without cluster name
 		retrievedKeyRing, err = keyStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""})
 		require.NoError(t, err)
 		expectKeyRing.ClusterName = ""
 		expectKeyRing.Cert = nil
-		require.Equal(t, expectKeyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 		// delete the key
 		err = keyStore.DeleteKeyRing(idx)
@@ -128,14 +131,16 @@ func TestListKeys(t *testing.T) {
 			keyRing, err := keyStore.GetKeyRing(keys[i].KeyRingIndex, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
 			keyRing.TrustedCerts = keys[i].TrustedCerts
-			require.Equal(t, &keys[i], keyRing)
+			assertEqualKeyRings(t, &keys[i], keyRing)
 		}
 
 		// read sam's key and make sure it's the same:
 		skeyRing, err := keyStore.GetKeyRing(samIdx, WithSSHCerts{})
 		require.NoError(t, err)
 		require.Equal(t, samKeyRing.Cert, skeyRing.Cert)
-		require.Equal(t, samKeyRing.PrivateKey.MarshalSSHPublicKey(), skeyRing.PrivateKey.MarshalSSHPublicKey())
+		require.Equal(t, samKeyRing.TLSCert, skeyRing.TLSCert)
+		require.Equal(t, samKeyRing.SSHPrivateKey.MarshalSSHPublicKey(), skeyRing.SSHPrivateKey.MarshalSSHPublicKey())
+		require.Equal(t, samKeyRing.TLSPrivateKey.MarshalSSHPublicKey(), skeyRing.TLSPrivateKey.MarshalSSHPublicKey())
 	})
 }
 
@@ -213,7 +218,7 @@ func TestCheckKey(t *testing.T) {
 		keyRing := auth.makeSignedKeyRing(t, idx, false)
 
 		// Swap out the key with a ECDSA SSH key.
-		ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
+		ellipticCertificate, _, err := cert.CreateTestECDSACertificate("foo", ssh.UserCert)
 		require.NoError(t, err)
 		keyRing.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
@@ -241,7 +246,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 		keyRing := auth.makeSignedKeyRing(t, idx, false)
 
 		// Swap out the key with a ECDSA SSH key.
-		ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
+		ellipticCertificate, _, err := cert.CreateTestECDSACertificate("foo", ssh.UserCert)
 		require.NoError(t, err)
 		keyRing.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
@@ -289,4 +294,11 @@ func TestConfigDirNotDeleted(t *testing.T) {
 	require.DirExists(t, configPath)
 
 	require.NoDirExists(t, filepath.Join(keyStore.KeyDir, "keys"))
+}
+
+func assertEqualKeyRings(t *testing.T, expected, actual *KeyRing) {
+	t.Helper()
+	// Ignore differences in unexported private key fields, for example keyPEM
+	// may change after being serialized in OpenSSH format and then deserialized.
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreUnexported(keys.PrivateKey{})))
 }

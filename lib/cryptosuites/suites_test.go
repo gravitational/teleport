@@ -36,11 +36,10 @@ func TestSuites(t *testing.T) {
 	for s := range types.SignatureAlgorithmSuite_name {
 		suite := types.SignatureAlgorithmSuite(s)
 		t.Run(suite.String(), func(t *testing.T) {
-			authPrefGetter := &fakeAuthPrefGetter{
-				suite: suite,
-			}
+			authPrefGetter := &fakeAuthPrefGetter{suite}
+			getSuiteFunc := GetCurrentSuiteFromAuthPreference(authPrefGetter)
 			for purpose := KeyPurposeUnspecified + 1; purpose < keyPurposeMax; purpose++ {
-				alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
+				alg, err := AlgorithmForKey(ctx, getSuiteFunc, purpose)
 				require.NoError(t, err)
 				assert.Greater(t, alg, algorithmUnspecified)
 				assert.Less(t, alg, algorithmMax)

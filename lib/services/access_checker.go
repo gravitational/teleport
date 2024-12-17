@@ -19,7 +19,9 @@
 package services
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -82,9 +84,8 @@ type AccessChecker interface {
 
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
-	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, ...AccessState) error
+	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -109,6 +110,9 @@ type AccessChecker interface {
 
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
+
+	// SSHPortForwardMode returns the SSHPortForwardMode that the RoleSet allows.
+	SSHPortForwardMode() SSHPortForwardMode
 
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
@@ -181,7 +185,11 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles() []string
+	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
+
+	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+	// that allowed requesting to the requested Kubernetes resource kind.
+	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
@@ -439,6 +447,18 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
+
+	switch rr := r.(type) {
+	case types.Resource153Unwrapper:
+		switch urr := rr.Unwrap().(type) {
+		case IdentityCenterAccount:
+			matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
+
+		case IdentityCenterAccountAssignment:
+			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
+		}
+	}
+
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
@@ -966,6 +986,34 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
+// HostUserMode determines how host users should be created.
+type HostUserMode int
+
+const (
+	// HostUserModeUndefined is the default mode, for when the mode couldn't be
+	// determined from a types.CreateHostUserMode.
+	HostUserModeUndefined HostUserMode = iota
+	// HostUserModeKeep creates a home directory and persists after a session ends.
+	HostUserModeKeep
+	// HostUserModeDrop does not create a home directory, and it is removed after
+	// a session ends.
+	HostUserModeDrop
+	// HostUserModeStatic creates a home directory and exists independently of a
+	// session.
+	HostUserModeStatic
+)
+
+func convertHostUserMode(mode types.CreateHostUserMode) HostUserMode {
+	switch mode {
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return HostUserModeKeep
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		return HostUserModeDrop
+	default:
+		return HostUserModeUndefined
+	}
+}
+
 // HostUsersInfo keeps information about groups and sudoers entries
 // for a particular host user
 type HostUsersInfo struct {
@@ -973,17 +1021,26 @@ type HostUsersInfo struct {
 	Groups []string
 	// Mode determines if a host user should be deleted after a session
 	// ends or not.
-	Mode types.CreateHostUserMode
+	Mode HostUserMode
 	// UID is the UID that the host user will be created with
 	UID string
 	// GID is the GID that the host user will be created with
 	GID string
+	// Shell is the default login shell for a host user
+	Shell string
+	// TakeOwnership determines whether or not an existing user should be
+	// taken over by teleport. This currently only applies to 'static' mode
+	// users, 'keep' mode users still need to assign 'teleport-keep' in the
+	// Groups slice in order to take ownership.
+	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
+	shellToRoles := make(map[string][]string)
+	var shell string
 	var mode types.CreateHostUserMode
 
 	for _, role := range a.RoleSet {
@@ -997,6 +1054,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		createHostUserMode := role.GetOptions().CreateHostUserMode
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		createHostUser := role.GetOptions().CreateHostUser
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
@@ -1008,7 +1066,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			return nil, trace.AccessDenied("user is not allowed to create host users")
+			return nil, trace.AccessDenied("role %q prevents creating host users", role.GetName())
 		}
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
@@ -1020,9 +1078,24 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
 		}
 
+		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
+		if hostUserShell != "" {
+			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
+	}
+
+	if len(shellToRoles) > 1 {
+		b := &strings.Builder{}
+		for shell, roles := range shellToRoles {
+			fmt.Fprintf(b, "%s=%v ", shell, roles)
+		}
+
+		log.Warnf("Host user shell resolution is ambiguous due to conflicting roles. %q will be used, but consider unifying roles around a single shell. Current shell assignments: %s", shell, b)
 	}
 
 	for _, role := range a.RoleSet {
@@ -1052,9 +1125,10 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	return &HostUsersInfo{
 		Groups: utils.StringsSliceFromSet(groups),
-		Mode:   mode,
+		Mode:   convertHostUserMode(mode),
 		UID:    uid,
 		GID:    gid,
+		Shell:  shell,
 	}, nil
 }
 
@@ -1290,6 +1364,9 @@ type UserState interface {
 
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
+
+	// GetGithubIdentities returns a list of connected GitHub identities
+	GetGithubIdentities() []types.ExternalIdentity
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and

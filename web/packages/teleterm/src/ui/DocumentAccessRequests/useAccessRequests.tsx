@@ -28,13 +28,11 @@ import {
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import * as types from 'teleterm/ui/services/workspacesService';
-import {
-  AssumedRequest,
-  LoggedInUser,
-  AccessRequest as TshdAccessRequest,
-} from 'teleterm/services/tshd/types';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -45,11 +43,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
-  const {
-    localClusterUri: clusterUri,
-    rootClusterUri,
-    documentsService,
-  } = useWorkspaceContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
 
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -74,12 +68,14 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 
   const getRequests = async () => {
     try {
-      const response = await retryWithRelogin(ctx, clusterUri, async () => {
-        const { response } = await ctx.tshd.getAccessRequests({ clusterUri });
+      const response = await retryWithRelogin(ctx, rootClusterUri, async () => {
+        const { response } = await ctx.tshd.getAccessRequests({
+          clusterUri: rootClusterUri,
+        });
         return response.requests;
       });
       setAttempt({ status: 'success' });
-      // transform tshd access request to the webui access request and add flags
+      // Transform tshd access request to the webui access request and add flags.
       const requests = response.map(r => makeUiAccessRequest(r));
       setAccessRequests(requests);
     } catch (err) {
@@ -91,11 +87,11 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   };
 
   useEffect(() => {
-    // only fetch when visitng RequestList
+    // Only fetch when visiting RequestList.
     if (doc.state === 'browsing') {
       getRequests();
     }
-  }, [doc.state, clusterUri]);
+  }, [doc.state]);
 
   useEffect(() => {
     // if assumed object changes, we update which roles have been assumed in the table

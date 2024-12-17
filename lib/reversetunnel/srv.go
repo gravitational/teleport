@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -114,7 +116,7 @@ type server struct {
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
-	proxyWatcher *services.ProxyWatcher
+	proxyWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -185,7 +187,11 @@ type Config struct {
 	Component string
 
 	// Log specifies the logger
+	// TODO(tross): remove this once Logger is used everywhere
 	Log log.FieldLogger
+
+	// Logger specifies the logger
+	Logger *slog.Logger
 
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
@@ -201,7 +207,7 @@ type Config struct {
 	LockWatcher *services.LockWatcher
 
 	// NodeWatcher is a node watcher.
-	NodeWatcher *services.NodeWatcher
+	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
@@ -259,13 +265,16 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Component == "" {
 		cfg.Component = teleport.Component(teleport.ComponentProxy, teleport.ComponentServer)
 	}
-	logger := cfg.Log
 	if cfg.Log == nil {
-		logger = log.StandardLogger()
+		cfg.Log = log.StandardLogger()
 	}
-	cfg.Log = logger.WithFields(log.Fields{
-		teleport.ComponentKey: cfg.Component,
-	})
+	cfg.Log = cfg.Log.WithField(teleport.ComponentKey, cfg.Component)
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	cfg.Logger = cfg.Logger.With(teleport.ComponentKey, cfg.Component)
+
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
 	}
@@ -302,13 +311,11 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
 			Client:    cfg.LocalAccessPoint,
-			Log:       cfg.Log,
+			// TODO(tross): update this after converting to slog here
+			// Logger:       cfg.Log,
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
-		ProxyDiffer: func(_, _ types.Server) bool {
-			return true // we always want to store the most recently heartbeated proxy
-		},
 	})
 	if err != nil {
 		cancel()
@@ -346,7 +353,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
-		sshutils.SetLogger(cfg.Log),
+		sshutils.SetLogger(cfg.Logger),
 		sshutils.SetLimiter(cfg.Limiter),
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -400,7 +407,7 @@ func (s *server) periodicFunctions() {
 			s.log.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
-		case proxies := <-s.proxyWatcher.ProxiesC:
+		case proxies := <-s.proxyWatcher.ResourcesC:
 			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			if err := s.fetchClusterPeers(); err != nil {
@@ -1211,9 +1218,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    srv.Component,
-			Client:       accessPoint,
-			Log:          srv.Log,
+			Component: srv.Component,
+			Client:    accessPoint,
+			// TODO(tross) update this after converting to use slog
+			// Logger:          srv.Log,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
@@ -1226,17 +1234,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.localAuthClient)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint, srv.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.certificateCache = certificateCache
 
 	caRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1246,9 +1254,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Log:       srv.log,
-			Clock:     srv.Clock,
-			Client:    remoteSite.remoteAccessPoint,
+			// TODO(tross): update this after converting to slog
+			// Logger:       srv.log,
+			Clock:  srv.Clock,
+			Client: remoteSite.remoteAccessPoint,
 		},
 		Types: []types.CertAuthType{types.HostCA},
 	})
@@ -1261,10 +1270,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}()
 
 	lockRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  srv.Clock,
 	})
 	if err != nil {

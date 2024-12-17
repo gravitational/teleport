@@ -67,7 +67,7 @@ export type ConnectMyComputerDeepURL = BaseDeepURL & {
 
 export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
   pathname: '/authenticate_web_device';
-  searchParams: { id: string; token: string };
+  searchParams: { id: string; token: string; redirect_uri?: string };
 };
 
 export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;
@@ -77,8 +77,7 @@ export const CUSTOM_PROTOCOL = 'teleport' as const;
 /**
  * makeDeepLinkWithSafeInput creates a deep link by interpolating passed arguments.
  *
- * Important: This function does not perform any validation or parsing. It must not be called with
- * user-generated content.
+ * Important: This function does not perform any validation or parsing.
  */
 export function makeDeepLinkWithSafeInput<
   Pathname extends DeepURL['pathname'],
@@ -106,6 +105,8 @@ export function makeDeepLinkWithSafeInput<
     : '';
 
   const searchParamsString = Object.entries(args.searchParams)
+    // filter out params that have no value to prevent a string like "&myparam=null"
+    .filter(kv => kv[1] !== null && kv[1] !== undefined)
     .map(kv => kv.map(encodeURIComponent).join('='))
     .join('&');
 

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { render, screen, fireEvent, act } from 'design/utils/testing';
 
 import {
@@ -88,7 +87,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown' });
     fireEvent.keyDown(selectEl, { key: 'Enter' });
 
-    await screen.findByText(/selected region/i);
+    await screen.findByText(/selected VPC/i);
   }
 
   test('without rds database result, does not attempt to fetch db servers', async () => {
@@ -216,6 +215,7 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     accountId: 'account-id-1',
     resourceId: 'resource-id-1',
     vpcId: 'vpc-123',
+    securityGroups: ['sg-1', 'sg-2'],
     region: 'us-east-2',
     subnets: ['subnet1', 'subnet2'],
   },

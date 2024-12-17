@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert, H1 } from 'design';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -210,7 +210,7 @@ function AgentSetup() {
     setDownloadAgentAttempt,
     agentProcessState,
   } = useConnectMyComputerContext();
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
 
   // The verify agent step checks if we can execute the binary. This triggers OS-level checks, such
@@ -279,8 +279,8 @@ function AgentSetup() {
           throw error;
         }
 
-        // Now that the node has joined the server, let's refresh all open DocumentCluster instances
-        // to show the new node.
+        // Now that the node has joined the server, let's refresh open DocumentCluster
+        // instances in the workspace to show the new node.
         requestResourcesRefresh();
       }, [startAgent, requestResourcesRefresh])
     );
@@ -467,16 +467,7 @@ function StandardError(props: {
   error: string;
   mb?: number | string;
 }): JSX.Element {
-  return (
-    <Alerts.Danger
-      mb={props.mb || 0}
-      css={`
-        white-space: pre-wrap;
-      `}
-    >
-      {props.error}
-    </Alerts.Danger>
-  );
+  return <Alerts.Danger mb={props.mb || 0}>{props.error}</Alerts.Danger>;
 }
 
 function ClusterAndHostnameCopy(props: {

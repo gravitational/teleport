@@ -16,6 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export type SSOType =
+  | 'microsoft'
+  | 'github'
+  | 'bitbucket'
+  | 'google'
+  | 'openid'
+  | 'okta'
+  | 'unknown';
+
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
 export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';

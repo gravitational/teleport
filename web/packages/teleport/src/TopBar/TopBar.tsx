@@ -23,7 +23,7 @@ import { Flex, Image, Text, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
 import { Theme } from 'design/theme/themes/types';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -168,7 +168,11 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 />
               )}
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
+                const canAccess = hasAccess(ctx.getFeatureFlags());
+                if (!canAccess) {
+                  return;
+                }
                 const link = navigationItem.getLink(clusterId);
                 const currentPath = history.location.pathname;
                 const selected =
@@ -258,9 +262,10 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           cursor: pointer;
           display: flex;
           transition: background-color 0.1s linear;
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0].background};
+              p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
         `}
@@ -311,8 +316,7 @@ const NavigationButton = ({
 }) => {
   const theme = useTheme();
   const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground =
-    theme.colors.interactive.tonal.neutral[0].background;
+  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
 
   return (
     <HoverTooltip
@@ -338,12 +342,14 @@ const NavigationButton = ({
           }
           border-bottom: ${selected ? selectedBorder : 'none'};
           background-color: ${selected ? selectedBackground : 'inherit'};
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${selected
               ? selectedBackground
               : theme.colors.buttons.secondary.default};
           }
         `}
+        aria-label={title || undefined}
         {...props}
       >
         <Flex

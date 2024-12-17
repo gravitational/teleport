@@ -22,7 +22,7 @@ import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { ButtonState } from 'teleport/lib/tdp';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
+import { useMfa } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
@@ -112,9 +112,9 @@ export default function useDesktopSession() {
     );
   }, [clusterId, desktopName, run]);
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
-  const onRemoveWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const onRemoveAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
 
   const clientCanvasProps = useTdpClientCanvas({
@@ -126,11 +126,11 @@ export default function useDesktopSession() {
     setClipboardSharingState,
     setDirectorySharingState,
     clipboardSharingState,
-    setWarnings,
+    setAlerts,
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const webauthn = useWebAuthn(tdpClient);
+  const mfa = useMfa(tdpClient);
 
   const onShareDirectory = () => {
     try {
@@ -150,7 +150,7 @@ export default function useDesktopSession() {
             ...prevState,
             directorySelected: false,
           }));
-          setWarnings(prevState => [
+          setAlerts(prevState => [
             ...prevState,
             {
               id: crypto.randomUUID(),
@@ -164,7 +164,7 @@ export default function useDesktopSession() {
         ...prevState,
         directorySelected: false,
       }));
-      setWarnings(prevState => [
+      setAlerts(prevState => [
         ...prevState,
         {
           id: crypto.randomUUID(),
@@ -205,14 +205,14 @@ export default function useDesktopSession() {
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    webauthn,
+    mfa,
     setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
     onCtrlAltDel,
-    warnings,
-    onRemoveWarning,
+    alerts,
+    onRemoveAlert,
     ...clientCanvasProps,
   };
 }

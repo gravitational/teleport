@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { fireEvent, render, screen, theme } from 'design/utils/testing';
+
+import { userEventService } from 'teleport/services/userEvent';
 
 import { StandardBanner } from './StandardBanner';
 
@@ -46,8 +47,7 @@ describe('StandardBanner', () => {
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-info');
     expect(container.firstChild).toHaveStyle({
-      backgroundColor:
-        theme.colors.interactive.tonal.informational[2].background,
+      backgroundColor: theme.colors.interactive.tonal.informational[2],
     });
   });
 
@@ -62,7 +62,7 @@ describe('StandardBanner', () => {
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-warning');
     expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.alert[2].background,
+      backgroundColor: theme.colors.interactive.tonal.alert[2],
     });
   });
 
@@ -79,7 +79,7 @@ describe('StandardBanner', () => {
       'icon-warningcircle'
     );
     expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.danger[2].background,
+      backgroundColor: theme.colors.interactive.tonal.danger[2],
     });
   });
 
@@ -100,8 +100,27 @@ describe('StandardBanner', () => {
   });
 
   describe('with link', () => {
-    it('renders valid URLs as links', () => {
+    it('renders valid URLs as link buttons', () => {
       const message = 'some-message-with-valid-URL';
+      render(
+        <StandardBanner
+          message={message}
+          severity="info"
+          id="some-id"
+          link="https://goteleport.com/docs"
+          linkText="Open Docs"
+          onDismiss={() => {}}
+        />
+      );
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open Docs' })).toHaveAttribute(
+        'href',
+        'https://goteleport.com/docs'
+      );
+    });
+
+    it('renders valid URLs with default link text', () => {
+      const message = 'message-with-default-text';
       render(
         <StandardBanner
           message={message}
@@ -112,44 +131,53 @@ describe('StandardBanner', () => {
         />
       );
       expect(screen.getByText(message)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: message })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Learn More' })).toHaveAttribute(
         'href',
         'https://goteleport.com/docs'
       );
     });
 
-    it('renders invalid URLs as text', () => {
-      const message = 'some-message';
+    it('captures click events', () => {
+      jest.spyOn(userEventService, 'captureUserEvent');
       render(
         <StandardBanner
-          message={message}
+          message="some message"
           severity="info"
           id="some-id"
-          link="{https://goteleport.com/docs"
+          link="https://goteleport.com/docs"
           onDismiss={() => {}}
         />
       );
-      expect(screen.getByText(message)).toBeInTheDocument();
-      expect(
-        screen.queryByRole('link', { name: message })
-      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('link', { name: 'Learn More' }));
+      expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
+        alert: 'some-id',
+        event: 'tp.ui.banner.click',
+      });
     });
 
-    it('renders non-teleport URL as text', () => {
-      const message = 'message';
-      render(
-        <StandardBanner
-          message={message}
-          severity="info"
-          id="some-id"
-          link="https://www.google.com/"
-          onDismiss={() => {}}
-        />
-      );
-      expect(screen.getByText(message)).toBeInTheDocument();
-      expect(
-        screen.queryByRole('link', { name: message })
-      ).not.toBeInTheDocument();
-    });
+    it.each`
+      case                     | url                               | linkText      | expected
+      ${'invalid'}             | ${'{https://goteleport.com/docs'} | ${undefined}  | ${'{https://goteleport.com/docs'}
+      ${'external'}            | ${'https://www.google.com'}       | ${undefined}  | ${'https://www.google.com'}
+      ${'external, link text'} | ${'https://example.com'}          | ${'Find Out'} | ${'Find Out: https://example.com'}
+    `(
+      'renders invalid and external URLs as text: $case',
+      ({ url, linkText, expected }) => {
+        const message = 'some-message';
+        render(
+          <StandardBanner
+            message={message}
+            severity="info"
+            id="some-id"
+            link={url}
+            linkText={linkText}
+            onDismiss={() => {}}
+          />
+        );
+        expect(screen.getByText(message)).toBeInTheDocument();
+        expect(screen.getByText(expected)).toBeInTheDocument();
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      }
+    );
   });
 });

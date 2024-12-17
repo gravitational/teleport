@@ -1,0 +1,16 @@
+# Begin generated Teleport configuration for proxy.example.com by tsh
+
+# Common flags for all example.com hosts
+Host *.example.com proxy.example.com
+    UserKnownHostsFile "/home/alice/.tsh/known_hosts"
+    IdentityFile "/home/alice/.tsh/keys/example.com/bob"
+    CertificateFile "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub"
+    User "testuser"
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !proxy.example.com
+    Port 3232
+    ProxyCommand "/tmp/tsh" proxy ssh --cluster=example.com --proxy=proxy.example.com:443 %r@%h:%p
+    User "testuser"
+
+# End generated Teleport configuration

@@ -21,19 +21,22 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 
-	awsarn "github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -134,7 +137,7 @@ type awsApp struct {
 
 	cf *CLIConf
 
-	credentials     *credentials.Credentials
+	credentials     aws.CredentialsProvider
 	credentialsOnce sync.Once
 }
 
@@ -166,13 +169,8 @@ func (a *awsApp) GetAppName() string {
 // The first method is always preferred as the original hostname is preserved
 // through forward proxy.
 func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	cred, err := a.GetAWSCredentials()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	awsMiddleware := &alpnproxy.AWSAccessMiddleware{
-		AWSCredentials: cred,
+		AWSCredentialsProvider: a.GetAWSCredentialsProvider(),
 	}
 
 	// AWS endpoint URL mode
@@ -182,14 +180,14 @@ func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalP
 	}
 
 	// HTTPS proxy mode
-	err = a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAWSRequests, alpnproxy.WithHTTPMiddleware(awsMiddleware))
+	err := a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchAWSRequests, alpnproxy.WithHTTPMiddleware(awsMiddleware))
 	return trace.Wrap(err)
 }
 
-// GetAWSCredentials generates fake AWS credentials that are used for
-// signing an AWS request during AWS API calls and verified on local AWS proxy
-// side.
-func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
+// GetAWSCredentialsProvider returns an [aws.CredentialsProvider] that generates
+// fake AWS credentials that are used for signing an AWS request during AWS API
+// calls and verified on local AWS proxy side.
+func (a *awsApp) GetAWSCredentialsProvider() aws.CredentialsProvider {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
@@ -198,17 +196,13 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		a.credentials = credentials.NewStaticCredentials(
+		a.credentials = credentials.NewStaticCredentialsProvider(
 			getEnvOrDefault(awsAccessKeyIDEnvVar, uuid.NewString()),
 			getEnvOrDefault(awsSecretAccessKeyEnvVar, uuid.NewString()),
 			"",
 		)
 	})
-
-	if a.credentials == nil {
-		return nil, trace.BadParameter("missing credentials")
-	}
-	return a.credentials, nil
+	return a.credentials
 }
 
 // GetEnvVars returns required environment variables to configure the
@@ -218,12 +212,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		return nil, trace.NotFound("ALPN proxy is not running")
 	}
 
-	cred, err := a.GetAWSCredentials()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	credValues, err := cred.Get()
+	cred, err := a.GetAWSCredentialsProvider().Retrieve(context.Background())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -232,8 +221,8 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// AWS CLI and SDKs can load credentials through environment variables.
 		//
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
-		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
-		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
+		"AWS_ACCESS_KEY_ID":     cred.AccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": cred.SecretAccessKey,
 		"AWS_CA_BUNDLE":         a.appInfo.appLocalCAPath(a.cf.SiteName),
 	}
 
@@ -284,7 +273,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 	return nil
 }
 
-func printAWSRoles(roles awsutils.Roles) {
+func printAWSRoles(w io.Writer, roles awsutils.Roles) {
 	if len(roles) == 0 {
 		return
 	}
@@ -296,14 +285,14 @@ func printAWSRoles(roles awsutils.Roles) {
 		t.AddRow([]string{role.Display, role.ARN})
 	}
 
-	fmt.Println("Available AWS roles:")
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, "Available AWS roles:")
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
-func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Application) (string, error) {
+func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (string, error) {
 	// Filter AWS roles by AWS account ID. If AWS account ID is empty, all
 	// roles are returned.
-	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
+	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
 
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
@@ -311,17 +300,17 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 			return roles[0].ARN, nil
 		}
 
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.BadParameter("--aws-role flag is required")
 	}
 
 	// Match by role ARN.
-	if awsarn.IsARN(cf.AWSRole) {
+	if arn.IsARN(cf.AWSRole) {
 		if role, found := roles.FindRoleByARN(cf.AWSRole); found {
 			return role.ARN, nil
 		}
 
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.NotFound("failed to find the %q role ARN", cf.AWSRole)
 	}
 
@@ -331,13 +320,36 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	case 1:
 		return rolesMatched[0].ARN, nil
 	case 0:
-		printAWSRoles(roles)
+		printAWSRoles(cf.Stdout(), roles)
 		return "", trace.NotFound("failed to find the %q role name", cf.AWSRole)
 	default:
 		// Print roles matched the provided role name.
-		printAWSRoles(rolesMatched)
+		printAWSRoles(cf.Stdout(), rolesMatched)
 		return "", trace.BadParameter("provided role name %q is ambiguous, please specify full role ARN", cf.AWSRole)
 	}
+}
+
+// getARNFromRoles fetches the available AWS ARNs logins for given app.
+// If any step of fetching the roles ARNs fail, fallback into returning the
+// profile ARNs.
+//
+// TODO(gabrielcorado): DELETE IN V18.0.0
+// This is here for backward compatibility in case the auth server
+// does not support enriched resources yet.
+func getARNFromRoles(cf *CLIConf, roleGetter services.CurrentUserRoleGetter, profile *client.ProfileStatus, siteName string, app types.Application) []string {
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), siteName, roleGetter)
+	if err != nil {
+		log.WithError(err).Debugf("Failed to fetch user roles.")
+		return profile.AWSRolesARNs
+	}
+
+	logins, err := accessChecker.GetAllowedLoginsForResource(app)
+	if err != nil {
+		log.WithError(err).Debugf("Failed to fetch app logins.")
+		return profile.AWSRolesARNs
+	}
+
+	return logins
 }
 
 func matchAWSApp(app tlsca.RouteToApp) bool {
@@ -350,8 +362,23 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchAWSApp)
-	if err != nil {
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchAWSApp)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

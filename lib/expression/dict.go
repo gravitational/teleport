@@ -18,7 +18,9 @@
 
 package expression
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+)
 
 // Dict is a map of type string key and Set values.
 type Dict map[string]Set
@@ -43,16 +45,14 @@ func NewDict(pairs ...pair) (Dict, error) {
 
 func (d Dict) addValues(key string, values ...string) Dict {
 	out := d.clone()
-	s := out[key]
-	if s == nil {
+	s, present := out[key]
+	if !present {
 		out[key] = NewSet(values...)
 		return out
 	}
-	// Calling set.add would do an unnecessary extra copy, add the values
-	// "manually".
-	for _, value := range values {
-		s[value] = struct{}{}
-	}
+	// Calling s.add would do an unnecessary extra copy since we already
+	// cloned the whole Dict. s.s.Add adds to the existing cloned set.
+	s.s.Add(values...)
 	return out
 }
 

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Fragment } from 'react';
 import styled from 'styled-components';
-import { format } from 'date-fns';
 import {
   Alert,
   Box,
@@ -39,12 +38,13 @@ import {
 } from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 
 import { LabelKind } from 'design/LabelState/LabelState';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
+
 import { hasFinished, Attempt } from 'shared/hooks/useAsync';
-import cfg from 'shared/config';
 
 import {
   canAssumeNow,
@@ -162,9 +162,9 @@ export function RequestView({
     start: request.created,
     end: request.expires,
   });
-  let startingTime = format(request.created, cfg.dateWithPrefixedTime);
+  let startingTime = displayDateWithPrefixedTime(request.created);
   if (request.assumeStartTime) {
-    startingTime = format(request.assumeStartTime, cfg.dateWithPrefixedTime);
+    startingTime = displayDateWithPrefixedTime(request.assumeStartTime);
     requestedAccessTime = getFormattedDurationTxt({
       start: request.assumeStartTime,
       end: request.expires,
@@ -617,7 +617,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
       review;
 
     return (
-      <React.Fragment key={index}>
+      <Fragment key={index}>
         <Timestamp
           author={author}
           state={state}
@@ -632,7 +632,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
             createdDuration={createdDuration}
           />
         )}
-      </React.Fragment>
+      </Fragment>
     );
   });
 

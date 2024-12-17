@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
-import { format } from 'date-fns';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
-import cfg from 'shared/config';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
@@ -118,7 +117,7 @@ export const ButtonPromotedInfo = ({
 };
 
 export function getAssumeStartTimeTooltipText(startTime: Date) {
-  const formattedDate = format(startTime, cfg.dateWithPrefixedTime);
+  const formattedDate = displayDateWithPrefixedTime(startTime);
   return `Access is not available until the approved time of ${formattedDate}`;
 }
 

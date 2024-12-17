@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
 import { http, HttpResponse, delay } from 'msw';
@@ -220,7 +219,7 @@ const ListComponent = () => {
           css={`
             width: 100%;
             justify-content: center;
-            height: ${p => p.theme.topBarHeight[2]}px;
+            height: ${p => p.theme.topBarHeight[1]}px;
           `}
         >
           <NotificationsListComponent />

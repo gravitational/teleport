@@ -22,65 +22,12 @@ available in Teleport Enterprise.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Create the requester role
+## Step 1/6. Grant roles to users
 
-<Admonition type="note">
-As of version 13.1.2, Teleport comes with built-in `reviewer` and `requester` roles that
-are defined similarly to the ones presented here. If you are looking to quickly try out
-Access Requests, you can skip to step 3 and use these built-in roles. However, if you are
-using an earlier version of Teleport or you are looking to get general guidance for creating
-roles for Access Requests, steps 1 and 2 are still useful.
-</Admonition>
-
-This role allows the requester to search for resources accessible by the
-`access` role (all resources by default) and request access to them.
-
-```yaml
-# requester.yaml
-kind: role
-version: v5
-metadata:
-  name: requester
-spec:
-  allow:
-    request:
-      search_as_roles:
-        - access
-```
-
-```code
-$ tctl create requester.yaml
-```
-
-## Step 2/8. Create the reviewer role
-
-This role allows the reviewer to approve all requests for the `access` role.
-
-```yaml
-# reviewer.yaml
-kind: role
-version: v5
-metadata:
-  name: reviewer
-spec:
-  allow:
-    review_requests:
-      roles:
-        - access
-      preview_as_roles:
-        - access
-```
-
-```code
-$ tctl create reviewer.yaml
-```
-
-## Step 3/8. Grant the roles to users
-
-Grant the `requester` and `reviewer` roles to existing users, or create new
-users to test this feature.
-Make sure the requester has a valid `login` so that they can view and access SSH
-nodes.
+The built-in `requester` and `reviewer` roles have permissions to, respectively,
+open and review Access Requests.  Grant the `requester` and `reviewer` roles to
+existing users, or create new users to test this feature.  Make sure the
+requester has a valid `login` so that they can view and access SSH nodes.
 
 ```code
 $ tctl users add alice --roles requester --logins alice
@@ -91,7 +38,15 @@ For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
 
-## Step 4/8. Search for resources
+<Notice type="tip">
+
+Consider defining custom roles to limit the scope of a requester or reviewer's
+permissions. Read the [Access Request
+Configuration](./access-request-configuration.mdx) guide for available options.
+
+</Notice>
+
+## Step 2/6. Search for resources
 
 First, log in as `alice`.
 
@@ -165,7 +120,7 @@ However, it prevents you from access any resources belonging to another namespac
 </Details>
 
 Advanced filters and queries are supported. See our
-[filtering reference](../../../reference/cli.mdx) for more information.
+[filtering reference](../../../reference/cli/cli.mdx) for more information.
 
 Try narrowing your search to a specific resource you want to access.
 
@@ -180,7 +135,7 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-## Step 5/8. Request access to a resource
+## Step 3/6. Request access to a resource
 
 Copy the command output by `tsh request search` in the previous step, optionally filling in a request reason.
 
@@ -204,7 +159,7 @@ Waiting for request approval...
 
 The command will automatically wait until the request is approved.
 
-## Step 6/8. Approve the Access Request
+## Step 4/6. Approve the Access Request
 
 First, log in as `bob`.
 
@@ -244,7 +199,7 @@ Check out our
 to notify the right people about new Access Requests.
 </Notice>
 
-## Step 7/8. Access the requested resource
+## Step 5/6. Access the requested resource
 
 `alice`'s `tsh request create` command should resolve now that the request has been approved.
 
@@ -290,7 +245,7 @@ $ tsh ssh alice@iot
 iot:~ alice$
 ```
 
-## Step 8/8. Resume regular access
+## Step 6/6. Resume regular access
 
 While logged in with a Resource Access Request, users will be blocked from access to any other resources.
 This is necessary because their certificate now contains an elevated role,
@@ -450,6 +405,73 @@ are cluster-scoped will be accessible to the user if the principals in the
 Requesting access to a Kubernetes Namespace allows you to access all resources
 in that namespace but you won't be able to access any other supported resources
 in the cluster.
+
+##### Restrict Access Requests to specific Kubernetes resource kinds
+
+The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
+resources a user can request access to. Configuring this field to any value will disallow
+requesting access to the entire Kubernetes cluster.
+
+If the `request.kubernetes_resources` field is not configured, then a user can request access 
+to any Kubernetes resources, including the entire Kubernetes cluster.
+
+The following role allows users to request access to Kubernetes namespaces. 
+Requests for Kubernetes resources other than `namespace` will not be allowed.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+```
+
+The following role allows users to request access only to Kubernetes namespaces and/or pods.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+        - kind: "pod"
+```
+
+The following role allows users to request access to any specific Kubernetes resources.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "*"
+```
+
+See related section about [Kubernetes Resources](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) 
+to see a list of supported `kind` values.
+
+The `request.kubernetes_resources` field only restricts what `kinds` of Kubernetes resource requests are allowed.
+To control Kubernetes access to these resources see 
+[Preventing unintended access to Kubernetes resources](#preventing-unintended-access-to-kubernetes-resources) 
+section for more details.
 
 #### `db`
 
@@ -651,4 +673,4 @@ within your organization's existing messaging and project management solutions.
 
 ## Next Steps
 
-- Learn more about [Access Lists](../access-lists.mdx)
+- Learn more about [Access Lists](../access-lists/access-lists.mdx)

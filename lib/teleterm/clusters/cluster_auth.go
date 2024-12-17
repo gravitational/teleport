@@ -89,39 +89,9 @@ func (c *Cluster) Logout(ctx context.Context) error {
 
 // LocalLogin processes local logins for this cluster
 func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken string) error {
-	pingResp, err := c.updateClientFromPingResponse(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	c.clusterClient.AuthConnector = constants.LocalConnector
 
-	var sshLoginFunc client.SSHLoginFunc
-	switch pingResp.Auth.SecondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		sshLoginFunc = c.localLogin(user, password, otpToken)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		sshLoginFunc = c.localMFALogin(user, password)
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
-		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
-		// bails out to stdin to ask them for it.
-		//
-		// Connect cannot do that, but it still wants to use the auth code from lib/client that it
-		// shares with tsh. So to temporarily work around this problem, we check if the OTP token was
-		// submitted. If yes, then we use client.SSHAgentLogin, which lets us provide the token and skip
-		// asking for it over stdin. If not, we use client.SSHAgentMFALogin which should handle auth
-		// methods that don't use OTP.
-		if otpToken != "" {
-			sshLoginFunc = c.localLogin(user, password, otpToken)
-		} else {
-			sshLoginFunc = c.localMFALogin(user, password)
-		}
-	default:
-		return trace.BadParameter("unsupported second factor type: %q", pingResp.Auth.SecondFactor)
-	}
-
-	if err := c.login(ctx, sshLoginFunc); err != nil {
+	if err := c.login(ctx, c.localMFALogin(user, password)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -130,11 +100,12 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 
 // SSOLogin logs in a user to the Teleport cluster using supported SSO provider
 func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName string) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = providerName
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = providerName
 
 	if err := c.login(ctx, c.ssoLogin(providerType, providerName)); err != nil {
 		return trace.Wrap(err)
@@ -145,11 +116,12 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 
 // PasswordlessLogin processes passwordless logins for this cluster.
 func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+	// Get the ping response for the given auth connector.
+	c.clusterClient.AuthConnector = constants.PasswordlessConnector
+
 	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	c.clusterClient.AuthConnector = constants.PasswordlessConnector
 
 	if err := c.login(ctx, c.passwordlessLogin(stream)); err != nil {
 		return trace.Wrap(err)
@@ -222,42 +194,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			User:      user,
-			Password:  password,
-			PromptMFA: c.clusterClient.NewMFAPrompt(),
-		})
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return response, nil
-	}
-}
 
-func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			User:     user,
-			Password: password,
-			OTPToken: otpToken,
+		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
+			SSHLogin:             sshLogin,
+			User:                 user,
+			Password:             password,
+			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -267,40 +214,18 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 }
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
-			ConnectorID: providerName,
-			Protocol:    providerType,
-			BindAddr:    c.clusterClient.BindAddr,
-			Browser:     c.clusterClient.Browser,
-		}, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return response, nil
-	}
+	return c.clusterClient.SSOLoginFn(providerName, providerName, providerType)
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin:                sshLogin,
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
 			WebauthnLogin:           c.clusterClient.WebauthnLogin,

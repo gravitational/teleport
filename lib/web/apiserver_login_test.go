@@ -63,7 +63,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 	device := clusterMFA.WebDev.Key
 
 	// Prepare keys to be signed.
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, env.server.AuthServer.AuthServer)
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(env.server.AuthServer.AuthServer))
 	require.NoError(t, err)
 	sshPubKey, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 	userHandle := wla.UserID
 
 	// Prepare keys to be signed.
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, env.server.AuthServer.AuthServer)
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(env.server.AuthServer.AuthServer))
 	require.NoError(t, err)
 	sshPubKey, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
@@ -467,7 +467,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	require.NoError(t, err, "UpdateAndSwapUser failed")
 
 	// Prepare keys to be signed.
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, env.server.AuthServer.AuthServer)
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(env.server.AuthServer.AuthServer))
 	require.NoError(t, err)
 	sshPubKey, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
@@ -667,6 +667,7 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 
 // TestCreateSSHCert tests the login endpoint /webapi/ssh/certs with different
 // options for subject SSH and TLS keys.
+// TODO(Joerger): DELETE IN v18.0.0 when 2fa-less login endpoint is deprecated.
 func TestCreateSSHCert(t *testing.T) {
 	t.Parallel()
 
@@ -685,7 +686,7 @@ func TestCreateSSHCert(t *testing.T) {
 	proxy.createUser(ctx, t, user, login, pass, otpSecret, roles)
 	clt := proxy.newClient(t)
 
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, pack.server.AuthServer.AuthServer)
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(pack.server.AuthServer.AuthServer))
 	require.NoError(t, err)
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
@@ -754,7 +755,6 @@ func TestCreateSSHCert(t *testing.T) {
 			validateSSHLoginResponse(t, resp.Bytes(), tc.expectSubjectSSHPub, tc.expectSubjectTLSPub)
 		})
 	}
-
 }
 
 func validateSSHLoginResponse(t *testing.T, resp []byte, expectedSubjectSSHPub ssh.PublicKey, expectedSubjectTLSPub crypto.PublicKey) *authclient.SSHLoginResponse {

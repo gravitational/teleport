@@ -39,4 +39,6 @@ type MessagingBot interface {
 	UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData SentMessages, reviews []types.AccessReview) error
 	// NotifyUser notifies the user if their access request status has changed
 	NotifyUser(ctx context.Context, reqID string, ard pd.AccessRequestData) error
+	// FetchOncallUsers fetches on-call users filtered by the provided annotations
+	FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error)
 }

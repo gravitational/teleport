@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ReactNode } from 'react';
 import {
   render as testingRender,
   act,
@@ -30,17 +30,34 @@ import {
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter as Router } from 'react-router-dom';
 
-import ThemeProvider from 'design/ThemeProvider';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
-function Providers({ children }: { children: React.ReactElement }) {
-  return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <ConfiguredThemeProvider theme={darkTheme}>
+      {children}
+    </ConfiguredThemeProvider>
+  );
 }
 
-function render(ui: React.ReactElement<any>, options?: RenderOptions) {
+function render(
+  ui: ReactNode,
+  options?: RenderOptions
+): ReturnType<typeof testingRender> {
   return testingRender(ui, { wrapper: Providers, ...options });
+}
+
+/*
+ Returns a Promise resolving on the next macrotask, allowing any pending state
+ updates / timeouts to finish.
+ */
+function tick() {
+  return new Promise<void>(res =>
+    jest.requireActual('timers').setImmediate(res)
+  );
 }
 
 screen.debug = () => {
@@ -57,6 +74,7 @@ export {
   screen,
   fireEvent,
   darkTheme as theme,
+  tick,
   render,
   prettyDOM,
   waitFor,

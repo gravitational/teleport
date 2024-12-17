@@ -86,6 +86,9 @@ message GlobalNotificationSpec {
   bool match_all_conditions = 4;
   // notification is the notification itself.
   Notification notification = 5;
+  // exclude_users is a list of usernames of users who should never match this notification
+  // under any circumstances.
+  repeated string exclude_users = 6;
 }
 
 // ByPermissions represents the RoleConditions needed for a user to receive this notification.
@@ -119,6 +122,8 @@ message UserNotificationState {
 message UserNotificationStateSpec {
   // notification_id is the ID of the notification this state is for.
   string notification_id = 1;
+  // username is the username of the user this notification state is for.
+  string username = 2;
 }
 
 // NotificationState the state of a notification for a user. This can represent either "clicked" or "dismissed".

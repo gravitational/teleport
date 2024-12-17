@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { act } from '@testing-library/react';
 import { subSeconds, subMinutes } from 'date-fns';
 import { render, screen, userEvent } from 'design/utils/testing';
@@ -151,6 +150,17 @@ test('warning icon will show if session requires device trust and is not authori
 test('authorized icon will show if session is authorized', async () => {
   setup();
   jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => true);
+  jest.spyOn(session, 'getIsDeviceTrusted').mockImplementation(() => true);
+
+  render(getTopBar());
+
+  // the icon will show in the topbar and the usermenunav dropdown
+  expect(screen.getAllByTestId('device-trusted-icon')).toHaveLength(2);
+});
+
+test('authorized icon will show regardless of device requirements', async () => {
+  setup();
+  jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => false);
   jest.spyOn(session, 'getIsDeviceTrusted').mockImplementation(() => true);
 
   render(getTopBar());

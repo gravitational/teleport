@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -68,6 +69,8 @@ import (
 type TestAuthServerConfig struct {
 	// ClusterName is cluster name
 	ClusterName string
+	// ClusterID is the cluster ID; optional - sets to random UUID string if not present
+	ClusterID string
 	// Dir is directory for local backend
 	Dir string
 	// AcceptedUsage is an optional list of restricted
@@ -76,7 +79,7 @@ type TestAuthServerConfig struct {
 	// CipherSuites is the list of ciphers that the server supports.
 	CipherSuites []uint16
 	// Clock is used to control time in tests.
-	Clock clockwork.FakeClock
+	Clock clockwork.Clock
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
@@ -93,6 +96,10 @@ type TestAuthServerConfig struct {
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
 	// operation.
 	RunWhileLockedRetryInterval time.Duration
+	// FIPS means the cluster should run in FIPS mode.
+	FIPS bool
+	// KeystoreConfig is configuration for the CA keystore.
+	KeystoreConfig servicecfg.KeystoreConfig
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -260,7 +267,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewTestIdentityService(srv.Backend)
+	identity, err := local.NewTestIdentityService(srv.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
@@ -277,6 +287,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
+		ClusterID:   cfg.ClusterID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -298,6 +309,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName:            clusterName,
 		HostUUID:               uuid.New().String(),
 		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
 	},
 		WithClock(cfg.Clock),
 	)
@@ -324,6 +337,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			AppSession:              svces.Identity,
 			Apps:                    svces.Apps,
 			ClusterConfig:           svces.ClusterConfiguration,
+			AutoUpdateService:       svces.AutoUpdateService,
 			CrownJewels:             svces.CrownJewels,
 			DatabaseObjects:         svces.DatabaseObjects,
 			DatabaseServices:        svces.DatabaseServices,
@@ -331,6 +345,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			DiscoveryConfigs:        svces.DiscoveryConfigs,
 			DynamicAccess:           svces.DynamicAccessExt,
 			Events:                  svces.Events,
+			IdentityCenter:          svces.IdentityCenter,
 			Integrations:            svces.Integrations,
 			KubeWaitingContainers:   svces.KubeWaitingContainer,
 			Kubernetes:              svces.Kubernetes,
@@ -338,20 +353,26 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Okta:                    svces.Okta,
 			Presence:                svces.PresenceInternal,
 			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
 			Restrictions:            svces.Restrictions,
 			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
 			SAMLIdPSession:          svces.Identity,
 			SecReports:              svces.SecReports,
 			SnowflakeSession:        svces.Identity,
 			SPIFFEFederations:       svces.SPIFFEFederations,
+			WorkloadIdentity:        svces.WorkloadIdentities,
 			StaticHostUsers:         svces.StaticHostUser,
 			Trust:                   svces.TrustInternal,
 			UserGroups:              svces.UserGroups,
+			UserTasks:               svces.UserTasks,
 			UserLoginStates:         svces.UserLoginStates,
 			Users:                   svces.Identity,
 			WebSession:              svces.Identity.WebSessions(),
 			WebToken:                svces.WebTokens(),
 			WindowsDesktops:         svces.WindowsDesktops,
+			DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
+			PluginStaticCredentials: svces.PluginStaticCredentials,
+			GitServers:              svces.GitServers,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -871,8 +892,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
 		cfg.Limiter = &limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		}
 	}
 	return nil
@@ -1081,7 +1101,8 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 	// shared between all clients that use the same TLS config.
 	// Reusing the cache will skip the TLS handshake and may introduce a weird
 	// behavior in tests.
-	if !tlsConfig.SessionTicketsDisabled {
+	if tlsConfig.ClientSessionCache != nil {
+		tlsConfig = tlsConfig.Clone()
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
 

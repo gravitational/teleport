@@ -56,34 +56,16 @@ Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 To enforce MFA checks for all roles, edit your cluster authentication
-configuration:
+configuration.
 
-<Tabs>
-<TabItem label="Static configuration">
-
-Update `teleport.yaml` on the Auth Server to include the following content:
-
-```yaml
-auth_service:
-  authentication:
-    # require per-session MFA cluster-wide
-    require_session_mfa: yes
-```
-
-</TabItem>
-<TabItem label="Dynamic resources">
-
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-Ensure that `cap.yaml` contains the following content:
+Ensure that the resource contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -94,44 +76,7 @@ spec:
 version: v2
 ```
 
-Create the resource:
-
-```code
-$ tctl create -f cap.yaml
-```
-
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise">
-
-Obtain your existing `cluster_auth_preference` resource:
-
-```code
-$ tctl get cap > cap.yaml
-```
-
-Ensure that `cap.yaml` contains the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  require_session_mfa: true
-version: v2
-```
-
-Create the resource:
-
-```code
-$ tctl create -f cap.yaml
-```
-
-</TabItem>
-
-</Tabs>
+Apply your changes by saving and closing the file in your editor.
 
 ### Per role
 
@@ -264,6 +209,10 @@ Current limitations for this feature are:
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - For desktop access, only WebAuthn devices are supported.
+- When accessing a
+  [multi-port](../../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
+  TCP application through [VNet](../../../connect-your-client/vnet.mdx), the first connection over
+  each port triggers an MFA check.
 
 ## Next steps
 

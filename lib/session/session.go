@@ -149,7 +149,7 @@ func (s *Session) Participants() []string {
 	return participants
 }
 
-// RemoveParty helper allows to remove a party by it's ID from the
+// RemoveParty helper allows to remove a party by its ID from the
 // session's list. Returns 'false' if pid couldn't be found
 func (s *Session) RemoveParty(pid ID) bool {
 	for i := range s.Parties {

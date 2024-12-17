@@ -1,0 +1,275 @@
+# This style rule ensures that mentions of AWS product names are correct.
+# To get the list of service names:
+#
+# - Open https://health.aws.amazon.com/health/status in a browser.
+# - Look at the "Network" pane in dev tools and find the URL
+#   that returned services.json.
+# - Save services.json to a local file. 
+# - Run the following command to get a list of product names that begin with
+#   "AWS" or "Amazon", formatted as a mapping where each key is the incorrect
+#   usage and each value is the correct usage. Each mapping is indented by two
+#   spaces so we can use it as the value of "swap":
+#
+#   jq -r '[.[].service_name] | unique | .[]' < services.json | gawk '
+#   /^Amazon/{ print gensub(/Amazon (.*)/,"  \"AWS \\1\"","1") ": " $0 }
+#   /^AWS /{ print gensub(/AWS (.*)/,"  \"Amazon \\1\"","1") ": " $0}'
+extends: substitution
+message: "Incorrect AWS product name. Use %s instead of %s."
+level: warning
+ignorecase: true
+swap:
+  "Amazon Account Management": AWS Account Management
+  "Amazon Activate Console": AWS Activate Console
+  "Amazon Amplify": AWS Amplify
+  "Amazon Amplify Admin": AWS Amplify Admin
+  "Amazon App Mesh": AWS App Mesh
+  "Amazon App Runner": AWS App Runner
+  "Amazon AppConfig": AWS AppConfig
+  "Amazon AppFabric": AWS AppFabric
+  "Amazon AppSync": AWS AppSync
+  "Amazon Application Discovery Service": AWS Application Discovery Service
+  "Amazon Application Migration Service": AWS Application Migration Service
+  "Amazon Audit Manager": AWS Audit Manager
+  "Amazon B2B Data Interchange": AWS B2B Data Interchange
+  "Amazon Backup": AWS Backup
+  "Amazon Batch": AWS Batch
+  "Amazon Billing Console": AWS Billing Console
+  "Amazon Certificate Manager": AWS Certificate Manager
+  "Amazon Chatbot": AWS Chatbot
+  "Amazon Clean Rooms": AWS Clean Rooms
+  "Amazon Client VPN": AWS Client VPN
+  "Amazon Cloud Map": AWS Cloud Map
+  "Amazon Cloud WAN": AWS Cloud WAN
+  "Amazon Cloud9": AWS Cloud9
+  "Amazon CloudFormation": AWS CloudFormation
+  "Amazon CloudHSM": AWS CloudHSM
+  "Amazon CloudShell": AWS CloudShell
+  "Amazon CloudTrail": AWS CloudTrail
+  "Amazon CodeArtifact": AWS CodeArtifact
+  "Amazon CodeBuild": AWS CodeBuild
+  "Amazon CodeCommit": AWS CodeCommit
+  "Amazon CodeDeploy": AWS CodeDeploy
+  "Amazon CodePipeline": AWS CodePipeline
+  "Amazon CodeStar": AWS CodeStar
+  "Amazon Compute Optimizer": AWS Compute Optimizer
+  "Amazon Config": AWS Config
+  "Amazon Console Mobile App": AWS Console Mobile App
+  "Amazon Control Tower": AWS Control Tower
+  "Amazon Data Exchange": AWS Data Exchange
+  "Amazon Data Pipeline": AWS Data Pipeline
+  "Amazon DataSync": AWS DataSync
+  "Amazon Database Migration Service": AWS Database Migration Service
+  "Amazon DeepComposer": AWS DeepComposer
+  "Amazon DeepLens": AWS DeepLens
+  "Amazon DeepRacer": AWS DeepRacer
+  "Amazon Device Farm": AWS Device Farm
+  "Amazon Direct Connect": AWS Direct Connect
+  "Amazon Directory Service": AWS Directory Service
+  "Amazon Elastic Beanstalk": AWS Elastic Beanstalk
+  "Amazon Elastic Disaster Recovery": AWS Elastic Disaster Recovery
+  "Amazon Elemental": AWS Elemental
+  "Amazon Entity Resolution": AWS Entity Resolution
+  "Amazon Fargate": AWS Fargate
+  "Amazon Fault Injection Simulator": AWS Fault Injection Simulator
+  "Amazon Firewall Manager": AWS Firewall Manager
+  "Amazon Global Accelerator": AWS Global Accelerator
+  "Amazon Glue": AWS Glue
+  "Amazon Glue DataBrew": AWS Glue DataBrew
+  "Amazon Ground Station": AWS Ground Station
+  "Amazon Health": AWS Health
+  "Amazon HealthImaging": AWS HealthImaging
+  "Amazon HealthLake": AWS HealthLake
+  "Amazon HealthOmics": AWS HealthOmics
+  "Amazon IAM Identity Center": AWS IAM Identity Center
+  "Amazon Identity and Access Management": AWS Identity and Access Management
+  "Amazon Identity and Access Management Roles Anywhere": AWS Identity and Access Management Roles Anywhere
+  "Amazon Import/Export": AWS Import/Export
+  "Amazon Internet Connectivity": AWS Internet Connectivity
+  "Amazon IoT 1-Click": AWS IoT 1-Click
+  "Amazon IoT Analytics": AWS IoT Analytics
+  "Amazon IoT Core": AWS IoT Core
+  "Amazon IoT Device Defender": AWS IoT Device Defender
+  "Amazon IoT Device Management": AWS IoT Device Management
+  "Amazon IoT Events": AWS IoT Events
+  "Amazon IoT FleetWise": AWS IoT FleetWise
+  "Amazon IoT Greengrass": AWS IoT Greengrass
+  "Amazon IoT RoboRunner": AWS IoT RoboRunner
+  "Amazon IoT SiteWise": AWS IoT SiteWise
+  "Amazon IoT TwinMaker": AWS IoT TwinMaker
+  "Amazon Key Management Service": AWS Key Management Service
+  "Amazon Lake Formation": AWS Lake Formation
+  "Amazon Lambda": AWS Lambda
+  "Amazon Launch Wizard": AWS Launch Wizard
+  "Amazon License Manager": AWS License Manager
+  "Amazon Mainframe Modernization": AWS Mainframe Modernization
+  "Amazon Management Console": AWS Management Console
+  "Amazon Marketplace": AWS Marketplace
+  "Amazon Migration Hub": AWS Migration Hub
+  "Amazon Migration Hub Journeys": AWS Migration Hub Journeys
+  "Amazon Migration Hub Orchestrator": AWS Migration Hub Orchestrator
+  "Amazon Migration Hub Strategy Recommendations": AWS Migration Hub Strategy Recommendations
+  "Amazon Mobile Hub": AWS Mobile Hub
+  "Amazon NAT Gateway": AWS NAT Gateway
+  "Amazon Network Firewall": AWS Network Firewall
+  "Amazon OpsWorks Stacks": AWS OpsWorks Stacks
+  "Amazon OpsWorks for Chef Automate": AWS OpsWorks for Chef Automate
+  "Amazon OpsWorks for Puppet Enterprise": AWS OpsWorks for Puppet Enterprise
+  "Amazon Organizations": AWS Organizations
+  "Amazon Outposts": AWS Outposts
+  "Amazon Panorama": AWS Panorama
+  "Amazon Partner Central": AWS Partner Central
+  "Amazon Payment Cryptography": AWS Payment Cryptography
+  "Amazon Price List Service": AWS Price List Service
+  "Amazon Private 5G": AWS Private 5G
+  "Amazon Private CA Connector for Active Directory": AWS Private CA Connector for Active Directory
+  "Amazon Private Certificate Authority": AWS Private Certificate Authority
+  "Amazon Proton": AWS Proton
+  "Amazon QuickSight": AWS QuickSight
+  "Amazon Resilience Hub": AWS Resilience Hub
+  "Amazon Resource Access Manager": AWS Resource Access Manager
+  "Amazon Resource Explorer": AWS Resource Explorer
+  "Amazon Resource Groups": AWS Resource Groups
+  "Amazon Resource Groups Tagging API": AWS Resource Groups Tagging API
+  "Amazon RoboMaker": AWS RoboMaker
+  "Amazon Secrets Manager": AWS Secrets Manager
+  "Amazon Security Hub": AWS Security Hub
+  "Amazon Serverless Application Repository": AWS Serverless Application Repository
+  "Amazon Service Catalog": AWS Service Catalog
+  "Amazon Service Quotas": AWS Service Quotas
+  "Amazon Sign Up": AWS Sign Up
+  "Amazon Sign-In": AWS Sign-In
+  "Amazon SimSpace Weaver": AWS SimSpace Weaver
+  "Amazon Site-to-Site VPN": AWS Site-to-Site VPN
+  "Amazon Step Functions": AWS Step Functions
+  "Amazon Storage Gateway": AWS Storage Gateway
+  "Amazon Support Center": AWS Support Center
+  "Amazon Systems Manager": AWS Systems Manager
+  "Amazon Systems Manager for SAP": AWS Systems Manager for SAP
+  "Amazon Telco Network Builder": AWS Telco Network Builder
+  "Amazon Transfer Family": AWS Transfer Family
+  "Amazon Transit Gateway": AWS Transit Gateway
+  "Amazon Trusted Advisor": AWS Trusted Advisor
+  "Amazon User Notifications": AWS User Notifications
+  "Amazon VPCE PrivateLink": AWS VPCE PrivateLink
+  "Amazon Verified Access": AWS Verified Access
+  "Amazon Verified Permissions": AWS Verified Permissions
+  "Amazon WAF": AWS WAF
+  "Amazon Well-Architected Tool": AWS Well-Architected Tool
+  "Amazon Wickr": AWS Wickr
+  "Amazon WickrGov": AWS WickrGov
+  "Amazon X-Ray": AWS X-Ray
+  "AWS API Gateway": Amazon API Gateway
+  "AWS AppFlow": Amazon AppFlow
+  "AWS AppStream 2.0": Amazon AppStream 2.0
+  "AWS Athena": Amazon Athena
+  "AWS Augmented AI": Amazon Augmented AI
+  "AWS Bedrock": Amazon Bedrock
+  "AWS Braket": Amazon Braket
+  "AWS Chime": Amazon Chime
+  "AWS Cloud Directory": Amazon Cloud Directory
+  "AWS CloudFront": Amazon CloudFront
+  "AWS CloudSearch": Amazon CloudSearch
+  "AWS CloudWatch": Amazon CloudWatch
+  "AWS CloudWatch Application Insights": Amazon CloudWatch Application Insights
+  "AWS CloudWatch Evidently": Amazon CloudWatch Evidently
+  "AWS CloudWatch Internet Monitor": Amazon CloudWatch Internet Monitor
+  "AWS CloudWatch RUM": Amazon CloudWatch RUM
+  "AWS CloudWatch Synthetics": Amazon CloudWatch Synthetics
+  "AWS CodeCatalyst": Amazon CodeCatalyst
+  "AWS CodeGuru Profiler": Amazon CodeGuru Profiler
+  "AWS CodeGuru Reviewer": Amazon CodeGuru Reviewer
+  "AWS CodeWhisperer": Amazon CodeWhisperer
+  "AWS Cognito": Amazon Cognito
+  "AWS Comprehend": Amazon Comprehend
+  "AWS Comprehend Medical": Amazon Comprehend Medical
+  "AWS Connect": Amazon Connect
+  "AWS Data Lifecycle Manager": Amazon Data Lifecycle Manager
+  "AWS DataZone": Amazon DataZone
+  "AWS Detective": Amazon Detective
+  "AWS DevOps Guru": Amazon DevOps Guru
+  "AWS DocumentDB": Amazon DocumentDB
+  "AWS DynamoDB": Amazon DynamoDB
+  "AWS EC2 Instance Connect": Amazon EC2 Instance Connect
+  "AWS EMR Serverless": Amazon EMR Serverless
+  "AWS ElastiCache": Amazon ElastiCache
+  "AWS Elastic Compute Cloud": Amazon Elastic Compute Cloud
+  "AWS Elastic Container Registry": Amazon Elastic Container Registry
+  "AWS Elastic Container Registry Public": Amazon Elastic Container Registry Public
+  "AWS Elastic Container Service": Amazon Elastic Container Service
+  "AWS Elastic File System": Amazon Elastic File System
+  "AWS Elastic Kubernetes Service": Amazon Elastic Kubernetes Service
+  "AWS Elastic Load Balancing": Amazon Elastic Load Balancing
+  "AWS Elastic MapReduce": Amazon Elastic MapReduce
+  "AWS EventBridge": Amazon EventBridge
+  "AWS EventBridge Scheduler": Amazon EventBridge Scheduler
+  "AWS FSx": Amazon FSx
+  "AWS FinSpace": Amazon FinSpace
+  "AWS Forecast": Amazon Forecast
+  "AWS Fraud Detector": Amazon Fraud Detector
+  "AWS FreeRTOS": Amazon FreeRTOS
+  "AWS GameLift": Amazon GameLift
+  "AWS Glacier": Amazon Glacier
+  "AWS GuardDuty": Amazon GuardDuty
+  "AWS Inspector": Amazon Inspector
+  "AWS Inter-Region VPC Peering": Amazon Inter-Region VPC Peering
+  "AWS Interactive Video Service": Amazon Interactive Video Service
+  "AWS Kendra": Amazon Kendra
+  "AWS Kendra Intelligent Ranking": Amazon Kendra Intelligent Ranking
+  "AWS Keyspaces": Amazon Keyspaces
+  "AWS Kinesis Analytics": Amazon Kinesis Analytics
+  "AWS Kinesis Data Streams": Amazon Kinesis Data Streams
+  "AWS Kinesis Firehose": Amazon Kinesis Firehose
+  "AWS Kinesis Video Streams": Amazon Kinesis Video Streams
+  "AWS Lex": Amazon Lex
+  "AWS Lightsail": Amazon Lightsail
+  "AWS Location Service": Amazon Location Service
+  "AWS Lookout for Equipment": Amazon Lookout for Equipment
+  "AWS Lookout for Metrics": Amazon Lookout for Metrics
+  "AWS Lookout for Vision": Amazon Lookout for Vision
+  "AWS MQ": Amazon MQ
+  "AWS Machine Learning": Amazon Machine Learning
+  "AWS Macie": Amazon Macie
+  "AWS Managed Blockchain": Amazon Managed Blockchain
+  "AWS Managed Grafana": Amazon Managed Grafana
+  "AWS Managed Service for Prometheus": Amazon Managed Service for Prometheus
+  "AWS Managed Streaming for Apache Kafka": Amazon Managed Streaming for Apache Kafka
+  "AWS Managed Workflows for Apache Airflow": Amazon Managed Workflows for Apache Airflow
+  "AWS MemoryDB for Redis": Amazon MemoryDB for Redis
+  "AWS Monitron": Amazon Monitron
+  "AWS Neptune": Amazon Neptune
+  "AWS Nimble Studio": Amazon Nimble Studio
+  "AWS OpenSearch Service": Amazon OpenSearch Service
+  "AWS Personalize": Amazon Personalize
+  "AWS Pinpoint": Amazon Pinpoint
+  "AWS Polly": Amazon Polly
+  "AWS Quantum Ledger Database": Amazon Quantum Ledger Database
+  "AWS Redshift": Amazon Redshift
+  "AWS Rekognition": Amazon Rekognition
+  "AWS Relational Database Service": Amazon Relational Database Service
+  "AWS Route 53": Amazon Route 53
+  "AWS Route 53 Application Recovery Controller": Amazon Route 53 Application Recovery Controller
+  "AWS Route 53 Domain Registration": Amazon Route 53 Domain Registration
+  "AWS Route 53 Private DNS": Amazon Route 53 Private DNS
+  "AWS Route 53 Resolver": Amazon Route 53 Resolver
+  "AWS S3 Replication Time Control": Amazon S3 Replication Time Control
+  "AWS SageMaker": Amazon SageMaker
+  "AWS Security Lake": Amazon Security Lake
+  "AWS Simple Email Service": Amazon Simple Email Service
+  "AWS Simple Notification Service": Amazon Simple Notification Service
+  "AWS Simple Queue Service": Amazon Simple Queue Service
+  "AWS Simple Storage Service": Amazon Simple Storage Service
+  "AWS Simple Workflow Service": Amazon Simple Workflow Service
+  "AWS SimpleDB": Amazon SimpleDB
+  "AWS Textract": Amazon Textract
+  "AWS Timestream": Amazon Timestream
+  "AWS Transcribe": Amazon Transcribe
+  "AWS Translate": Amazon Translate
+  "AWS VPC IP Address Manager": Amazon VPC IP Address Manager
+  "AWS VPC Lattice": Amazon VPC Lattice
+  "AWS Virtual Private Cloud": Amazon Virtual Private Cloud
+  "AWS WorkDocs": Amazon WorkDocs
+  "AWS WorkMail": Amazon WorkMail
+  "AWS WorkSpaces": Amazon WorkSpaces
+  "AWS WorkSpaces Thin Client": Amazon WorkSpaces Thin Client
+  "AWS WorkSpaces Web": Amazon WorkSpaces Web
+  

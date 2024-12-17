@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ButtonPrimary } from 'design/Button';
 import { NotificationItem } from 'shared/components/Notification';
 import { throttle } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
 
 import { State } from './useDesktopSession';
 import { DesktopSession } from './DesktopSession';
@@ -81,17 +82,11 @@ const props: State = {
   canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
-  webauthn: {
-    errorText: '',
-    requested: false,
-    authenticate: () => {},
-    setState: () => {},
-    addMfaToScpUrls: false,
-  },
+  mfa: makeDefaultMfaState(),
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
-  warnings: [],
-  onRemoveWarning: () => {},
+  alerts: [],
+  onRemoveAlert: () => {},
   windowOnResize: throttle(() => {}, 1000),
 };
 
@@ -265,12 +260,15 @@ export const WebAuthnPrompt = () => (
       writeState: 'granted',
     }}
     wsConnection={{ status: 'open' }}
-    webauthn={{
+    mfa={{
       errorText: '',
       requested: true,
-      authenticate: () => {},
-      setState: () => {},
+      setErrorText: () => null,
       addMfaToScpUrls: false,
+      onWebauthnAuthenticate: () => null,
+      onSsoAuthenticate: () => null,
+      webauthnPublicKey: null,
+      ssoChallenge: null,
     }}
   />
 );
@@ -314,34 +312,47 @@ export const ClipboardSharingDisabledBrowserPermissions = () => (
   />
 );
 
-export const Warnings = () => {
+export const Alerts = () => {
   const client = fakeClient();
   client.connect = async () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
 
   const addWarning = () => {
-    setWarnings(prevItems => [
+    setAlerts(prevItems => [
       ...prevItems,
       {
         id: crypto.randomUUID(),
         severity: 'warn',
-        content:
-          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
+        content: `This is a warning message at ${new Date().toLocaleTimeString()}`,
       },
     ]);
   };
 
-  const removeWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const addInfo = () => {
+    setAlerts(prevItems => [
+      ...prevItems,
+      {
+        id: crypto.randomUUID(),
+        severity: 'info',
+        content: `This is an info message at ${new Date().toLocaleTimeString()}`,
+      },
+    ]);
+  };
+
+  const removeAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(warning => warning.id !== id));
   };
 
   return (
     <>
-      <ButtonPrimary onClick={addWarning} mb={1}>
+      <ButtonPrimary onClick={addWarning} mb={1} mr={1}>
         Add Warning
+      </ButtonPrimary>
+      <ButtonPrimary onClick={addInfo} mb={1}>
+        Add Info
       </ButtonPrimary>
       <DesktopSession
         {...props}
@@ -363,8 +374,8 @@ export const Warnings = () => {
         clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
           fillGray(ctx.canvas);
         }}
-        warnings={warnings}
-        onRemoveWarning={removeWarning}
+        alerts={alerts}
+        onRemoveAlert={removeAlert}
       />
     </>
   );

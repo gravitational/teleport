@@ -44,6 +44,19 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: sets StatefulSet annotations when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+
   - it: sets Pod annotations when specified
     template: statefulset.yaml
     values:
@@ -801,3 +814,13 @@ tests:
               hostnames:
                 - "foo.remote"
                 - "bar.remote"
+  - it: should set the terminationGracePeriodSeconds when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      terminationGracePeriodSeconds: 3600
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 3600

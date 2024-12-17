@@ -34,6 +34,7 @@ import (
 	"golang.org/x/exp/maps"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -212,7 +213,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
 					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"bar": {
@@ -221,6 +227,11 @@ current-context: foo
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
+					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -231,6 +242,11 @@ current-context: foo
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
+					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
 					rbacSupportedTypes: rbacSupportedTypes,
@@ -257,6 +273,11 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
 					rbacSupportedTypes: rbacSupportedTypes,
 				},
@@ -275,6 +296,11 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
 					rbacSupportedTypes: rbacSupportedTypes,
 				},
@@ -285,6 +311,11 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
 					rbacSupportedTypes: rbacSupportedTypes,
 				},
@@ -294,6 +325,11 @@ current-context: foo
 						transportConfig: &transport.Config{},
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
+					},
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
 					},
 					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
 					rbacSupportedTypes: rbacSupportedTypes,

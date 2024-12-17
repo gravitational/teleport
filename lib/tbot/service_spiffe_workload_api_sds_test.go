@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -27,7 +28,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -36,7 +36,7 @@ import (
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/assert"
@@ -50,11 +50,20 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+type mockTrustBundleCache struct {
+	currentBundle *spiffe.BundleSet
+}
+
+func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error) {
+	return m.currentBundle, nil
+}
 
 // TestSDS_FetchSecrets performs a unit-test over the FetchSecrets method.
 // It tests the generation of the DiscoveryResponses and that authentication
@@ -82,19 +91,25 @@ func TestSDS_FetchSecrets(t *testing.T) {
 		}, nil
 	}
 
-	bundle := x509bundle.New(td)
+	bundle := spiffebundle.New(td)
 	bundle.AddX509Authority(ca)
-	trustBundleGetter := func() *x509bundle.Bundle {
-		return bundle
-	}
-	trustBundleUpdateSubscriber := func() (ch chan struct{}, unsubscribe func()) {
-		return nil, func() {}
+
+	federatedBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("federated.example.com"))
+	federatedBundle.AddX509Authority(ca)
+
+	mockBundleCache := &mockTrustBundleCache{
+		currentBundle: &spiffe.BundleSet{
+			Local: bundle,
+			Federated: map[string]*spiffebundle.Bundle{
+				"federated.example.com": federatedBundle,
+			},
+		},
 	}
 	svidFetcher := func(
 		ctx context.Context,
 		log *slog.Logger,
-		svidRequests []config.SVIDRequest,
-	) ([]*workloadpb.X509SVID, error) {
+		localBundle *spiffebundle.Bundle,
+		svidRequests []config.SVIDRequest) ([]*workloadpb.X509SVID, error) {
 		if len(svidRequests) != 2 {
 			return nil, trace.BadParameter("expected 2 svids requested")
 		}
@@ -103,11 +118,13 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				SpiffeId:    "spiffe://example.com/default",
 				X509Svid:    []byte("CERT-spiffe://example.com/default"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/default"),
+				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 			{
 				SpiffeId:    "spiffe://example.com/second",
 				X509Svid:    []byte("CERT-spiffe://example.com/second"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/second"),
+				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 		}, nil
 	}
@@ -180,6 +197,12 @@ func TestSDS_FetchSecrets(t *testing.T) {
 			},
 		},
 		{
+			name: "specific ca federated",
+			resourceNames: []string{
+				"spiffe://federated.example.com",
+			},
+		},
+		{
 			name: "special default",
 			resourceNames: []string{
 				envoyDefaultSVIDName,
@@ -211,10 +234,9 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				cfg:    cfg,
 				botCfg: botConfig,
 
-				clientAuthenticator:         clientAuthenticator,
-				trustBundleGetter:           trustBundleGetter,
-				trustBundleUpdateSubscriber: trustBundleUpdateSubscriber,
-				svidFetcher:                 svidFetcher,
+				trustBundleCache:    mockBundleCache,
+				clientAuthenticator: clientAuthenticator,
+				svidFetcher:         svidFetcher,
 			}
 
 			req := &discoveryv3pb.DiscoveryRequest{
@@ -330,20 +352,10 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	botConfig.Oneshot = false
 	b := New(botConfig, log)
 
-	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := b.Run(botCtx)
-		assert.NoError(t, err, "bot should not exit with error")
-		cancelBot()
-	}()
-	t.Cleanup(func() {
-		// Shut down bot and make sure it exits.
-		cancelBot()
-		wg.Wait()
+	// Run bot in the background for the remainder of the test.
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "bot",
+		Task: b.Run,
 	})
 
 	// Wait for the socket to come up.
@@ -393,8 +405,11 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 		require.NotNil(t, tlsCert.PrivateKey)
 		privateKeyBytes := tlsCert.PrivateKey.GetInlineBytes()
 		require.NotEmpty(t, privateKeyBytes)
-		_, err = tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
+		goTLSCert, err := tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
 		require.NoError(t, err)
+		// Sanity check we generated an ECDSA key (testenv cluster uses
+		// balanced-v1 algorithm suite)
+		require.IsType(t, &ecdsa.PrivateKey{}, goTLSCert.PrivateKey)
 	}
 	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
 
@@ -409,8 +424,11 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	require.Equal(t, "root", spiffeValidatorConfig.TrustDomains[0].Name)
 	block, _ := pem.Decode(spiffeValidatorConfig.TrustDomains[0].TrustBundle.GetInlineBytes())
 	require.Equal(t, "CERTIFICATE", block.Type)
-	_, err = x509.ParseCertificate(block.Bytes)
+	x509Cert, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
+	// Sanity check we generated an ECDSA key (testenv cluster uses balanced-v1
+	// algorithm suite)
+	require.IsType(t, &ecdsa.PublicKey{}, x509Cert.PublicKey)
 
 	// We should send the response ACK we expect envoy to send.
 	err = stream.Send(&discoveryv3pb.DiscoveryRequest{

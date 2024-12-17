@@ -53,3 +53,6 @@ jobs:
 
       - name: Run Storybook smoke test
         run: pnpm storybook-smoke-test
+
+      - name: Lint licenses
+        run: make lint-license

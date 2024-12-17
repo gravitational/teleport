@@ -21,7 +21,7 @@ package main
 import (
 	"context"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/go-hclog"
@@ -65,7 +65,7 @@ func (gw *GonWrapper) SignAndNotarizeBinaries() error {
 	if err != nil {
 		return trace.Wrap(err, "failed to zip binaries for notarization")
 	}
-	defer os.RemoveAll(path.Dir(zipPath))
+	defer os.RemoveAll(filepath.Dir(zipPath))
 
 	err = gw.NotarizeBinaries(zipPath)
 	if err != nil {
@@ -99,7 +99,7 @@ func (gw *GonWrapper) ZipBinaries() (string, error) {
 		return "", trace.Wrap(err, "failed to create temporary directory for binary zipping")
 	}
 
-	outputPath := path.Join(tmpDir, zipFileName)
+	outputPath := filepath.Join(tmpDir, zipFileName)
 	gw.logger.Debug("Using binary zip path %q", outputPath)
 
 	err = zip.Zip(gw.ctx, &zip.Options{

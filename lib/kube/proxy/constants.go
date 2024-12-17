@@ -28,8 +28,6 @@ const (
 
 	// DefaultStreamCreationTimeout
 	DefaultStreamCreationTimeout = 30 * time.Second
-
-	IdleTimeout = 15 * time.Minute
 )
 
 // These constants are for remote command execution and port forwarding and are

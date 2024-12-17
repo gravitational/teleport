@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_github_connector Terraform resource
+sidebar_label: github_connector
 description: This page describes the supported values of the teleport_github_connector resource of the Teleport Terraform provider.
 ---
 
@@ -16,6 +17,7 @@ description: This page describes the supported values of the teleport_github_con
 variable "github_secret" {}
 
 resource "teleport_github_connector" "github" {
+  version = "v3"
   # This section tells Terraform that role example must be created before the GitHub connector
   depends_on = [
     teleport_role.example

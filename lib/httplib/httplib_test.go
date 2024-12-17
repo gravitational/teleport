@@ -296,7 +296,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		},
 		{
 			name:     "for cloud based usage, EUB product (no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_EUB},
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: false},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -314,6 +314,23 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			name:     "for desktop session (with wasm)",
 			features: proto.Features{},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for web ssh session (with wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/cluster/:clusterId/console/node/:sessionId/:username",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -72,11 +71,8 @@ export function ShareFeedbackFormFields({
       />
       <FieldTextArea
         label="Suggestions"
-        textAreaCss={`
-            font-size: 14px;
-        `}
         rule={requiredField('Suggestions are required')}
-        readOnly={disabled}
+        disabled={disabled}
         value={formValues.feedback}
         onChange={e => updateFormField('feedback', e.target.value)}
         placeholder="Type your suggestions here"

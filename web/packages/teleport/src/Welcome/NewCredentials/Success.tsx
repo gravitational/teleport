@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonPrimary, Flex, H2, Image, Text } from 'design';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { OnboardCard } from 'teleport/components/Onboard';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import shieldCheck from 'teleport/assets/shield-check.png';

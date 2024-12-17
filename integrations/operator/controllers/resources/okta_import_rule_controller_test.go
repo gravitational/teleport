@@ -160,16 +160,19 @@ func (g *oktaImportRuleTestingPrimitives) CompareTeleportAndKubernetesResource(t
 }
 
 func TestOktaImportRuleCreation(t *testing.T) {
+	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
 	testlib.ResourceCreationTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
 }
 
 func TestOktaImportRuleDeletionDrift(t *testing.T) {
+	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
 	testlib.ResourceDeletionDriftTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
 }
 
 func TestOktaImportRuleUpdate(t *testing.T) {
+	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
 	testlib.ResourceUpdateTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
 }
