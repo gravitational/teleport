@@ -41,6 +41,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   reactPlugin.configs.flat.recommended,
+  reactPlugin.configs.flat['jsx-runtime'],
   importPlugin.flatConfigs.errors,
   importPlugin.flatConfigs.warnings,
   importPlugin.flatConfigs.typescript,
@@ -128,9 +129,6 @@ export default tseslint.config(
       'react/no-unescaped-entities': 'warn',
       'react/jsx-key': 'warn',
       'react/jsx-no-target-blank': 'warn',
-      // Turned off because we use automatic runtime.
-      'react/jsx-uses-react': 'off',
-      'react/react-in-jsx-scope': 'off',
 
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
