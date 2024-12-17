@@ -20,6 +20,7 @@ package fetchers
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -458,7 +460,14 @@ func TestGetServicePorts(t *testing.T) {
 
 func TestProtoChecker_CheckProtocol(t *testing.T) {
 	t.Parallel()
-	checker := NewProtoChecker(true)
+	checker := NewProtoChecker()
+	// Increasing client Timeout because CI/CD fails with a lower value.
+	checker.client.Timeout = 5 * time.Second
+
+	// Allow connections to HTTPS server created below.
+	checker.client.Transport = &http.Transport{TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	}}
 
 	totalNetworkHits := &atomic.Int32{}
 
