@@ -14,23 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !vnetdaemon
-// +build !vnetdaemon
+//go:build !vnetdaemon || !darwin
+// +build !vnetdaemon !darwin
 
-package vnet
+package common
 
 import (
-	"context"
-
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(execAdminSubcommand(ctx, config))
+func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
+	return vnetDaemonNotSupported{}
 }
 
-func DaemonSubcommand(ctx context.Context) error {
+type vnetDaemonNotSupported struct{}
+
+func (vnetDaemonNotSupported) FullCommand() string {
+	return ""
+}
+func (vnetDaemonNotSupported) run(*CLIConf) error {
 	return trace.NotImplemented("tsh was built without support for VNet daemon")
 }

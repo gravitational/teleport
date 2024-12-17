@@ -14,23 +14,27 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build vnetdaemon
-// +build vnetdaemon
+//go:build !darwin && !windows
+// +build !darwin,!windows
 
 package vnet
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(daemon.RegisterAndCall(ctx, config))
-}
+var (
+	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+)
 
-func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, AdminSetup))
+// execAdminProcess is called from the normal user process to execute the admin
+// subcommand as root.
+func execAdminProcess(ctx context.Context, config daemon.Config) error {
+	return trace.Wrap(ErrVnetNotImplemented)
 }

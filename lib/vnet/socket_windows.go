@@ -14,21 +14,32 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 package vnet
 
 import (
-	"context"
+	"os"
 
 	"github.com/gravitational/trace"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
-func configureOS(ctx context.Context, cfg *osConfig) error {
+func createSocket() (*noSocket, string, error) {
+	// TODO(nklaassen): implement createSocket on windows.
+	return nil, "", trace.Wrap(ErrVnetNotImplemented)
+}
+
+func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
+	// TODO(nklaassen): implement sendTUNNameAndFd on windows.
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
-func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+func receiveTUNDevice(_ *noSocket) (tun.Device, error) {
+	// TODO(nklaassen): receiveTUNDevice on windows.
+	return nil, trace.Wrap(ErrVnetNotImplemented)
+}
+
+type noSocket struct{}
+
+func (_ noSocket) Close() error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
