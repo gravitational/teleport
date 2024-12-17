@@ -32,7 +32,7 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import { Labels } from 'teleport/services/resources';
 
 import {
-  KubernetesAccessSpec,
+  KubernetesAccess,
   labelsModelToLabels,
   labelsToModel,
   RoleEditorModel,
@@ -46,7 +46,7 @@ const minimalRole = () =>
 
 const minimalRoleModel = (): RoleEditorModel => ({
   metadata: { name: 'foobar', labels: [] },
-  accessSpecs: [],
+  resources: [],
   rules: [],
   requiresReset: false,
   options: {
@@ -102,7 +102,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'server access spec',
+    name: 'server access',
     role: {
       ...minimalRole(),
       spec: {
@@ -115,7 +115,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
     },
     model: {
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'node',
           labels: [{ name: 'foo', value: 'bar' }],
@@ -130,7 +130,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'app access spec',
+    name: 'app access',
     role: {
       ...minimalRole(),
       spec: {
@@ -154,7 +154,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
     },
     model: {
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'app',
           labels: [{ name: 'foo', value: 'bar' }],
@@ -176,7 +176,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'database access spec',
+    name: 'database access',
     role: {
       ...minimalRole(),
       spec: {
@@ -191,7 +191,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
     },
     model: {
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'db',
           labels: [{ name: 'env', value: 'prod' }],
@@ -213,7 +213,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'Windows desktop access spec',
+    name: 'Windows desktop access',
     role: {
       ...minimalRole(),
       spec: {
@@ -226,7 +226,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
     },
     model: {
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'windows_desktop',
           labels: [{ name: 'os', value: 'WindowsForWorkgroups' }],
@@ -305,8 +305,8 @@ describe('roleToRoleEditorModel', () => {
     ...minimalRoleModel(),
     requiresReset: true,
   };
-  // Same as newAccessSpec('kube_cluster'), but without default groups.
-  const newKubeClusterAccessSpec = (): KubernetesAccessSpec => ({
+  // Same as newResourceAccess('kube_cluster'), but without default groups.
+  const newKubeClusterResourceAccess = (): KubernetesAccess => ({
     kind: 'kube_cluster',
     groups: [],
     labels: [],
@@ -362,9 +362,9 @@ describe('roleToRoleEditorModel', () => {
       } as Role,
       model: {
         ...roleModelWithReset,
-        accessSpecs: [
+        resources: [
           {
-            ...newKubeClusterAccessSpec(),
+            ...newKubeClusterResourceAccess(),
             resources: [expect.any(Object)],
           },
         ],
@@ -388,9 +388,9 @@ describe('roleToRoleEditorModel', () => {
       } as Role,
       model: {
         ...roleModelWithReset,
-        accessSpecs: [
+        resources: [
           {
-            ...newKubeClusterAccessSpec(),
+            ...newKubeClusterResourceAccess(),
             resources: [
               expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
             ],
@@ -418,9 +418,9 @@ describe('roleToRoleEditorModel', () => {
       } as Role,
       model: {
         ...roleModelWithReset,
-        accessSpecs: [
+        resources: [
           {
-            ...newKubeClusterAccessSpec(),
+            ...newKubeClusterResourceAccess(),
             resources: [
               expect.objectContaining({
                 verbs: [{ value: 'get', label: 'get' }],
@@ -697,7 +697,7 @@ describe('roleToRoleEditorModel', () => {
 
   // This case has to be tested separately because of dynamic resource ID
   // generation.
-  it('creates a Kubernetes access spec', () => {
+  it('creates Kubernetes access', () => {
     const minRole = minimalRole();
     expect(
       roleToRoleEditorModel({
@@ -725,7 +725,7 @@ describe('roleToRoleEditorModel', () => {
       })
     ).toEqual({
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'kube_cluster',
           groups: [
@@ -758,7 +758,7 @@ describe('roleToRoleEditorModel', () => {
   });
 
   // Make sure that some fields are optional.
-  it('creates a minimal app access spec', () => {
+  it('creates minimal app access', () => {
     const minRole = minimalRole();
     expect(
       roleToRoleEditorModel({
@@ -772,7 +772,7 @@ describe('roleToRoleEditorModel', () => {
       })
     ).toEqual({
       ...minimalRoleModel(),
-      accessSpecs: [
+      resources: [
         {
           kind: 'app',
           labels: [{ name: 'foo', value: 'bar' }],
@@ -858,12 +858,12 @@ describe('roleEditorModelToRole', () => {
 
   // This case has to be tested separately because of dynamic resource ID
   // generation.
-  it('converts a Kubernetes access spec', () => {
+  it('converts Kubernetes access', () => {
     const minRole = minimalRole();
     expect(
       roleEditorModelToRole({
         ...minimalRoleModel(),
-        accessSpecs: [
+        resources: [
           {
             kind: 'kube_cluster',
             groups: [
