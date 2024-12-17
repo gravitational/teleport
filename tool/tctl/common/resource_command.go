@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -128,7 +129,7 @@ Same as above, but using JSON output:
 `
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
-func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                     rc.createUser,
 		types.KindRole:                     rc.createRole,

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 var mdmTokenAddTemplate = template.Must(
@@ -109,7 +110,7 @@ type TokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")

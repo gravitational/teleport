@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // implements common.CLICommand interface
@@ -42,7 +43,7 @@ type SAMLCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SAMLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	saml := app.Command("saml", "Operations on SAML auth connectors.")

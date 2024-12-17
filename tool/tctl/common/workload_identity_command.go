@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // WorkloadIdentityCommand is a group of commands pertaining to Teleport
@@ -48,7 +49,7 @@ type WorkloadIdentityCommand struct {
 
 // Initialize sets up the "tctl workload-identity" command.
 func (c *WorkloadIdentityCommand) Initialize(
-	app *kingpin.Application, config *servicecfg.Config,
+	app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config,
 ) {
 	// TODO(noah): Remove the hidden flag once base functionality is released.
 	cmd := app.Command(

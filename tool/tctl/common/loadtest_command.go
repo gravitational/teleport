@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.
@@ -72,7 +73,7 @@ type LoadtestCommand struct {
 }
 
 // Initialize allows LoadtestCommand to plug itself into the CLI parser
-func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *LoadtestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	loadtest := app.Command("loadtest", "Tools for generating artificial load").Hidden()
 

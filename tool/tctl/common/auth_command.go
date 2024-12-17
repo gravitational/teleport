@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // authCommandClient is aggregated client interface for auth command.
@@ -110,7 +111,7 @@ type AuthCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()

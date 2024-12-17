@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"io"
 	"os"
 	"strings"
@@ -63,7 +64,7 @@ type SSOTestCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, flags *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")

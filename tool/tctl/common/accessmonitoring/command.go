@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // Command implements `tctl audit` group of commands.
@@ -45,7 +46,7 @@ type Command struct {
 }
 
 // Initialize allows to implement Command interface.
-func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	c.innerCmdMap = map[string]runFunc{}
 
 	auditCmd := app.Command("audit", "Audit command.")

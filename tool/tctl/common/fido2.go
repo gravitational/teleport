@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // fido2Command adapts fido2.Command for tctl.
@@ -31,7 +32,7 @@ type fido2Command struct {
 	impl *fido2.Command
 }
 
-func (c *fido2Command) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *fido2Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.impl = fido2.NewCommand(app)
 }
 

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 const (
@@ -85,7 +86,7 @@ type TerraformCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *TerraformCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	tfCmd := app.Command("terraform", "Helpers to run the Teleport Terraform Provider.")
 
 	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environments variables. This creates a temporary MachineID bot.")

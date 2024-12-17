@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -56,7 +57,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")

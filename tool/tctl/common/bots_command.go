@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type BotsCommand struct {
@@ -83,7 +84,7 @@ type BotsCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	bots := app.Command("bots", "Manage Machine ID bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")

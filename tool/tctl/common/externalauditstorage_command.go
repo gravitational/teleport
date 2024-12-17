@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ExternalAuditStorageCommand implements "tctl externalauditstorage" group of commands.
@@ -43,7 +44,7 @@ type ExternalAuditStorageCommand struct {
 }
 
 // Initialize allows ExternalAuditStorageCommand to plug itself into the CLI parser.
-func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *ExternalAuditStorageCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	externalAuditStorage := app.Command("externalauditstorage", "Operate on External Audit Storage configuration.").Hidden()

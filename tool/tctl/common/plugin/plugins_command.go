@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 const (
@@ -81,7 +82,7 @@ type PluginsCommand struct {
 }
 
 // Initialize creates the plugins command and subcommands
-func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 	p.dryRun = true
 

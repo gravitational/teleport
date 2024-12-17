@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type subcommand interface {
@@ -51,7 +52,7 @@ type Command struct {
 }
 
 // Initialize installs the base "login_rule" command and all subcommands.
-func (t *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (t *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	loginRuleCommand := app.Command("login_rule", "Test login rules")
 
 	t.subcommands = []subcommand{

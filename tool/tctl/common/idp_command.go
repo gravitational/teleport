@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // subcommandRunner is used to create pluggable subcommand under
@@ -63,7 +64,7 @@ type samlIdPCommand struct {
 }
 
 // Initialize installs the base "idp" command and all subcommands.
-func (t *IdPCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (t *IdPCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	idp := app.Command("idp", "Teleport Identity Provider")
 
 	idp.Alias(`

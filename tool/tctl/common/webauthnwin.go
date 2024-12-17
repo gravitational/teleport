@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // webauthnwinCommand adapts webauthnwin.Command for tctl.
@@ -31,7 +32,7 @@ type webauthnwinCommand struct {
 	impl *webauthnwin.Command
 }
 
-func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.impl = webauthnwin.NewCommand(app)
 }
 

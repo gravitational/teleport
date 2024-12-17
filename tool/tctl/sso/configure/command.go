@@ -20,6 +20,7 @@ package configure
 
 import (
 	"context"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -49,7 +50,7 @@ type AuthKindCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, flags *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.Config = cfg
 	cmd.Logger = cfg.Log.WithField(teleport.ComponentKey, teleport.ComponentClient)
 

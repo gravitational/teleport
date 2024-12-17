@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // NotificationCommand implements the `tctl notifications` family of commands.
@@ -70,7 +71,7 @@ type NotificationCommand struct {
 }
 
 // Initialize allows NotificationCommand command to plug itself into the CLI parser
-func (n *NotificationCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (n *NotificationCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	notif := app.Command("notifications", "Manage cluster notifications.")
 
 	n.create = notif.Command("create", "Create a cluster notification.").Alias("add")

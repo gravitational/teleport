@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands
@@ -77,7 +78,7 @@ type AccessRequestCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	requests := app.Command("requests", "Manage access requests.").Alias("request")
 

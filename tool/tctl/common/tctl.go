@@ -60,7 +60,7 @@ const (
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *servicecfg.Config)
+	Initialize(*kingpin.Application, *tctlcfg.GlobalCLIFlags, *servicecfg.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -99,12 +99,12 @@ func TryRun(commands []CLICommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
+	var ccf tctlcfg.GlobalCLIFlags
+
 	// Each command will add itself to the CLI parser.
 	for i := range commands {
-		commands[i].Initialize(app, cfg)
+		commands[i].Initialize(app, &ccf, cfg)
 	}
-
-	var ccf tctlcfg.GlobalCLIFlags
 
 	// If the config file path is being overridden by environment variable, set that.
 	// If not, check whether the default config file path exists and set that if so.

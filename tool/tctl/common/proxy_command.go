@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ProxyCommand returns information about connected proxies
@@ -40,7 +41,7 @@ type ProxyCommand struct {
 }
 
 // Initialize creates the proxy command and subcommands
-func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 
 	proxyCommand := app.Command("proxy", "Operations with information for cluster proxies.").Hidden()

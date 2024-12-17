@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // LockCommand implements `tctl lock` group of commands.
@@ -43,7 +44,7 @@ type LockCommand struct {
 }
 
 // Initialize allows LockCommand to plug itself into the CLI parser.
-func (c *LockCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *LockCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	c.mainCmd = app.Command("lock", "Create a new lock.")

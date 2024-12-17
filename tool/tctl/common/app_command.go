@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -56,7 +57,7 @@ type AppsCommand struct {
 }
 
 // Initialize allows AppsCommand to plug itself into the CLI parser
-func (c *AppsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *AppsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")

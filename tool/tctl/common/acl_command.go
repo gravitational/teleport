@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ACLCommand implements the `tctl acl` family of commands.
@@ -65,7 +66,7 @@ const (
 )
 
 // Initialize allows ACLCommand to plug itself into the CLI parser
-func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	acl := app.Command("acl", "Manage access lists.").Alias("access-lists")
 
 	c.ls = acl.Command("ls", "List cluster access lists.")

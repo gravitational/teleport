@@ -39,6 +39,7 @@ import (
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DevicesCommand implements the `tctl devices` command.
@@ -68,7 +69,7 @@ var osTypeToEnum = map[osType]devicepb.OSType{
 	windowsType: devicepb.OSType_OS_TYPE_WINDOWS,
 }
 
-func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")

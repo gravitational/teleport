@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/touchid"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // touchIDCommand adapts touchid.Command for tclt.
@@ -31,7 +32,7 @@ type touchIDCommand struct {
 	impl *touchid.Command
 }
 
-func (c *touchIDCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *touchIDCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.impl = touchid.NewCommand(app)
 }
 

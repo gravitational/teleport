@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -55,7 +56,7 @@ type StatusCommand struct {
 }
 
 // Initialize allows StatusCommand to plug itself into the CLI parser.
-func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *StatusCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.status = app.Command("status", "Report cluster status.")
 }

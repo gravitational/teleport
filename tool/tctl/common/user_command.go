@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -81,7 +82,7 @@ type UserCommand struct {
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
-func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	const helpPrefix string = "[Teleport local users only]"
 
 	u.config = config

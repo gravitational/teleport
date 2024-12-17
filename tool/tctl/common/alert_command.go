@@ -38,6 +38,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // AlertCommand implements the `tctl alerts` family of commands.
@@ -63,7 +64,7 @@ type AlertCommand struct {
 }
 
 // Initialize allows AlertCommand to plug itself into the CLI parser
-func (c *AlertCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	alert := app.Command("alerts", "Manage cluster alerts.").Alias("alert")
 

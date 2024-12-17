@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DBCommand implements "tctl db" group of commands.
@@ -56,7 +57,7 @@ type DBCommand struct {
 }
 
 // Initialize allows DBCommand to plug itself into the CLI parser.
-func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DBCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
