@@ -47,6 +47,7 @@ const (
 )
 
 var (
+	// defaultUpdateDays is the default list of days when groups can be updated.
 	defaultUpdateDays = []string{"Mon", "Tue", "Wed", "Thu"}
 )
 
