@@ -912,9 +912,11 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 		v, ok := s[versionField]
 		if ok {
 			return nil, fmt.Errorf(
-				"expected function %v to assign %v, but found no assignment",
+				"%v: expected function %v to assign %v to %v, but found no assignment",
+				decl.FilePath,
 				methodName,
 				versionField,
+				recName,
 			)
 		}
 		k, ok := s[kindField]
