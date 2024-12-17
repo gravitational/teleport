@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -41,13 +41,14 @@ const (
 	featNameVms             = "azure/virtualmachines"
 )
 
-const FetcherConcurrency = 5
+// FetcherConcurrency is an arbitrary per-resource type concurrency to ensure significant throughput. As we increase
+// the number of resource types, we may increase this value or use some other approach to fetching concurrency.
+const FetcherConcurrency = 4
 
 // Config defines parameters required for fetching resources from Azure
 type Config struct {
 	CloudClients        cloud.Clients
 	SubscriptionID      string
-	Regions             []string
 	Integration         string
 	DiscoveryConfigName string
 }
@@ -82,9 +83,9 @@ type Fetcher struct {
 	lastDiscoveredResources uint64
 	lastResult              *Resources
 
-	vmClient         VirtualMachinesClient
-	roleDefClient    RoleDefinitionsClient
 	roleAssignClient RoleAssignmentsClient
+	roleDefClient    RoleDefinitionsClient
+	vmClient         VirtualMachinesClient
 }
 
 // NewFetcher returns a new fetcher based on configuration parameters
@@ -96,7 +97,7 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	}
 
 	// Create the clients
-	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, cred, nil)
+	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,7 +105,7 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
+	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,19 +114,18 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	return &Fetcher{
 		Config:           cfg,
 		lastResult:       &Resources{},
-		vmClient:         vmClient,
-		roleDefClient:    roleDefClient,
 		roleAssignClient: roleAssignClient,
+		roleDefClient:    roleDefClient,
+		vmClient:         vmClient,
 	}, nil
 }
 
+// Features is a set of booleans that are received from the Access Graph to indicate which resources it can receive
 type Features struct {
-	Principals       bool
-	RoleDefinitions  bool
-	RoleAssignments  bool
-	VirtualMachines  bool
-	ManagedDatabases bool
-	AKSClusters      bool
+	Principals      bool
+	RoleDefinitions bool
+	RoleAssignments bool
+	VirtualMachines bool
 }
 
 // BuildFeatures builds the feature flags based on supported types returned by Access Graph Azure endpoints.
@@ -133,15 +133,14 @@ func BuildFeatures(values ...string) Features {
 	features := Features{}
 	for _, value := range values {
 		switch value {
-		case featNameVms:
-			features.VirtualMachines = true
 		case featNamePrincipals:
 			features.Principals = true
-		case featNameRoleDefinitions:
-			features.RoleDefinitions = true
 		case featNameRoleAssignments:
 			features.RoleAssignments = true
-			features.AKSClusters = true
+		case featNameRoleDefinitions:
+			features.RoleDefinitions = true
+		case featNameVms:
+			features.VirtualMachines = true
 		}
 	}
 	return features
@@ -153,10 +152,10 @@ func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) 
 	if res == nil {
 		return nil, err
 	}
-	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
 	res.Principals = common.DeduplicateSlice(res.Principals, azurePrincipalsKey)
-	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
 	res.RoleAssignments = common.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
+	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
+	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
 	return res, trace.Wrap(err)
 }
 
@@ -179,17 +178,6 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 			return nil
 		})
 	}
-	if feats.RoleDefinitions {
-		eg.Go(func() error {
-			roleDefs, err := a.fetchRoleDefinitions(ctx)
-			if err != nil {
-				errsCh <- err
-				return err
-			}
-			result.RoleDefinitions = roleDefs
-			return nil
-		})
-	}
 	if feats.RoleAssignments {
 		eg.Go(func() error {
 			roleAssigns, err := a.fetchRoleAssignments(ctx)
@@ -198,6 +186,17 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 				return err
 			}
 			result.RoleAssignments = roleAssigns
+			return nil
+		})
+	}
+	if feats.RoleDefinitions {
+		eg.Go(func() error {
+			roleDefs, err := a.fetchRoleDefinitions(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.RoleDefinitions = roleDefs
 			return nil
 		})
 	}

@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +57,7 @@ type testVmCli struct {
 	vms       []*armcompute.VirtualMachine
 }
 
-func (t testVmCli) ListVirtualMachines(ctx context.Context, scope string) ([]*armcompute.VirtualMachine, error) {
+func (t testVmCli) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error) {
 	if t.returnErr {
 		return nil, fmt.Errorf("error")
 	}

@@ -396,7 +396,6 @@ func (s *Server) accessGraphAzureFetchersFromMatchers(
 		fetcherCfg := azure_sync.Config{
 			CloudClients:        s.CloudClients,
 			SubscriptionID:      matcher.SubscriptionID,
-			Regions:             matcher.Regions,
 			Integration:         matcher.Integration,
 			DiscoveryConfigName: discoveryConfigName,
 		}

@@ -38,14 +38,14 @@ func MergeResources(results ...*Resources) *Resources {
 	result := &Resources{}
 	for _, r := range results {
 		result.Principals = append(result.Principals, r.Principals...)
-		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
-		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
 		result.RoleAssignments = append(result.RoleAssignments, r.RoleAssignments...)
+		result.RoleDefinitions = append(result.RoleDefinitions, r.RoleDefinitions...)
+		result.VirtualMachines = append(result.VirtualMachines, r.VirtualMachines...)
 	}
 	result.Principals = common.DeduplicateSlice(result.Principals, azurePrincipalsKey)
-	result.VirtualMachines = common.DeduplicateSlice(result.VirtualMachines, azureVmKey)
-	result.RoleDefinitions = common.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
 	result.RoleAssignments = common.DeduplicateSlice(result.RoleAssignments, azureRoleAssignKey)
+	result.RoleDefinitions = common.DeduplicateSlice(result.RoleDefinitions, azureRoleDefKey)
+	result.VirtualMachines = common.DeduplicateSlice(result.VirtualMachines, azureVmKey)
 	return result
 }
 
@@ -61,10 +61,10 @@ func newResourceList() *accessgraphv1alpha.AzureResourceList {
 func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgraphv1alpha.AzureResourceList) {
 	upsert, delete = newResourceList(), newResourceList()
 	reconciledResources := []*reconcilePair{
-		reconcile(old.VirtualMachines, new.VirtualMachines, azureVmKey, azureVmWrap),
 		reconcile(old.Principals, new.Principals, azurePrincipalsKey, azurePrincipalsWrap),
-		reconcile(old.RoleDefinitions, new.RoleDefinitions, azureRoleDefKey, azureRoleDefWrap),
 		reconcile(old.RoleAssignments, new.RoleAssignments, azureRoleAssignKey, azureRoleAssignWrap),
+		reconcile(old.RoleDefinitions, new.RoleDefinitions, azureRoleDefKey, azureRoleDefWrap),
+		reconcile(old.VirtualMachines, new.VirtualMachines, azureVmKey, azureVmWrap),
 	}
 	for _, res := range reconciledResources {
 		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
@@ -132,20 +132,20 @@ func reconcile[T proto.Message](
 	return &reconcilePair{upsertRes, deleteRes}
 }
 
-func azureVmKey(vm *accessgraphv1alpha.AzureVirtualMachine) string {
-	return fmt.Sprintf("%s:%s", vm.SubscriptionId, vm.Id)
-}
-
-func azureVmWrap(vm *accessgraphv1alpha.AzureVirtualMachine) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_VirtualMachine{VirtualMachine: vm}}
-}
-
 func azurePrincipalsKey(user *accessgraphv1alpha.AzurePrincipal) string {
 	return fmt.Sprintf("%s:%s", user.SubscriptionId, user.Id)
 }
 
 func azurePrincipalsWrap(principal *accessgraphv1alpha.AzurePrincipal) *accessgraphv1alpha.AzureResource {
 	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_Principal{Principal: principal}}
+}
+
+func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) string {
+	return fmt.Sprintf("%s:%s", roleAssign.SubscriptionId, roleAssign.Id)
+}
+
+func azureRoleAssignWrap(roleAssign *accessgraphv1alpha.AzureRoleAssignment) *accessgraphv1alpha.AzureResource {
+	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleAssignment{RoleAssignment: roleAssign}}
 }
 
 func azureRoleDefKey(roleDef *accessgraphv1alpha.AzureRoleDefinition) string {
@@ -156,10 +156,10 @@ func azureRoleDefWrap(roleDef *accessgraphv1alpha.AzureRoleDefinition) *accessgr
 	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleDefinition{RoleDefinition: roleDef}}
 }
 
-func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) string {
-	return fmt.Sprintf("%s:%s", roleAssign.SubscriptionId, roleAssign.Id)
+func azureVmKey(vm *accessgraphv1alpha.AzureVirtualMachine) string {
+	return fmt.Sprintf("%s:%s", vm.SubscriptionId, vm.Id)
 }
 
-func azureRoleAssignWrap(roleAssign *accessgraphv1alpha.AzureRoleAssignment) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleAssignment{RoleAssignment: roleAssign}}
+func azureVmWrap(vm *accessgraphv1alpha.AzureVirtualMachine) *accessgraphv1alpha.AzureResource {
+	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_VirtualMachine{VirtualMachine: vm}}
 }

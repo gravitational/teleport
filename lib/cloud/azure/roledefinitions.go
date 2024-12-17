@@ -45,7 +45,7 @@ func NewRoleDefinitionsClient(subscription string, cred azcore.TokenCredential, 
 // ListRoleDefinitions returns role definitions for a given scope
 func (c *RoleDefinitionsClient) ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error) {
 	pager := c.cli.NewListPager(scope, nil)
-	roleDefs := make([]*armauthorization.RoleDefinition, 0, 128)
+	var roleDefs []*armauthorization.RoleDefinition
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

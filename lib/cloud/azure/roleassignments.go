@@ -45,7 +45,7 @@ func NewRoleAssignmentsClient(subscription string, cred azcore.TokenCredential, 
 // ListRoleAssignments returns role assignments for a given scope
 func (c *RoleAssignmentsClient) ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error) {
 	pager := c.cli.NewListForScopePager(scope, nil)
-	roleDefs := make([]*armauthorization.RoleAssignment, 0, 128)
+	var roleDefs []*armauthorization.RoleAssignment
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

@@ -27,8 +27,10 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
+const allResourceGroups = "*"
+
 func (a *Fetcher) fetchVirtualMachines(ctx context.Context) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
-	vms, err := a.vmClient.ListVirtualMachines(ctx, "*")
+	vms, err := a.vmClient.ListVirtualMachines(ctx, allResourceGroups)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
