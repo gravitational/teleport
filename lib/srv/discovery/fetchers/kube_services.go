@@ -320,6 +320,7 @@ type ProtoChecker struct {
 	// When the Kubernetes Service ResourceVersion changes, then we assume the protocol might've changed as well, so the cache is invalidated.
 	// Only protocol checkers that require a network connection are cached.
 	cacheKubernetesServiceProtocol map[kubernetesNameNamespace]appResourceVersionProtocol
+	cacheMU                        sync.RWMutex
 }
 
 type appResourceVersionProtocol struct {
@@ -357,10 +358,13 @@ func (p *ProtoChecker) CheckProtocol(service v1.Service, port v1.ServicePort) st
 	}
 
 	key := kubernetesNameNamespace{namespace: service.Namespace, name: service.Name}
-	if versionProtocol, ok := p.cacheKubernetesServiceProtocol[key]; ok {
-		if versionProtocol.resourceVersion == service.ResourceVersion {
-			return versionProtocol.protocol
-		}
+
+	p.cacheMU.RLock()
+	versionProtocol, keyIsCached := p.cacheKubernetesServiceProtocol[key]
+	p.cacheMU.RUnlock()
+
+	if keyIsCached && versionProtocol.resourceVersion == service.ResourceVersion {
+		return versionProtocol.protocol
 	}
 
 	var result string
@@ -380,10 +384,12 @@ func (p *ProtoChecker) CheckProtocol(service v1.Service, port v1.ServicePort) st
 
 	}
 
+	p.cacheMU.Lock()
 	p.cacheKubernetesServiceProtocol[key] = appResourceVersionProtocol{
 		resourceVersion: service.ResourceVersion,
 		protocol:        result,
 	}
+	p.cacheMU.Unlock()
 
 	return result
 }
