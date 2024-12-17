@@ -18,7 +18,7 @@
 
 import 'jest-canvas-mock';
 import { render } from 'design/utils/testing';
-import { screen, act, waitFor } from '@testing-library/react';
+import { screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -43,6 +43,7 @@ jest.mock('teleterm/ui/ClusterConnect', () => ({
       data-dialog-kind="cluster-connect"
       data-dialog-is-hidden={props.hidden}
     >
+      Connect to {props.dialog.clusterUri}
       <button onClick={props.dialog.onSuccess}>Connect to cluster</button>
     </div>
   ),
@@ -92,11 +93,6 @@ test('activating a workspace via deep link overrides the previously active works
       clusters: [deepLinkCluster, previouslyActiveCluster],
     })
   );
-  jest.spyOn(appContext.modalsService, 'openRegularDialog');
-  const userInterfaceReady = withPromiseResolver();
-  jest
-    .spyOn(appContext.mainProcessClient, 'signalUserInterfaceReadiness')
-    .mockImplementation(() => userInterfaceReady.resolve());
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -110,8 +106,10 @@ test('activating a workspace via deep link overrides the previously active works
     </MockAppContextProvider>
   );
 
-  // Wait for the app to finish initialization.
-  await act(() => userInterfaceReady.promise);
+  expect(
+    await screen.findByText(`Connect to ${previouslyActiveCluster.uri}`)
+  ).toBeInTheDocument();
+
   // Launch a deep link and do not wait for the result.
   act(() => {
     void appContext.deepLinksService.launchDeepLink({
@@ -131,35 +129,13 @@ test('activating a workspace via deep link overrides the previously active works
     });
   });
 
-  // The cluster-connect dialog should be opened two times.
-  // The first one comes from restoring the previous session, but it is
-  // immediately canceled and replaced with a dialog to the cluster from
-  // the deep link.
-  await waitFor(
-    () => {
-      expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledTimes(
-        2
-      );
-    },
-    // A small timeout to prevent potential race conditions.
-    { timeout: 10 }
-  );
-  expect(appContext.modalsService.openRegularDialog).toHaveBeenNthCalledWith(
-    1,
-    expect.objectContaining({
-      kind: 'cluster-connect',
-      clusterUri: previouslyActiveCluster.uri,
-    })
-  );
-  expect(appContext.modalsService.openRegularDialog).toHaveBeenNthCalledWith(
-    2,
-    expect.objectContaining({
-      kind: 'cluster-connect',
-      clusterUri: deepLinkCluster.uri,
-    })
-  );
+  // The previous dialog has been replaced without a user interaction.
+  // In the real app, this happens fast enough that the user doesn't see the previous dialog.
+  expect(
+    await screen.findByText(`Connect to ${deepLinkCluster.uri}`)
+  ).toBeInTheDocument();
 
-  // We blindly confirm the current cluster-connect dialog.
+  // We confirm the current cluster-connect dialog.
   const dialogSuccessButton = await screen.findByRole('button', {
     name: 'Connect to cluster',
   });
