@@ -30,6 +30,7 @@ import (
 
 // TestNewAutoUpdateConfig verifies validation for AutoUpdateConfig resource.
 func TestNewAutoUpdateAgentRollout(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		spec      *autoupdate.AutoUpdateAgentRolloutSpec
@@ -140,6 +141,219 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			got, err := NewAutoUpdateAgentRollout(tt.spec)
 			tt.assertErr(t, err)
 			require.Empty(t, cmp.Diff(got, tt.want, protocmp.Transform()))
+		})
+	}
+}
+
+var (
+	timeBasedRolloutSpec = autoupdate.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "2.3.4-dev",
+		Schedule:       AgentsScheduleRegular,
+		AutoupdateMode: AgentsUpdateModeEnabled,
+		Strategy:       AgentsStrategyTimeBased,
+	}
+	haltOnErrorRolloutSpec = autoupdate.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "2.3.4-dev",
+		Schedule:       AgentsScheduleRegular,
+		AutoupdateMode: AgentsUpdateModeEnabled,
+		Strategy:       AgentsStrategyHaltOnError,
+	}
+)
+
+func TestValidateAutoUpdateAgentRollout(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		rollout   *autoupdate.AutoUpdateAgentRollout
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid time-based rollout with groups",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &timeBasedRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{"*"}},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "valid halt-on-error rollout with groups",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{"*"}, ConfigWaitHours: 1},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "group with negative wait days",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{"*"}, ConfigWaitHours: -1},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with invalid week days",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{"frurfday"}, ConfigWaitHours: 1},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with no week days",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{}, ConfigWaitHours: 1},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with empty name",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "", ConfigDays: []string{"*"}, ConfigWaitHours: 1},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "first group with non zero wait days",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}, ConfigWaitHours: 1},
+						{Name: "g2", ConfigDays: []string{"*"}},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with non zero wait days on a time-based rollout",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &timeBasedRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g2", ConfigDays: []string{"*"}, ConfigWaitHours: 1},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with impossible start hour",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "dark hour", ConfigDays: []string{"*"}, ConfigStartHour: 24},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with same name",
+			rollout: &autoupdate.AutoUpdateAgentRollout{
+				Kind:    types.KindAutoUpdateAgentRollout,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &haltOnErrorRolloutSpec,
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+						{Name: "g1", ConfigDays: []string{"*"}},
+						{Name: "g1", ConfigDays: []string{"*"}},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAutoUpdateAgentRollout(tt.rollout)
+			tt.assertErr(t, err)
 		})
 	}
 }
