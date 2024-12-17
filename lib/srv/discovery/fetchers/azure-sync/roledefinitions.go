@@ -34,7 +34,7 @@ type RoleDefinitionsClient interface {
 	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
 }
 
-func (a *Fetcher) fetchRoleDefinitions(
+func fetchRoleDefinitions(
 	ctx context.Context,
 	subscriptionID string,
 	cli RoleDefinitionsClient,
@@ -59,7 +59,7 @@ func (a *Fetcher) fetchRoleDefinitions(
 		pbRoleDef := &accessgraphv1alpha.AzureRoleDefinition{
 			Id:             *roleDef.ID,
 			Name:           *roleDef.Properties.RoleName,
-			SubscriptionId: a.SubscriptionID,
+			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
 			Permissions:    pbPerms,
 		}
