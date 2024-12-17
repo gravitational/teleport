@@ -583,10 +583,73 @@ func (s *IssuanceService) issueJWTSVID(
 	return signed, jti, nil
 }
 
+func (s *IssuanceService) getWorkloadIdentities(
+	ctx context.Context,
+	authCtx *authz.Context,
+	labels []*workloadidentityv1pb.LabelSelector,
+) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
+	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
+	page := ""
+	for {
+		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		workloadIdentities = append(workloadIdentities, pageItems...)
+		if nextPage == "" {
+			break
+		}
+		page = nextPage
+	}
+
+	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
+	// Filter out identities user cannot access.
+	for _, wid := range workloadIdentities {
+		if err := authCtx.Checker.CheckAccess(
+			types.Resource153ToResourceWithLabels(wid),
+			services.AccessState{},
+		); err == nil {
+			canAccess = append(canAccess, wid)
+		}
+	}
+
+	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
+	for _, wid := range canAccess {
+		match, _, err := services.MatchLabelGetter(types.Labels{
+			"*": []string{"*"},
+		}, types.Resource153ToResourceWithLabels(wid))
+		if err != nil {
+			// Maybe log and skip rather than returning an error?
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			canAccessAndInSearch = append(canAccessAndInSearch, wid)
+		}
+	}
+
+	return canAccessAndInSearch, nil
+}
+
 func (s *IssuanceService) IssueWorkloadIdentities(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
+	if !experiment.Enabled() {
+		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Perform the two stage initial filter:
+	// - Check that they have access to the workload identity resource
+	// - Check that the labels they've specified match the workload identity
+	//  resource.
+
+	s.cache.ListWorkloadIdentities()
+
 	// TODO(noah): Coming to a PR near you soon!
 	return nil, trace.NotImplemented("not implemented")
 }
