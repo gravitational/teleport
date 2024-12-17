@@ -300,7 +300,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	// TODO(noah): Add more sophisticated control of the TTL.
 	ttl := time.Hour
 	if req.RequestedTtl != nil && req.RequestedTtl.AsDuration() != 0 {
-		ttl := req.RequestedTtl.AsDuration()
+		ttl = req.RequestedTtl.AsDuration()
 		if ttl > defaultMaxTTL {
 			ttl = defaultMaxTTL
 		}
