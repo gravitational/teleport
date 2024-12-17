@@ -78,14 +78,23 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
+	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
+		return trace.Wrap(err)
+	}
+
 	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	routeToApp := appInfo.RouteToApp
+	if cf.TargetPort != 0 {
+		routeToApp.TargetPort = uint32(cf.TargetPort)
+	}
+
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
-		RouteToApp:     appInfo.RouteToApp,
+		RouteToApp:     routeToApp,
 		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
 	}
 
@@ -98,7 +107,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, appInfo.RouteToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -169,8 +178,14 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		})
 
 	case app.IsTCP():
+		appNameWithOptionalTargetPort := app.GetName()
+		if routeToApp.TargetPort != 0 {
+			appNameWithOptionalTargetPort = fmt.Sprintf("%s:%d", app.GetName(), routeToApp.TargetPort)
+		}
+
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName": app.GetName(),
+			"appName":                       app.GetName(),
+			"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
 		})
 
 	case localProxyRequiredForApp(tc):
@@ -231,7 +246,7 @@ Then connect to the application through this proxy:
 // tcpAppLoginTemplate is the message that gets printed to a user upon successful
 // login into a TCP application.
 var tcpAppLoginTemplate = template.Must(template.New("").Parse(
-	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
+	`Logged into TCP app {{.appNameWithOptionalTargetPort}}. Start the local TCP proxy for it:
 
   tsh proxy app {{.appName}}
 

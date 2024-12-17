@@ -79,6 +79,7 @@ func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportCli
 	}, nil
 }
 
+// validateTargetPort is used in both tsh proxy app and tsh app login.
 func validateTargetPort(app types.Application, targetPort int) error {
 	if targetPort == 0 {
 		return nil
