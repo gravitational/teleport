@@ -869,6 +869,10 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 			continue
 		}
 
+		if f.Name.Name != methodName {
+			continue
+		}
+
 		// Not a method
 		if f.Recv == nil {
 			continue
