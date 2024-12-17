@@ -4,7 +4,7 @@ required_field_types:
   - package: "types"
     name: "Metadata"
 source: "../../../../api"
-destination: "../../../../docs/pages/includes/resources.mdx"
+destination: "../../../../docs/pages/reference/tctl-resources"
 excluded_resource_types:
   - package: "types"
     name: "ResourceHeader"
