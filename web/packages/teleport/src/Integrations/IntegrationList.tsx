@@ -66,7 +66,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta') return;
+    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
@@ -154,15 +154,26 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWSOIDC supports editing. */}
+                    {/* Currently, only AWS OIDC supports editing & status dash */}
                     {item.kind === IntegrationKind.AwsOidc && (
-                      <MenuItem
-                        onClick={() =>
-                          props.integrationOps.onEditIntegration(item)
-                        }
-                      >
-                        Edit...
-                      </MenuItem>
+                      <>
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={cfg.getIntegrationStatusRoute(
+                            item.kind,
+                            item.name
+                          )}
+                        >
+                          View Status
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() =>
+                            props.integrationOps.onEditIntegration(item)
+                          }
+                        >
+                          Edit...
+                        </MenuItem>
+                      </>
                     )}
                     <MenuItem
                       onClick={() =>
