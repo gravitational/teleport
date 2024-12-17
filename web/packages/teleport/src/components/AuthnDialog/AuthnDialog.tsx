@@ -25,11 +25,9 @@ import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
-import { Attempt } from 'shared/hooks/useAsync';
 import { MfaState } from 'teleport/lib/useMfa';
-import { DeviceType, MfaAuthenticateChallenge } from 'teleport/services/mfa';
 
-type AuthnDialogProps = MfaState & {
+export type Props = MfaState & {
   replaceErrorText?: string;
 };
 
@@ -40,7 +38,7 @@ export default function AuthnDialog({
   attempt,
   resetAttempt,
   replaceErrorText,
-}: AuthnDialogProps) {
+}: Props) {
   // Only show the dialog when we are in a processing or error state.
   if (attempt.status === '' || attempt.status === 'success') return;
 
@@ -110,10 +108,3 @@ export default function AuthnDialog({
     </Dialog>
   );
 }
-
-export type Props = {
-  mfaChallenge: MfaAuthenticateChallenge;
-  submitMfa: (mfaType?: DeviceType) => Promise<any>;
-  submitAttempt: Attempt<any>;
-  onCancel: () => void;
-};
