@@ -20,15 +20,15 @@ package testlib
 
 import (
 	"context"
+	"crypto/tls"
 	"math/rand/v2"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -48,7 +48,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
@@ -56,8 +55,14 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -97,60 +102,138 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
+func startPostgresTestServer(t *testing.T, authServer *auth.Server) *postgres.TestServer {
+	postgresTestServer, err := postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: authServer,
+	})
+	require.NoError(t, err)
+
+	go func() {
+		t.Logf("Postgres Fake server running at %s port", postgresTestServer.Port())
+		assert.NoError(t, postgresTestServer.Serve())
+	}()
+	t.Cleanup(func() {
+		postgresTestServer.Close()
 	})
 
-	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
-		ClusterName: "root.example.com",
-		HostID:      uuid.New().String(),
-		NodeName:    helpers.Loopback,
-		Log:         logrus.StandardLogger(),
+	return postgresTestServer
+}
+func doCopyPastedTest(t *testing.T) {
+	modules.SetInsecureTestMode(true)
+
+	ctx := context.Background()
+
+	// Start Teleport Auth and Proxy services
+	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)
+	authServer := authProcess.GetAuthServer()
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Start Fake Postgres Database
+	postgresTestServer := startPostgresTestServer(t, authServer)
+
+	// Start Teleport Database Service
+	databaseResourceName := "mypsqldb"
+	databaseDBName := "dbname"
+	databaseDBUser := "dbuser"
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, servicecfg.Database{
+		Name:     databaseResourceName,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
 	})
+	// Wait for the Database Server to be registered
+	waitForDatabases(t, func(ctx context.Context, name string) ([]types.DatabaseServer, error) {
+		return authServer.GetDatabaseServers(ctx, name)
+	}, databaseResourceName)
 
-	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.DataDir = t.TempDir()
-	rcConf.Auth.Enabled = true
-	rcConf.Proxy.Enabled = true
-	rcConf.Proxy.DisableWebInterface = true
-	rcConf.SSH.Enabled = true
-	rcConf.Version = "v2"
-
-	roleName := ValidRandomResourceName("role-")
-	unrestricted := []string{"list", "create", "read", "update", "delete"}
-	role, err := types.NewRole(roleName, types.RoleSpecV6{
+	roleWithFullAccess, err := types.NewRole("fullaccess", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			// the operator has wildcard noe labs to be able to see them
-			// but has no login allowed, so it cannot SSH into them
-			NodeLabels: types.Labels{"*": []string{"*"}},
+			Namespaces:     []string{"default"},
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
-				types.NewRule(types.KindRole, unrestricted),
-				types.NewRule(types.KindUser, unrestricted),
-				types.NewRule(types.KindAuthConnector, unrestricted),
-				types.NewRule(types.KindLoginRule, unrestricted),
-				types.NewRule(types.KindToken, unrestricted),
-				types.NewRule(types.KindOktaImportRule, unrestricted),
-				types.NewRule(types.KindAccessList, unrestricted),
-				types.NewRule(types.KindNode, unrestricted),
+				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 			},
+			DatabaseUsers: []string{databaseDBUser},
+			DatabaseNames: []string{databaseDBName},
 		},
 	})
 	require.NoError(t, err)
+	roleWithFullAccess, err = authServer.UpsertRole(ctx, roleWithFullAccess)
+	require.NoError(t, err)
+}
 
-	operatorName := ValidRandomResourceName("operator-")
-	_ = teleportServer.AddUserWithRole(operatorName, role)
+func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
+	// modules.SetTestModules(t, &modules.TestModules{
+	// 	TestBuildType: modules.BuildEnterprise,
+	// 	TestFeatures: modules.Features{
+	// 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+	// 			entitlements.OIDC: {Enabled: true},
+	// 			entitlements.SAML: {Enabled: true},
+	// 		},
+	// 	},
+	// })
 
-	err = teleportServer.CreateEx(t, nil, rcConf)
+	// teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
+	// 	ClusterName: "root.example.com",
+	// 	HostID:      uuid.New().String(),
+	// 	NodeName:    helpers.Loopback,
+	// 	Log:         logrus.StandardLogger(),
+	// })
+
+	// rcConf := servicecfg.MakeDefaultConfig()
+	// rcConf.DataDir = t.TempDir()
+	// rcConf.Auth.Enabled = true
+	// rcConf.Proxy.Enabled = true
+	// rcConf.Proxy.DisableWebInterface = true
+	// rcConf.SSH.Enabled = true
+	// rcConf.Version = "v2"
+
+	// rcConf.Auth.StaticTokens, _ = types.NewStaticTokens(types.StaticTokensSpecV2{
+	// 	StaticTokens: []types.ProvisionTokenV1{{
+	// 		Roles:   []types.SystemRole{types.RoleDatabase},
+	// 		Expires: time.Now().Add(time.Hour),
+	// 		Token:   "token",
+	// 	}},
+	// })
+
+	// roleName := ValidRandomResourceName("role-")
+	// unrestricted := []string{"list", "create", "read", "update", "delete"}
+	// role, err := types.NewRole(roleName, types.RoleSpecV6{
+	// 	Allow: types.RoleConditions{
+	// 		// the operator has wildcard node labs to be able to see them
+	// 		// but has no login allowed, so it cannot SSH into them
+	// 		NodeLabels: types.Labels{"*": []string{"*"}},
+	// 		Rules: []types.Rule{
+	// 			types.NewRule(types.KindRole, unrestricted),
+	// 			types.NewRule(types.KindUser, unrestricted),
+	// 			types.NewRule(types.KindAuthConnector, unrestricted),
+	// 			types.NewRule(types.KindLoginRule, unrestricted),
+	// 			types.NewRule(types.KindToken, unrestricted),
+	// 			types.NewRule(types.KindOktaImportRule, unrestricted),
+	// 			types.NewRule(types.KindAccessList, unrestricted),
+	// 			types.NewRule(types.KindNode, unrestricted),
+	// 			types.NewRule(types.KindDatabase, unrestricted),
+	// 		},
+	// 		Impersonate: &types.ImpersonateConditions{
+	// 			Users: []string{"Db"},
+	// 			Roles: []string{"Db"},
+	// 		},
+	// 	},
+	// })
+	// require.NoError(t, err)
+
+	// operatorName := ValidRandomResourceName("operator-")
+	// _ = teleportServer.AddUserWithRole(operatorName, role)
+
+	// err = teleportServer.CreateEx(t, nil, rcConf)
+	// require.NoError(t, err)
+
+	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)
+	authServer := authProcess.GetAuthServer()
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	return teleportServer, operatorName
+	return teleportServer, ValidRandomResourceName("operator-")
 }
 
 func FastEventually(t *testing.T, condition func() bool) {
@@ -178,12 +261,14 @@ func clientWithCreds(t *testing.T, authAddr string, creds client.Credentials) *c
 
 type TestSetup struct {
 	TeleportClient           *client.Client
+	TeleportProxyAddr        utils.NetAddr
 	K8sClient                kclient.Client
 	K8sRestConfig            *rest.Config
 	Namespace                *core.Namespace
 	Operator                 manager.Manager
 	OperatorCancel           context.CancelFunc
 	OperatorName             string
+	DatabaseConfig           types.DatabaseSpecV3
 	stepByStepReconciliation bool
 }
 
@@ -229,6 +314,76 @@ func (s *TestSetup) StopKubernetesOperator() {
 	s.OperatorCancel()
 }
 
+// Spec matches https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/
+func setupMockPostgresServer(t *testing.T, setup *TestSetup) {
+	postgresTestServer, err := postgres.NewTestServer(common.TestServerConfig{
+		Name:       "db-mock-test",
+		AuthClient: setup.TeleportClient,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	})
+	require.NoError(t, err)
+
+	go func() {
+		require.NoError(t, postgresTestServer.Serve())
+		t.Logf("Postgres Fake server running at %s port", postgresTestServer.Port())
+	}()
+	t.Cleanup(func() {
+		postgresTestServer.Close()
+	})
+
+	setup.DatabaseConfig = types.DatabaseSpecV3{
+		Protocol: "postgres",
+		// URI:      net.JoinHostPort("localhost", "45678"),
+		URI: net.JoinHostPort("localhost", postgresTestServer.Port()),
+	}
+
+	databaseResourceName := "testdb"
+	helpers.MakeTestDatabaseServer(t, setup.TeleportProxyAddr, "token", nil, servicecfg.Database{
+		Name:     databaseResourceName,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
+	})
+
+	waitForDatabases(t, setup.TeleportClient.GetDatabaseServers, databaseResourceName)
+
+	// server, err := clickhouse.NewTestServer(common.TestServerConfig{
+	// 	AuthClient: setup.TeleportClient,
+	// }, clickhouse.WithClickHouseHTTPProtocol())
+	// require.NoError(t, err)
+
+	// go server.Serve()
+	// t.Cleanup(func() { server.Close() })
+
+	// setup.DatabaseConfig = types.DatabaseSpecV3{
+	// 	Protocol: defaults.ProtocolClickHouseHTTP,
+	// 	URI:      fmt.Sprintf("https://%s", net.JoinHostPort("localhost", server.Port())),
+	// }
+}
+
+func waitForDatabases(t *testing.T, GetDatabaseServers func(ctx context.Context, name string) ([]types.DatabaseServer, error), dbNames ...string) {
+	ctx := context.Background()
+
+	require.Eventually(t, func() bool {
+		all, err := GetDatabaseServers(ctx, "default")
+		assert.NoError(t, err)
+
+		if len(dbNames) > len(all) {
+			return false
+		}
+
+		registered := 0
+		for _, db := range dbNames {
+			for _, a := range all {
+				if a.GetName() == db {
+					registered++
+					break
+				}
+			}
+		}
+		return registered == len(dbNames)
+	}, 30*time.Second, 100*time.Millisecond)
+}
+
 func setupTeleportClient(t *testing.T, setup *TestSetup) {
 	// Override teleport client with client to locally connected teleport
 	// cluster (with default tsh credentials).
@@ -258,6 +413,8 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 		err := setup.TeleportClient.Close()
 		require.NoError(t, err)
 	})
+
+	setup.TeleportProxyAddr = teleportServer.Config.ProxyServer
 }
 
 type TestOption func(*TestSetup)
@@ -274,6 +431,8 @@ func StepByStep(setup *TestSetup) {
 
 // SetupTestEnv creates a Kubernetes server, a teleport server and starts the operator
 func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
+	doCopyPastedTest(t)
+
 	// Hack to get the path of this file in order to find the crd path no matter
 	// where this is called from.
 	_, thisFileName, _, _ := runtime.Caller(0)
@@ -310,6 +469,7 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	}
 
 	setupTeleportClient(t, setup)
+	setupMockPostgresServer(t, setup)
 
 	// If the test wants to do step by step reconciliation, we don't start
 	// an operator in the background.

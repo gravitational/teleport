@@ -47,6 +47,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
+		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

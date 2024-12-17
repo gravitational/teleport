@@ -99,7 +99,7 @@ func NewDatabaseConnectionTester(cfg DatabaseConnectionTesterConfig) (*DatabaseC
 // The following checkpoints are reported:
 // - database server for the requested database exists / the user's roles can access it
 // - the user can use the requested database user and database name (per their roles)
-// - the database is acessible and accepting connections from the database server
+// - the database is accessible and accepting connections from the database server
 // - the database has the database user and database name that was requested
 func (s *DatabaseConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
 	if req.ResourceKind != types.KindDatabase {

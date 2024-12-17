@@ -131,6 +131,19 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - db
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+        impersonate:
+          users:
+            - Db
+          roles:
+            - Db
       deny: {}
     version: v7
     ---

@@ -455,6 +455,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
 	cfg.Log = utils.NewLoggerForTests()
+	cfg.DebugService.Enabled = false
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -465,8 +466,8 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	})
 
 	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(30*time.Second, service.DatabasesReady)
-	require.NoError(t, err, "database server didn't start after 10s")
+	err = db.Start()
+	require.NoError(t, err, "database server didn't start after 30s")
 
 	return db
 }

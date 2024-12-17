@@ -1333,13 +1333,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	if cfg.DebugService.Enabled {
-		if err := process.initDebugService(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
-	}
+	// if cfg.DebugService.Enabled {
+	// 	if err := process.initDebugService(); err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
+	// } else {
+	// 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
+	// }
 
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
