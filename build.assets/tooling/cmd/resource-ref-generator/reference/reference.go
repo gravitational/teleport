@@ -253,7 +253,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := filepath.WalkDir(conf.SourcePath, func(path string, info iofs.DirEntry, err error) error {
+	err := filepath.WalkDir(conf.SourcePath, func(currentPath string, info iofs.DirEntry, err error) error {
 		// There is an error with the path, so we can't load Go source.
 		if err != nil {
 			return err
@@ -268,7 +268,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		}
 
 		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		file, err := parser.ParseFile(fset, currentPath, nil, parser.ParseComments)
 		if err != nil {
 			return err
 		}
@@ -291,7 +291,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		for _, decl := range file.Decls {
 			di := resource.DeclarationInfo{
 				Decl:         decl,
-				FilePath:     info.Name(),
+				FilePath:     currentPath,
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
@@ -313,7 +313,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 				PackageName: file.Name.Name,
 			}] = resource.DeclarationInfo{
 				Decl:         l,
-				FilePath:     path,
+				FilePath:     currentPath,
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
