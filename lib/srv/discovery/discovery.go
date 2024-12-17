@@ -256,7 +256,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.protocolChecker == nil {
-		c.protocolChecker = fetchers.NewProtoChecker(false)
+		c.protocolChecker = fetchers.NewProtoChecker()
 	}
 
 	if c.PollInterval == 0 {
