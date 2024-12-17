@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
 import { HoverTooltip } from 'design/Tooltip';

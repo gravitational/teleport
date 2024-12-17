@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { ButtonBorder } from 'design';
 import { NavLink } from 'react-router-dom';

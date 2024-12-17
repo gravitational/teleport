@@ -537,6 +537,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		AgentVersion:        req.AgentVersion,
 		TeleportClusterName: clusterName.GetClusterName(),
 		IntegrationName:     req.Integration,
+		ExtraLabels:         req.ExtraLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -548,6 +549,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 			EksClusterName: r.ClusterName,
 			ResourceId:     r.ResourceId,
 			Error:          trace.UserMessage(r.Error),
+			IssueType:      r.IssueType,
 		})
 	}
 

@@ -115,6 +115,11 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Nla:               u.Desktop.Nla,
 		}
 	}
+	if u.App != nil {
+		sessionStart.App = &prehogv1a.SessionStartAppMetadata{
+			IsMultiPort: u.App.IsMultiPort,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,

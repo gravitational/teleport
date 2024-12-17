@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { subMinutes, subSeconds } from 'date-fns';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
