@@ -76,11 +76,8 @@ describe('restoring workspace', () => {
       persistedWorkspaces: persistedWorkspace,
     });
 
-    expect(workspacesService.state.isInitialized).toEqual(false);
-
     workspacesService.restorePersistedState();
 
-    expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [cluster.uri]: {
         accessRequests: {
@@ -115,11 +112,8 @@ describe('restoring workspace', () => {
       persistedWorkspaces: {},
     });
 
-    expect(workspacesService.state.isInitialized).toEqual(false);
-
     workspacesService.restorePersistedState();
 
-    expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [cluster.uri]: {
         accessRequests: {

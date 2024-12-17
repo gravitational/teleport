@@ -179,6 +179,9 @@ export default class AppContext implements IAppContext {
     void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
     this.workspacesService.restorePersistedState();
+    // The app has been initialized (callbacks are set up, state is restored).
+    // The UI is visible.
+    this.workspacesService.markAsInitialized();
   }
 
   /**

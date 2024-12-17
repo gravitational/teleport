@@ -71,9 +71,9 @@ export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
   /**
-   * isInitialized signifies whether WorkspacesState has finished state restoration during the start
-   * of the app. It is useful in places that want to wait for the state to be restored before
-   * proceeding.
+   * isInitialized signifies whether the app has finished setting up
+   * callbacks and restoring state during the start of the app.
+   * This also means that the UI is visible.
    *
    * This field is not persisted to disk.
    */
@@ -452,6 +452,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     this.setState(draftState => {
       draftState.workspaces = restoredWorkspaces;
+    });
+  }
+
+  markAsInitialized(): void {
+    this.setState(draftState => {
       draftState.isInitialized = true;
     });
   }
