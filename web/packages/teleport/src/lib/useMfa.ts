@@ -63,14 +63,12 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
       async (challenge?: MfaAuthenticateChallenge) => {
-        if (!challenge) {
-          if (mfaRequired === false) return;
+        if (mfaRequired === false) return;
 
-          challenge = await auth.getMfaChallenge(req);
-          if (!challenge) {
-            setMfaRequired(false);
-            return;
-          }
+        challenge = challenge ? challenge : await auth.getMfaChallenge(req);
+        if (!challenge) {
+          setMfaRequired(false);
+          return;
         }
 
         // Set mfa requirement and options after we get a challenge for the first time.
