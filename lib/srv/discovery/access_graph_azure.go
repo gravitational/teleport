@@ -218,6 +218,12 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	const (
 		semaphoreExpiration = time.Minute
 		semaphoreName       = "access_graph_azure_sync"
+		serviceConfig       = `{
+		 "loadBalancingPolicy": "round_robin",
+		 "healthCheckConfig": {
+			 "serviceName": ""
+		 }
+	 }`
 	)
 	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,

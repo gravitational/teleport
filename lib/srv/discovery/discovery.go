@@ -527,6 +527,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.initTAGAzureWatchers(s.ctx, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return s, nil
 }
 
