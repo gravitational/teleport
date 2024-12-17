@@ -50548,6 +50548,47 @@ func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *AccessGraphAzureSync) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AccessGraphAzureSync) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Integration) > 0 {
+		i -= len(m.Integration)
+		copy(dAtA[i:], m.Integration)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Integration)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.SubscriptionID) > 0 {
+		i -= len(m.SubscriptionID)
+		copy(dAtA[i:], m.SubscriptionID)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubscriptionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTypes(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTypes(v)
 	base := offset
@@ -61939,6 +61980,26 @@ func (m *AccessGraphAWSSync) Size() (n int) {
 	}
 	if m.AssumeRole != nil {
 		l = m.AssumeRole.Size()
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.Integration)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AccessGraphAzureSync) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SubscriptionID)
+	if l > 0 {
 		n += 1 + l + sovTypes(uint64(l))
 	}
 	l = len(m.Integration)
