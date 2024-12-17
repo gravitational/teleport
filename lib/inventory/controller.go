@@ -20,12 +20,12 @@ package inventory
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,6 +37,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Auth is an interface representing the subset of the auth API that must be made available
@@ -348,27 +349,36 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
-			log.WithFields(log.Fields{
-				"apps":      len(handle.appServers),
-				"dbs":       len(handle.databaseServers),
-				"kube":      len(handle.kubernetesServers),
-				"server_id": handle.Hello().ServerID,
-			}).Debug("Cleaning up resources in response to instance termination")
+			slog.DebugContext(c.closeContext, "Cleaning up resources in response to instance termination",
+				"apps", len(handle.appServers),
+				"dbs", len(handle.databaseServers),
+				"kube", len(handle.kubernetesServers),
+				"server_id", handle.Hello().ServerID,
+			)
 			for _, app := range handle.appServers {
 				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
+					slog.WarnContext(c.closeContext, "Failed to remove app server on termination",
+						"app_server", handle.Hello().ServerID,
+						"error", err,
+					)
 				}
 			}
 
 			for _, db := range handle.databaseServers {
 				if err := c.auth.DeleteDatabaseServer(c.closeContext, apidefaults.Namespace, db.resource.GetHostID(), db.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					log.Warnf("Failed to remove db server %q on termination: %v.", handle.Hello().ServerID, err)
+					slog.WarnContext(c.closeContext, "Failed to remove db server on termination",
+						"db_server", handle.Hello().ServerID,
+						"error", err,
+					)
 				}
 			}
 
 			for _, kube := range handle.kubernetesServers {
 				if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					log.Warnf("Failed to remove kube server %q on termination: %v.", handle.Hello().ServerID, err)
+					slog.WarnContext(c.closeContext, "Failed to remove kube server on termination",
+						"kube_server", handle.Hello().ServerID,
+						"error", err,
+					)
 				}
 			}
 		}
@@ -407,7 +417,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		case msg := <-handle.Recv():
 			switch m := msg.(type) {
 			case proto.UpstreamInventoryHello:
-				log.Warnf("Unexpected upstream hello on control stream of server %q.", handle.Hello().ServerID)
+				slog.WarnContext(c.closeContext, "Unexpected upstream hello on control stream of server", "server_id", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
 			case proto.UpstreamInventoryAgentMetadata:
@@ -452,7 +462,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			case proto.UpstreamInventoryGoodbye:
 				handle.goodbye = m
 			default:
-				log.Warnf("Unexpected upstream message type %T on control stream of server %q.", m, handle.Hello().ServerID)
+				slog.WarnContext(c.closeContext, "Unexpected upstream message type on control stream",
+					"message_type", logutils.TypeAttr(m),
+					"server_id", handle.Hello().ServerID,
+				)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
 				return
 			}
@@ -543,7 +556,10 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 
 	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID)
 	if err != nil {
-		log.Warnf("Failed to construct next heartbeat value for instance %q: %v (this is a bug)", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to construct next heartbeat value for instance (this is a bug)",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 		return trace.Wrap(err)
 	}
 
@@ -556,7 +572,10 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 	})
 
 	if err != nil {
-		log.Warnf("Failed to hb instance %q: %v", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to hb instance",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 		c.testEvent(instanceHeartbeatErr)
 		if !tracker.retryHeartbeat {
 			// suppress failure and retry exactly once
@@ -578,7 +597,9 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInventoryPong) {
 	pending, ok := handle.pings[msg.ID]
 	if !ok {
-		log.Warnf("Unexpected upstream pong from server %q (id=%d).", handle.Hello().ServerID, msg.ID)
+		slog.WarnContext(c.closeContext, "Unexpected upstream pong",
+			"server_id", handle.Hello().ServerID,
+			"pong_id", msg.ID)
 		return
 	}
 	pending.rspC <- pingResponse{
@@ -671,7 +692,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		handle.sshServer.retryUpsert = false
 	} else {
 		c.testEvent(sshUpsertErr)
-		log.Warnf("Failed to upsert ssh server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to upsert ssh server on heartbeat",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
@@ -718,7 +742,10 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		srv.resource = appServer
 	} else {
 		c.testEvent(appUpsertErr)
-		log.Warnf("Failed to upsert app server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to upsert app server on heartbeat",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
@@ -766,7 +793,10 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		srv.resource = databaseServer
 	} else {
 		c.testEvent(dbUpsertErr)
-		log.Warnf("Failed to upsert database server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to upsert database server on heartbeat",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
@@ -814,7 +844,10 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 		srv.resource = kubernetesServer
 	} else {
 		c.testEvent(kubeUpsertErr)
-		log.Warnf("Failed to upsert kubernetes server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+		slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on heartbeat",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
@@ -861,7 +894,12 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 				srv.keepAliveErrs++
 				handle.appServers[name] = srv
 				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				log.Warnf("Failed to keep alive app server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+				slog.WarnContext(c.closeContext, "Failed to keep alive app server",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+					"error_count", srv.keepAliveErrs,
+					"should_remove", shouldRemove,
+				)
 
 				if shouldRemove {
 					c.testEvent(appKeepAliveDel)
@@ -877,7 +915,10 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
 			if err != nil {
 				c.testEvent(appUpsertRetryErr)
-				log.Warnf("Failed to upsert app server %q on retry: %v.", handle.Hello().ServerID, err)
+				slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+				)
 				// since this is retry-specific logic, an error here means that upsert failed twice in
 				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
 				// attempting a third time.
@@ -904,7 +945,12 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 				srv.keepAliveErrs++
 				handle.databaseServers[name] = srv
 				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				log.Warnf("Failed to keep alive database server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+				slog.WarnContext(c.closeContext, "Failed to keep alive database server",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+					"error_count", srv.keepAliveErrs,
+					"should_remove", shouldRemove,
+				)
 
 				if shouldRemove {
 					c.testEvent(dbKeepAliveDel)
@@ -920,7 +966,10 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 			lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
 			if err != nil {
 				c.testEvent(dbUpsertRetryErr)
-				log.Warnf("Failed to upsert database server %q on retry: %v.", handle.Hello().ServerID, err)
+				slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+				)
 				// since this is retry-specific logic, an error here means that upsert failed twice in
 				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
 				// attempting a third time.
@@ -947,7 +996,12 @@ func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.
 				srv.keepAliveErrs++
 				handle.kubernetesServers[name] = srv
 				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				log.Warnf("Failed to keep alive kubernetes server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+				slog.WarnContext(c.closeContext, "Failed to keep alive kubernetes server",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+					"error_count", srv.keepAliveErrs,
+					"should_remove", shouldRemove,
+				)
 
 				if shouldRemove {
 					c.testEvent(kubeKeepAliveDel)
@@ -963,7 +1017,10 @@ func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.
 			lease, err := c.auth.UpsertKubernetesServer(c.closeContext, srv.resource)
 			if err != nil {
 				c.testEvent(kubeUpsertRetryErr)
-				log.Warnf("Failed to upsert kubernetes server %q on retry: %v.", handle.Hello().ServerID, err)
+				slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on retry.",
+					"server_id", handle.Hello().ServerID,
+					"error", err,
+				)
 				// since this is retry-specific logic, an error here means that upsert failed twice in
 				// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
 				// attempting a third time.
@@ -992,7 +1049,12 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 			handle.sshServer.keepAliveErrs++
 			shouldClose := handle.sshServer.keepAliveErrs > c.maxKeepAliveErrs
 
-			log.Warnf("Failed to keep alive ssh server %q: %v (count=%d, closing=%v).", handle.Hello().ServerID, err, handle.sshServer.keepAliveErrs, shouldClose)
+			slog.WarnContext(c.closeContext, "Failed to keep alive ssh server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", handle.sshServer.keepAliveErrs,
+				"should_remove", shouldClose,
+			)
 
 			if shouldClose {
 				return trace.Errorf("failed to keep alive ssh server: %v", err)
@@ -1006,7 +1068,10 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource)
 		if err != nil {
 			c.testEvent(sshUpsertRetryErr)
-			log.Warnf("Failed to upsert ssh server %q on retry: %v.", handle.Hello().ServerID, err)
+			slog.WarnContext(c.closeContext, "Failed to upsert ssh server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
 			// since this is retry-specific logic, an error here means that upsert failed twice in
 			// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
 			// attempting a third time.
