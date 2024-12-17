@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
+import { ButtonBorder, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 
@@ -27,6 +27,8 @@ import { State } from '../useAuditEvents';
 import EventDialog from '../EventDialog';
 
 import renderTypeCell from './EventTypeCell';
+
+import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {
   const { events = [], fetchMore, fetchStatus, pageSize = 50 } = props;
@@ -84,13 +86,16 @@ export const renderActionCell = (
   onShowDetails: (e: Event) => void
 ) => (
   <Cell align="right">
-    <ButtonBorder
-      size="small"
-      onClick={() => onShowDetails(event)}
-      width="87px"
-    >
-      Details
-    </ButtonBorder>
+    <Flex gap={2} justifyContent="flex-end">
+      <ViewInPolicyButton event={event} />
+      <ButtonBorder
+        size="small"
+        onClick={() => onShowDetails(event)}
+        width="87px"
+      >
+        Details
+      </ButtonBorder>
+    </Flex>
   </Cell>
 );
 

@@ -179,6 +179,10 @@ type Instance interface {
 	// so appends do not need to be performed in any particular order.
 	AppendControlLog(entries ...InstanceControlLogEntry)
 
+	// GetLastMeasurement returns information about the system clocks of the auth service and
+	// another instance.
+	GetLastMeasurement() *SystemClockMeasurement
+
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
 }
@@ -297,6 +301,10 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
 		return a.Time.Compare(b.Time)
 	})
+}
+
+func (i *InstanceV1) GetLastMeasurement() *SystemClockMeasurement {
+	return i.Spec.LastMeasurement
 }
 
 // expireControlLog removes expired entries from the control log relative to the supplied

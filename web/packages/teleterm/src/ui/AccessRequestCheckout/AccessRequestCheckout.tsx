@@ -104,7 +104,7 @@ export function AccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -170,6 +170,7 @@ export function AccessRequestCheckout() {
                       switch (c.kind) {
                         case 'app':
                         case 'saml_idp_service_provider':
+                        case 'aws_ic_account_assignment':
                           resource.Icon = Icon.Application;
                           break;
                         case 'node':
@@ -284,7 +285,7 @@ export function AccessRequestCheckout() {
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
-            bulkToggleKubeResources={bulkToggleKubeResources}
+            updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
         )}
       </Transition>

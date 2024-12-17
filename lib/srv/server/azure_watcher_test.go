@@ -24,12 +24,19 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
+
+type mockClients struct {
+	cloud.Clients
+
+	azureClient azure.VirtualMachinesClient
+}
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureClient, nil
@@ -139,7 +146,7 @@ func TestAzureWatcher(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients)
+				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients, "" /* discovery config */)
 			})
 			require.NoError(t, err)
 

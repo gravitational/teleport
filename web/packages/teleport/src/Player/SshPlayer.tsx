@@ -34,7 +34,11 @@ export default function Player({ sid, clusterId, durationMs }) {
     clusterId,
     sid
   );
-  const isError = playerStatus === StatusEnum.ERROR;
+
+  // statusText is currently only set when an error happens, so for now we can assume
+  // if it is not empty, an error occured (even if the player is in COMPLETE state, which gets
+  // set on close)
+  const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;

@@ -344,7 +344,8 @@ message ListKubernetesResourcesRequest {
 
 message ListKubernetesResourcesResponse {
   repeated KubeResource resources = 1;
-  string next_key = 2;
+  reserved 2;
+  reserved "next_key";
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.

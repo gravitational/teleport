@@ -56,6 +56,8 @@ type TerminalProps = {
   openContextMenu(): void;
   configService: ConfigService;
   keyboardShortcutsService: KeyboardShortcutsService;
+  // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
+  terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
 };
 
 export function Terminal(props: TerminalProps) {
@@ -141,6 +143,9 @@ export function Terminal(props: TerminalProps) {
           reconnect={props.reconnect}
         />
       )}
+      <TerminalAddonsContainer>
+        {refCtrl.current && props.terminalAddons?.(refCtrl.current)}
+      </TerminalAddonsContainer>
       <StyledXterm
         ref={refElement}
         style={{
@@ -152,6 +157,18 @@ export function Terminal(props: TerminalProps) {
     </Flex>
   );
 }
+
+const TerminalAddonsContainer = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 500px;
+`;
 
 const StyledXterm = styled(Box)`
   height: 100%;

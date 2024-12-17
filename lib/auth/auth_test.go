@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/x509"
@@ -34,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
@@ -307,7 +308,7 @@ func TestSessions(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, out.GetSSHPriv())
 			assert.Empty(t, out.GetTLSPriv())
-			assert.Empty(t, cmp.Diff(ws, out,
+			assert.Empty(t, gocmp.Diff(ws, out,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.IgnoreFields(types.WebSessionSpecV2{}, "Priv", "TLSPriv")))
 
@@ -1655,7 +1656,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				AssetTag:     test.opts.DeviceExtensions.AssetTag,
 				CredentialId: test.opts.DeviceExtensions.CredentialID,
 			}
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := gocmp.Diff(want, got); diff != "" {
 				t.Errorf("certEvent.Identity.DeviceExtensions mismatch (-want +got)\n%s", diff)
 			}
 		}
@@ -2301,12 +2302,12 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 		// Assert TLS extensions.
 		_, newIdentity := parseX509PEMAndIdentity(t, newSession.GetTLSCert())
 		wantExts := tlsca.DeviceExtensions(*deviceExts)
-		if diff := cmp.Diff(wantExts, newIdentity.DeviceExtensions); diff != "" {
+		if diff := gocmp.Diff(wantExts, newIdentity.DeviceExtensions); diff != "" {
 			t.Errorf("newSession.TLSCert DeviceExtensions mismatch (-want +got)\n%s", diff)
 		}
 
 		// Assert SSH extensions.
-		if diff := cmp.Diff(wantExts, parseSSHDeviceExtensions(t, newSession.GetPub())); diff != "" {
+		if diff := gocmp.Diff(wantExts, parseSSHDeviceExtensions(t, newSession.GetPub())); diff != "" {
 			t.Errorf("newSession.Pub DeviceExtensions mismatch (-want +got)\n%s", diff)
 		}
 	})
@@ -2545,7 +2546,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	// Validate audit event.
 	lastEvent := p.mockEmitter.LastEvent()
 	require.IsType(t, &apievents.CertificateCreate{}, lastEvent)
-	require.Empty(t, cmp.Diff(
+	require.Empty(t, gocmp.Diff(
 		&apievents.CertificateCreate{
 			Metadata: apievents.Metadata{
 				Type: events.CertificateCreateEvent,
@@ -3801,15 +3802,15 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 	}
 
 	// Ignore LastUsed and SignatureCounter?
-	var opts []cmp.Option
+	var opts []gocmp.Option
 	if ignoreUpdateAndCounter {
-		opts = append(opts, cmp.FilterPath(func(path cmp.Path) bool {
+		opts = append(opts, gocmp.FilterPath(func(path gocmp.Path) bool {
 			p := path.String()
 			return p == "LastUsed" || p == "Device.Webauthn.SignatureCounter"
-		}, cmp.Ignore()))
+		}, gocmp.Ignore()))
 	}
 
-	if diff := cmp.Diff(want, got, opts...); diff != "" {
+	if diff := gocmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -4443,4 +4444,121 @@ func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timest
 	}
 
 	return &notification
+}
+
+// TestServerHostnameSanitization tests that persisting servers with
+// "invalid" hostnames results in the hostname being sanitized and the
+// illegal name being placed in a label.
+func TestServerHostnameSanitization(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name            string
+		hostname        string
+		addr            string
+		invalidHostname bool
+		invalidAddr     bool
+	}{
+		{
+			name:     "valid dns hostname",
+			hostname: "llama.example.com",
+		},
+		{
+			name:     "valid friendly hostname",
+			hostname: "llama",
+		},
+		{
+			name:     "uuid hostname",
+			hostname: uuid.NewString(),
+		},
+		{
+			name:     "uuid dns hostname",
+			hostname: uuid.NewString() + ".example.com",
+		},
+		{
+			name:            "empty hostname",
+			hostname:        "",
+			invalidHostname: true,
+		},
+		{
+			name:            "exceptionally long hostname",
+			hostname:        strings.Repeat("a", serverHostnameMaxLen*2),
+			invalidHostname: true,
+		},
+		{
+			name:            "invalid dns hostname",
+			hostname:        "llama..example.com",
+			invalidHostname: true,
+		},
+		{
+			name:            "spaces in hostname",
+			hostname:        "the quick brown fox jumps over the lazy dog",
+			invalidHostname: true,
+		},
+		{
+			name:            "invalid addr",
+			hostname:        "..",
+			addr:            "..:2345",
+			invalidHostname: true,
+			invalidAddr:     true,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			for _, subKind := range []string{types.KindNode, types.SubKindOpenSSHNode} {
+				t.Run(subKind, func(t *testing.T) {
+					server := &types.ServerV2{
+						Kind:    types.KindNode,
+						SubKind: subKind,
+						Metadata: types.Metadata{
+							Name: uuid.NewString(),
+						},
+						Spec: types.ServerSpecV2{
+							Hostname: test.hostname,
+							Addr:     cmp.Or(test.addr, "abcd:1234"),
+						},
+					}
+					if subKind == types.KindNode {
+						server.SubKind = ""
+					}
+
+					_, err = srv.AuthServer.UpsertNode(ctx, server)
+					require.NoError(t, err)
+
+					replacedValue, _ := server.GetLabel("teleport.internal/invalid-hostname")
+					if !test.invalidHostname {
+						assert.Equal(t, test.hostname, server.GetHostname())
+						assert.Empty(t, replacedValue)
+						return
+					}
+
+					assert.Equal(t, test.hostname, replacedValue)
+					switch subKind {
+					case types.SubKindOpenSSHNode:
+						host, _, err := net.SplitHostPort(server.GetAddr())
+						assert.NoError(t, err)
+						if !test.invalidAddr {
+							// If the address is valid, then the hostname should be set
+							// to the host of the addr field.
+							assert.Equal(t, host, server.GetHostname())
+						} else {
+							// If the address is not valid, then the hostname should be
+							// set to a UUID.
+							assert.NotEqual(t, host, server.GetHostname())
+							assert.NotEqual(t, server.GetName(), server.GetHostname())
+
+							_, err := uuid.Parse(server.GetHostname())
+							require.NoError(t, err)
+						}
+					default:
+						assert.Equal(t, server.GetName(), server.GetHostname())
+					}
+				})
+			}
+		})
+	}
 }

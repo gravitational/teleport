@@ -45,6 +45,7 @@ export function ChangePin(props: {
   req: PromptHardwareKeyPINChangeRequest;
   onCancel(): void;
   onSuccess(response: PromptHardwareKeyPINChangeResponse): void;
+  hidden?: boolean;
 }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -55,7 +56,8 @@ export function ChangePin(props: {
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

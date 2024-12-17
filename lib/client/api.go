@@ -96,7 +96,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/signal"
 )
 
 const (
@@ -710,37 +709,8 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// The user has typed a command like `tsh ssh ...` without being logged in,
-	// if the running binary needs to be updated, update and re-exec.
-	//
-	// If needed, download the new version of {tsh, tctl} and re-exec. Make
-	// sure to exit this process with the same exit code as the child process.
-	//
-	toolsDir, err := tools.Dir()
-	if err != nil {
+	if err := tools.CheckAndUpdateRemote(ctx, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 		return trace.Wrap(err)
-	}
-	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if reExec {
-		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
-		defer cancel()
-		// Download the version of client tools required by the cluster.
-		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			utils.FatalError(err)
-		}
-		// Re-execute client tools with the correct version of client tools.
-		code, err := updater.Exec()
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Failed to re-exec client tool: %v.", err)
-			os.Exit(code)
-		} else if err == nil {
-			os.Exit(code)
-		}
 	}
 
 	if opt.afterLoginHook != nil {
@@ -796,8 +766,42 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 	}
 }
 
+// NonRetryableError wraps an error to indicate that the error should fail
+// IsErrorResolvableWithRelogin. This wrapper is used to workaround the false
+// positives like trace.IsBadParameter check in IsErrorResolvableWithRelogin.
+type NonRetryableError struct {
+	// Err is the original error.
+	Err error
+}
+
+// Error returns the error text.
+func (e *NonRetryableError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the original error.
+func (e *NonRetryableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsNonRetryableError checks if the provided error is a NonRetryableError.
+// Equivalent to `errors.As(err, new(*NonRetryableError))`.
+func IsNonRetryableError(err error) bool {
+	return errors.As(err, new(*NonRetryableError))
+}
+
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	if IsNonRetryableError(err) {
+		return false
+	}
+
 	// Private key policy errors indicate that the user must login with an
 	// unexpected private key policy requirement satisfied. This can occur
 	// in the following cases:
@@ -833,6 +837,8 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
 	//  We should fix this and remove the RemoteError condition above as well.
 	//  Any retriable error should be explicitly marked as such.
+	//  Once trace.IsBadParameter check is removed, the nonRetryableError
+	//  workaround can also be removed.
 	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
@@ -2239,7 +2245,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
 			}
 		}
 	}
@@ -2307,6 +2313,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		SessionID:    *sid,
 		Streamer:     streamer,
 		SkipIdleTime: skipIdleTime,
+		Context:      ctx,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2405,7 +2412,7 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP
-func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
+func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination string, opts sftp.Options) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2413,104 +2420,61 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	)
 	defer span.End()
 
-	if len(args) < 2 {
-		return trace.Errorf("local and remote destinations are required")
-	}
-	first := args[0]
-	last := args[len(args)-1]
+	isDownload := strings.ContainsRune(source[0], ':')
+	isUpload := strings.ContainsRune(destination, ':')
 
-	// local copy?
-	if !isRemoteDest(first) && !isRemoteDest(last) {
+	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
 	}
 
-	var config *sftpConfig
-	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(args, port, opts)
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// Respect any proxy templates and attempt host resolution.
+	resolvedNodes, err := tc.GetTargetNodes(ctx, clt.AuthClient, SSHOptions{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(resolvedNodes) {
+	case 1:
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	default:
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
+	var cfg *sftp.Config
+	switch {
+	case isDownload:
+		dest, err := sftp.ParseDestination(source[0])
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		config, err = tc.downloadConfig(args, port, opts)
+		cfg, err = sftp.CreateDownloadConfig(dest.Path, destination, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case isUpload:
+		dest, err := sftp.ParseDestination(destination)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg, err = sftp.CreateUploadConfig(source, dest.Path, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if config.hostLogin == "" {
-		config.hostLogin = tc.Config.HostLogin
-	}
 
-	if !quiet {
-		config.cfg.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
-		}
-	}
-
-	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
-}
-
-type sftpConfig struct {
-	cfg       *sftp.Config
-	addr      string
-	hostLogin string
-}
-
-func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	// args are guaranteed to have len(args) > 1
-	srcPaths := args[:len(args)-1]
-	// copy everything except the last arg (the destination)
-	dstPath := args[len(args)-1]
-
-	dst, addr, err := getSFTPDestination(dstPath, port)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: dst.Login,
-	}, nil
-}
-
-func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	if len(args) > 2 {
-		return nil, trace.BadParameter("only one source file is supported when downloading files")
-	}
-
-	// args are guaranteed to have len(args) > 1
-	src, addr, err := getSFTPDestination(args[0], port)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: src.Login,
-	}, nil
-}
-
-func getSFTPDestination(target string, port int) (dest *sftp.Destination, addr string, err error) {
-	dest, err = sftp.ParseDestination(target)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
-	return dest, addr, nil
+	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, resolvedNodes[0].Addr, cfg))
 }
 
 // TransferFiles copies files between the current machine and the
 // specified Node using the supplied config
-func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient, hostLogin, nodeAddr string, cfg *sftp.Config) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/TransferFiles",
@@ -2525,16 +2489,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 		return trace.BadParameter("node address is not specified")
 	}
 
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	client, err := tc.ConnectToNode(
+	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
 		NodeDetails{
@@ -2548,11 +2503,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(client.TransferFiles(ctx, cfg))
-}
-
-func isRemoteDest(name string) bool {
-	return strings.ContainsRune(name, ':')
+	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
@@ -4255,46 +4206,16 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		if !utils.MeetsMinVersion(teleport.Version, pr.MinClientVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected potentially incompatible client and server versions.
-Minimum client version supported by the server is %v but you are using %v.
-Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+		warning, err := getClientIncompatibilityWarning(versions{
+			MinClient: pr.MinClientVersion,
+			Client:    teleport.Version,
+			Server:    pr.ServerVersion,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		if !utils.MeetsMaxVersion(teleport.Version, pr.ServerVersion) {
-			serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(pr.ServerVersion)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected potentially incompatible client and server versions.
-Maximum client version supported by the server is %v but you are using %v.
-Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-				serverVersionWithWildcards, teleport.Version, serverVersionWithWildcards)
-		}
-
-		// Recent `tsh mfa` changes require at least Teleport v15.
-		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-		if !utils.MeetsMinVersion(pr.ServerVersion, minServerVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected incompatible client and server versions.
-Minimum server version supported by tsh is %v but your server is using %v.
-Please use a tsh version that matches your server.
-You may use the --skip-version-check flag to bypass this check.
-
-`,
-				minServerVersion, pr.ServerVersion)
+		if warning != "" {
+			fmt.Fprint(tc.Stderr, warning)
 		}
 	}
 
@@ -4315,6 +4236,53 @@ You may use the --skip-version-check flag to bypass this check.
 	tc.lastPing = pr
 
 	return pr, nil
+}
+
+type versions struct {
+	MinClient string
+	Client    string
+	Server    string
+}
+
+func getClientIncompatibilityWarning(versions versions) (string, error) {
+	if !utils.MeetsMinVersion(versions.Client, versions.MinClient) {
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			versions.MinClient, versions.Client, versions.MinClient), nil
+	}
+
+	clientMajorVersion, err := utils.MajorSemver(versions.Client)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	serverMajorVersion, err := utils.MajorSemver(versions.Server)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(serverMajorVersion)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is %v but you are using %v.
+Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			serverVersionWithWildcards, versions.Client, serverVersionWithWildcards), nil
+	}
+
+	return "", nil
 }
 
 // GetCurrentSignatureAlgorithmSuite returns the current signature algorithm

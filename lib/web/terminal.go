@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -126,6 +127,10 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 				teleport.ComponentKey: teleport.ComponentWebsocket,
 				"session_id":          cfg.SessionData.ID.String(),
 			}),
+			logger: cfg.Logger.With(
+				teleport.ComponentKey, teleport.ComponentWebsocket,
+				"session_id", cfg.SessionData.ID.String(),
+			),
 			ctx:                cfg.SessionCtx,
 			userAuthClient:     cfg.UserAuthClient,
 			localAccessPoint:   cfg.LocalAccessPoint,
@@ -152,6 +157,8 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 // TerminalHandlerConfig contains the configuration options necessary to
 // correctly set up the TerminalHandler
 type TerminalHandlerConfig struct {
+	// Logger specifies the logger.
+	Logger *slog.Logger
 	// Term is the initial PTY size.
 	Term session.TerminalParams
 	// SessionCtx is the context for the users web session.
@@ -205,6 +212,10 @@ type TerminalHandlerConfig struct {
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
+	if t.Logger == nil {
+		t.Logger = slog.Default().With(teleport.ComponentKey, teleport.ComponentWebsocket)
+	}
+
 	// Make sure whatever session is requested is a valid session id.
 	if !t.SessionData.ID.IsZero() {
 		_, err := session.ParseID(t.SessionData.ID.String())
@@ -259,6 +270,8 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 type sshBaseHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
+	// logger holds the structured logger.
+	logger *slog.Logger
 	// ctx is a web session context for the currently logged-in user.
 	ctx *SessionContext
 	// userAuthClient is used to fetch nodes and sessions from the backend via the users' identity.
@@ -470,7 +483,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startWSPingLoop(ctx, ws, t.keepAliveInterval, t.logger, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
@@ -613,12 +626,11 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 }
 
 func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
 	var channelID string
+
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
-		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
-			return newMFAPrompt(stream, channelID)
-		},
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
 			id, err := uuid.NewRandom()
 			if err != nil {
@@ -635,36 +647,33 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 				ClientCallbackURL: u.String(),
 			}, nil
 		},
+		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+				// Convert from proto to JSON types.
+				var challenge client.MFAAuthenticateChallenge
+				if chal.WebauthnChallenge != nil {
+					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+				}
+
+				if chal.SSOChallenge != nil {
+					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+					challenge.SSOChallenge.ChannelID = channelID
+				}
+
+				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+				}
+
+				var codec protobufMFACodec
+				if err := stream.WriteChallenge(&challenge, codec); err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resp, err := stream.ReadChallengeResponse(codec)
+				return resp, trace.Wrap(err)
+			})
+		},
 	}
-}
-
-// create a new MFA prompt. When provided, ssoChannelID is used by the front end to differentiate
-// between separate ongoing SSO challenges.
-func newMFAPrompt(stream *terminal.WSStream, ssoChannelID string) mfa.Prompt {
-	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		// Convert from proto to JSON types.
-		var challenge client.MFAAuthenticateChallenge
-		if chal.WebauthnChallenge != nil {
-			challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
-		}
-
-		if chal.SSOChallenge != nil {
-			challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
-			challenge.SSOChallenge.ChannelID = ssoChannelID
-		}
-
-		if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-			return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
-		}
-
-		var codec protobufMFACodec
-		if err := stream.WriteChallenge(&challenge, codec); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := stream.ReadChallengeResponse(codec)
-		return resp, trace.Wrap(err)
-	})
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
@@ -822,7 +831,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream, "" /*ssoChannelID*/)); err != nil {
+				baseCeremony := newMFACeremony(t.stream.WSStream, nil)
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -897,7 +907,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 	}
 
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.Close(); err != nil && !errors.Is(err, io.EOF) {
 		t.log.WithError(err).Error("Unable to close client web socket.")
 		return
 	}

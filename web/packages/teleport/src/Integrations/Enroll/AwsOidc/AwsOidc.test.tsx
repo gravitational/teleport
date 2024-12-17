@@ -27,6 +27,9 @@ import { MemoryRouter } from 'react-router';
 
 import { userEventService } from 'teleport/services/userEvent';
 
+import { integrationService } from 'teleport/services/integrations';
+import { ApiError } from 'teleport/services/api/parseError';
+
 import { AwsOidc } from './AwsOidc';
 
 test('render', async () => {
@@ -55,6 +58,14 @@ test('generate command', async () => {
   jest
     .spyOn(userEventService, 'captureIntegrationEnrollEvent')
     .mockImplementation();
+
+  let spyPing = jest
+    .spyOn(integrationService, 'pingAwsOidcIntegration')
+    .mockResolvedValue({} as any); // response doesn't matter
+
+  const spyCreate = jest
+    .spyOn(integrationService, 'createIntegration')
+    .mockResolvedValue({} as any); // response doesn't matter
 
   window.prompt = jest.fn();
 
@@ -95,4 +106,42 @@ test('generate command', async () => {
   const clipboardText = await navigator.clipboard.readText();
   expect(clipboardText).toContain(`integrationName=${pluginConfig.name}`);
   expect(clipboardText).toContain(`role=${pluginConfig.roleName}`);
+
+  // Fill out arn.
+  fireEvent.change(screen.getByLabelText(/role arn/i), {
+    target: {
+      value: `arn:aws:iam::123456789012:role/${pluginConfig.roleName}`,
+    },
+  });
+
+  // Test ping is called before create.
+  fireEvent.click(screen.getByRole('button', { name: /create integration/i }));
+  await waitFor(() => expect(spyPing).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(spyCreate).toHaveBeenCalledTimes(1));
+
+  let pingOrder = spyPing.mock.invocationCallOrder[0];
+  let createOrder = spyCreate.mock.invocationCallOrder[0];
+  expect(pingOrder).toBeLessThan(createOrder);
+
+  // Test create is still called with 404 ping error.
+  jest.clearAllMocks();
+  let error = new ApiError('', { status: 404 } as Response);
+  spyPing = jest
+    .spyOn(integrationService, 'pingAwsOidcIntegration')
+    .mockRejectedValue(error);
+
+  fireEvent.click(screen.getByRole('button', { name: /create integration/i }));
+  await waitFor(() => expect(spyPing).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(spyCreate).toHaveBeenCalledTimes(1));
+
+  // Test create isn't called with non 404 error
+  jest.clearAllMocks();
+  error = new ApiError('', { status: 400 } as Response);
+  spyPing = jest
+    .spyOn(integrationService, 'pingAwsOidcIntegration')
+    .mockRejectedValue(error);
+
+  fireEvent.click(screen.getByRole('button', { name: /create integration/i }));
+  await waitFor(() => expect(spyPing).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(spyCreate).toHaveBeenCalledTimes(0));
 });

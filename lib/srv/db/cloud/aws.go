@@ -21,13 +21,13 @@ package cloud
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -71,10 +71,10 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: "aws",
-		"db":                  config.database.GetName(),
-	})
+	logger := slog.With(
+		teleport.ComponentKey, "aws",
+		"db", config.database.GetName(),
+	)
 	dbConfigurator, err := getDBConfigurator(ctx, logger, config.clients, config.database)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,7 +92,7 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 		cfg:            config,
 		dbConfigurator: dbConfigurator,
 		iam:            iam,
-		log:            logger,
+		logger:         logger,
 	}, nil
 }
 
@@ -102,10 +102,10 @@ type dbIAMAuthConfigurator interface {
 }
 
 // getDBConfigurator returns a database IAM Auth configurator.
-func getDBConfigurator(ctx context.Context, log logrus.FieldLogger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
+func getDBConfigurator(ctx context.Context, logger *slog.Logger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
 	if db.IsRDS() {
 		// Only setting for RDS instances and Aurora clusters.
-		return &rdsDBConfigurator{clients: clients, log: log}, nil
+		return &rdsDBConfigurator{clients: clients, logger: logger}, nil
 	}
 	// IAM Auth for Redshift, ElastiCache, and RDS Proxy is always enabled.
 	return &nopDBConfigurator{}, nil
@@ -115,14 +115,14 @@ type awsClient struct {
 	cfg            awsConfig
 	dbConfigurator dbIAMAuthConfigurator
 	iam            iamiface.IAMAPI
-	log            logrus.FieldLogger
+	logger         *slog.Logger
 }
 
 // setupIAMAuth ensures the IAM Authentication is enbaled for RDS, Aurora, ElastiCache or Redshift database.
 func (r *awsClient) setupIAMAuth(ctx context.Context) error {
 	if err := r.dbConfigurator.ensureIAMAuth(ctx, r.cfg.database); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
-			r.log.Debugf("No permissions to enable IAM auth: %v.", err)
+			r.logger.DebugContext(ctx, "No permissions to enable IAM auth", "error", err)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -137,7 +137,7 @@ func (r *awsClient) setupIAMAuth(ctx context.Context) error {
 func (r *awsClient) setupIAMPolicy(ctx context.Context) (bool, error) {
 	if err := r.ensureIAMPolicy(ctx); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
-			r.log.Debugf("No permissions to ensure IAM policy: %v.", err)
+			r.logger.DebugContext(ctx, "No permissions to ensure IAM policy", "error", err)
 			return false, nil
 		}
 
@@ -152,7 +152,7 @@ func (r *awsClient) teardownIAM(ctx context.Context) error {
 	var errors []error
 	if err := r.deleteIAMPolicy(ctx); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
-			r.log.Debugf("No permissions to delete IAM policy: %v.", err)
+			r.logger.DebugContext(ctx, "No permissions to delete IAM policy", "error", err)
 		} else {
 			errors = append(errors, err)
 		}
@@ -174,10 +174,13 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	var changed bool
 	dbIAM.ForEach(func(effect, action, resource string, conditions awslib.Conditions) {
 		if policy.EnsureResourceAction(effect, action, resource, conditions) {
-			r.log.Debugf("Adding permission %q for %q to policy.", action, resource)
+			r.logger.DebugContext(ctx, "Adding database permission to policy",
+				"action", action,
+				"resource", resource,
+			)
 			changed = true
 		} else {
-			r.log.Debugf("Permission %q for %q is already part of policy.", action, resource)
+			r.logger.DebugContext(ctx, "Permission is already part of policy", "action", action, "resource", resource)
 		}
 	})
 	if !changed {
@@ -189,8 +192,10 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	}
 
 	if len(placeholders) > 0 {
-		r.log.Warnf("Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config. Placeholders %q are found when configuring the IAM policy for database %v.",
-			placeholders, r.cfg.database.GetName())
+		r.logger.WarnContext(ctx, "Please make sure the database agent has the IAM permissions to fetch cloud metadata, or make sure these values are set in the static config. Placeholders were found when configuring the IAM policy for database.",
+			"placeholders", placeholders,
+			"database", r.cfg.database.GetName(),
+		)
 	}
 	return nil
 }
@@ -252,7 +257,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 
 // updateIAMPolicy attaches IAM access policy to the identity this agent is running as.
 func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDocument) error {
-	r.log.Debugf("Updating IAM policy for %v.", r.cfg.identity)
+	r.logger.DebugContext(ctx, "Updating IAM policy", "identity", r.cfg.identity)
 	document, err := json.Marshal(policy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -278,7 +283,7 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 
 // detachIAMPolicy detaches IAM access policy from the identity this agent is running as.
 func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
-	r.log.Debugf("Detaching IAM policy from %v.", r.cfg.identity)
+	r.logger.DebugContext(ctx, "Detaching IAM policy", "identity", r.cfg.identity)
 	var err error
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
@@ -299,13 +304,13 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 
 type rdsDBConfigurator struct {
 	clients cloud.Clients
-	log     logrus.FieldLogger
+	logger  *slog.Logger
 }
 
 // ensureIAMAuth enables RDS instance IAM auth if it isn't already enabled.
 func (r *rdsDBConfigurator) ensureIAMAuth(ctx context.Context, db types.Database) error {
 	if db.GetAWS().RDS.IAMAuth {
-		r.log.Debug("IAM auth already enabled.")
+		r.logger.DebugContext(ctx, "IAM auth already enabled")
 		return nil
 	}
 	if err := r.enableIAMAuth(ctx, db); err != nil {
@@ -316,7 +321,7 @@ func (r *rdsDBConfigurator) ensureIAMAuth(ctx context.Context, db types.Database
 
 // enableIAMAuth turns on IAM auth setting on the RDS instance.
 func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database) error {
-	r.log.Debug("Enabling IAM auth for RDS.")
+	r.logger.DebugContext(ctx, "Enabling IAM auth for RDS")
 	meta := db.GetAWS()
 	rdsClt, err := r.clients.GetAWSRDSClient(ctx, meta.Region,
 		cloud.WithAssumeRoleFromAWSMeta(meta),

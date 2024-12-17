@@ -38,16 +38,18 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
+	resources, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListKubernetesResourcesResponse{
-		NextKey: resp.NextKey,
-	}
+	response := &api.ListKubernetesResourcesResponse{}
 
-	for _, kubeResource := range resp.Resources {
+	for _, resource := range resources {
+		kubeResource, ok := resource.(*types.KubernetesResourceV1)
+		if !ok {
+			return nil, trace.BadParameter("expected resource type %T, got %T", types.KubernetesResourceV1{}, resource)
+		}
 		response.Resources = append(response.Resources, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
 	}
 

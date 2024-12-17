@@ -21,7 +21,7 @@ package export
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"sync"
 	"testing"
@@ -407,8 +407,8 @@ func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlog
 	// randomly truncate the chunk and append an error to simulate flake. we target a 33% failure rate
 	// since event export is more frequent than chunk listing.
 	var fail bool
-	if c.randomFlake && rand.Int()%3 == 0 {
-		chunk = chunk[:rand.Intn(len(chunk))]
+	if c.randomFlake && rand.N(3) == 0 {
+		chunk = chunk[:rand.N(len(chunk))]
 		fail = true
 	}
 
@@ -438,8 +438,8 @@ func (c *fakeClient) GetEventExportChunks(ctx context.Context, req *auditlogpb.G
 	// randomly truncate the chunk list and append an error to simulate flake. we target a 50% failure rate
 	// since chunk listing is less frequent than event export.
 	var fail bool
-	if c.randomFlake && rand.Int()%2 == 0 {
-		eec = eec[:rand.Intn(len(eec))]
+	if c.randomFlake && rand.N(2) == 0 {
+		eec = eec[:rand.N(len(eec))]
 		fail = true
 	}
 

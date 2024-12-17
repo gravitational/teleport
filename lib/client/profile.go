@@ -203,6 +203,9 @@ type ProfileStatus struct {
 	// ValidUntil is the time at which this SSH certificate will expire.
 	ValidUntil time.Time
 
+	// GetKeyRingError is any error encountered while loading the KeyRing.
+	GetKeyRingError error
+
 	// Extensions is a list of enabled SSH features for the certificate.
 	Extensions []string
 
@@ -245,6 +248,17 @@ type ProfileStatus struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+
+	// GitHubIdentity is the GitHub identity attached to the user.
+	GitHubIdentity *GitHubIdentity
+}
+
+// GitHubIdentity is the GitHub identity attached to the user.
+type GitHubIdentity struct {
+	// UserID is the unique ID of the GitHub user.
+	UserID string
+	// Username is the GitHub username.
+	Username string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -316,7 +330,9 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
 			ext == teleport.CertExtensionTeleportActiveRequests ||
-			ext == teleport.CertExtensionAllowedResources {
+			ext == teleport.CertExtensionAllowedResources ||
+			ext == teleport.CertExtensionGitHubUserID ||
+			ext == teleport.CertExtensionGitHubUsername {
 			continue
 		}
 		extensions = append(extensions, ext)
@@ -352,6 +368,14 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		}
 	}
 
+	var gitHubIdentity *GitHubIdentity
+	if gitHubUserID := sshCert.Extensions[teleport.CertExtensionGitHubUserID]; gitHubUserID != "" {
+		gitHubIdentity = &GitHubIdentity{
+			UserID:   gitHubUserID,
+			Username: sshCert.Extensions[teleport.CertExtensionGitHubUsername],
+		}
+	}
+
 	return &ProfileStatus{
 		Name: opts.ProfileName,
 		Dir:  opts.ProfileDir,
@@ -380,6 +404,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		AllowedResourceIDs:      allowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
+		GitHubIdentity:          gitHubIdentity,
 	}, nil
 }
 

@@ -29,10 +29,12 @@ export function OverwriteSlot(props: {
   req: ConfirmHardwareKeySlotOverwriteRequest;
   onCancel(): void;
   onConfirm(): void;
+  hidden?: boolean;
 }) {
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

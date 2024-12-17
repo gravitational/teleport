@@ -55,6 +55,7 @@ func (h *Handler) desktopPlaybackHandle(
 		Log:       h.logger,
 		SessionID: session.ID(sID),
 		Streamer:  clt,
+		Context:   r.Context(),
 	})
 	if err != nil {
 		h.log.Errorf("couldn't create player for session %v: %v", sID, err)

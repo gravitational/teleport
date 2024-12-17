@@ -38,8 +38,10 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
-	insecurerand "math/rand"
+	mathrand "math/rand/v2"
+	"net"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -47,7 +49,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -87,6 +88,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -98,8 +100,8 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -329,6 +331,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginStaticCredentials == nil {
+		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserTasks == nil {
 		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
 		if err != nil {
@@ -387,6 +395,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
+	if cfg.GitServers == nil {
+		cfg.GitServers, err = local.NewGitServerService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating GitServer service")
+		}
+	}
+	if cfg.WorkloadIdentity == nil {
+		workloadIdentity, err := local.NewWorkloadIdentityService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentity service")
+		}
+		cfg.WorkloadIdentity = workloadIdentity
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -407,7 +428,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
@@ -483,6 +504,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
 		IdentityCenter:            cfg.IdentityCenter,
+		PluginStaticCredentials:   cfg.PluginStaticCredentials,
+		GitServers:                cfg.GitServers,
+		WorkloadIdentities:        cfg.WorkloadIdentity,
 	}
 
 	as := Server{
@@ -492,7 +516,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Authority:               cfg.Authority,
 		AuthServiceName:         cfg.AuthServiceName,
 		ServerID:                cfg.HostUUID,
-		githubClients:           make(map[string]*githubClient),
 		cancelFunc:              cancelFunc,
 		closeCtx:                closeCtx,
 		emitter:                 cfg.Emitter,
@@ -510,6 +533,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
+		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
 			if g, ok := connectedResourceGauges[s]; ok {
 				g.Inc()
@@ -568,6 +592,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.ghaIDTokenJWKSValidator == nil {
+		as.ghaIDTokenJWKSValidator = githubactions.ValidateTokenWithJWKS
+	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
 			spacelift.IDTokenValidatorConfig{
@@ -599,10 +626,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
-		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+		as.k8sTokenReviewValidator = &kubetoken.TokenReviewValidator{}
 	}
 	if as.k8sJWKSValidator == nil {
-		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -619,6 +646,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		})
 	}
 
+	if as.bitbucketIDTokenValidator == nil {
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -626,6 +657,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
+		Emitter:     as.emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -693,6 +725,9 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.PluginStaticCredentials
+	services.GitServers
+	services.WorkloadIdentities
 }
 
 // GetWebSession returns existing web session described by req.
@@ -881,10 +916,9 @@ type ReadOnlyCache = readonly.Cache
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
-	githubClients map[string]*githubClient
-	clock         clockwork.Clock
-	bk            backend.Backend
+	lock  sync.RWMutex
+	clock clockwork.Clock
+	bk    backend.Backend
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
@@ -985,6 +1019,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
@@ -1021,6 +1059,8 @@ type Server struct {
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
+
+	bitbucketIDTokenValidator bitbucketIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1316,20 +1356,19 @@ const (
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+	firstReleaseCheck := retryutils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
 	// by an upcoming tctl command. currently exists for testing purposes only.
 	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
-		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+		firstReleaseCheck = retryutils.HalfJitter(time.Second * 10)
 	}
 
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
+	period := retryutils.HalfJitter(2 * defaults.HighResPollingPeriod)
 
 	ticker := interval.NewMulti(
 		a.GetClock(),
@@ -1341,44 +1380,42 @@ func (a *Server) runPeriodicOperations() {
 			Key:           metricsKey,
 			Duration:      defaults.PrometheusScrapeInterval,
 			FirstDuration: 5 * time.Second,
-			Jitter:        retryutils.NewSeventhJitter(),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           instancePeriodicsKey,
 			Duration:      9 * time.Minute,
-			FirstDuration: utils.HalfJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           notificationsCleanupKey,
 			Duration:      48 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Hour),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
 		},
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           roleCountKey,
 			Duration:      12 * time.Hour,
-			FirstDuration: utils.FullJitter(time.Minute),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
 		},
 	)
 
 	defer ticker.Stop()
-
-	missedKeepAliveCount := 0
 
 	// Prevent some periodic operations from running for dashboard tenants.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           dynamicLabelsCheckKey,
 			Duration:      dynamicLabelCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:      heartbeatCheckKey,
 			Duration: apidefaults.ServerKeepAliveTTL() * 2,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           releaseCheckKey,
@@ -1387,15 +1424,15 @@ func (a *Server) runPeriodicOperations() {
 			// note the use of FullJitter for the releases check interval. this lets us ensure
 			// that frequent restarts don't prevent checks from happening despite the infrequent
 			// effective check rate.
-			Jitter: retryutils.NewFullJitter(),
+			Jitter: retryutils.FullJitter,
 		})
 		// more frequent release check that just re-calculates alerts based on previously
 		// pulled versioning info.
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           localReleaseCheckKey,
 			Duration:      10 * time.Minute,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
 		})
 	}
 
@@ -1403,8 +1440,8 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.HalfJitter,
 		})
 	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
@@ -1415,7 +1452,7 @@ func (a *Server) runPeriodicOperations() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
 		remoteClustersRefresh := interval.New(interval.Config{
 			Duration: time.Second * 40,
-			Jitter:   retryutils.NewSeventhJitter(),
+			Jitter:   retryutils.SeventhJitter,
 		})
 		defer remoteClustersRefresh.Stop()
 
@@ -1424,7 +1461,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(a.closeCtx, r)
+				a.refreshRemoteClusters(a.closeCtx)
 			}
 		}
 	}()
@@ -1435,8 +1472,8 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           upgradeWindowCheckKey,
 			Duration:      3 * time.Minute,
-			FirstDuration: utils.FullJitter(30 * time.Second),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(30 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1468,8 +1505,30 @@ func (a *Server) runPeriodicOperations() {
 									return false, nil
 								}
 								if services.NodeHasMissedKeepAlives(srv) {
-									missedKeepAliveCount++
+									heartbeatsMissedByAuth.Inc()
 								}
+
+								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+								if !validServerHostname(srv.GetHostname()) {
+									if srv.GetSubKind() != types.SubKindOpenSSHNode {
+										return false, nil
+									}
+
+									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+									// Any existing static hosts will not have their
+									// hostname sanitized since they don't heartbeat.
+									if err := sanitizeHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+										return false, nil
+									}
+
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								}
+
 								return false, nil
 							},
 							req,
@@ -1484,9 +1543,6 @@ func (a *Server) runPeriodicOperations() {
 							break
 						}
 					}
-
-					// Update prometheus gauge
-					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()
@@ -1831,7 +1887,7 @@ var (
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
-func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to load remote clusters for status refresh")
@@ -1845,7 +1901,7 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
 		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
 	})
 
@@ -2161,6 +2217,10 @@ type certRequest struct {
 	appName string
 	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
 	appURI string
+	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
+	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
+	// used in other contexts (e.g., access requests).
+	appTargetPort int
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2409,6 +2469,8 @@ type AppTestCertRequest struct {
 	TTL time.Duration
 	// PublicAddr is the application public address. Used for routing.
 	PublicAddr string
+	// TargetPort is the port to which connections to multi-port TCP apps should be routed to.
+	TargetPort int
 	// ClusterName is the name of the cluster application resides in. Used for routing.
 	ClusterName string
 	// SessionID is the optional session ID to encode. Used for routing.
@@ -2468,6 +2530,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		appSessionID:      sessionID,
 		appPublicAddr:     req.PublicAddr,
+		appTargetPort:     req.TargetPort,
 		appClusterName:    req.ClusterName,
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
@@ -3146,6 +3209,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// At most one GitHub identity expected.
+	var githubUserID, githubUsername string
+	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+		githubUserID = githubIdentities[0].UserID
+		githubUsername = githubIdentities[0].Username
+	}
+
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3184,6 +3254,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            githubUserID,
+			GitHubUsername:          githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {
@@ -3245,6 +3317,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
 			URI:               req.appURI,
+			TargetPort:        req.appTargetPort,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -4789,93 +4862,21 @@ func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uin
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	const pingAttempt = "ping-attempt"
-	const pingSuccess = "ping-success"
-	const maxAttempts = 16
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
 		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
-	id := insecurerand.Uint64()
+	id := mathrand.Uint64()
 
-	if !req.ControlLog {
-		// this ping doesn't pass through the control log, so just execute it immediately.
-		d, err := stream.Ping(ctx, id)
-		return proto.InventoryPingResponse{
-			Duration: d,
-		}, trace.Wrap(err)
-	}
-
-	// matchEntry is used to check if our log entry has been included
-	// in the control log.
-	matchEntry := func(entry types.InstanceControlLogEntry) bool {
-		return entry.Type == pingAttempt && entry.ID == id
-	}
-
-	var included bool
-	for i := 1; i <= maxAttempts; i++ {
-		stream.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-			// check if we've already successfully included the ping entry
-			if ref.LastHeartbeat != nil {
-				if slices.IndexFunc(ref.LastHeartbeat.GetControlLog(), matchEntry) >= 0 {
-					included = true
-					return
-				}
-			}
-
-			// if the entry pending already, we just need to wait
-			if slices.IndexFunc(ref.QualifiedPendingControlLog, matchEntry) >= 0 {
-				return
-			}
-
-			// either this is the first iteration, or the pending control log was reset.
-			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
-				Type: pingAttempt,
-				ID:   id,
-				Time: time.Now(),
-			})
-			stream.HeartbeatInstance()
-			return
-		})
-
-		if included {
-			// entry appeared in control log
-			break
-		}
-
-		// pause briefly, then re-sync our state. note that this strategy is not scalable. control log usage is intended only
-		// for periodic operations. control-log based pings are a mechanism for testing/debugging only, hence the use of a
-		// simple sleep loop.
-		select {
-		case <-time.After(time.Millisecond * 100 * time.Duration(i)):
-		case <-stream.Done():
-			return proto.InventoryPingResponse{}, trace.Errorf("control stream closed during ping attempt")
-		case <-ctx.Done():
-			return proto.InventoryPingResponse{}, trace.Wrap(ctx.Err())
-		}
-	}
-
-	if !included {
-		return proto.InventoryPingResponse{}, trace.LimitExceeded("failed to include ping %d in control log for instance %q (max attempts exceeded)", id, req.ServerID)
+	if req.ControlLog { //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		return proto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
 	}
 
 	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
 	}
-
-	stream.VisitInstanceState(func(_ inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
-		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
-			Type: pingSuccess,
-			ID:   id,
-			Labels: map[string]string{
-				"duration": d.String(),
-			},
-		})
-		return
-	})
-	stream.HeartbeatInstance()
 
 	return proto.InventoryPingResponse{
 		Duration: d,
@@ -5130,47 +5131,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	// Look for user groups and associated applications to the request.
-	requestedResourceIDs := req.GetRequestedResourceIDs()
-	var additionalResources []types.ResourceID
-
-	var userGroups []types.ResourceID
-	existingApps := map[string]struct{}{}
-	for _, resource := range requestedResourceIDs {
-		switch resource.Kind {
-		case types.KindApp:
-			existingApps[resource.Name] = struct{}{}
-		case types.KindUserGroup:
-			userGroups = append(userGroups, resource)
-		}
+	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
+	if err != nil {
+		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
-
-	for _, resource := range userGroups {
-		if resource.Kind != types.KindUserGroup {
-			continue
-		}
-
-		userGroup, err := a.GetUserGroup(ctx, resource.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, app := range userGroup.GetApplications() {
-			// Only add to the request if we haven't already added it.
-			if _, ok := existingApps[app]; !ok {
-				additionalResources = append(additionalResources, types.ResourceID{
-					ClusterName: resource.ClusterName,
-					Kind:        types.KindApp,
-					Name:        app,
-				})
-				existingApps[app] = struct{}{}
-			}
-		}
-	}
-
-	if len(additionalResources) > 0 {
-		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
-		req.SetRequestedResourceIDs(requestedResourceIDs)
-	}
+	req.SetRequestedResourceIDs(requestedResourceIDs)
 
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -5200,7 +5165,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -5250,6 +5215,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 					},
 				},
 			},
+			// Prevent the requester from seeing the notification for their own access request.
+			ExcludeUsers: []string{req.GetUser()},
 			Notification: &notificationsv1.Notification{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
@@ -5278,6 +5245,69 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// appendImplicitlyRequiredResources examines the set of requested resources and adds
+// any extra resources that are implicitly required by the request.
+func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
+	addedApps := utils.NewSet[string]()
+	var userGroups []types.ResourceID
+	var accountAssignments []types.ResourceID
+
+	for _, resource := range resources {
+		switch resource.Kind {
+		case types.KindApp:
+			addedApps.Add(resource.Name)
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		case types.KindIdentityCenterAccountAssignment:
+			accountAssignments = append(accountAssignments, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if !addedApps.Contains(app) {
+				resources = append(resources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				addedApps.Add(app)
+			}
+		}
+	}
+
+	icAccounts := utils.NewSet[string]()
+	for _, resource := range accountAssignments {
+		// The UI needs access to the account associated with an Account Assignment
+		// in order to display the enclosing Account, otherwise the user will not
+		// be able to see their assigned permission sets.
+		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
+		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching identity center account assignment")
+		}
+
+		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {
+			continue
+		}
+
+		resources = append(resources, types.ResourceID{
+			ClusterName: resource.ClusterName,
+			Kind:        types.KindIdentityCenterAccount,
+			Name:        asmt.GetSpec().GetAccountId(),
+		})
+		icAccounts.Add(asmt.GetSpec().GetAccountId())
+	}
+
+	return resources, nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
@@ -5618,9 +5648,68 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	return nil
 }
 
+const (
+	serverHostnameMaxLen       = 256
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
+)
+
+var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
+
+// validServerHostname returns false if the hostname is longer than 256 characters or
+// does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
+// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+func validServerHostname(hostname string) bool {
+	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
+}
+
+func sanitizeHostname(server types.Server) error {
+	invalidHostname := server.GetHostname()
+
+	replacedHostname := server.GetName()
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		host, _, err := net.SplitHostPort(server.GetAddr())
+		if err != nil || !validServerHostname(host) {
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			host = id.String()
+		}
+
+		replacedHostname = host
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		s.Spec.Hostname = replacedHostname
+
+		if s.Metadata.Labels == nil {
+			s.Metadata.Labels = map[string]string{}
+		}
+
+		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if !validServerHostname(server.GetHostname()) {
+		a.logger.DebugContext(a.closeCtx, "sanitizing invalid server hostname",
+			"server", server.GetName(),
+			"hostname", server.GetHostname(),
+		)
+		if err := sanitizeHostname(server); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	lease, err := a.Services.UpsertNode(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7431,43 +7520,6 @@ func (k *authKeepAliver) Done() <-chan struct{} {
 func (k *authKeepAliver) Close() error {
 	k.cancel()
 	return nil
-}
-
-// githubClient is internal structure that stores Github OAuth 2client and its config
-type githubClient struct {
-	client *oauth2.Client
-	config oauth2.Config
-}
-
-// oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal
-func oauth2ConfigsEqual(a, b oauth2.Config) bool {
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	if a.AuthURL != b.AuthURL {
-		return false
-	}
-	if a.TokenURL != b.TokenURL {
-		return false
-	}
-	if a.AuthMethod != b.AuthMethod {
-		return false
-	}
-	return true
 }
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.

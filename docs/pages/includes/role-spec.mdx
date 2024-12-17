@@ -319,6 +319,15 @@ spec:
       - 'arn:aws:iam::1234567890:role/ec2-full-access'
       - 'arn:aws:iam::0987654321:role/example-role'
 
+    # AWS account and permission set bindings for the Identity Center integration
+    account_assignments:
+    - # AWS identity center account ID
+      account: "<account_id>"
+      # name of the permission set in AWS
+      name: AdministratorAccess
+      # permission set ARN
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678 # permission set ARN
+
     # impersonate allows a user with this role to issue certificates on behalf
     # of other users and roles matching expressions below
     impersonate:
@@ -357,6 +366,14 @@ spec:
       kubernetes_resources:
         - kind: "namespace"
 
+      # 'reason' defines settings for the reason for the access provided by the user.
+      reason:
+        # 'mode' can be either "required" or "optional". Empty string is treated as
+        # "optional". If a role has the request reason mode set to "required", then reason
+        # is required for all Access Requests requesting roles or resources allowed by
+        # this role. It applies only to users who have this role assigned.
+        mode: "optional"
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
       thresholds:
@@ -388,7 +405,7 @@ spec:
           # generates a role name from the value capture
           roles: ['$1-admin']
 
-      # Teleport can attach annotations to pending Access Requests. these
+      # Teleport can attach annotations to pending Access Requests. These
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -426,7 +443,7 @@ spec:
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
+        modes: ['moderator', 'observer', 'peer']
 
     # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
     # SVIDs for. As long as the request matches one of the blocks within the

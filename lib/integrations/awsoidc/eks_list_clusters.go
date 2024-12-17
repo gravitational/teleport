@@ -79,9 +79,9 @@ type EKSCluster struct {
 	// https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
 	AuthenticationMode string
 
-	// EndpointPublicAddress indicates whether the Cluster's VPC Config has its endpoint as a public address.
+	// EndpointPublicAccess indicates whether the Cluster's VPC Config has its endpoint as a public address.
 	// For Teleport Cloud, this is required to access the cluster and proceed with the installation.
-	EndpointPublicAddress bool
+	EndpointPublicAccess bool
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
@@ -171,14 +171,14 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 			}
 
 			ret.Clusters = append(ret.Clusters, EKSCluster{
-				Name:                  aws.ToString(cluster.Name),
-				Region:                req.Region,
-				Arn:                   aws.ToString(cluster.Arn),
-				Labels:                cluster.Tags,
-				JoinLabels:            extraLabels,
-				Status:                strings.ToLower(string(cluster.Status)),
-				AuthenticationMode:    string(cluster.AccessConfig.AuthenticationMode),
-				EndpointPublicAddress: cluster.ResourcesVpcConfig.EndpointPublicAccess,
+				Name:                 aws.ToString(cluster.Name),
+				Region:               req.Region,
+				Arn:                  aws.ToString(cluster.Arn),
+				Labels:               cluster.Tags,
+				JoinLabels:           extraLabels,
+				Status:               strings.ToLower(string(cluster.Status)),
+				AuthenticationMode:   string(cluster.AccessConfig.AuthenticationMode),
+				EndpointPublicAccess: cluster.ResourcesVpcConfig.EndpointPublicAccess,
 			})
 			return nil
 		})

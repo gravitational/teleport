@@ -82,6 +82,13 @@ func WithClient(client *http.Client) Option {
 	}
 }
 
+// WithTools defines custom list of the tools has to be installed by updater.
+func WithTools(tools []string) Option {
+	return func(u *Updater) {
+		u.tools = tools
+	}
+}
+
 // Updater is updater implementation for the client tools auto updates.
 type Updater struct {
 	toolsDir     string
@@ -92,13 +99,14 @@ type Updater struct {
 	client  *http.Client
 }
 
-// NewUpdater initializes the updater for client tools auto updates. We need to specify the list
-// of tools (e.g., `tsh`, `tctl`) that should be updated, the tools directory path where we
-// download, extract package archives with the new version, and replace symlinks (e.g., `$TELEPORT_HOME/bin`).
-// The base URL of the CDN with Teleport packages and the `http.Client` can be customized via options.
-func NewUpdater(tools []string, toolsDir string, localVersion string, options ...Option) *Updater {
+// NewUpdater initializes the updater for client tools auto updates. We need to specify the tools directory
+// path where we download, extract package archives with the new version, and replace symlinks
+// (e.g., `$TELEPORT_HOME/bin`).
+// The base URL of the CDN with Teleport packages, the `http.Client` and  the list of tools (e.g., `tsh`, `tctl`)
+// that must be updated can be customized via options.
+func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 	updater := &Updater{
-		tools:        tools,
+		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
 		baseURL:      baseURL,

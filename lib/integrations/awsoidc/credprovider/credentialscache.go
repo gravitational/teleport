@@ -150,13 +150,21 @@ func (cc *CredentialsCache) SetGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
 // credentials, or an error if no credentials have been generated yet or the
 // last generated credentials have expired.
 func (cc *CredentialsCache) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	select {
+	case <-cc.gotFirstCredsOrErr:
+	case <-ctx.Done():
+		return aws.Credentials{}, ctx.Err()
+	}
+	creds, err := cc.retrieve(ctx)
+	return creds, trace.Wrap(err)
+}
+
+func (cc *CredentialsCache) retrieve(ctx context.Context) (aws.Credentials, error) {
 	cc.credsOrErrMu.RLock()
 	defer cc.credsOrErrMu.RUnlock()
-
 	if cc.credsOrErr.err != nil {
 		cc.log.WarnContext(ctx, "Returning error to AWS client", errorValue(cc.credsOrErr.err))
 	}
-
 	return cc.credsOrErr.creds, cc.credsOrErr.err
 }
 
@@ -185,7 +193,7 @@ func (cc *CredentialsCache) Run(ctx context.Context) {
 }
 
 func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
-	credsFromCache, err := cc.Retrieve(ctx)
+	credsFromCache, err := cc.retrieve(ctx)
 	if err == nil &&
 		credsFromCache.HasKeys() &&
 		cc.clock.Now().Add(refreshBeforeExpirationPeriod).Before(credsFromCache.Expires) {

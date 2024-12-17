@@ -25,11 +25,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
@@ -52,7 +54,16 @@ func TestReadOrCreate(t *testing.T) {
 	for i := 0; i < concurrency; i++ {
 		wg.Go(func() error {
 			<-barrier
-			id, err := hostid.ReadOrCreateFile(dir)
+			id, err := hostid.ReadOrCreateFile(
+				dir,
+				hostid.WithBackoff(retryutils.RetryV2Config{
+					First:  50 * time.Millisecond,
+					Driver: retryutils.NewExponentialDriver(100 * time.Millisecond),
+					Max:    15 * time.Second,
+					Jitter: retryutils.FullJitter,
+				}),
+				hostid.WithIterationLimit(10),
+			)
 			ids[i] = id
 			return err
 		})

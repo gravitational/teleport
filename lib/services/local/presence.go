@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -57,7 +58,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
-		jitter:  retryutils.NewFullJitter(),
+		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
 }
@@ -344,10 +345,10 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if server.GetNamespace() == "" {
 		server.SetNamespace(apidefaults.Namespace)
 	}
-
-	if n := server.GetNamespace(); n != apidefaults.Namespace {
-		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
@@ -369,6 +370,34 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
+}
+
+// UpdateNode conditionally updates the provided server.
+func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (types.Server, error) {
+	if server.GetNamespace() == "" {
+		server.SetNamespace(apidefaults.Namespace)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := server.GetRevision()
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.ConditionalUpdate(ctx, backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: rev,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.SetRevision(lease.Revision)
+	return server, nil
 }
 
 // GetAuthServers returns a list of registered servers
@@ -658,7 +687,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key backend.Key,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sem, err := services.UnmarshalSemaphore(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +712,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key backend.Key,
 		Revision: rev,
 	}
 
-	if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+	if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return lease, nil
@@ -709,7 +738,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease typ
 		return trace.Wrap(err)
 	}
 
-	sem, err := services.UnmarshalSemaphore(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -733,7 +762,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease typ
 		Revision: rev,
 	}
 
-	_, err = s.CompareAndSwap(ctx, *item, newItem)
+	_, err = s.ConditionalUpdate(ctx, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("semaphore %v/%v has been concurrently updated, try again", sem.GetSubKind(), sem.GetName())
@@ -773,7 +802,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 			return trace.Wrap(err)
 		}
 
-		sem, err := services.UnmarshalSemaphore(item.Value)
+		sem, err := services.UnmarshalSemaphore(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -795,7 +824,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 			Revision: rev,
 		}
 
-		_, err = s.CompareAndSwap(ctx, *item, newItem)
+		_, err = s.ConditionalUpdate(ctx, newItem)
 		switch {
 		case err == nil:
 			return nil
@@ -974,6 +1003,10 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalDatabaseServer(server)
 	if err != nil {
@@ -1067,6 +1100,10 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalAppServer(server)
 	if err != nil {
@@ -1345,6 +1382,12 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
+	case types.KindIdentityCenterAccount:
+		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterAccount
+	case types.KindIdentityCenterAccountAssignment:
+		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1731,6 +1774,35 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resource := types.Resource153ToUnifiedResource(
+		services.IdentityCenterAccount{Account: assignment},
+	)
+	return resource.(types.ResourceWithLabels), nil
+}
+
+func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.Resource153ToUnifiedResource(
+		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
+	), nil
 }
 
 const (

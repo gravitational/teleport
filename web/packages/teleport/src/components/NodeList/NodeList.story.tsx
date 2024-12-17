@@ -54,13 +54,11 @@ export const Default = () => {
       fetchNext={() => {}}
       fetchPrev={() => {}}
       fetchStatus={''}
-      pathname={''}
       onLabelClick={() => {}}
       onLoginMenuOpen={() => []}
       onLoginSelect={() => {}}
       pageIndicators={{ from: 1, to: 2, totalCount: 2 }}
       setSort={() => {}}
-      replaceHistory={() => {}}
     />
   );
 };

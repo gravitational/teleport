@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	libutils "github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -85,9 +87,14 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ui.AWSOIDCListDatabasesResponse{
 		NextToken: listDatabasesResp.NextToken,
-		Databases: ui.MakeDatabases(listDatabasesResp.Databases, nil, nil),
+		Databases: ui.MakeDatabases(listDatabasesResp.Databases, accessChecker, h.cfg.DatabaseREPLRegistry),
 	}, nil
 }
 
@@ -532,12 +539,18 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	extraLabels := make(map[string]string, len(req.ExtraLabels))
+	for _, label := range req.ExtraLabels {
+		extraLabels[label.Name] = label.Value
+	}
+
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
 		Integration:        integrationName,
 		Region:             req.Region,
 		EksClusterNames:    req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		AgentVersion:       agentVersion,
+		ExtraLabels:        extraLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -984,7 +997,16 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
 
-	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr)
+	parsedRoleARN, err := awsutils.ParseRoleARN(ig.GetAWSOIDCIntegrationSpec().RoleARN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	labels := map[string]string{
+		constants.AWSAccountIDLabel: parsedRoleARN.AccountID,
+	}
+
+	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr, labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1452,6 +1474,10 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.RoleARN != "" {
+		integrationName = ""
 	}
 
 	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{

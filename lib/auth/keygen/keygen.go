@@ -221,6 +221,12 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if credID := c.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
 	}
+	if c.GitHubUserID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = c.GitHubUserID
+	}
+	if c.GitHubUsername != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = c.GitHubUsername
+	}
 
 	if c.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -229,10 +235,10 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		if cert.CriticalOptions == nil {
 			cert.CriticalOptions = make(map[string]string)
 		}
-		//IPv4, all bits matter
+		// IPv4, all bits matter
 		ip := c.PinnedIP + "/32"
 		if strings.Contains(c.PinnedIP, ":") {
-			//IPv6
+			// IPv6
 			ip = c.PinnedIP + "/128"
 		}
 		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip

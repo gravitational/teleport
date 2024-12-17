@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MemoryRouter, Link } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
@@ -196,7 +196,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
     'namespace3',
     'namespace4',
   ],
-  bulkToggleKubeResources: () => null,
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
@@ -240,6 +240,11 @@ const baseProps: RequestCheckoutWithSliderProps = {
       kind: 'saml_idp_service_provider',
       name: 'app-saml',
       id: 'app-name',
+    },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'admin-on-account1',
     },
   ],
   clearAttempt: () => null,

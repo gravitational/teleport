@@ -23,22 +23,19 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
-import { Text, Flex, Box, P2 } from 'design';
+import { Flex, Box } from 'design';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 
 import cfg from 'teleport/config';
 
 import { useFeatures } from 'teleport/FeaturesContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { useUser } from 'teleport/User/UserContext';
 
-import {
-  Section,
-  RightPanel,
-  SubsectionItem,
-  verticalPadding,
-} from './Section';
+import { DefaultSection, rightPanelWidth } from './Section';
 import { zIndexMap } from './zIndexMap';
 
 import {
@@ -47,7 +44,7 @@ import {
   SidenavCategory,
 } from './categories';
 import { SearchSection } from './Search';
-import { ResourcesSection } from './ResourcesSection';
+import { getResourcesSection, ResourcesSection } from './ResourcesSection';
 
 import type * as history from 'history';
 import type { TeleportFeature } from 'teleport/types';
@@ -224,7 +221,7 @@ function useDebounceClose<T>(
       clearTimeout(timeoutRef.current);
     }
 
-    // If we're closing the drarwer as opposed to switching to a different section (value is null and isClosing is true), apply debounce.
+    // If we're closing the drawer as opposed to switching to a different section (value is null and isClosing is true), apply debounce.
     if (value === null && isClosing) {
       timeoutRef.current = setTimeout(() => {
         setDebouncedValue(null);
@@ -247,6 +244,8 @@ function useDebounceClose<T>(
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
+  const { clusterId } = useStickyClusterId();
+  const { preferences, updatePreferences } = useUser();
   const [targetSection, setTargetSection] = useState<NavigationSection | null>(
     null
   );
@@ -266,13 +265,44 @@ export function Navigation() {
   }, []);
   const currentView = useMemo(
     () => getNavSubsectionForRoute(features, history.location),
-    [history.location]
+    [features, history.location]
   );
 
-  const navSections = getNavigationSections(features).filter(
-    section => section.subsections.length
+  const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
+
+  const toggleStickyMode = () => {
+    // Close the drawer right away if they're disabling sticky mode.
+    if (stickyMode) {
+      setIsClosing(false);
+      setPreviousExpandedSection(null);
+      setTargetSection(null);
+    }
+    updatePreferences({
+      sideNavDrawerMode: stickyMode
+        ? SideNavDrawerMode.COLLAPSED
+        : SideNavDrawerMode.STICKY,
+    });
+  };
+
+  const navSections = useMemo(
+    () =>
+      getNavigationSections(features).filter(
+        section => section.subsections.length
+      ),
+    [features]
   );
-  const topMenuSection = getTopMenuSection(features);
+
+  const topMenuSection = useMemo(() => getTopMenuSection(features), [features]);
+
+  const resourcesSection = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return getResourcesSection({
+      clusterId,
+      preferences,
+      updatePreferences,
+      searchParams,
+    });
+  }, [clusterId, preferences, updatePreferences]);
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {
@@ -288,29 +318,62 @@ export function Navigation() {
     [debouncedSection]
   );
 
-  const resetExpandedSection = useCallback((closeAfterDelay = true) => {
-    setIsClosing(closeAfterDelay);
-    setPreviousExpandedSection(null);
-    setTargetSection(null);
-  }, []);
+  const combinedSideNavSections = useMemo(
+    () => [resourcesSection, ...navSections],
+    [resourcesSection, navSections]
+  );
+  const currentPageSection = useMemo(() => {
+    return combinedSideNavSections.find(
+      section => section.category === currentView?.category
+    );
+  }, [combinedSideNavSections, currentView]);
 
-  // Handler for navigation actions
-  const handleNavigation = useCallback(
-    (route: string) => {
-      history.push(route);
-
-      // Clear any existing timeout
-      if (navigationTimeoutRef.current) {
-        clearTimeout(navigationTimeoutRef.current);
+  const collapseDrawer = useCallback(
+    (closeAfterDelay = true) => {
+      if (stickyMode && currentPageSection) {
+        setPreviousExpandedSection(debouncedSection);
+        setTargetSection(currentPageSection);
+      } else {
+        setIsClosing(closeAfterDelay);
+        setPreviousExpandedSection(null);
+        setTargetSection(null);
       }
+    },
+    [currentPageSection, stickyMode, debouncedSection]
+  );
 
+  useEffect(() => {
+    // Whenever the user changes page, if stickyMode is enabled and the page is part of the sidenav, the drawer should be expanded with the current page section.
+    if (!stickyMode) {
+      return;
+    }
+
+    // If the page is not part of the sidenav, such as Account Settings, curentPageSection will be undefined, and the drawer should be collapsed.
+    if (currentPageSection) {
+      // If there is already an expanded section set, don't change it.
+      if (debouncedSection) {
+        return;
+      }
+      handleSetExpandedSection(currentPageSection);
+    } else {
+      collapseDrawer(false);
+    }
+  }, [currentPageSection]);
+
+  // Handler for clicking nav items.
+  const onNavigationItemClick = useCallback(() => {
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+
+    if (!stickyMode) {
       // Add a small delay to the close to allow the user to see some feedback (see the section they clicked become active).
       navigationTimeoutRef.current = setTimeout(() => {
-        resetExpandedSection(false);
+        collapseDrawer(false);
       }, 150);
-    },
-    [resetExpandedSection, history]
-  );
+    }
+  }, [collapseDrawer]);
 
   // Hide the nav if the current feature has hideNavigation set to true.
   const hideNav = features.find(
@@ -325,196 +388,85 @@ export function Navigation() {
   if (hideNav) {
     return null;
   }
-
   return (
-    <Box
+    <Container
       as="nav"
-      onMouseLeave={() => resetExpandedSection()}
-      onKeyUp={e => e.key === 'Escape' && resetExpandedSection()}
+      onMouseLeave={() => collapseDrawer()}
+      onKeyUp={e => e.key === 'Escape' && collapseDrawer(false)}
       onBlur={(event: React.FocusEvent<HTMLDivElement, Element>) => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
-          resetExpandedSection();
+          collapseDrawer();
         }
       }}
-      css={`
-        position: relative;
-        width: var(--sidenav-width);
-        z-index: ${zIndexMap.sideNavContainer};
-      `}
+      className={
+        stickyMode &&
+        currentPageSection &&
+        !!debouncedSection &&
+        !debouncedSection.standalone
+          ? 'sticky-mode'
+          : ''
+      }
     >
       <SideNavContainer>
         <PanelBackground />
         <SearchSection
-          navigationSections={[...navSections, topMenuSection]}
+          navigationSections={[...combinedSideNavSections, topMenuSection]}
           expandedSection={debouncedSection}
           previousExpandedSection={previousExpandedSection}
           handleSetExpandedSection={handleSetExpandedSection}
           currentView={currentView}
+          stickyMode={stickyMode}
+          toggleStickyMode={toggleStickyMode}
+          canToggleStickyMode={!!currentPageSection}
         />
         <ResourcesSection
           expandedSection={debouncedSection}
           previousExpandedSection={previousExpandedSection}
           handleSetExpandedSection={handleSetExpandedSection}
           currentView={currentView}
+          stickyMode={stickyMode}
+          toggleStickyMode={toggleStickyMode}
+          canToggleStickyMode={!!currentPageSection}
         />
-        {navSections.map(section => (
-          <React.Fragment key={section.category}>
-            {section.category === 'Add New' && <Divider />}
-            <Section
-              key={section.category}
-              section={section}
-              $active={section.category === currentView?.category}
-              setExpandedSection={() => handleSetExpandedSection(section)}
-              aria-controls={`panel-${debouncedSection?.category}`}
-              onClick={() => {
-                if (section.standalone) {
-                  handleNavigation(section.subsections[0].route);
-                }
-              }}
-              isExpanded={
-                !!debouncedSection &&
-                !debouncedSection.standalone &&
-                section.category === debouncedSection?.category
-              }
-            >
-              <RightPanel
-                isVisible={
-                  !!debouncedSection &&
-                  !debouncedSection.standalone &&
-                  section.category === debouncedSection?.category
-                }
-                skipAnimation={!!previousExpandedSection}
-                id={`panel-${section.category}`}
-                onFocus={() => handleSetExpandedSection(section)}
-                onMouseEnter={() => handleSetExpandedSection(section)}
-              >
-                <Flex
-                  flexDirection="column"
-                  justifyContent="space-between"
-                  height="100%"
-                >
-                  <Box
-                    css={`
-                      overflow-y: auto;
-                      padding: 3px;
-                    `}
-                  >
-                    <Flex py={verticalPadding} px={3}>
-                      <Text typography="h2" color="text.slightlyMuted">
-                        {section.category}
-                      </Text>
-                    </Flex>
-                    {!section.standalone &&
-                      section.subsections.map(subsection => (
-                        <SubsectionItem
-                          $active={currentView?.route === subsection.route}
-                          to={subsection.route}
-                          exact={subsection.exact}
-                          key={subsection.title}
-                          onClick={(e: React.MouseEvent) => {
-                            e.preventDefault();
-                            handleNavigation(subsection.route);
-                          }}
-                        >
-                          <subsection.icon size={16} />
-                          <P2>{subsection.title}</P2>
-                        </SubsectionItem>
-                      ))}
-                  </Box>
-                  {cfg.edition === 'oss' && <AGPLFooter />}
-                  {cfg.edition === 'community' && <CommunityFooter />}
-                </Flex>
-              </RightPanel>
-            </Section>
-          </React.Fragment>
-        ))}
+        {navSections.map(section => {
+          const isExpanded =
+            !!debouncedSection &&
+            !debouncedSection.standalone &&
+            section.category === debouncedSection?.category;
+
+          return (
+            <React.Fragment key={section.category}>
+              {section.category === 'Add New' && <Divider />}
+              <DefaultSection
+                key={section.category}
+                section={section}
+                currentView={currentView}
+                previousExpandedSection={previousExpandedSection}
+                onExpandSection={() => handleSetExpandedSection(section)}
+                currentPageSection={currentPageSection}
+                stickyMode={stickyMode}
+                toggleStickyMode={toggleStickyMode}
+                $active={section.category === currentView?.category}
+                aria-controls={`panel-${debouncedSection?.category}`}
+                onNavigationItemClick={onNavigationItemClick}
+                isExpanded={isExpanded}
+              />
+            </React.Fragment>
+          );
+        })}
       </SideNavContainer>
-    </Box>
+    </Container>
   );
 }
 
-function AGPLFooter() {
-  const theme = useTheme();
-  return (
-    <LicenseFooter
-      title="AGPL Edition"
-      subText="Unofficial Version"
-      infoContent={
-        <>
-          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
-          {/* can find the official release on{' '} */}
-          This is an independently compiled AGPL-3.0 version of Teleport.
-          <br />
-          Visit{' '}
-          <Text
-            as="a"
-            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-            target="_blank"
-            color={theme.colors.interactive.solid.accent.default}
-          >
-            the Downloads page
-          </Text>{' '}
-          for the official release.
-        </>
-      }
-    />
-  );
-}
+const Container = styled(Box)`
+  position: relative;
+  width: var(--sidenav-width);
+  z-index: ${zIndexMap.sideNavContainer};
 
-function CommunityFooter() {
-  const theme = useTheme();
-  return (
-    <LicenseFooter
-      title="Community Edition"
-      subText="Limited Features"
-      infoContent={
-        <>
-          <Text
-            as="a"
-            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-            target="_blank"
-            color={theme.colors.interactive.solid.accent.default}
-          >
-            Upgrade to Teleport Enterprise
-          </Text>{' '}
-          for SSO, just-in-time access requests, Access Graph, and much more!
-        </>
-      }
-    />
-  );
-}
-
-function LicenseFooter({
-  title,
-  subText,
-  infoContent,
-}: {
-  title: string;
-  subText: string;
-  infoContent: JSX.Element;
-}) {
-  return (
-    <StyledFooterBox py={3} px={4}>
-      <Flex alignItems="center" gap={2}>
-        <Text>{title}</Text>
-        <ToolTipInfo position="right" sticky>
-          {infoContent}
-        </ToolTipInfo>
-      </Flex>
-      <SubText>{subText}</SubText>
-    </StyledFooterBox>
-  );
-}
-
-const StyledFooterBox = styled(Box)`
-  line-height: 20px;
-  border-top: ${props => props.theme.borders[1]}
-    ${props => props.theme.colors.spotBackground[0]};
-`;
-
-const SubText = styled(Text)`
-  color: ${props => props.theme.colors.text.disabled};
-  font-size: ${props => props.theme.fontSizes[1]}px;
+  &.sticky-mode {
+    margin-right: ${rightPanelWidth}px;
+  }
 `;
 
 const Divider = styled.div`

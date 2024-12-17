@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Indicator, Box } from 'design';
@@ -27,6 +27,7 @@ import {
   FileTransferRequests,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
+import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import * as stores from 'teleport/Console/stores';
 
@@ -34,6 +35,8 @@ import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
 
 import Document from '../Document';
+
+import { useConsoleContext } from '../consoleContextProvider';
 
 import { Terminal, TerminalRef } from './Terminal';
 import useSshSession from './useSshSession';
@@ -48,8 +51,11 @@ export default function DocumentSshWrapper(props: PropTypes) {
 }
 
 function DocumentSsh({ doc, visible }: PropTypes) {
+  const ctx = useConsoleContext();
+  const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
+  const [showSearch, setShowSearch] = useState(false);
   const mfa = useMfa(tty);
   const {
     getMfaResponseAttempt,
@@ -72,18 +78,66 @@ function DocumentSsh({ doc, visible }: PropTypes) {
     terminalRef.current?.focus();
   }, [visible, mfa.requested]);
 
+  const onSearchClose = useCallback(() => {
+    setShowSearch(false);
+  }, []);
+
+  const onSearchOpen = useCallback(() => {
+    setShowSearch(true);
+  }, []);
+
+  const isSearchKeyboardEvent = useCallback((e: KeyboardEvent) => {
+    return (e.metaKey || e.ctrlKey) && e.key === 'f';
+  }, []);
+
   const terminal = (
     <Terminal
       ref={terminalRef}
       tty={tty}
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
+      terminalAddons={ref => (
+        <>
+          <TerminalSearch
+            show={showSearch}
+            onClose={onSearchClose}
+            onOpen={onSearchOpen}
+            terminalSearcher={ref}
+            isSearchKeyboardEvent={isSearchKeyboardEvent}
+          />
+          <FileTransfer
+            FileTransferRequestsComponent={
+              <FileTransferRequests
+                onDeny={handleFileTransferDecision}
+                onApprove={handleFileTransferDecision}
+                requests={fileTransferRequests}
+              />
+            }
+            beforeClose={() =>
+              window.confirm('Are you sure you want to cancel file transfers?')
+            }
+            errorText={
+              getMfaResponseAttempt.status === 'failed'
+                ? getMfaResponseAttempt.statusText
+                : null
+            }
+            afterClose={handleCloseFileTransfer}
+            transferHandlers={{
+              getDownloader,
+              getUploader,
+            }}
+          />
+        </>
+      )}
     />
   );
 
   return (
     <Document visible={visible} flexDirection="column">
-      <FileTransferActionBar isConnected={doc.status === 'connected'} />
+      <FileTransferActionBar
+        hasAccess={hasFileTransferAccess}
+        isConnected={doc.status === 'connected'}
+      />
       {status === 'loading' && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -91,28 +145,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
       )}
       {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
       {status === 'initialized' && terminal}
-      <FileTransfer
-        FileTransferRequestsComponent={
-          <FileTransferRequests
-            onDeny={handleFileTransferDecision}
-            onApprove={handleFileTransferDecision}
-            requests={fileTransferRequests}
-          />
-        }
-        beforeClose={() =>
-          window.confirm('Are you sure you want to cancel file transfers?')
-        }
-        errorText={
-          getMfaResponseAttempt.status === 'failed'
-            ? getMfaResponseAttempt.statusText
-            : null
-        }
-        afterClose={handleCloseFileTransfer}
-        transferHandlers={{
-          getDownloader,
-          getUploader,
-        }}
-      />
     </Document>
   );
 }
