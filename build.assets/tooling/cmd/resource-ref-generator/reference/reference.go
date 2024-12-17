@@ -323,7 +323,7 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		return fmt.Errorf("can't load Go source files: %v", err)
 	}
 
-	methods, err := resource.VersionKindAssignments(possibleFuncDecls)
+	versionKindAssignments, err := resource.VersionKindAssignments(possibleFuncDecls, conf.FieldAssignmentMethodName)
 	if err != nil {
 		return err
 	}
@@ -331,7 +331,6 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 	// Extract data from a declaration to transform it into a reference
 	// entry later
 	errs := GenerationError{messages: []error{}}
-	allEntries := make(map[resource.PackageInfo]resource.ReferenceEntry)
 	for k, decl := range typeDecls {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
@@ -353,60 +352,47 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 		delete(entries, k)
 		pc.Fields = entries
 
-		// TODO: Extract the version/kind identification stuff into a
-		// function. Or better yet, make it a map of names.
-		entryMethods, ok := methods[k]
-		// Can't be a resource since it does not have methods.
-		if !ok {
-			continue
-		}
-		var foundMethods bool
-		for _, method := range entryMethods {
-			if method.Name != conf.FieldAssignmentMethodName {
-				continue
-			}
-
-			ver, ok1 := method.FieldAssignments[versionField]
-			kind, ok2 := method.FieldAssignments[kindField]
-
-			// The version and kind weren't assigned
-			if !ok1 || !ok2 {
-				continue
-			}
-
+		vk, ok := versionKindAssignments[k]
+		var verName, kindName string
+		var ok1, ok2 bool
+		if ok {
 			// So far, all values of "Kind" and "Version"
 			// are declared in the same package as the types
 			// that include these fields.
-			verName, ok1 := stringAssignments[resource.PackageInfo{
-				DeclName:    ver,
-				PackageName: pi.PackageName,
+			verName, ok1 = stringAssignments[resource.PackageInfo{
+				DeclName:    vk.Version,
+				PackageName: k.PackageName,
 			}]
 
-			kindName, ok2 := stringAssignments[resource.PackageInfo{
-				DeclName:    kind,
-				PackageName: pi.PackageName,
+			kindName, ok2 = stringAssignments[resource.PackageInfo{
+				DeclName:    vk.Kind,
+				PackageName: k.PackageName,
 			}]
-
-			if !ok1 || !ok2 {
-				continue
-			}
-
-			ref := resourceSection{
-				ReferenceEntry: e,
-				Version:        verName,
-				Kind:           kindName,
-			}
-
-			content.Resources[pi] = ref
-			foundMethods = true
-			break
+		}
+		if !ok1 || !ok2 {
+			errs.messages = append(errs.messages,
+				fmt.Errorf(
+					"no version and kind assigned for %v.%v",
+					k.PackageName,
+					k.DeclName,
+				),
+			)
+			continue
 		}
 
+		// TODO: Add the location from the config
+		doc, err := fs.Create(kindName + "_" + verName + ".mdx")
+		if err != nil {
+			errs.messages = append(errs.messages, err)
+		}
+
+		if err := template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(doc, pc); err != nil {
+			errs.messages = append(errs.messages, err)
+		}
 	}
 	if len(errs.messages) > 0 {
 		return errs
 	}
 
-	err = template.Must(template.New("Main reference").Parse(referenceTemplate)).Execute(out, content)
 	return nil
 }

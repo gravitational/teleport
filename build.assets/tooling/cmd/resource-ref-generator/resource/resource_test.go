@@ -1590,7 +1590,7 @@ func TestGetMethodInfo(t *testing.T) {
 		description string
 		source      string
 		methodName  string
-		expected    map[PackageInfo]versionKindAssignment
+		expected    map[PackageInfo]VersionKindAssignment
 	}{
 		{
 			description: "struct declarations and functions with no assignments",
@@ -1620,7 +1620,7 @@ func (o otherStruct) lowercaseName() string{
 }
 `,
 			methodName: "uppdercaseName",
-			expected:   map[PackageInfo]versionKindAssignment{},
+			expected:   map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "assignments",
@@ -1642,13 +1642,13 @@ func (o *myStruct) assignVersionAndKind(v string) {
     o.Kind = nameConst
 }
 `,
-			expected: map[PackageInfo]versionKindAssignment{
+			expected: map[PackageInfo]VersionKindAssignment{
 				PackageInfo{
 					DeclName:    "myStruct",
 					PackageName: "testpkg",
-				}: versionKindAssignment{
-					version: "v",
-					kind:    "nameConst",
+				}: VersionKindAssignment{
+					Version: "v",
+					Kind:    "nameConst",
 				},
 			},
 		},
@@ -1665,7 +1665,7 @@ func (o *myREceiver) assignKindAndVersion(){
 			// getMethodInfo does not process
 			// assignments to star expressions.
 			// Also ignoring multiple assignments
-			expected: map[PackageInfo]versionKindAssignment{},
+			expected: map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "method with no receiver identifier",
@@ -1675,7 +1675,7 @@ func (mystruct) assignKindAndVersion() string {
     return "This does not depend on the receiver"
 }
 `,
-			expected: map[PackageInfo]versionKindAssignment{},
+			expected: map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "type parameter",
@@ -1686,7 +1686,7 @@ func (stream *streamFunc[T]) assignKindAndVersion() bool {
 	return stream.err == nil
 }
 `,
-			expected: map[PackageInfo]versionKindAssignment{},
+			expected: map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "two type parameters",
@@ -1705,7 +1705,7 @@ func (stream *filterMap[A, B]) assignKindAndVersion() bool {
 		return true
 	}
 }`,
-			expected: map[PackageInfo]versionKindAssignment{},
+			expected: map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "type params with value receiver",
@@ -1720,7 +1720,7 @@ func (stream MyStream[A, B]) Finish() bool {
 	return false
 }
 `,
-			expected: map[PackageInfo]versionKindAssignment{},
+			expected: map[PackageInfo]VersionKindAssignment{},
 		},
 		{
 			description: "assignments inside an if block",
@@ -1743,13 +1743,13 @@ func (r *RoleV6) assignKindAndVersion() {
 		r.Version = V7
 	}
 }`,
-			expected: map[PackageInfo]versionKindAssignment{
+			expected: map[PackageInfo]VersionKindAssignment{
 				PackageInfo{
 					DeclName:    "RoleV6",
 					PackageName: "testpkg",
-				}: versionKindAssignment{
-					version: "V7",
-					kind:    "KindRole",
+				}: VersionKindAssignment{
+					Version: "V7",
+					Kind:    "KindRole",
 				},
 			},
 		},

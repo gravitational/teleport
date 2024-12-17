@@ -845,9 +845,9 @@ func getAssignments(receiver string, n ast.Node) map[string]string {
 	return result
 }
 
-type versionKindAssignment struct {
-	version string
-	kind    string
+type VersionKindAssignment struct {
+	Version string
+	Kind    string
 }
 
 const versionField = "Version"
@@ -856,12 +856,12 @@ const kindField = "Kind"
 // VersionKindAssignments finds all methods with methodName, which we expect to
 // assign the version and kind fields within the receiver, and returns a map of
 // receiver PackageInfos to the version and kind fields they assign.
-func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[PackageInfo]versionKindAssignment, error) {
+func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[PackageInfo]VersionKindAssignment, error) {
 	if decls == nil || len(decls) == 0 {
-		return map[PackageInfo]versionKindAssignment{}, nil
+		return map[PackageInfo]VersionKindAssignment{}, nil
 	}
 
-	result := make(map[PackageInfo]versionKindAssignment)
+	result := make(map[PackageInfo]VersionKindAssignment)
 
 	for _, decl := range decls {
 		f, ok := decl.Decl.(*ast.FuncDecl)
@@ -926,9 +926,9 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 			)
 		}
 
-		result[pi] = versionKindAssignment{
-			version: v,
-			kind:    k,
+		result[pi] = VersionKindAssignment{
+			Version: v,
+			Kind:    k,
 		}
 	}
 
