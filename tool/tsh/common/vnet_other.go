@@ -21,26 +21,10 @@ package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func newVnetCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
-}
-
-func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
-}
-
-type vnetNotSupported struct{}
-
-func (vnetNotSupported) FullCommand() string {
-	return ""
-}
-func (vnetNotSupported) run(*CLIConf) error {
-	return trace.Wrap(vnet.ErrVnetNotImplemented)
+func newVnetCommands(app *kingpin.Application) *vnetCommands {
+	return &vnetCommands{}
 }
 
 var (

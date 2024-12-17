@@ -29,7 +29,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -89,7 +88,7 @@ func startService(cfg daemon.Config) (*mgr.Service, error) {
 
 func serviceArgs(cfg daemon.Config) []string {
 	return []string{
-		teleport.VnetAdminSetupSubCommand, "-d",
+		"vnet-service",
 		"--socket", cfg.SocketPath,
 		"--ipv6-prefix", cfg.IPv6Prefix,
 		"--dns-addr", cfg.DNSAddr,
@@ -129,7 +128,7 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 		return nil, trace.Wrap(err, "getting executable path")
 	}
 	args := []string{
-		teleport.VnetAdminSetupSubCommand,
+		"vnet-service",
 		"--home", profile.FullProfilePath(os.Getenv(types.HomeEnvVar)),
 	}
 	service, err := m.CreateService(serviceName, tshPath, serviceCfg, args...)
@@ -251,10 +250,10 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	)
 	app := kingpin.New("tsh", "Teleport Windows Service")
 	app.Flag("debug", "Enable verbose logging").Short('d').BoolVar(&debug)
-	adminSetupCmd := app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.")
-	adminSetupCmd.Flag("socket", "socket path").Required().StringVar(&socketPath)
-	adminSetupCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").Required().StringVar(&ipv6Prefix)
-	adminSetupCmd.Flag("dns-addr", "VNet DNS address").Required().StringVar(&dnsAddr)
+	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
+	serviceCmd.Flag("socket", "socket path").Required().StringVar(&socketPath)
+	serviceCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").Required().StringVar(&ipv6Prefix)
+	serviceCmd.Flag("dns-addr", "VNet DNS address").Required().StringVar(&dnsAddr)
 	cmd, err := app.Parse(os.Args)
 	if err != nil {
 		return trace.Wrap(err, "parsing arguments")

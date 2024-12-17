@@ -17,65 +17,81 @@
 package common
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows/svc"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-type vnetCommand struct {
-	*kingpin.CmdClause
+func isWindowsService() bool {
+	isSvc, err := svc.IsWindowsService()
+	return err == nil && isSvc
 }
 
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access.").Hidden(),
+func newVnetCommands(app *kingpin.Application) *vnetCommands {
+	vnetCommand := newVnetCommand(app)
+	subcommands := []vnetCLICommand{
+		vnetCommand,
 	}
+	if isWindowsService() {
+		subcommands = append(subcommands, newVnetServiceCommand(app))
+	} else {
+		subcommands = append(subcommands, newVnetInstallServiceCommand(app))
+	}
+	return &vnetCommands{
+		subcommands: subcommands,
+	}
+}
+
+type vnetInstallServiceCommand struct {
+	*kingpin.CmdClause
+	username string
+	home     string
+}
+
+func newVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceCommand {
+	cmd := &vnetInstallServiceCommand{
+		CmdClause: app.Command("vnet-install-service", "Install the VNet Windows service.").Hidden(),
+	}
+	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
+	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
-func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
-	if err != nil {
-		return trace.Wrap(err)
+func (c *vnetInstallServiceCommand) tryRun(_ *CLIConf, command string) (bool, error) {
+	if c.FullCommand() != command {
+		return false, nil
 	}
-
-	processManager, err := vnet.Run(cf.Context, &vnet.RunConfig{AppProvider: appProvider})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
-
-	fmt.Println("VNet is ready.")
-
-	return trace.Wrap(processManager.Wait())
+	return true, trace.Wrap(vnet.InstallService(c.username, c.home))
 }
 
-// vnetAdminSetupCommand is the command that is run as the Windows service.
-type vnetAdminSetupCommand struct {
+// vnetServiceCommand is the command that runs the Windows service.
+type vnetServiceCommand struct {
 	*kingpin.CmdClause
 	// home is the path to the user's TELEPORT_HOME.
 	home string
 }
 
-func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
-	cmd := &vnetAdminSetupCommand{
-		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet service.").Hidden(),
+func newVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand {
+	cmd := &vnetServiceCommand{
+		CmdClause: app.Command("vnet-service", "Start the VNet service.").Hidden(),
 	}
 	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
+func (c *vnetServiceCommand) tryRun(cf *CLIConf, command string) (bool, error) {
+	if c.FullCommand() != command {
+		return false, nil
+	}
+	return true, trace.Wrap(c.run(cf))
+}
+
+func (c *vnetServiceCommand) run(cf *CLIConf) error {
 	if err := os.Setenv(types.HomeEnvVar, c.home); err != nil {
 		return trace.Wrap(err)
 	}
@@ -83,24 +99,4 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-type vnetInstallServiceCommand struct {
-	*kingpin.CmdClause
-	parent   *vnetAdminSetupCommand
-	username string
-	home     string
-}
-
-func newVnetInstallServiceCommand(parent *vnetAdminSetupCommand) *vnetInstallServiceCommand {
-	cmd := &vnetInstallServiceCommand{
-		parent:    parent,
-		CmdClause: parent.Command("install-service", "Install the VNet service.").Hidden(),
-	}
-	cmd.Flag("username", "username of the user that the service should be installed for.").Required().StringVar(&cmd.username)
-	return cmd
-}
-
-func (c *vnetInstallServiceCommand) run() error {
-	return trace.Wrap(vnet.InstallService(c.username, c.parent.home))
 }

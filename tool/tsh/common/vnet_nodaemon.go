@@ -21,7 +21,6 @@ package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
 )
 
 func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
@@ -30,9 +29,6 @@ func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
 
 type vnetDaemonNotSupported struct{}
 
-func (vnetDaemonNotSupported) FullCommand() string {
-	return ""
-}
-func (vnetDaemonNotSupported) run(*CLIConf) error {
-	return trace.NotImplemented("tsh was built without support for VNet daemon")
+func (vnetDaemonNotSupported) tryRun(_ *CLIConf, _ string) (bool, error) {
+	return false, nil
 }
