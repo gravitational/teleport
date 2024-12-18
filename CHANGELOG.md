@@ -1,5 +1,15 @@
 # Changelog
 
+## 16.4.12 (12//18/2024)
+
+* Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50398](https://github.com/gravitational/teleport/pull/50398)
+* Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50280](https://github.com/gravitational/teleport/pull/50280)
+* Improve performance of Kubernetes App Auto Discover. [#50268](https://github.com/gravitational/teleport/pull/50268)
+* Properly close ssh port forwarding connections to prevent requests hanging indefinitely. [#50239](https://github.com/gravitational/teleport/pull/50239)
+* Teleport's RDP client now sets the load balancing cookie to improve compatibility with local traffic managers. [#50225](https://github.com/gravitational/teleport/pull/50225)
+* Fixes an intermittent EKS authentication failure when dealing with EKS auto-discovery. [#50198](https://github.com/gravitational/teleport/pull/50198)
+* Improved the cluster initialization process's ability to recovery from errors. [#49967](https://github.com/gravitational/teleport/pull/49967)
+
 ## 16.4.11 (12/11/2024)
 
 * Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50079](https://github.com/gravitational/teleport/pull/50079)
