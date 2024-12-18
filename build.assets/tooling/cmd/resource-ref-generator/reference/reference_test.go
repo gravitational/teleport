@@ -22,6 +22,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
@@ -186,7 +187,7 @@ func TestGenerate(t *testing.T) {
 		FieldAssignmentMethodName: "setStaticFields",
 	}
 
-	dir, err := os.ReadDir(config.DestinationDirectory)
+	dirExpected, err := os.ReadDir(config.DestinationDirectory)
 
 	// Recreate the golden file directory if it is missing.
 	if errors.Is(err, os.ErrNotExist) {
@@ -201,13 +202,51 @@ func TestGenerate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	actual := afero.NewMemMapFs()
-	if err := Generate(actual, config); err != nil {
+	memfs := afero.NewMemMapFs()
+	if err := Generate(memfs, config); err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO: create a map with all files in the in-memory directory
-	// TODO: range through the files  in the map and check each one against the one in
-	// the real directory
-	// TODO: if there are any leftover files, fail
+	fileActual, err := memfs.Open(config.DestinationDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dirActual, err := fileActual.Readdir(-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedFiles := make(map[string]struct{})
+	for _, f := range dirExpected {
+		expectedFiles[path.Join(config.DestinationDirectory, f.Name())] = struct{}{}
+	}
+
+	actualFiles := make(map[string]struct{})
+	for _, f := range dirActual {
+		actualFiles[path.Join(config.DestinationDirectory, f.Name())] = struct{}{}
+	}
+
+	for f := range actualFiles {
+		if _, ok := expectedFiles[f]; !ok {
+			t.Errorf(
+				"file %v created after running the generator but is not in %v",
+				f,
+				config.DestinationDirectory,
+			)
+		}
+	}
+	for f := range expectedFiles {
+		if _, ok := actualFiles[f]; !ok {
+			t.Errorf(
+				"file %v in %v was not created after running the generator",
+				f,
+				config.DestinationDirectory,
+			)
+		}
+	}
+
+	// Actual file names and expected file names match, so we can compare
+	// each file.
+
 }
