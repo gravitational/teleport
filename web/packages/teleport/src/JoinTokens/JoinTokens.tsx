@@ -54,6 +54,7 @@ import {
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
+import { useMfaContext } from 'teleport/MFAContext/MFAContext';
 import { JoinToken } from 'teleport/services/joinToken';
 import { KindJoinToken, Resource } from 'teleport/services/resources';
 
@@ -70,11 +71,15 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+  const mfa = useMfaContext();
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
-    useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
+    useAsync(async () => {
+      const mfaResponse = await mfa.getAdminActionMfaResponse();
+      return ctx.joinTokenService.fetchJoinTokens(null, mfaResponse);
+    });
 
   const resources = useResources(
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],
