@@ -30,6 +30,7 @@ import {
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { SearchPanel } from 'shared/components/Search';
 import { useServerSidePagination } from 'teleport/components/hooks';
+import { SortType } from 'design/DataTable/types';
 
 export function Rules() {
   const { name, resourceKind } = useParams<{
@@ -39,6 +40,10 @@ export function Rules() {
   }>();
 
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortType>({
+    fieldName: 'region',
+    dir: 'ASC',
+  });
   const serverSidePagination =
     useServerSidePagination<IntegrationDiscoveryRule>({
       pageSize: 20,
@@ -52,12 +57,12 @@ export function Rules() {
         return { agents: rules, nextKey };
       },
       clusterId: '',
-      params: { search },
+      params: { search, sort },
     });
 
   useEffect(() => {
     serverSidePagination.fetch();
-  }, [search]);
+  }, [search, sort]);
 
   return (
     <Table<IntegrationDiscoveryRule>
@@ -98,8 +103,8 @@ export function Rules() {
         onFetchPrev: serverSidePagination.fetchPrev,
       }}
       serversideProps={{
-        sort: undefined,
-        setSort: () => undefined,
+        sort: sort,
+        setSort: setSort,
         serversideSearchPanel: (
           <SearchPanel
             updateSearch={setSearch}
