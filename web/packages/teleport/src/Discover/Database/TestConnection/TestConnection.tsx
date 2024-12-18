@@ -117,7 +117,7 @@ export function TestConnection() {
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(validator, res)}
+              onMfaResponse={async res => testConnection(validator, res)}
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />
