@@ -912,24 +912,12 @@ func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[Pac
 			continue
 		}
 
+		// Not all resource types have a version and a kind. If these
+		// are empty, handle this downstream.
 		s := getAssignments(receiver.Names[0].Name, f)
-		v, ok := s[versionField]
-		// Some resources do not have versions
-		if !ok {
-			v = ""
-		}
-		k, ok := s[kindField]
-		if !ok {
-			return nil, fmt.Errorf(
-				"expected function %v to assign %v, but found no assignment",
-				methodName,
-				kindField,
-			)
-		}
-
 		result[pi] = VersionKindAssignment{
-			Version: v,
-			Kind:    k,
+			Version: s[versionField],
+			Kind:    s[kindField],
 		}
 	}
 

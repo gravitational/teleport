@@ -355,37 +355,25 @@ func Generate(fs afero.Fs, conf GeneratorConfig) error {
 
 		vk, ok := versionKindAssignments[k]
 		var verName, kindName string
-		var ok1, ok2 bool
 		if ok {
 			// So far, all values of "Kind" and "Version"
 			// are declared in the same package as the types
 			// that include these fields.
-			verName, ok1 = stringAssignments[resource.PackageInfo{
+			verName = stringAssignments[resource.PackageInfo{
 				DeclName:    vk.Version,
 				PackageName: k.PackageName,
 			}]
-			// Some resources have no version
-			if !ok1 {
-				verName = ""
-			}
 
-			kindName, ok2 = stringAssignments[resource.PackageInfo{
+			kindName = stringAssignments[resource.PackageInfo{
 				DeclName:    vk.Kind,
 				PackageName: k.PackageName,
 			}]
-			if !ok2 {
-				errs.messages = append(errs.messages,
-					fmt.Errorf(
-						"no version and kind assigned for %v.%v",
-						k.PackageName,
-						k.DeclName,
-					),
-				)
-				continue
-			}
 		}
+		pc.Resource.Kind = kindName
+		pc.Resource.Version = verName
 
-		doc, err := fs.Create(path.Join(conf.DestinationDirectory, kindName+"_"+verName+".mdx"))
+		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
+		doc, err := fs.Create(path.Join(conf.DestinationDirectory, filename+".mdx"))
 		if err != nil {
 			errs.messages = append(errs.messages, err)
 		}
