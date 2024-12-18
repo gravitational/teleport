@@ -24,6 +24,8 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
@@ -166,6 +168,7 @@ type MyStruct struct{
 // files, delete the destination directory (reference/testdata) and run the test
 // again.
 func TestGenerate(t *testing.T) {
+	_, callerPath, _, _ := runtime.Caller(0)
 	config := GeneratorConfig{
 		RequiredFieldTypes: []TypeInfo{
 			{
@@ -177,8 +180,10 @@ func TestGenerate(t *testing.T) {
 				Package: "typestest",
 			},
 		},
-		SourcePath:           "testdata/src",
-		DestinationDirectory: "testdata/dest",
+		SourcePath: "testdata/src",
+		DestinationDirectory: path.Join(
+			filepath.Dir(callerPath), "cmd", "resource-ref-generator", "reference", "testdata", "dest",
+		),
 		ExcludedResourceTypes: []TypeInfo{
 			{
 				Name:    "ResourceHeader",
