@@ -16,40 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { UserReset } from './UserReset';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
-export default {
+type StoryProps = {
+  status: 'processing' | 'success' | 'error';
+};
+
+const meta: Meta<StoryProps> = {
   title: 'Teleport/Users/UserReset',
+  component: Story,
+  argTypes: {
+    status: {
+      control: { type: 'radio' },
+      options: ['processing', 'success', 'error'],
+    },
+  },
+  args: {
+    status: 'processing',
+  },
 };
 
-export const Processing = () => {
-  return <UserReset {...props} attempt={{ status: 'processing' }} />;
-};
+export default meta;
 
-export const Success = () => {
-  return <UserReset {...props} attempt={{ status: 'success' }} />;
-};
+export function Story(props: StoryProps) {
+  const statusToAttempt: Record<StoryProps['status'], Attempt> = {
+    processing: { status: 'processing' },
+    success: { status: 'success' },
+    error: { status: 'failed', statusText: 'some server error' },
+  };
 
-export const Failed = () => {
   return (
     <UserReset
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some server error' }}
+      username="smith"
+      token={{
+        value: '0c536179038b386728dfee6602ca297f',
+        expires: new Date('2021-04-08T07:30:00Z'),
+        username: 'Lester',
+      }}
+      onReset={() => {}}
+      onClose={() => {}}
+      attempt={statusToAttempt[props.status]}
     />
   );
-};
-
-const props = {
-  username: 'smith',
-  token: {
-    value: '0c536179038b386728dfee6602ca297f',
-    expires: new Date('2021-04-08T07:30:00Z'),
-    username: 'Lester',
-  },
-  onReset() {},
-  onClose() {},
-  attempt: {
-    status: 'processing',
-    statusText: '',
-  },
-};
+}
