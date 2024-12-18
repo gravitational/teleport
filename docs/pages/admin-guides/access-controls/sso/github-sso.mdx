@@ -199,7 +199,10 @@ spec.
 <Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
 
 For self-hosted GitHub Enterprise servers, you can specify the server
-instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
+instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters.
+Assign <Var name="github-enterprise-server-address"/> to your GitHub Enterprise
+server address and <Var name="api-github-enterprise-server-address"/> to the
+address of your GitHub Enterprise API endpoint:
 
 ```code
 $ tctl sso configure github \

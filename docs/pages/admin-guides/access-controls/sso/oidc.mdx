@@ -51,10 +51,13 @@ OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-The redirect URL for OIDC authentication in Teleport is <nobr><Var
-name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
-Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
-with your Teleport Cloud tenant or Proxy Service address.
+The redirect URL for OIDC authentication in Teleport is the followng, where
+`example.teleport.sh` is your Teleport account URL or Teleport Proxy Service
+address:
+
+```text
+example.teleport.sh/v1/webapi/oidc/callback
+```
 
 ## OIDC connector configuration
 

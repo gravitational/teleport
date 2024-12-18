@@ -246,7 +246,10 @@ upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
 and long-lived connections.
 
 You can set up a Teleport Proxy Service behind the reverse proxy and run the
-following command to test the connection:
+following command to test the connection. Replace 
+<Var name="teleport.example.com" /> with the domain name of your Teleport
+account or Teleport Proxy Service:
+
 ```code
 $ curl -v https://<Var name="teleport.example.com" />/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
 ```

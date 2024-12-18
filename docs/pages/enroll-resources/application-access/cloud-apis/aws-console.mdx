@@ -120,7 +120,7 @@ AWS APIs.
    ```
    
    Create a file called `app-service-tp.json` with the following content,
-   assigning <Var name="oidc-issuer" /> to the issuer string you retrieved and
+   assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
    
@@ -385,7 +385,7 @@ On the host where you will install the Teleport Application Service, create a
 file called `/tmp/token` that consists only of your token:
 
 ```code
-$ echo <Var name="join-token" /> | sudo tee /tmp/token
+$ echo (=presets.tokens.first=) | sudo tee /tmp/token
 ```
 
 ### Install the Teleport Application Service
