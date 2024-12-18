@@ -684,7 +684,7 @@ func (x *AzureRoleDefinition) GetType() string {
 	return ""
 }
 
-// AzurePermission defines the actions and not (disallowed) actions for a role definition
+// AzureRBACPermission defines the actions and not (disallowed) actions for a role definition
 type AzureRBACPermission struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// actions define the resources and verbs allowed on the resources
