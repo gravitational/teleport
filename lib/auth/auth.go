@@ -5603,7 +5603,7 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 
 const (
 	serverHostnameMaxLen       = 256
-	serverHostnameRegexPattern = `^[a-zA-Z0-9]?[a-zA-Z0-9\.-]*$`
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]+[a-zA-Z0-9\.-]*$`
 	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
 )
 
