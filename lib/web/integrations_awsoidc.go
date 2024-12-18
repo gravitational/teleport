@@ -1035,7 +1035,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		AppClusterName:        site.GetName(),
 		AllowedAWSRolesLookup: allowedAWSRolesLookup,
 		UserGroupLookup:       getUserGroupLookup(),
-		Logger:                h.log,
+		Logger:                h.logger,
 	}), nil
 }
 
