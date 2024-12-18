@@ -190,16 +190,16 @@ func TestGenerate(t *testing.T) {
 
 	dirExpected, err := os.ReadDir(config.DestinationDirectory)
 
+	switch {
 	// Recreate the golden file directory if it is missing.
-	if errors.Is(err, os.ErrNotExist) {
+	case errors.Is(err, os.ErrNotExist):
 		if err := os.Mkdir(config.DestinationDirectory, 0777); err != nil {
 			t.Fatal(err)
 		}
 		if err := Generate(afero.NewOsFs(), config); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err != nil {
+	case err != nil:
 		t.Fatal(err)
 	}
 
