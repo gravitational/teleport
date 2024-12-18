@@ -1494,12 +1494,11 @@ func (a *Server) runPeriodicOperations() {
 									heartbeatsMissedByAuth.Inc()
 								}
 
+								if srv.GetSubKind() != types.SubKindOpenSSHNode {
+									return false, nil
+								}
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
 								if !validServerHostname(srv.GetHostname()) {
-									if srv.GetSubKind() != types.SubKindOpenSSHNode {
-										return false, nil
-									}
-
 									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
 
 									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
@@ -1512,6 +1511,21 @@ func (a *Server) runPeriodicOperations() {
 
 									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
 										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								}
+
+								// If the hostname has been replaced by a sanitized version, revert it back to the original
+								// if the original is valid under the new rules.
+								if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+									switch s := srv.(type) {
+									case *types.ServerV2:
+										s.Spec.Hostname = oldHostname
+										delete(s.Metadata.Labels, replacedHostnameLabel)
+									default:
+										return false, trace.BadParameter("invalid server provided")
+									}
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										log.Warnf("Failed to update node hostname: %v", err)
 									}
 								}
 
