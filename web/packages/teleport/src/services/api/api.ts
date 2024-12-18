@@ -28,8 +28,16 @@ import parseError, { ApiError } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url: string, abortSignal?: AbortSignal) {
-    return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
+  get(
+    url: string,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      { signal: abortSignal },
+      mfaResponse
+    );
   },
 
   post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
