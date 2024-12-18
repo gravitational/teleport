@@ -49,6 +49,15 @@ export class ModalsService extends ImmutableStore<State> {
     regular: undefined,
   };
 
+  private allDialogsController = new AbortController();
+
+  private getSharedAbortSignal(dialogSignal?: AbortSignal): AbortSignal {
+    if (!dialogSignal) {
+      return this.allDialogsController.signal;
+    }
+    return AbortSignal.any([dialogSignal, this.allDialogsController.signal]);
+  }
+
   /**
    * openRegularDialog opens the given dialog as a regular dialog. A regular dialog can get covered
    * by an important dialog. The regular dialog won't get unmounted if an important dialog is shown
@@ -58,20 +67,44 @@ export class ModalsService extends ImmutableStore<State> {
    * old dialog with the new one.
    * The old dialog is canceled, if possible.
    *
-   * The returned closeDialog function can be used to close the dialog and automatically call the
-   * dialog's onCancel callback (if present).
+   * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
+   * and automatically call the dialog's onCancel callback (if present).
    */
-  openRegularDialog(dialog: Dialog): { closeDialog: () => void } {
+  openRegularDialog(
+    dialog: Dialog,
+    abortSignal?: AbortSignal
+  ): {
+    closeDialog: () => void;
+  } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const sharedSignal = this.getSharedAbortSignal(abortSignal);
+    if (sharedSignal.aborted) {
+      onCancelDialog();
+      return {
+        closeDialog: () => {},
+      };
+    }
+
     this.state.regular?.['onCancel']?.();
+
+    const closeDialog = () => {
+      sharedSignal.removeEventListener('abort', closeDialog);
+      // Do we still have the same dialog open?
+      if (dialog !== this.state.regular) {
+        return;
+      }
+
+      onCancelDialog();
+      this.closeRegularDialog();
+    };
+    sharedSignal.addEventListener('abort', closeDialog);
+
     this.setState(draftState => {
       draftState.regular = dialog;
     });
 
     return {
-      closeDialog: () => {
-        this.closeRegularDialog();
-        dialog['onCancel']?.();
-      },
+      closeDialog,
     };
   }
 
@@ -89,21 +122,42 @@ export class ModalsService extends ImmutableStore<State> {
    * Dialogs are displayed in the order they arrive, with the most recent one on top.
    * This allows actions that need further steps to be completed.
    *
-   * The returned closeDialog function can be used to close the dialog and automatically call the
-   * dialog's onCancel callback (if present).
+   * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
+   * and automatically call the dialog's onCancel callback (if present).
    */
-  openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
+  openImportantDialog(
+    dialog: Dialog,
+    abortSignal?: AbortSignal
+  ): { closeDialog: () => void; id: string } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const sharedSignal = this.getSharedAbortSignal(abortSignal);
+
     const id = crypto.randomUUID();
+    if (sharedSignal.aborted) {
+      onCancelDialog();
+      return {
+        id,
+        closeDialog: () => {},
+      };
+    }
+
+    const closeDialog = () => {
+      sharedSignal.removeEventListener('abort', closeDialog);
+      // Do we still have the same dialog open?
+      if (!this.state.important.find(i => i.id === id)) {
+        return;
+      }
+      this.closeImportantDialog(id);
+      onCancelDialog();
+    };
+    sharedSignal.addEventListener('abort', closeDialog);
     this.setState(draftState => {
       draftState.important.push({ dialog, id });
     });
 
     return {
       id,
-      closeDialog: () => {
-        this.closeImportantDialog(id);
-        dialog['onCancel']?.();
-      },
+      closeDialog,
     };
   }
 
@@ -120,6 +174,11 @@ export class ModalsService extends ImmutableStore<State> {
         draftState.important.splice(index, 1);
       }
     });
+  }
+
+  cancelAndCloseAll(): void {
+    this.allDialogsController.abort();
+    this.allDialogsController = new AbortController();
   }
 
   useState() {
