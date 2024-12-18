@@ -18,9 +18,13 @@ package workloadidentityv1
 
 import (
 	"context"
+	"regexp"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
@@ -64,4 +68,102 @@ func decide(
 	// Yay - made it to the end!
 	d.shouldIssue = true
 	return d
+}
+
+// getFieldStringValue returns a string value from the given attribute set.
+// The attribute is specified as a dot-separated path to the field in the
+// attribute set.
+//
+// The specified attribute must be a string field. If the attribute is not
+// found, an error is returned.
+//
+// TODO(noah): This function will be replaced by the Teleport predicate language
+// in a coming PR.
+func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string, error) {
+	attrParts := strings.Split(attr, ".")
+	message := attrs.ProtoReflect()
+	// TODO(noah): Improve errors by including the fully qualified attribute
+	// (e.g add up the parts of the attribute path processed thus far)
+	for i, part := range attrParts {
+		fieldDesc := message.Descriptor().Fields().ByTextName(part)
+		if fieldDesc == nil {
+			return "", trace.NotFound("attribute %q not found", part)
+		}
+		// We expect the final key to point to a string field - otherwise - we
+		// return an error.
+		if i == len(attrParts)-1 {
+			if !slices.Contains([]protoreflect.Kind{
+				protoreflect.StringKind,
+				protoreflect.BoolKind,
+				protoreflect.Int32Kind,
+				protoreflect.Int64Kind,
+				protoreflect.Uint64Kind,
+				protoreflect.Uint32Kind,
+			}, fieldDesc.Kind()) {
+				return "", trace.BadParameter("attribute %q of type %q cannot be converted to string", part, fieldDesc.Kind())
+			}
+			return message.Get(fieldDesc).String(), nil
+		}
+		// If we're not processing the final key part, we expect this to point
+		// to a message that we can further explore.
+		if fieldDesc.Kind() != protoreflect.MessageKind {
+			return "", trace.BadParameter("attribute %q is not a message", part)
+		}
+		message = message.Get(fieldDesc).Message()
+	}
+	return "", nil
+}
+
+// templateString takes a given input string and replaces any values within
+// {{ }} with values from the attribute set.
+//
+// If the specified value is not found in the attribute set, an error is
+// returned.
+//
+// TODO(noah): In a coming PR, this will be replaced by evaluating the values
+// within the handlebars as expressions.
+func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
+	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
+	matches := re.FindAllStringSubmatch(in, -1)
+
+	for _, match := range matches {
+		attrKey := strings.TrimSpace(match[1])
+		value, err := getFieldStringValue(attrs, attrKey)
+		if err != nil {
+			return "", trace.Wrap(err, "fetching attribute value for %q", attrKey)
+		}
+		// We want to have an implicit rule here that if an attribute is
+		// included in the template, but is not set, we should refuse to issue
+		// the credential.
+		if value == "" {
+			return "", trace.NotFound("attribute %q unset", attrKey)
+		}
+		in = strings.Replace(in, match[0], value, 1)
+	}
+
+	return in, nil
+}
+
+func evaluateRules(
+	wi *workloadidentityv1pb.WorkloadIdentity,
+	attrs *workloadidentityv1pb.Attrs,
+) error {
+	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
+		return nil
+	}
+ruleLoop:
+	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
+		for _, condition := range rule.GetConditions() {
+			val, err := getFieldStringValue(attrs, condition.Attribute)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if val != condition.Equals {
+				continue ruleLoop
+			}
+		}
+		return nil
+	}
+	// TODO: Eventually, we'll need to work support for deny rules into here.
+	return trace.AccessDenied("no matching rule found")
 }
