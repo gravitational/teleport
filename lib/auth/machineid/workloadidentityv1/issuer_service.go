@@ -28,7 +28,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -180,12 +179,11 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 // TODO(noah): In a coming PR, this will be replaced by evaluating the values
 // within the handlebars as expressions.
 func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
-	re := regexp.MustCompile(`\{\{(.*?)\}\}`)
+	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
 	matches := re.FindAllStringSubmatch(in, -1)
 
 	for _, match := range matches {
-		attrKey := strings.Trim(match[0], "{}")
-		attrKey = strings.TrimFunc(attrKey, unicode.IsSpace)
+		attrKey := strings.TrimSpace(match[1])
 		value, err := getFieldStringValue(attrs, attrKey)
 		if err != nil {
 			return "", trace.Wrap(err, "fetching attribute value for %q", attrKey)
