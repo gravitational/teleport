@@ -4563,6 +4563,7 @@ func TestServerHostnameSanitization(t *testing.T) {
 }
 
 func TestValidServerHostname(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		hostname string
