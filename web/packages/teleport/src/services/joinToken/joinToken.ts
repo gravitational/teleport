@@ -17,10 +17,10 @@
  */
 
 import cfg from 'teleport/config';
+import { MFAContextValue } from 'teleport/MFAContext/MFAContext';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
-import { MfaChallengeResponse } from '../mfa';
 
 import makeJoinToken from './makeJoinToken';
 import { JoinRule, JoinToken, JoinTokenRequest } from './types';
@@ -28,11 +28,18 @@ import { JoinRule, JoinToken, JoinTokenRequest } from './types';
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
 class JoinTokenService {
+  // MFA context is set late by the MFA Context provider.
+  mfa: MFAContextValue;
+  setMfaContext(mfa: MFAContextValue) {
+    this.mfa = mfa;
+  }
+
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
-  fetchJoinToken(
+  async fetchJoinToken(
     req: JoinTokenRequest,
     signal: AbortSignal = null
   ): Promise<JoinToken> {
+    const mfaResponse = await this.mfa.getAdminActionMfaResponse();
     return api
       .post(
         cfg.getJoinTokenUrl(),
@@ -44,15 +51,17 @@ class JoinTokenService {
             req.suggestedAgentMatcherLabels
           ),
         },
-        signal
+        signal,
+        mfaResponse
       )
       .then(makeJoinToken);
   }
 
-  upsertJoinTokenYAML(
+  async upsertJoinTokenYAML(
     req: JoinTokenRequest,
     tokenName: string
   ): Promise<JoinToken> {
+    const mfaResponse = await this.mfa.getAdminActionMfaResponse();
     return api
       .putWithHeaders(
         cfg.getJoinTokenYamlUrl(),
@@ -62,19 +71,23 @@ class JoinTokenService {
         {
           [TeleportTokenNameHeader]: tokenName,
           'Content-Type': 'application/json',
-        }
+        },
+        mfaResponse
       )
       .then(makeJoinToken);
   }
 
-  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
-    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  async createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+    const mfaResponse = await this.mfa.getAdminActionMfaResponse();
+    return api
+      .post(cfg.getJoinTokensUrl(), req, mfaResponse)
+      .then(makeJoinToken);
   }
 
-  fetchJoinTokens(
-    signal: AbortSignal = null,
-    mfaResponse?: MfaChallengeResponse
+  async fetchJoinTokens(
+    signal: AbortSignal = null
   ): Promise<{ items: JoinToken[] }> {
+    const mfaResponse = await this.mfa.getAdminActionMfaResponse();
     return api.get(cfg.getJoinTokensUrl(), signal, mfaResponse).then(resp => {
       return {
         items: resp.items?.map(makeJoinToken) || [],
@@ -82,11 +95,13 @@ class JoinTokenService {
     });
   }
 
-  deleteJoinToken(id: string, signal: AbortSignal = null) {
+  async deleteJoinToken(id: string, signal: AbortSignal = null) {
+    const mfaResponse = await this.mfa.getAdminActionMfaResponse();
     return api.deleteWithHeaders(
       cfg.getJoinTokensUrl(),
       { [TeleportTokenNameHeader]: id },
-      signal
+      signal,
+      mfaResponse
     );
   }
 }
