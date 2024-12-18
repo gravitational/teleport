@@ -626,10 +626,40 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		}
 	}
 
-	// TODO(noah) Now actually issue i.g.
+	// TODO: Cache X509 CA/Signer and JWT CA/Signer when issuing multiple innit.
+	creds := []*workloadidentityv1pb.Credential{}
+	for _, wi := range shouldIssue {
+		switch v := req.GetCredential().(type) {
+		case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
+			cred, err := s.issueX509SVID(
+				ctx,
+				wi,
+				v.X509SvidParams,
+				req.RequestedTtl.AsDuration(),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "issuing X509 SVID for workload identity %q", wi.GetMetadata().GetName())
+			}
+			creds = append(creds, cred)
+		case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams:
+			cred, err := s.issueJWTSVID(
+				ctx,
+				wi,
+				v.JwtSvidParams,
+				req.RequestedTtl.AsDuration(),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "issuing JWT SVID for workload identity %q", wi.GetMetadata().GetName())
+			}
+			creds = append(creds, cred)
+		default:
+			return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
+		}
+	}
 
-	// TODO(noah): Coming to a PR near you soon!
-	return nil, trace.NotImplemented("not implemented")
+	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
+		Credentials: creds,
+	}, nil
 }
 
 func serialString(serial *big.Int) string {
