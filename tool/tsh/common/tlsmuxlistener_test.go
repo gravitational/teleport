@@ -37,9 +37,9 @@ func TestTLSMuxListenerDataTransfer(t *testing.T) {
 	defer ln.Close()
 
 	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "tsh"}, []string{"localhost"}, defaults.CATTL)
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	require.NoError(t, err)
 
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	require.NoError(t, err)
 
 	tlsConfig := &tls.Config{

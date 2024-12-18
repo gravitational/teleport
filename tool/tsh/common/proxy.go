@@ -766,10 +766,6 @@ Your database user is "{{.databaseUser}}".{{if .databaseName}} The target databa
 
 `))
 
-var templateFunctions = map[string]any{
-	"contains": strings.Contains,
-}
-
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
