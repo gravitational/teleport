@@ -163,15 +163,6 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 		}}, nil
 	}
 
-	if r.SSOResponse != nil {
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_SSO{
-			SSO: &proto.SSOResponse{
-				RequestId: r.SSOResponse.RequestID,
-				Token:     r.SSOResponse.Token,
-			},
-		}}, nil
-	}
-
 	return nil, nil
 }
 

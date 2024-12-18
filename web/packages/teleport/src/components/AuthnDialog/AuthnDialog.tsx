@@ -26,6 +26,7 @@ import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
 import { MfaState } from 'teleport/lib/useMfa';
+import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 
 export type Props = MfaState & {
   replaceErrorText?: string;
@@ -39,11 +40,11 @@ export default function AuthnDialog({
   resetAttempt,
   replaceErrorText,
 }: Props) {
-  // Only show the dialog when we are in a processing or error state.
-  if (attempt.status === '' || attempt.status === 'success') return;
+  if (!challenge && attempt.status !== 'error') return;
 
   // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
-  const onlyTotpAvailable = options?.length === 1 && challenge?.totpChallenge;
+  const onlyTotpAvailable =
+    options?.length === 1 && options[0] === MFA_OPTION_TOTP;
 
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
@@ -57,7 +58,7 @@ export default function AuthnDialog({
         {onlyTotpAvailable && (
           <Danger data-testid="danger-alert" mt={2} width="100%">
             {
-              'totp is not currently supported for this action, please register a security key to continue'
+              'Authenticator app is not currently supported for this action, please register a passkey or a security key to continue.'
             }
           </Danger>
         )}

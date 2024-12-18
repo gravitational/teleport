@@ -39,11 +39,12 @@ export type MfaProps = {
   isMfaRequired?: boolean | null;
 };
 
-// useMfa prepares an MFA state designed for use with AuthnDialog.
-// 1. Call getMfaChallengeResponse() where MFA may be required.
-//    If MFA is not required, it should be a noop, returning null.
-// 2. Setup AuthnDialog using the MFA state, to show a dialog when
-//    mfaAttempt.state === 'processing'.
+/**
+ * Use the returned object to request MFA checks with a shared state.
+ * When MFA authentication is in progress, the object's properties can
+ * be used to display options to the user and prompt for them to complete
+ * the MFA check.
+ */
 export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   const [mfaRequired, setMfaRequired] = useState<boolean>();
   const [options, setMfaOptions] = useState<MfaOption[]>();
@@ -60,9 +61,19 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
     setMfaRequired(null);
   }, [req?.isMfaRequiredRequest]);
 
+  // getResponse is used to initiate MFA authentication.
+  //   1. Check if MFA is required by getting a new MFA challenge
+  //   2. If MFA is required, set the challenge in the MFA state and wait for it to
+  //      be resolved by the caller.
+  //   3. The caller sees the mfa challenge set in state and submits an mfa response
+  //      request with arguments provided by the user (mfa type, otp code).
+  //   4. Receive the mfa response through the mfaResponsePromise ref and return it.
+  //
+  // The caller should also display errors seen in attempt.
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
       async (challenge?: MfaAuthenticateChallenge) => {
+        // If a previous call determined that MFA is not required, this is a noop.
         if (mfaRequired === false) return;
 
         challenge = challenge ? challenge : await auth.getMfaChallenge(req);
@@ -75,6 +86,8 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
         if (!mfaRequired) setMfaRequired(true);
         if (!options) setMfaOptions(getMfaChallengeOptions(challenge));
 
+        // Prepare a new promise to collect the mfa response retrieved
+        // through the submit function.
         mfaResponsePromise.current = Promise.withResolvers();
         setMfaChallenge(challenge);
         try {
