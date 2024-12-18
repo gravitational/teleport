@@ -81,6 +81,8 @@ const (
 	PluginTypeAWSIdentityCenter = "aws-identity-center"
 	// PluginTypeEmail indicates an Email Access Request plugin
 	PluginTypeEmail = "email"
+	// PluginTypeMSTeams indicates a Microsoft Teams integration
+	PluginTypeMSTeams = "msteams"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -116,6 +118,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
@@ -127,6 +130,7 @@ type PluginStatus interface {
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
+	GetAwsIc() *PluginAWSICStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -541,6 +545,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeAWSIdentityCenter
 	case *PluginSpecV1_Email:
 		return PluginTypeEmail
+	case *PluginSpecV1_Msteams:
+		return PluginTypeMSTeams
 	default:
 		return PluginTypeUnknown
 	}

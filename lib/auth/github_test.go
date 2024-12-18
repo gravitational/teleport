@@ -112,6 +112,7 @@ func TestPopulateClaims(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
+		UserID:   "1234567",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
 			"org2": {"team1"},
@@ -160,7 +161,7 @@ func TestCreateGithubUser(t *testing.T) {
 type testGithubAPIClient struct{}
 
 func (c *testGithubAPIClient) getUser() (*GithubUserResponse, error) {
-	return &GithubUserResponse{Login: "octocat"}, nil
+	return &GithubUserResponse{Login: "octocat", ID: 1234567}, nil
 }
 
 func (c *testGithubAPIClient) getTeams() ([]GithubTeamResponse, error) {

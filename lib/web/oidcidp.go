@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -49,45 +47,6 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	return h.jwks(r.Context(), types.OIDCIdPCA, true)
-}
-
-func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType, includeBlankKeyID bool) (*JWKSResponse, error) {
-	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Fetch the JWT public keys only.
-	ca, err := h.GetProxyClient().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
-	}, false /* loadKeys */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pairs := ca.GetTrustedJWTKeyPairs()
-
-	// Create response and allocate space for the keys.
-	var resp JWKSResponse
-	resp.Keys = make([]jwt.JWK, 0, len(pairs))
-
-	// Loop over and all add public keys in JWK format.
-	for _, key := range pairs {
-		jwk, err := jwt.MarshalJWK(key.PublicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resp.Keys = append(resp.Keys, jwk)
-
-		// Return an additional copy of the same JWK
-		// with KeyID set to the empty string for compatibility.
-		if includeBlankKeyID {
-			jwk.KeyID = ""
-			resp.Keys = append(resp.Keys, jwk)
-		}
-	}
-	return &resp, nil
 }
 
 // thumbprint returns the thumbprint as required by AWS when adding an OIDC Identity Provider.

@@ -58,7 +58,7 @@ export function processRedirectUri(redirectUri: string | null): string {
     }
 
     return `${BASE_PATH}${path.startsWith('/') ? '' : '/'}${path}`;
-  } catch (error) {
+  } catch {
     // If it's not a valid URL, it might be a relative path
     if (redirectUri.startsWith('/')) {
       return redirectUri.startsWith(BASE_PATH)

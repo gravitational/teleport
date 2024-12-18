@@ -33,6 +33,7 @@ import (
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -98,6 +99,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 			Tags:                 map[string]string{"label1": "value1"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 		{
 			Name: aws.String("EKS2"),
@@ -108,10 +112,13 @@ func TestEnrollEKSClusters(t *testing.T) {
 			Tags:                 map[string]string{"label2": "value2"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 	}
 
-	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 		clt := &mockEnrollEKSClusterClient{}
 		clt.describeCluster = func(ctx context.Context, params *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
 			for _, cluster := range clusters {
@@ -148,7 +155,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	testCases := []struct {
 		name                string
-		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSCLusterClient
+		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSClusterClient
 		eksClusters         []eksTypes.Cluster
 		request             EnrollEKSClustersRequest
 		requestClusterNames []string
@@ -163,7 +170,8 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
 		},
@@ -179,10 +187,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 					return strings.Compare(a.ClusterName, b.ClusterName)
 				})
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 				require.Equal(t, "EKS2", response.Results[1].ClusterName)
-				require.Empty(t, response.Results[1].Error)
+				require.NoError(t, response.Results[1].Error)
+				require.Empty(t, response.Results[1].IssueType)
 				require.NotEmpty(t, response.Results[1].ResourceId)
 			},
 		},
@@ -235,6 +245,31 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll EKS cluster "EKS1" - expected "ACTIVE" state, got "PENDING".`)
+				require.Equal(t, "eks-status-not-active", response.Results[0].IssueType)
+			},
+		},
+		{
+			name:         "cluster with CONFIG_MAP authentication mode is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name:                 aws.String("EKS1"),
+					Arn:                  aws.String(clustersBaseArn + "1"),
+					Tags:                 map[string]string{"label1": "value1"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeConfigMap,
+					},
+				},
+			},
+			request:             baseRequest,
+			requestClusterNames: []string{"EKS1"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll "EKS1" because its access config's authentication mode is "CONFIG_MAP", only [API API_AND_CONFIG_MAP] are supported`)
+				require.Equal(t, "eks-authentication-mode-unsupported", response.Results[0].IssueType)
 			},
 		},
 		{
@@ -250,6 +285,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 					Tags:                 map[string]string{"label3": "value3"},
 					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
 				},
 			},
 			request: EnrollEKSClustersRequest{
@@ -264,6 +302,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll "EKS3" because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`)
+				require.Equal(t, "eks-missing-endpoint-public-access", response.Results[0].IssueType)
 			},
 		},
 		{
@@ -279,6 +318,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 					Tags:                 map[string]string{"label3": "value3"},
 					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
 				},
 			},
 			request: EnrollEKSClustersRequest{
@@ -295,7 +337,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		},
 		{
 			name: "cluster with already present agent is not enrolled",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -311,11 +353,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`teleport-kube-agent is already installed on the cluster "EKS1"`)
+				require.Equal(t, "eks-agent-not-connecting", response.Results[0].IssueType)
 			},
 		},
 		{
 			name: "if access entry is already present we don't create another one and don't delete it",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -585,4 +628,30 @@ func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Con
 	return "", nil
 }
 
-var _ EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+var _ EnrollEKSClusterClient = &mockEnrollEKSClusterClient{}
+
+func TestKubeAgentLabels(t *testing.T) {
+	kubeClusterLabels := map[string]string{
+		"priority": "yes",
+		"region":   "us-east-1",
+	}
+	resourceID := uuid.NewString()
+	extraLabels := map[string]string{
+		"priority": "no",
+		"custom":   "yes",
+	}
+
+	got := kubeAgentLabels(
+		&types.KubernetesClusterV3{Metadata: types.Metadata{Labels: kubeClusterLabels}},
+		resourceID,
+		extraLabels,
+	)
+
+	expectedLabels := map[string]string{
+		"priority":                      "yes",
+		"region":                        "us-east-1",
+		"custom":                        "yes",
+		"teleport.internal/resource-id": resourceID,
+	}
+	require.Equal(t, expectedLabels, got)
+}

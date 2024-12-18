@@ -49,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type BotsCommand struct {
@@ -82,7 +84,7 @@ type BotsCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	bots := app.Command("bots", "Manage Machine ID bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
@@ -114,10 +116,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
-	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance").Alias("get").Alias("describe")
+	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
 	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
 
-	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances").Alias("ls")
+	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
@@ -131,27 +133,34 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.botsList.FullCommand():
-		err = c.ListBots(ctx, client)
+		commandFunc = c.ListBots
 	case c.botsAdd.FullCommand():
-		err = c.AddBot(ctx, client)
+		commandFunc = c.AddBot
 	case c.botsRemove.FullCommand():
-		err = c.RemoveBot(ctx, client)
+		commandFunc = c.RemoveBot
 	case c.botsLock.FullCommand():
-		err = c.LockBot(ctx, client)
+		commandFunc = c.LockBot
 	case c.botsUpdate.FullCommand():
-		err = c.UpdateBot(ctx, client)
+		commandFunc = c.UpdateBot
 	case c.botsInstancesShow.FullCommand():
-		err = c.ShowBotInstance(ctx, client)
+		commandFunc = c.ShowBotInstance
 	case c.botsInstancesList.FullCommand():
-		err = c.ListBotInstances(ctx, client)
+		commandFunc = c.ListBotInstances
 	case c.botsInstancesAdd.FullCommand():
-		err = c.AddBotInstance(ctx, client)
+		commandFunc = c.AddBotInstance
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 
 	return true, trace.Wrap(err)
 }

@@ -431,7 +431,8 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 		},
 	}
 
-	outputDb := MakeDatabase(inputDb, nil, nil, false)
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", nil)
+	outputDb := MakeDatabase(inputDb, accessChecker, &mockDatabaseInteractiveChecker{}, false)
 
 	require.Equal(t, []ui.Label{
 		{
@@ -589,4 +590,34 @@ func TestSortedLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeDatabaseSupportsInteractive(t *testing.T) {
+	db := &types.DatabaseV3{}
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", nil)
+
+	for name, tc := range map[string]struct {
+		supports bool
+	}{
+		"supported":   {supports: true},
+		"unsupported": {supports: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			interactiveChecker := &mockDatabaseInteractiveChecker{supports: tc.supports}
+			single := MakeDatabase(db, accessChecker, interactiveChecker, false)
+			require.Equal(t, tc.supports, single.SupportsInteractive)
+
+			multi := MakeDatabases([]*types.DatabaseV3{db}, accessChecker, interactiveChecker)
+			require.Len(t, multi, 1)
+			require.Equal(t, tc.supports, multi[0].SupportsInteractive)
+		})
+	}
+}
+
+type mockDatabaseInteractiveChecker struct {
+	supports bool
+}
+
+func (m *mockDatabaseInteractiveChecker) IsSupported(_ string) bool {
+	return m.supports
 }

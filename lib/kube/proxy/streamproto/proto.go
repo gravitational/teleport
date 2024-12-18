@@ -43,7 +43,7 @@ type metaMessage struct {
 	ServerHandshake *ServerHandshake            `json:"server_handshake,omitempty"`
 }
 
-// ClientHandshake is the first message sent by a client to inform a server of it's intentions.
+// ClientHandshake is the first message sent by a client to inform a server of its intentions.
 type ClientHandshake struct {
 	Mode types.SessionParticipantMode `json:"mode"`
 }

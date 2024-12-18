@@ -59,6 +59,7 @@ export const resourceIconSpecs = {
   auth0: { dark: i.auth0Dark, light: i.auth0Light },
   avalara: forAllThemes(i.avalara),
   aws: { dark: i.awsDark, light: i.awsLight },
+  awsaccount: forAllThemes(i.awsAccount),
   azure: forAllThemes(i.azure),
 
   bill: forAllThemes(i.bill),

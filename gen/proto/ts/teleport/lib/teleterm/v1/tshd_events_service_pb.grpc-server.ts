@@ -72,10 +72,14 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      */
     sendPendingHeadlessAuthentication: grpc.handleUnaryCall<SendPendingHeadlessAuthenticationRequest, SendPendingHeadlessAuthenticationResponse>;
     /**
-     * PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
-     * If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
-     * If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
-     * code.
+     * PromptMFA notifies the Electron app that the daemon wants to prompt for MFA.
+     * If TOTP is supported, the Electron app can return a totp code to complete the ceremony.
+     * If Webauthn or SSO are supported, tsh daemon waits for the Electron App to choose
+     * an option in the response before prompting for either.
+     *
+     * In order for the WebAuthn and SSO prompts to be reflected in the Electron App, the
+     * Electron app can display a waiting screen and listen for the tsh daemon to send a
+     * notification to close the screen.
      *
      * @generated from protobuf rpc: PromptMFA(teleport.lib.teleterm.v1.PromptMFARequest) returns (teleport.lib.teleterm.v1.PromptMFAResponse);
      */

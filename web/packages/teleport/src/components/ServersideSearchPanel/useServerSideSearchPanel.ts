@@ -20,20 +20,14 @@ import { useEffect, useState } from 'react';
 
 import { ResourceFilter } from 'teleport/services/agents';
 
-import {
-  decodeUrlQueryParam,
-  encodeUrlQueryParams,
-} from 'teleport/components/hooks/useUrlFiltering';
+import { decodeUrlQueryParam } from 'teleport/components/hooks/useUrlFiltering';
 
 export default function useServersideSearchPanel({
-  pathname,
   params,
   setParams,
-  replaceHistory,
 }: HookProps) {
   const [searchString, setSearchString] = useState('');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   function onSubmitSearch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,16 +48,6 @@ export default function useServersideSearchPanel({
         search: searchString,
       });
     }
-    replaceHistory(
-      encodeUrlQueryParams({
-        pathname,
-        searchString,
-        sort: params.sort,
-        kinds: params.kinds,
-        isAdvancedSearch,
-        pinnedOnly: params.pinnedOnly,
-      })
-    );
   }
 
   // Populate search bar with existing query
@@ -77,13 +61,6 @@ export default function useServersideSearchPanel({
     }
   }, [params.query, params.search]);
 
-  useEffect(() => {
-    if (!isInitialLoad) {
-      submitSearch();
-    }
-    setIsInitialLoad(false);
-  }, [params.sort]);
-
   return {
     searchString,
     setSearchString,
@@ -94,8 +71,6 @@ export default function useServersideSearchPanel({
 }
 
 export type HookProps = {
-  pathname: string;
-  replaceHistory: (path: string) => void;
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
 };

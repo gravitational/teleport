@@ -77,7 +77,7 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -96,7 +96,7 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -135,7 +135,7 @@ func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfig
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

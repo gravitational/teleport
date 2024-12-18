@@ -17,17 +17,6 @@
     "noEmitHelpers": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "sourceMap": false,
-    "paths": {
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "gen-proto-js/*": ["gen/proto/js/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"],
-    }
+    "sourceMap": false
   }
 }

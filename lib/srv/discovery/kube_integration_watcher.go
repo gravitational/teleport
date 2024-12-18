@@ -27,12 +27,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // startKubeIntegrationWatchers starts kube watchers that use integration for the credentials. Currently only
@@ -68,10 +71,23 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			s.submitFetchersEvent(kubeIntegrationFetchers)
 			return kubeIntegrationFetchers
 		},
-		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
+		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
+		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
+		PreFetchHookFn: func() {
+			discoveryConfigs := libslices.FilterMapUnique(
+				s.getKubeIntegrationFetchers(),
+				func(f common.Fetcher) (s string, include bool) {
+					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
+				},
+			)
+			s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+			s.awsEKSResourcesStatus.reset()
+			s.awsEKSTasks.reset()
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,6 +96,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	go func() {
 		for {
+			discoveryConfigsChanged := map[string]struct{}{}
+			resourcesFoundByGroup := make(map[awsResourceGroup]int)
+			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
+
 			select {
 			case resources := <-watcher.ResourcesC():
 				if len(resources) == 0 {
@@ -88,13 +108,19 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				existingServers, err := clt.GetKubernetesServers(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Failed to get Kubernetes servers from cache.")
+					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes servers from cache", "error", err)
 					continue
 				}
 
 				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Failed to get Kubernetes clusters from cache.")
+					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
+					continue
+				}
+
+				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
+				if err != nil {
+					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
 				}
 
@@ -102,11 +128,19 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				mu.Lock()
 				for _, r := range resources {
 					newCluster, ok := r.(types.DiscoveredEKSCluster)
-					if !ok ||
-						enrollingClusters[newCluster.GetAWSConfig().Name] ||
+					if !ok {
+						continue
+					}
+
+					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
+					resourcesFoundByGroup[resourceGroup] += 1
+					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
+
+					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
 						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() }) {
 
+						resourcesEnrolledByGroup[resourceGroup] += 1
 						continue
 					}
 
@@ -114,26 +148,26 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				}
 				mu.Unlock()
 
-				if len(newClusters) == 0 {
-					continue
+				for group, count := range resourcesFoundByGroup {
+					s.awsEKSResourcesStatus.incrementFound(group, count)
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
-				if err != nil {
-					s.Log.WithError(err).Warn("Could not get agent version to enroll EKS clusters")
-					continue
+				if len(newClusters) == 0 {
+					break
 				}
 
 				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
 				type regionIntegrationMapKey struct {
-					region      string
-					integration string
+					region              string
+					integration         string
+					discoveryConfigName string
 				}
 				clustersByRegionAndIntegration := map[regionIntegrationMapKey][]types.DiscoveredEKSCluster{}
 				for _, c := range newClusters {
 					mapKey := regionIntegrationMapKey{
-						region:      c.GetAWSConfig().Region,
-						integration: c.GetIntegration(),
+						region:              c.GetAWSConfig().Region,
+						integration:         c.GetIntegration(),
+						discoveryConfigName: c.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 					}
 					clustersByRegionAndIntegration[mapKey] = append(clustersByRegionAndIntegration[mapKey], c)
 
@@ -141,18 +175,26 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				for key, val := range clustersByRegionAndIntegration {
 					key, val := key, val
-					go s.enrollEKSClusters(key.region, key.integration, val, agentVersion, &mu, enrollingClusters)
+					go s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
 				}
 
 			case <-s.ctx.Done():
 				return
+			}
+
+			for group, count := range resourcesEnrolledByGroup {
+				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
+			}
+
+			for dc := range discoveryConfigsChanged {
+				s.updateDiscoveryConfigStatus(dc)
 			}
 		}
 	}()
 	return nil
 }
 
-func (s *Server) enrollEKSClusters(region, integration string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
+func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	mu.Lock()
 	for _, c := range clusters {
 		if _, ok := enrollingClusters[c.GetAWSConfig().Name]; !ok {
@@ -167,6 +209,9 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 			delete(enrollingClusters, c.GetAWSConfig().Name)
 		}
 		mu.Unlock()
+
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+		s.upsertTasksForAWSEKSFailedEnrollments()
 	}()
 
 	// We sort input clusters into two batches - one that has Kubernetes App Discovery
@@ -180,8 +225,10 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 	var clusterNames []string
 
 	for _, kubeAppDiscovery := range []bool{true, false} {
+		clustersByName := make(map[string]types.DiscoveredEKSCluster)
 		for _, c := range batchedClusters[kubeAppDiscovery] {
 			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
+			clustersByName[c.GetAWSConfig().Name] = c
 		}
 		if len(clusterNames) == 0 {
 			continue
@@ -195,19 +242,45 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 			AgentVersion:       agentVersion,
 		})
 		if err != nil {
-			s.Log.WithError(err).Errorf("failed to enroll EKS clusters %v", clusterNames)
+			s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfigName: discoveryConfigName,
+				integration:         integration,
+			}, len(clusterNames))
+			s.Log.ErrorContext(ctx, "Failed to enroll EKS clusters", "cluster_names", clusterNames, "error", err)
 			continue
 		}
 
 		for _, r := range rsp.Results {
 			if r.Error != "" {
+				s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
+					discoveryConfigName: discoveryConfigName,
+					integration:         integration,
+				}, 1)
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.Errorf("failed to enroll EKS cluster %q: %s", r.EksClusterName, r.Error)
+					s.Log.ErrorContext(ctx, "Failed to enroll EKS cluster", "cluster_name", r.EksClusterName, "issue_type", r.IssueType, "error", r.Error)
 				} else {
-					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.EksClusterName)
+					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
 				}
+
+				cluster := clustersByName[r.EksClusterName]
+				s.awsEKSTasks.addFailedEnrollment(
+					awsEKSTaskKey{
+						integration:     integration,
+						issueType:       r.IssueType,
+						accountID:       cluster.GetAWSConfig().AccountID,
+						region:          cluster.GetAWSConfig().Region,
+						appAutoDiscover: kubeAppDiscovery,
+					},
+					&usertasksv1.DiscoverEKSCluster{
+						DiscoveryConfig: discoveryConfigName,
+						DiscoveryGroup:  s.DiscoveryGroup,
+						SyncTime:        timestamppb.New(s.clock.Now()),
+						Name:            cluster.GetAWSConfig().Name,
+					},
+				)
+				s.upsertTasksForAWSEKSFailedEnrollments()
 			} else {
-				s.Log.Infof("successfully enrolled EKS cluster %q", r.EksClusterName)
+				s.Log.InfoContext(ctx, "Successfully enrolled EKS cluster", "cluster_name", r.EksClusterName)
 			}
 		}
 	}

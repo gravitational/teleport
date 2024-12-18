@@ -131,7 +131,7 @@ export const ConnectMyComputerContextProvider: FC<
     workspacesService,
     usageService,
   } = ctx;
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   clustersService.useState();
 
   const [
@@ -435,7 +435,7 @@ export const ConnectMyComputerContextProvider: FC<
       (async () => {
         try {
           await downloadAndStartAgent();
-        } catch (error) {
+        } catch {
           // Turn off autostart if it fails, otherwise the user wouldn't be able to turn it off by
           // themselves.
           workspacesService.setConnectMyComputerAutoStart(

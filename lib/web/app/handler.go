@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -103,7 +103,7 @@ type Handler struct {
 
 	clusterName string
 
-	log *logrus.Entry
+	logger *slog.Logger
 }
 
 // NewHandler returns a new application handler.
@@ -116,9 +116,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		c:            c,
 		closeContext: ctx,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentAppProxy,
-		}),
+		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -336,7 +334,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.log.Warnf("Failed to fetch application session: %v.", err)
+		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -344,7 +342,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// process has seen.
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -357,7 +355,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.log.Debugf("Failed to fetch application session: not found.")
+		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -368,7 +366,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	// Fetches a new session using the same flow as `authenticate`.
 	session, err := h.getSession(r.Context(), ws)
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -387,7 +385,7 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
@@ -617,11 +615,14 @@ const (
 //
 // The URL's are formed this way to help isolate the path params reserved for the app
 // launchers route, where order and existence of previous params matter for this route.
-func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req launcherURLParams) string {
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launcherURLParams) string {
+	if req.requiresAppRedirect {
+		addr = req.publicAddr
+	}
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyPublicAddr,
-		Path:   fmt.Sprintf("/web/launch/%s", hostname),
+		Path:   fmt.Sprintf("/web/launch/%s", addr),
 	}
 
 	// Presence of a stateToken means we are beginning an app auth exchange.
@@ -634,7 +635,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		v.Add("required-apps", req.requiredAppFQDNs)
 		u.RawQuery = v.Encode()
 
-		urlPath := []string{"web", "launch", hostname}
+		urlPath := []string{"web", "launch", addr}
 
 		// The order and existence of previous params matter.
 		//

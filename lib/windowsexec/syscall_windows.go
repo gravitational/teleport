@@ -23,12 +23,13 @@ package windowsexec
 // without the appropriate package name.
 
 import (
+	"context"
+	"log/slog"
 	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 )
 
@@ -111,10 +112,10 @@ func RunAsAndWait(
 		// Errors from this can be a little vague, and the contents of hInstApp
 		// can provide additional context. We'll emit a debug log so this is a
 		// little easier to investigate if a user experience issues with this.
-		log.WithFields(log.Fields{
-			"err":      err,
-			"hInstApp": info.hInstApp,
-		}).Debug("Encountered error calling shellExecuteExW")
+		slog.DebugContext(context.Background(), "Encountered error calling shellExecuteExW",
+			"err", err,
+			"h_inst_app", info.hInstApp,
+		)
 		return trace.Wrap(err, "calling shellExecuteExW")
 	}
 	if info.hProcess == 0 {

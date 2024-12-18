@@ -1,0 +1,4 @@
+clusterName: helm-lint
+enterprise: true
+licenseSecretName: enterprise-license
+

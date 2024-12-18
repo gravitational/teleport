@@ -23,7 +23,7 @@ import { Flex, Image, Text, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
 import { Theme } from 'design/theme/themes/types';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -168,7 +168,11 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 />
               )}
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
+                const canAccess = hasAccess(ctx.getFeatureFlags());
+                if (!canAccess) {
+                  return;
+                }
                 const link = navigationItem.getLink(clusterId);
                 const currentPath = history.location.pathname;
                 const selected =

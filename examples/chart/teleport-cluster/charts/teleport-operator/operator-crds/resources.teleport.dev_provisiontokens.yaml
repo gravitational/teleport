@@ -102,6 +102,40 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              bitbucket:
+                description: Bitbucket allows the configuration of options specific
+                  to the "bitbucket" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        branch_name:
+                          type: string
+                        deployment_environment_uuid:
+                          type: string
+                        repository_uuid:
+                          type: string
+                        workspace_uuid:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is a Bitbucket-specified audience value
+                      for this token. It is unique to each Bitbucket repository, and
+                      must be set to the value as written in the Pipelines -> OpenID
+                      Connect section of the repository settings.
+                    type: string
+                  identity_provider_url:
+                    description: IdentityProviderURL is a Bitbucket-specified issuer
+                      URL for incoming OIDC tokens. It is unique to each Bitbucket
+                      repository, and must be set to the value as written in the Pipelines
+                      -> OpenID Connect section of the repository settings.
+                    type: string
+                type: object
               bot_name:
                 description: BotName is the name of the bot this token grants access
                   to, if any
@@ -203,6 +237,12 @@ spec:
                       this field must be left empty. This field cannot be specified
                       if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
                       for more information about customized issuer values.
+                    type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GHES signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitHub Actions in GHES instances
+                      that are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
               gitlab:

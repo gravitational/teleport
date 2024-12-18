@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useLayoutEffect } from 'react';
+import { useEffect, useRef, useLayoutEffect } from 'react';
 
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';

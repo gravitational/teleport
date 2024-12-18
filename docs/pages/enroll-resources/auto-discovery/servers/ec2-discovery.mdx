@@ -118,6 +118,8 @@ run the Discovery Service.
 In order to enable EC2 instance discovery the `discovery_service.aws` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
@@ -133,6 +135,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "aws-prod"
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]

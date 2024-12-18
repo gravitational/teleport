@@ -279,7 +279,9 @@ func Test_selectKubeConnectionMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, sni, err := selectKubeConnectionMethod(tt.proxyPing)
+			addr, sni, err := selectKubeConnectionMethod(&proxyPingResponse{
+				PingResponse: tt.proxyPing,
+			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantAddr, addr)
 			require.Equal(t, tt.wantSNI, sni)

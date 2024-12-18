@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { makeDefaultMfaState } from 'teleport/lib/useMfa';
 
 import AuthnDialog, { Props } from './AuthnDialog';
@@ -26,7 +24,7 @@ export default {
   title: 'Teleport/AuthnDialog',
 };
 
-export const Loaded = () => {
+export const LoadedWithMultipleOptions = () => {
   const props: Props = {
     ...defaultProps,
     mfa: {
@@ -41,6 +39,19 @@ export const Loaded = () => {
           displayName: 'Okta',
         },
       },
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
+
+export const LoadedWithSingleOption = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
       webauthnPublicKey: {
         challenge: new ArrayBuffer(1),
       },

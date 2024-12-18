@@ -98,6 +98,16 @@ export function useSpecifiableFields() {
     );
   }
 
+  function reset() {
+    setDryRunResponse(null);
+    setResourceRequestRoles([]);
+    setSelectedResourceRequestRoles([]);
+    setSelectedReviewers([]);
+    setStartTime(null);
+    setMaxDuration(null);
+    setPendingRequestTtl(null);
+  }
+
   function preselectPendingRequestTtlOption(
     newMaxDuration: number,
     dryRequestCreated: Date
@@ -190,5 +200,6 @@ export function useSpecifiableFields() {
     startTime,
     onStartTimeChange,
     onDryRunChange,
+    reset,
   };
 }

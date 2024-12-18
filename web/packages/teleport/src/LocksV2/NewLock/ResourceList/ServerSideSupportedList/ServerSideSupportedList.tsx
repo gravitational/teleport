@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { Flex } from 'design';
 import { StyledPanel } from 'design/DataTable/StyledTable';

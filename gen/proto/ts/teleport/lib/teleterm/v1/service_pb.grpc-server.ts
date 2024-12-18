@@ -61,10 +61,6 @@ import { ListGatewaysRequest } from "./service_pb";
 import { RemoveClusterRequest } from "./service_pb";
 import { Cluster } from "./cluster_pb";
 import { AddClusterRequest } from "./service_pb";
-import { GetAppsResponse } from "./service_pb";
-import { GetAppsRequest } from "./service_pb";
-import { GetKubesResponse } from "./service_pb";
-import { GetKubesRequest } from "./service_pb";
 import { ListKubernetesResourcesResponse } from "./service_pb";
 import { ListKubernetesResourcesRequest } from "./service_pb";
 import { GetSuggestedAccessListsResponse } from "./service_pb";
@@ -88,8 +84,6 @@ import { GetServersResponse } from "./service_pb";
 import { GetServersRequest } from "./service_pb";
 import { ListDatabaseUsersResponse } from "./service_pb";
 import { ListDatabaseUsersRequest } from "./service_pb";
-import { GetDatabasesResponse } from "./service_pb";
-import { GetDatabasesRequest } from "./service_pb";
 import { StartHeadlessWatcherResponse } from "./service_pb";
 import { StartHeadlessWatcherRequest } from "./service_pb";
 import { ListLeafClustersRequest } from "./service_pb";
@@ -141,12 +135,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     startHeadlessWatcher: grpc.handleUnaryCall<StartHeadlessWatcherRequest, StartHeadlessWatcherResponse>;
     /**
-     * GetDatabases returns a filtered and paginated list of databases
-     *
-     * @generated from protobuf rpc: GetDatabases(teleport.lib.teleterm.v1.GetDatabasesRequest) returns (teleport.lib.teleterm.v1.GetDatabasesResponse);
-     */
-    getDatabases: grpc.handleUnaryCall<GetDatabasesRequest, GetDatabasesResponse>;
-    /**
      * ListDatabaseUsers lists allowed users for the given database based on the role set.
      *
      * @generated from protobuf rpc: ListDatabaseUsers(teleport.lib.teleterm.v1.ListDatabaseUsersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseUsersResponse);
@@ -155,6 +143,9 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
      * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
     getServers: grpc.handleUnaryCall<GetServersRequest, GetServersResponse>;
@@ -219,18 +210,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListKubernetesResources(teleport.lib.teleterm.v1.ListKubernetesResourcesRequest) returns (teleport.lib.teleterm.v1.ListKubernetesResourcesResponse);
      */
     listKubernetesResources: grpc.handleUnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>;
-    /**
-     * GetKubes returns filtered, sorted, and paginated kubes
-     *
-     * @generated from protobuf rpc: GetKubes(teleport.lib.teleterm.v1.GetKubesRequest) returns (teleport.lib.teleterm.v1.GetKubesResponse);
-     */
-    getKubes: grpc.handleUnaryCall<GetKubesRequest, GetKubesResponse>;
-    /**
-     * GetApps returns a filtered and paginated list of apps.
-     *
-     * @generated from protobuf rpc: GetApps(teleport.lib.teleterm.v1.GetAppsRequest) returns (teleport.lib.teleterm.v1.GetAppsResponse);
-     */
-    getApps: grpc.handleUnaryCall<GetAppsRequest, GetAppsResponse>;
     /**
      * AddCluster adds a cluster to profile
      *
@@ -461,16 +440,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         responseSerialize: value => Buffer.from(StartHeadlessWatcherResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StartHeadlessWatcherRequest.toBinary(value))
     },
-    getDatabases: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetDatabases",
-        originalName: "GetDatabases",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetDatabasesResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetDatabasesRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetDatabasesResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetDatabasesRequest.toBinary(value))
-    },
     listDatabaseUsers: {
         path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers",
         originalName: "ListDatabaseUsers",
@@ -590,26 +559,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => ListKubernetesResourcesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListKubernetesResourcesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListKubernetesResourcesRequest.toBinary(value))
-    },
-    getKubes: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetKubes",
-        originalName: "GetKubes",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetKubesResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetKubesRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetKubesResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetKubesRequest.toBinary(value))
-    },
-    getApps: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/GetApps",
-        originalName: "GetApps",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetAppsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetAppsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetAppsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetAppsRequest.toBinary(value))
     },
     addCluster: {
         path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster",

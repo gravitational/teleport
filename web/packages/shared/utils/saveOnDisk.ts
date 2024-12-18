@@ -18,17 +18,19 @@
 
 /**
  * saveOnDisk saves content to local disk.
- * @param content content to download.
+ * @param content content to download (string or Blob).
  * @param filename preset file name.
  * @param fileType file type.
  */
 export function saveOnDisk(
-  content: string,
+  content: string | Blob,
   filename: string,
   fileType: string
 ): void {
   const a = document.createElement('a');
-  const blob = new Blob([content], { type: fileType });
+
+  const blob =
+    content instanceof Blob ? content : new Blob([content], { type: fileType });
   a.href = window.URL.createObjectURL(blob);
   a.download = filename;
   document.body.appendChild(a);

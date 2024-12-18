@@ -389,7 +389,7 @@ allowed by Apple). It is likely possible to make use of those APIs for Teleport
 Cloud, but we would need a solution for other installations regardless.
 
 A final consequence of the above is that Passkey support (aka iCloud-stored
-credentials) for CLIs is out of the roadmap for the forseeable future (but
+credentials) for CLIs is out of the roadmap for the foreseeable future (but
 Passkeys _can_ be used for Safari-based access).
 
 References:

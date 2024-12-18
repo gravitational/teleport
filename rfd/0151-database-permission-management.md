@@ -247,7 +247,7 @@ permission calculation; the desired per-object permissions are subsequently
 written back to the database.
 
 Imported objects are also stored in the backend, where TAG can access them. This
-enables the TAG to visualise the permissions.
+enables the TAG to visualize the permissions.
 
 Additionally, the imports will be done on a predetermined schedule (e.g. every
 10 minutes), and stored in the backend. If the database engine supports it, the

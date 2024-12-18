@@ -198,6 +198,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
@@ -379,6 +380,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()

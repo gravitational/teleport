@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -924,6 +923,11 @@ type AWSKMS struct {
 		// Enabled configures new keys to be multi-region.
 		Enabled bool
 	} `yaml:"multi_region,omitempty"`
+	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
+	// tag is added automatically if not specified in the set of tags. Changing tags
+	// after Teleport has already created KMS keys may require manually updating
+	// the tags of existing keys.
+	Tags map[string]string `yaml:"tags,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1321,7 +1325,7 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		if err != nil {
 			return out, trace.Wrap(err)
 		}
-		out.Slack = slack
+		out.SlackCredentials = slack
 	}
 	return out, nil
 }
@@ -1335,7 +1339,7 @@ type OAuthClientCredentials struct {
 	ClientSecret string `yaml:"client_secret"`
 }
 
-func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+func (o *OAuthClientCredentials) Parse() (*servicecfg.OAuthClientCredentials, error) {
 	if o.ClientID == "" || o.ClientSecret == "" {
 		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
 	}
@@ -1354,9 +1358,9 @@ func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
 	}
 	clientSecret = strings.TrimSpace(string(content))
 
-	return &oauth2.ClientCredentials{
-		ID:     clientID,
-		Secret: clientSecret,
+	return &servicecfg.OAuthClientCredentials{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 	}, nil
 }
 
@@ -1519,6 +1523,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
@@ -2030,6 +2036,12 @@ type App struct {
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
+
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+	// Only applicable to TCP App Access.
+	// If this field is not empty, URI is expected to contain no port number and start with the tcp
+	// protocol.
+	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2074,6 +2086,18 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+type PortRange struct {
+	// Port describes the start of the range. It must be between 1 and 65535.
+	Port int `yaml:"port"`
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than Port and less than or equal to 65535. When describing a single port, it must be
+	// set to 0.
+	EndPort int `yaml:"end_port,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

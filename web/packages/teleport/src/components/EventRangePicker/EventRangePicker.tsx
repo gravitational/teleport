@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { components, ValueContainerProps } from 'react-select';
 import 'react-day-picker/dist/style.css';
 import { Text, Box } from 'design';

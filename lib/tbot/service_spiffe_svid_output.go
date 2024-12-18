@@ -93,7 +93,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
-	jitter := retryutils.NewJitter()
+	jitter := retryutils.DefaultJitter
 	var res *machineidv1pb.SignX509SVIDsResponse
 	var privateKey crypto.Signer
 	var jwtSVIDs map[string]string

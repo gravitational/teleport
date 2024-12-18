@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';

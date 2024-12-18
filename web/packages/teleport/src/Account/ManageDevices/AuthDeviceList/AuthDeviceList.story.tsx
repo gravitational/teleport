@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import * as Icon from 'design/Icon';
 
 import { ActionButtonSecondary, Header } from 'teleport/Account/Header';

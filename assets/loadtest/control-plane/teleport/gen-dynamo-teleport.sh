@@ -13,6 +13,14 @@ chartMode: aws
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
 teleportVersionOverride: ${TELEPORT_VERSION}
 proxyListenerMode: "multiplex"
+authentication:
+  type: local
+  secondFactor: "webauthn"
+  webauthn:
+    rp_id: ${CLUSTER_NAME}.${ROUTE53_ZONE}
+  connector_name: passwordless
+  device_trust:
+    mode: "off"
 aws:
   region: ${REGION}                           # AWS region
   backendTable: ${CLUSTER_NAME}-backend           # DynamoDB table to use for the Teleport backend

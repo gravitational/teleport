@@ -109,7 +109,9 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 			Channels: channels,
 		},
 	})
-	conn.SetIdleTimeout(IdleTimeout)
+
+	conn.SetIdleTimeout(req.idleTimeout)
+
 	negotiatedProtocol, streams, err := conn.Open(
 		responsewriter.GetOriginal(req.httpResponseWriter),
 		req.httpRequest,

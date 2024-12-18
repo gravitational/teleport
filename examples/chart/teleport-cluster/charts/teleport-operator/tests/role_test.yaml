@@ -49,4 +49,4 @@ tests:
           content:
             apiGroups: [""]
             resources: ["secrets"]
-            verbs: ["get"]
+            verbs: ["get", "list", "watch"]

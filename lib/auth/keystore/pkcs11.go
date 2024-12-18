@@ -87,7 +87,7 @@ func (p *pkcs11KeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("PKCS#11 HSM keys created by %s", p.hostUUID)
 }
 
-func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
+func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 	if !p.isYubiHSM {
 		id, err := uuid.NewRandom()
 		if err != nil {
@@ -124,14 +124,18 @@ func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 // generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
 func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	// the key identifiers are not created in a thread safe
+	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
-	p.semaphore <- struct{}{}
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return nil, nil, trace.Wrap(ctx.Err())
+	}
 	defer func() {
 		<-p.semaphore
 	}()
 
-	id, err := p.findUnusedID()
+	id, err := p.findUnusedID(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

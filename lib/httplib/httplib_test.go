@@ -328,6 +328,23 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
+			name:     "for web ssh session (with wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/cluster/:clusterId/console/node/:sessionId/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
 			name:     "for cloud based usage & desktop session, with wasm",
 			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",

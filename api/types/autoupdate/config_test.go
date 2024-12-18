@@ -32,6 +32,7 @@ import (
 
 // TestNewAutoUpdateConfig verifies validation for AutoUpdateConfig resource.
 func TestNewAutoUpdateConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		spec      *autoupdate.AutoUpdateConfigSpec
@@ -222,6 +223,253 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 			got, err := NewAutoUpdateConfig(tt.spec)
 			tt.assertErr(t, err)
 			require.Empty(t, cmp.Diff(got, tt.want, protocmp.Transform()))
+		})
+	}
+}
+
+func TestValidateAutoUpdateConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		config    *autoupdate.AutoUpdateConfig
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid time-based rollout with groups",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:                      AgentsUpdateModeEnabled,
+						Strategy:                  AgentsStrategyTimeBased,
+						MaintenanceWindowDuration: durationpb.New(time.Hour),
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", Days: []string{"*"}, WaitHours: 0},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "valid halt-on-error config with groups",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", Days: []string{"*"}, WaitHours: 1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "group with negative wait days",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", Days: []string{"*"}, WaitHours: -1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with invalid week days",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", Days: []string{"frurfday"}, WaitHours: 1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with no week days",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", WaitHours: 1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with empty name",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "", Days: []string{"*"}, WaitHours: 1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "first group with non zero wait days",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 1},
+								{Name: "g2", Days: []string{"*"}, WaitHours: 0},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with non zero wait days on a time-based config",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyTimeBased,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g2", Days: []string{"*"}, WaitHours: 1},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "group with impossible start hour",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "dark hour", Days: []string{"*"}, StartHour: 24},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "groups with same names",
+			config: &autoupdate.AutoUpdateConfig{
+				Kind:    types.KindAutoUpdateConfig,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateConfig,
+				},
+				Spec: &autoupdate.AutoUpdateConfigSpec{
+					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
+						Mode:     AgentsUpdateModeEnabled,
+						Strategy: AgentsStrategyHaltOnError,
+						Schedules: &autoupdate.AgentAutoUpdateSchedules{
+							Regular: []*autoupdate.AgentAutoUpdateGroup{
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+								{Name: "g1", Days: []string{"*"}, WaitHours: 0},
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAutoUpdateConfig(tt.config)
+			tt.assertErr(t, err)
 		})
 	}
 }

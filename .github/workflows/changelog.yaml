@@ -16,7 +16,7 @@ on:
 permissions:
   pull-requests: write
 
-concurrency: 
+concurrency:
   cancel-in-progress: true
   # This value is arbitrary as long as it includes the pull request number
   group: 'limit to running one instance at a time for the pull request ${{ github.event.pull_request.number }}'
@@ -24,7 +24,7 @@ concurrency:
 jobs:
   validate-changelog:
     name: Validate the changelog entry
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch of shared-workflow repository.

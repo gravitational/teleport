@@ -36,7 +36,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -381,7 +381,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
 		LDAPConfig:  caLDAPConfig,
-		Log:         logrus.NewEntry(logrus.StandardLogger()),
+		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
@@ -462,7 +462,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 				}
 				s.mu.Unlock()
 
-				// If we have initizlied the LDAP client, then try to use it to make sure we're still connected
+				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
 				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
@@ -1000,7 +1000,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
-		Entry:                 logrus.NewEntry(logrus.StandardLogger()),
+		Logger:                s.cfg.Logger,
 		Emitter:               s.cfg.Emitter,
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
@@ -1140,7 +1140,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 			if e.Size() > libevents.MaxProtoMessageSizeBytes {
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
-				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", fmt.Sprintf("%T", m))
+				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", logutils.TypeAttr(m))
 			} else {
 				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)

@@ -72,6 +72,9 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: crd ## Single command to generate anything CRD-related (manifests and docs)
+crd: crdgen crd-docs manifests
+
 .PHONY: crdgen
 crdgen: ## Generate CRDs
 	make -C crdgen
@@ -138,6 +141,10 @@ test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
 	go test ./... -coverprofile cover.out
+
+.PHONY: echo-kubebuilder-assets
+echo-kubebuilder-assets:
+	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 
 .PHONY: crdgen-test
 crdgen-test: ## Run crdgen tests.

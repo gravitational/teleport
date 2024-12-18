@@ -47,7 +47,7 @@ func (b *basicHTTPVersionClient) Get(ctx context.Context) (string, error) {
 	versionURL := b.baseURL.JoinPath(constants.VersionPath)
 	body, err := b.client.GetContent(ctx, *versionURL)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "failed to get version from %s", versionURL)
 	}
 	response := string(body)
 	if response == constants.NoVersion {

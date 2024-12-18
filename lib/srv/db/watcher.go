@@ -20,9 +20,9 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -110,11 +110,11 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers)
+	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,7 +127,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		FetchersFn: discovery.StaticFetchers(allFetchers),
-		Log:        logrus.WithField(teleport.ComponentKey, "watcher:cloud"),
+		Logger:     slog.With(teleport.ComponentKey, "watcher:cloud"),
 		Origin:     types.OriginCloud,
 	})
 	if err != nil {

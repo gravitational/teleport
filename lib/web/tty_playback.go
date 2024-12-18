@@ -88,6 +88,7 @@ func (h *Handler) ttyPlaybackHandle(
 		Log:       h.logger,
 		SessionID: session.ID(sID),
 		Streamer:  clt,
+		Context:   r.Context(),
 	})
 	if err != nil {
 		h.log.Warn("player error", err)

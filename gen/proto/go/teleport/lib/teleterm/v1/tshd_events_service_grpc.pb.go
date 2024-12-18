@@ -65,10 +65,14 @@ type TshdEventsServiceClient interface {
 	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error)
-	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
-	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
-	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
-	// code.
+	// PromptMFA notifies the Electron app that the daemon wants to prompt for MFA.
+	// If TOTP is supported, the Electron app can return a totp code to complete the ceremony.
+	// If Webauthn or SSO are supported, tsh daemon waits for the Electron App to choose
+	// an option in the response before prompting for either.
+	//
+	// In order for the WebAuthn and SSO prompts to be reflected in the Electron App, the
+	// Electron app can display a waiting screen and listen for the tsh daemon to send a
+	// notification to close the screen.
 	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
 	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.
@@ -218,10 +222,14 @@ type TshdEventsServiceServer interface {
 	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error)
-	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
-	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
-	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
-	// code.
+	// PromptMFA notifies the Electron app that the daemon wants to prompt for MFA.
+	// If TOTP is supported, the Electron app can return a totp code to complete the ceremony.
+	// If Webauthn or SSO are supported, tsh daemon waits for the Electron App to choose
+	// an option in the response before prompting for either.
+	//
+	// In order for the WebAuthn and SSO prompts to be reflected in the Electron App, the
+	// Electron app can display a waiting screen and listen for the tsh daemon to send a
+	// notification to close the screen.
 	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
 	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.

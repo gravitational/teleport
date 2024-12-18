@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
@@ -47,6 +48,9 @@ var UnifiedResourceKinds []string = []string{
 	types.KindAppServer,
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
+	types.KindIdentityCenterAccount,
+	types.KindIdentityCenterAccountAssignment,
+	types.KindGitServer,
 }
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -352,6 +356,9 @@ type ResourceGetter interface {
 	WindowsDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
+	IdentityCenterAccountGetter
+	IdentityCenterAccountAssignmentGetter
+	GitServerGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -383,8 +390,11 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	// the container type.
 	switch r := resource.(type) {
 	case types.Server:
-		name = r.GetHostname() + "/" + r.GetName()
-		kind = types.KindNode
+		switch r.GetKind() {
+		case types.KindNode, types.KindGitServer:
+			name = r.GetHostname() + "/" + r.GetName()
+			kind = r.GetKind()
+		}
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
@@ -455,6 +465,21 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newICAccounts, err := c.getIdentityCenterAccounts(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGitServers, err := c.getGitServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	// empty the trees
@@ -470,6 +495,9 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
+	putResources[resource](c, newICAccounts)
+	putResources[resource](c, newICAccountAssignments)
+	putResources[types.Server](c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -581,6 +609,63 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
+func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
+	var accounts []resource
+	var pageRequest pagination.PageRequestToken
+	for {
+		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
+		}
+		for _, a := range resultsPage {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		}
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		pageRequest.Update(nextPage)
+	}
+	return accounts, nil
+}
+
+func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
+	var accounts []resource
+	var pageRequest pagination.PageRequestToken
+	for {
+		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
+		}
+		for _, a := range resultsPage {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		}
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		pageRequest.Update(nextPage)
+	}
+	return accounts, nil
+}
+
+func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.Server, err error) {
+	var page []types.Server
+	nextToken := ""
+	for {
+		page, nextToken, err = c.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting Git servers for unified resource watcher")
+		}
+
+		all = append(all, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return all, nil
+}
+
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
 // wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
@@ -670,7 +755,33 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			c.deleteLocked(event.Resource)
 		case types.OpPut:
-			c.putLocked(event.Resource.(resource))
+			switch r := event.Resource.(type) {
+			case resource:
+				c.putLocked(r)
+
+			case types.Resource153Unwrapper:
+				// Raw RFD-153 style resources generally have very few methods
+				// defined on them by design. One way to add complex behavior to
+				// these resources is to wrap them inside another type that implements
+				// any methods or interfaces they need. Resources arriving here
+				// via the cache protocol will have those wrappers stripped away,
+				// so we unfortunately need to unwrap and re-wrap these values
+				// to restore them to a useful state.
+				switch unwrapped := r.Unwrap().(type) {
+				case IdentityCenterAccount:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				case IdentityCenterAccountAssignment:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				default:
+					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
+				}
+
+			default:
+				c.log.Warnf("unsupported Resource type %T.", r)
+			}
+
 		default:
 			c.log.Warnf("unsupported event type %s.", event.Type)
 			continue
@@ -879,8 +990,102 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 				RequiresRequest: requiresRequest,
 			}
 		}
+	case types.KindIdentityCenterAccount:
+		var err error
+		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case types.KindIdentityCenterAccountAssignment:
+		unwrapper, ok := resource.(types.Resource153Unwrapper)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		assignment, ok := unwrapper.Unwrap().(IdentityCenterAccountAssignment)
+		if !ok {
+			return nil, trace.BadParameter(
+				"Unexpected type for Identity Center Account Assignment: %T",
+				unwrapper)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
+			RequiresRequest: requiresRequest,
+		}
+
+	case types.KindGitServer:
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_GitServer{
+				GitServer: server,
+			},
+			RequiresRequest: requiresRequest,
+		}
+
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
+	}
+
+	return protoResource, nil
+}
+
+// makePaginatedIdentityCenterAccount returns a representation of the supplied
+// Identity Center account as an App.
+func makePaginatedIdentityCenterAccount(resourceKind string, resource types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
+	unwrapper, ok := resource.(types.Resource153Unwrapper)
+	if !ok {
+		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+	}
+	acct, ok := unwrapper.Unwrap().(IdentityCenterAccount)
+	if !ok {
+		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, resource)
+	}
+	srcPSs := acct.GetSpec().GetPermissionSetInfo()
+	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
+	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {
+		pss[i] = &types.IdentityCenterPermissionSet{
+			ARN:          ps.Arn,
+			Name:         ps.Name,
+			AssignmentID: ps.AssignmentId,
+		}
+	}
+
+	appServer := &types.AppServerV3{
+		Kind:     types.KindAppServer,
+		Version:  types.V3,
+		Metadata: resource.GetMetadata(),
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind:     types.KindApp,
+				SubKind:  types.KindIdentityCenterAccount,
+				Version:  types.V3,
+				Metadata: types.Metadata153ToLegacy(acct.Metadata),
+				Spec: types.AppSpecV3{
+					URI:        acct.Spec.StartUrl,
+					PublicAddr: acct.Spec.StartUrl,
+					AWS: &types.AppAWS{
+						ExternalID: acct.Spec.Id,
+					},
+					IdentityCenter: &types.AppIdentityCenter{
+						AccountID:      acct.Spec.Id,
+						PermissionSets: pss,
+					},
+				},
+			},
+		},
+	}
+	appServer.Metadata.Description = acct.Spec.Name
+
+	protoResource := &proto.PaginatedResource{
+		Resource: &proto.PaginatedResource_AppServer{
+			AppServer: appServer,
+		},
+		RequiresRequest: requiresRequest,
 	}
 
 	return protoResource, nil

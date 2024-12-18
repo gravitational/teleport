@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import renderHook from 'design/utils/renderHook';

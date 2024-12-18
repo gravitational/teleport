@@ -61,5 +61,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🤖 Vercel preview here: ${previewUrl}/docs/ver/preview`
+              body: `🤖 Vercel preview here: ${previewUrl}/docs`
             })

@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,14 +53,26 @@ func Dir() (string, error) {
 	return filepath.Join(home, ".tsh", "bin"), nil
 }
 
-func checkToolVersion(toolsDir string) (string, error) {
+// DefaultClientTools list of the client tools needs to be updated by default.
+func DefaultClientTools() []string {
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		return []string{"tsh.exe", "tctl.exe"}
+	default:
+		return []string{"tsh", "tctl"}
+	}
+}
+
+// CheckToolVersion returns current installed client tools version, must return NotFoundError if
+// the client tools is not found in tools directory.
+func CheckToolVersion(toolsDir string) (string, error) {
 	// Find the path to the current executable.
 	path, err := toolName(toolsDir)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", nil
+		return "", trace.NotFound("autoupdate tool not found in %q", toolsDir)
 	} else if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -76,7 +89,7 @@ func checkToolVersion(toolsDir string) (string, error) {
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool", path)
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the

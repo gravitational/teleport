@@ -79,6 +79,7 @@ func (s *MsTeamsBaseSuite) SetupTest() {
 	apiClient, err := common.GetTeleportClient(context.Background(), s.TeleportConfig())
 	require.NoError(t, err)
 	conf.Client = apiClient
+	conf.StatusSink = s.fakeStatusSink
 	conf.MSAPI = s.fakeTeams.Config
 	conf.MSAPI.SetBaseURLs(s.fakeTeams.URL(), s.fakeTeams.URL(), s.fakeTeams.URL())
 

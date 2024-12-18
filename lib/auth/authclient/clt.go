@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -43,11 +44,13 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -1882,4 +1885,16 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
+
+	// IdentityCenterClient returns Identity Center service client.
+	IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient
+
+	// ProvisioningServiceClient returns provisioning service client.
+	ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient
+
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
+
+	// GitServerClient returns git server client.
+	GitServerClient() *gitserver.Client
 }

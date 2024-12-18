@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -37,7 +38,6 @@ import (
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
@@ -553,11 +553,11 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		var err error
 		// Fetch the instance first to get the most up-to-date metadata hash.
 		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
-			logrus.WithError(err).Warn("Error fetching instance.")
+			slog.WarnContext(ctx, "Error fetching instance", "error", err)
 			return
 		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			logrus.WithError(err).Warn("Error deleting SSH Key.")
+			slog.WarnContext(ctx, "Error deleting SSH Key", "error", err)
 		}
 	}()
 
@@ -578,8 +578,10 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	for _, ip := range ipAddrs {
 		addr := net.JoinHostPort(ip, req.SSHPort)
 		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-		logrus.Debug(string(stdout))
-		logrus.Debug(string(stderr))
+		slog.DebugContext(ctx, "Command completed",
+			"stdoout", string(stdout),
+			"stderr", string(stderr),
+		)
 		if err == nil {
 			return nil
 		}
@@ -592,6 +594,6 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	}
 
 	err = trace.NewAggregate(errs...)
-	logrus.WithError(err).Debug("Command exited with error.")
+	slog.DebugContext(ctx, "Command exited with error", "error", err)
 	return err
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 import { context, trace } from '@opentelemetry/api';
 
@@ -38,16 +38,16 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
-  const ttyRef = React.useRef<Tty>(null);
+  const ttyRef = useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
-  const [session, setSession] = React.useState<Session>(null);
-  const [status, setStatus] = React.useState<Status>('loading');
+  const [session, setSession] = useState<Session>(null);
+  const [status, setStatus] = useState<Status>('loading');
 
   function closeDocument() {
     ctx.closeTab(doc);
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',

@@ -18,7 +18,7 @@
 
 import Table, { LabelCell } from 'design/DataTable';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 

@@ -24,6 +24,9 @@ option go_package = "github.com/gravitational/teleport/api/client/proto";
 service ProxyService {
   // DialNode opens a bidrectional stream to the requested node.
   rpc DialNode(stream Frame) returns (stream Frame);
+
+  // Ping checks if the peer is reachable and responsive.
+  rpc Ping(ProxyServicePingRequest) returns (ProxyServicePingResponse);
 }
 
 // Frame wraps different message types to be sent over a stream.
@@ -63,3 +66,7 @@ message Data {
 
 // ConnectionEstablished signals to the client a connection to the node has been established.
 message ConnectionEstablished {}
+
+message ProxyServicePingRequest {}
+
+message ProxyServicePingResponse {}

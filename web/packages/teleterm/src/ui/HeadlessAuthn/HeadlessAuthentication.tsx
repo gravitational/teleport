@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -36,6 +36,7 @@ interface HeadlessAuthenticationProps {
   skipConfirm: boolean;
   onCancel(): void;
   onSuccess(): void;
+  hidden?: boolean;
 }
 
 export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
@@ -81,6 +82,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
 
   return (
     <HeadlessPrompt
+      hidden={props.hidden}
       cluster={cluster}
       clientIp={props.clientIp}
       skipConfirm={props.skipConfirm}

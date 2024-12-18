@@ -20,7 +20,7 @@ package backoff
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -58,7 +58,7 @@ func NewDecorrWithMul(base, cap time.Duration, mul int64, clock clockwork.Clock)
 }
 
 func (backoff *decorr) Do(ctx context.Context) error {
-	backoff.sleep = backoff.base + rand.Int63n(backoff.sleep*backoff.mul-backoff.base)
+	backoff.sleep = backoff.base + rand.N(backoff.sleep*backoff.mul-backoff.base)
 	if backoff.sleep > backoff.cap {
 		backoff.sleep = backoff.cap
 	}

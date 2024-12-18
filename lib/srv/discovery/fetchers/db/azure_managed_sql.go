@@ -19,9 +19,11 @@
 package db
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -46,17 +48,20 @@ func (f *azureManagedSQLServerFetcher) GetServerLocation(server *armsql.ManagedI
 	return azure.StringVal(server.Location)
 }
 
-func (f *azureManagedSQLServerFetcher) NewDatabaseFromServer(server *armsql.ManagedInstance, log logrus.FieldLogger) types.Database {
+func (f *azureManagedSQLServerFetcher) NewDatabaseFromServer(ctx context.Context, server *armsql.ManagedInstance, logger *slog.Logger) types.Database {
 	if !f.isAvailable(server) {
-		log.Debugf("The current status of Azure Managed SQL server %q is %q. Skipping.",
-			azure.StringVal(server.Name),
-			azure.StringVal(server.Properties.ProvisioningState))
+		logger.DebugContext(ctx, "Skipping unavailable Azure Managed SQL server",
+			"server", azure.StringVal(server.Name),
+			"provisioning_state", azure.StringVal(server.Properties.ProvisioningState))
 		return nil
 	}
 
 	database, err := common.NewDatabaseFromAzureManagedSQLServer(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure Managed SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
+		logger.WarnContext(ctx, "Could not convert Azure Managed SQL server to database resource",
+			"server", azure.StringVal(server.Name),
+			"error", err,
+		)
 		return nil
 	}
 
@@ -85,9 +90,9 @@ func (f *azureManagedSQLServerFetcher) isAvailable(server *armsql.ManagedInstanc
 		armsql.ManagedInstancePropertiesProvisioningStateUpdating:
 		return true
 	default:
-		logrus.Warnf("Unknown status type: %q. Assuming Managed SQL Server %q is available.",
-			azure.StringVal(server.Properties.ProvisioningState),
-			azure.StringVal(server.Name),
+		slog.WarnContext(context.Background(), "Assuming Managed SQL Server with unknown status type is available",
+			"status", azure.StringVal(server.Properties.ProvisioningState),
+			"server", azure.StringVal(server.Name),
 		)
 		return true
 	}

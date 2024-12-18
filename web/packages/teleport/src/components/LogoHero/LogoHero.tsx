@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { useTheme } from 'styled-components';
 import Image from 'design/Image';
 import AGPLLogoLight from 'design/assets/images/agpl-light.svg';

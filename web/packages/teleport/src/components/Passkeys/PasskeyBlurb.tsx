@@ -17,7 +17,6 @@
  */
 
 import Box from 'design/Box';
-import React from 'react';
 
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 

@@ -42,8 +42,6 @@ export function NodeList(props: {
   params: ResourceFilter;
   setParams: (params: ResourceFilter) => void;
   setSort: (sort: SortType) => void;
-  pathname: string;
-  replaceHistory: (path: string) => void;
   onLabelClick: (label: ResourceLabel) => void;
   pageIndicators: PageIndicators;
 }) {
@@ -58,8 +56,6 @@ export function NodeList(props: {
     params,
     setParams,
     setSort,
-    pathname,
-    replaceHistory,
     onLabelClick,
     pageIndicators,
   } = props;
@@ -108,8 +104,6 @@ export function NodeList(props: {
             pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
             disabled={fetchStatus === 'loading'}
           />
         ),

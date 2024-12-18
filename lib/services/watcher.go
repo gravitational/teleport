@@ -138,10 +138,10 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		return nil, trace.Wrap(err)
 	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
+		First:  retryutils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {
@@ -839,9 +839,9 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			}
 
 			key := g.ResourceKey(resource)
-			current := g.current[key]
+			current, exists := g.current[key]
 			g.current[key] = resource
-			updated = g.ResourceDiffer(current, resource)
+			updated = !exists || g.ResourceDiffer(current, resource)
 		default:
 			g.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { ResourceIcon } from 'design/ResourceIcon';
@@ -206,12 +206,20 @@ export const BotTiles = () => {
     <PreviewBox>
       <Flex>
         {integrationsTop.map(integration => (
-          <DisplayTile icon={integration.icon} title={integration.title} />
+          <DisplayTile
+            key={integration.title}
+            icon={integration.icon}
+            title={integration.title}
+          />
         ))}
       </Flex>
       <Flex>
         {integrationsBottom.map(integration => (
-          <DisplayTile icon={integration.icon} title={integration.title} />
+          <DisplayTile
+            key={integration.title}
+            icon={integration.icon}
+            title={integration.title}
+          />
         ))}
       </Flex>
     </PreviewBox>

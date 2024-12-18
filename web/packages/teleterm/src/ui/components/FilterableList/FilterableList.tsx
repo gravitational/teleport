@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Fragment, ReactNode, useMemo, useState } from 'react';
+import { Fragment, ReactNode, useMemo, useState } from 'react';
 import { Input } from 'design';
 import styled from 'styled-components';
 

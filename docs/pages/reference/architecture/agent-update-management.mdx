@@ -54,16 +54,16 @@ The agent version is subject to the following constraints:
 - the agent must always be no more than one major version below the Proxy or Auth
   Service version.
 
-The best practice is to always align the agent version with the Proxy and Auth
-ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
-](../../upgrading/upgrading.mdx).
+The best practice is to always align the agent version with the version of the
+Proxy Service and Auth Service. To upgrade the Auth Service and Proxy Service,
+follow [the Teleport Cluster upgrade guide](../../upgrading/upgrading.mdx).
 
 For this reason, all updaters must subscribe to a release channel targeting
 versions that are compatible with their Teleport cluster. Teleport Cloud users
 must use the Teleport Cloud version server with the `stable/cloud` release
 channel. Self-hosted Teleport users must host their own version server and
-either update their release channel each time they update their Auth and Proxy
-instances, or use the `stable/rolling` channel.
+either update their release channel each time they update their Auth Service and
+Proxy Service instances, or use the `stable/rolling` channel.
 
 ### Teleport Cloud
 

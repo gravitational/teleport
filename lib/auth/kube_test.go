@@ -19,10 +19,10 @@
 package auth
 
 import (
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -112,9 +112,7 @@ func newTestCSR(subj pkix.Name) ([]byte, error) {
 	x509CSR := &x509.CertificateRequest{
 		Subject: subj,
 	}
-	// Use math/rand to avoid blocking on system entropy.
-	rng := rand.New(rand.NewSource(0))
-	derCSR, err := x509.CreateCertificateRequest(rng, x509CSR, priv)
+	derCSR, err := x509.CreateCertificateRequest(rand.Reader, x509CSR, priv)
 	if err != nil {
 		return nil, err
 	}

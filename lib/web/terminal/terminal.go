@@ -115,8 +115,8 @@ func (t *WSStream) WriteMessage(messageType int, data []byte) error {
 
 // WriteError displays an error in the terminal window.
 func (t *WSStream) WriteError(msg string) {
-	if _, writeErr := replacer.WriteString(t, msg); writeErr != nil {
-		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", msg)
+	if _, err := replacer.WriteString(t, msg); err != nil && !errors.Is(err, websocket.ErrCloseSent) {
+		t.log.WithError(err).Warnf("Unable to send error to terminal: %v", msg)
 	}
 }
 
@@ -175,7 +175,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 			switch envelope.Type {
 			case defaults.WebsocketClose:
 				return
-			case defaults.WebsocketWebauthnChallenge:
+			case defaults.WebsocketMFAChallenge:
 				select {
 				case <-ctx.Done():
 					return
@@ -223,7 +223,7 @@ type MFACodec interface {
 // websocket in the correct format.
 func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, codec MFACodec) error {
 	// Send the challenge over the socket.
-	msg, err := codec.Encode(challenge, defaults.WebsocketWebauthnChallenge)
+	msg, err := codec.Encode(challenge, defaults.WebsocketMFAChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (t *WSStream) ReadChallengeResponse(codec MFACodec) (*authproto.MFAAuthenti
 	if !ok {
 		return nil, io.EOF
 	}
-	resp, err := codec.DecodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	resp, err := codec.DecodeResponse([]byte(envelope.Payload), defaults.WebsocketMFAChallenge)
 	return resp, trace.Wrap(err)
 }
 
@@ -249,7 +249,7 @@ func (t *WSStream) ReadChallenge(codec MFACodec) (*authproto.MFAAuthenticateChal
 	if !ok {
 		return nil, io.EOF
 	}
-	challenge, err := codec.DecodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	challenge, err := codec.DecodeChallenge([]byte(envelope.Payload), defaults.WebsocketMFAChallenge)
 	return challenge, trace.Wrap(err)
 }
 

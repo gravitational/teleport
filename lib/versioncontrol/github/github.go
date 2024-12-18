@@ -20,6 +20,7 @@ package github
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,10 +28,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
@@ -38,9 +39,7 @@ import (
 // `TEST_GITHUB_API=yes`. this will enable some additional tests that are not
 // run as part of normal CI.
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentVersionControl,
-})
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentVersionControl)
 
 // Visit uses the supplied visitor to aggregate release info from the github releases api.
 func Visit(visitor *vc.Visitor) error {
@@ -195,7 +194,7 @@ func (i *Iterator) Next() bool {
 	i.page = make([]vc.Target, 0, len(page))
 	for _, r := range page {
 		if !semver.IsValid(r.TagName) {
-			log.Debugf("Skipping non-semver release tag: %q\n", r.TagName)
+			logger.DebugContext(context.Background(), "Skipping non-semver release tag", "tag_name", r.TagName)
 			continue
 		}
 		labels := parseReleaseNoteLabels(r.Body)
@@ -246,13 +245,13 @@ func parseReleaseNoteLabels(notes string) map[string]string {
 		l = strings.TrimPrefix(l, labelPrefix)
 		for _, kv := range strings.Split(l, ",") {
 			if !strings.Contains(kv, "=") {
-				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				logger.DebugContext(context.Background(), "Skipping invalid release label keypair", "label", kv)
 				continue
 			}
 
 			parts := strings.SplitN(kv, "=", 2)
 			if len(parts) != 2 {
-				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				logger.DebugContext(context.Background(), "Skipping invalid release label keypair", "label", kv)
 				continue
 			}
 
@@ -260,7 +259,7 @@ func parseReleaseNoteLabels(notes string) map[string]string {
 			val := strings.TrimSpace(parts[1])
 
 			if !vc.IsValidTargetKey(key) || !vc.IsValidTargetVal(val) {
-				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				logger.DebugContext(context.Background(), "Skipping invalid release label keypair", "label", kv)
 				// NOTE: we are skipping invalid keypairs for github release scraping
 				// because github releases are using a generally simplistic release representation.
 				// The TUF implementation will not skip invalid keypairs, preferring to

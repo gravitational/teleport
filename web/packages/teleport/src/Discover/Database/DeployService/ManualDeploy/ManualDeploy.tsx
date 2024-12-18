@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Box, ButtonSecondary, Text, Mark, H3 } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';

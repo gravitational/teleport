@@ -472,7 +472,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

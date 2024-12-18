@@ -29,8 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1265,6 +1267,18 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			},
 			expectResolvable: true,
 		},
+		{
+			name:             "trace.BadParameter should be resolvable",
+			err:              trace.BadParameter("bad"),
+			expectResolvable: true,
+		},
+		{
+			name: "nonRetryableError should not be resolvable",
+			err: trace.Wrap(&NonRetryableError{
+				Err: trace.BadParameter("bad"),
+			}),
+			expectResolvable: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resolvable := IsErrorResolvableWithRelogin(tt.err)
@@ -1362,6 +1376,87 @@ func TestGetTargetNodes(t *testing.T) {
 			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
+		})
+	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	orgError := trace.AccessDenied("do not enter")
+	err := &NonRetryableError{
+		Err: orgError,
+	}
+	require.Error(t, err)
+	assert.Equal(t, "do not enter", err.Error())
+	assert.True(t, IsNonRetryableError(err))
+	assert.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, orgError, err.Unwrap())
+}
+
+func TestWarningAboutIncompatibleClientVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		clientVersion   string
+		serverVersion   string
+		expectedWarning string
+	}{
+		{
+			name:          "client on a higher major version than server triggers a warning",
+			clientVersion: "17.0.0",
+			serverVersion: "16.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is 16.x.x but you are using 17.0.0.
+Please downgrade tsh to 16.x.x or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:          "client on a too low major version compared to server triggers a warning",
+			clientVersion: "16.4.0",
+			serverVersion: "18.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is 17.0.0 but you are using 16.4.0.
+Please upgrade tsh to 17.0.0 or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:            "client on a higher minor version than server does not trigger a warning",
+			clientVersion:   "17.1.0",
+			serverVersion:   "17.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client on a lower major version than server does not trigger a warning",
+			clientVersion:   "17.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client and server on the same version do not trigger a warning",
+			clientVersion:   "18.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			minClientVersion, err := semver.NewVersion(test.serverVersion)
+			require.NoError(t, err)
+			minClientVersion.Major = minClientVersion.Major - 1
+			warning, err := getClientIncompatibilityWarning(versions{
+				MinClient: minClientVersion.String(),
+				Client:    test.clientVersion,
+				Server:    test.serverVersion,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectedWarning, warning)
 		})
 	}
 }

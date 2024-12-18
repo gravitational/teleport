@@ -137,27 +137,6 @@ unexpected ways. Remove all other columns and statuses.
 
 Click **Back to board** to review your changes.
 
-### Set up a request ID field
-
-The Teleport Jira plugin expects tasks in the Teleport Access Requests project
-to include a field called `teleportAccessRequestId`, which it uses to track
-individual Access Requests. This prevents users from tampering with or forging
-Access Requests.
-
-To set up the `teleportAccessRequestId` field, click **Project settings** on the
-left navigation bar, then click **Issues** -> **Fields**. 
-
-In the **Actions** menu, click **Edit fields**. Click the **Custom fields** tab
-in the left sidebar, then **Create custom field**. Add a **Short Text** field
-named `teleportAccessRequestId`. Click the checkbox next to **Default Screen**
-to associate that field with this screen. Click **Update**.
-
-Next, add the custom field to your Teleport Access Requests project. Click
-**Projects** > **Teleport Access Requests (TAR)**, then **Project settings**.
-Click **Issues** -> **Types** on the left sidebar, then click **Task** >
-**Fields**. Find the dropdown menu called **Select Field**, then select the
-`teleportAccessRequestId` field you added earlier.
-
 ### Retrieve your Jira API token
 
 Obtain an API token that the Teleport Access Request plugin uses to make

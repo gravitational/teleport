@@ -814,3 +814,13 @@ tests:
               hostnames:
                 - "foo.remote"
                 - "bar.remote"
+  - it: should set the terminationGracePeriodSeconds when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      terminationGracePeriodSeconds: 3600
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 3600

@@ -3,7 +3,12 @@ title: Kubernetes Application Discovery Reference
 description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
 ---
 
-## Configuring Teleport agent Helm chart
+Kubernetes Application Discovery involves the Teleport Discovery Service,
+Teleport Application Service, and annotations on Kubernetes services. This guide
+shows you how to configure each of these to manage Kubernetes Application
+Discovery in your Kubernetes cluster.
+
+## Configuring Teleport Agent Helm chart
 
 You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
 please see [helm chart documentation](../helm-reference/teleport-kube-agent.mdx).
@@ -31,6 +36,8 @@ Discovery Service, then restart the agents running these services.
 
 Configuration for the Discovery Service is controlled by the `kubernetes` field,
 example:
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
 
 ```yaml
 # This section configures the Discovery Service

@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -33,6 +35,8 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 // pageSize is the default page size to use when fetching AWS resources
@@ -43,6 +47,8 @@ const pageSize int64 = 500
 type Config struct {
 	// CloudClients is the cloud clients to use when fetching AWS resources.
 	CloudClients cloud.Clients
+	// GetEC2Client gets an AWS EC2 client for the given region.
+	GetEC2Client server.EC2ClientGetter
 	// AccountID is the AWS account ID to use when fetching resources.
 	AccountID string
 	// Regions is the list of AWS regions to fetch resources from.
@@ -314,6 +320,27 @@ func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
 			},
 		),
 	)
+
+	return opts
+}
+
+// getAWSV2Options returns a list of options to be used when
+// creating AWS clients with the v2 sdk.
+func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
+	}
+
+	if a.Config.AssumeRole != nil {
+		opts = append(opts, awsconfig.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
+	}
+	const maxRetries = 10
+	opts = append(opts, awsconfig.WithRetryer(func() awsv2.Retryer {
+		return retry.NewStandard(func(so *retry.StandardOptions) {
+			so.MaxAttempts = maxRetries
+			so.Backoff = retry.NewExponentialJitterBackoff(300 * time.Second)
+		})
+	}))
 
 	return opts
 }

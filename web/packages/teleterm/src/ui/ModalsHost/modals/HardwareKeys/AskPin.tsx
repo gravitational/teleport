@@ -35,12 +35,14 @@ export function AskPin(props: {
   req: PromptHardwareKeyPINRequest;
   onCancel(): void;
   onSuccess(pin: string): void;
+  hidden?: boolean;
 }) {
   const [pin, setPin] = useState('');
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

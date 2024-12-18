@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/integration/helpers/archive"
 )
 
 // TestPackaging verifies un-archiving of all supported teleport package formats.
@@ -63,7 +63,7 @@ func TestPackaging(t *testing.T) {
 
 	t.Run("tar.gz", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
-		err = helpers.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
+		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
@@ -85,7 +85,7 @@ func TestPackaging(t *testing.T) {
 			t.Skip("unsupported platform")
 		}
 		archivePath := filepath.Join(toolsDir, "tsh.pkg")
-		err = helpers.CompressDirToPkgFile(ctx, sourceDir, archivePath, "com.example.pkgtest")
+		err = archive.CompressDirToPkgFile(ctx, sourceDir, archivePath, "com.example.pkgtest")
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
@@ -101,7 +101,7 @@ func TestPackaging(t *testing.T) {
 
 	t.Run("zip", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.zip")
-		err = helpers.CompressDirToZipFile(ctx, sourceDir, archivePath)
+		err = archive.CompressDirToZipFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
@@ -132,7 +132,7 @@ func TestRemoveWithSuffix(t *testing.T) {
 	dirInSkipPath := filepath.Join(skipPath, dirForRemove)
 	require.NoError(t, os.MkdirAll(skipPath, 0o755))
 
-	err := RemoveWithSuffix(testDir, dirForRemove, skipName)
+	err := RemoveWithSuffix(testDir, dirForRemove, []string{skipName})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(testDir, dirForRemove))

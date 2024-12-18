@@ -132,7 +132,7 @@ type LegacyCommand struct {
 
 // NewLegacyCommand initializes and returns a command supporting
 // `tbot start legacy` and `tbot configure legacy`.
-func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *LegacyCommand {
+func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *LegacyCommand {
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
 		strings.Join(config.SupportedJoinMethods, ", "),
@@ -140,7 +140,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Legac
 
 	c := &LegacyCommand{
 		action: action,
-		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
+		cmd:    parentCmd.Command("legacy", fmt.Sprintf("%s tbot with either a config file or a legacy output.", mode)).Default(),
 	}
 	c.AuthProxyArgs = newAuthProxyArgs(c.cmd)
 	c.LegacyDestinationDirArgs = newLegacyDestinationDirArgs(c.cmd)

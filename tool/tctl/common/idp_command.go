@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package common
 
 import (
@@ -37,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // subcommandRunner is used to create pluggable subcommand under
@@ -45,7 +48,7 @@ import (
 // $ tctl idp oidc <command> [<args> ...]
 type subcommandRunner interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
-	tryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error)
+	tryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error)
 }
 
 // IdPCommand implements all commands under "tctl idp".
@@ -61,7 +64,7 @@ type samlIdPCommand struct {
 }
 
 // Initialize installs the base "idp" command and all subcommands.
-func (t *IdPCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (t *IdPCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	idp := app.Command("idp", "Teleport Identity Provider")
 
 	idp.Alias(`
@@ -79,9 +82,9 @@ Examples:
 }
 
 // TryRun calls tryRun for each subcommand, and returns (false, nil) if none of them match.
-func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c *authclient.Client) (match bool, err error) {
+func (i *IdPCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	for _, subcommandRunner := range i.subcommandRunners {
-		match, err = subcommandRunner.tryRun(ctx, cmd, c)
+		match, err = subcommandRunner.tryRun(ctx, cmd, clientFunc)
 		if err != nil {
 			return match, trace.Wrap(err)
 		}
@@ -121,10 +124,15 @@ Examples:
 	s.testAttributeMapping.cmd = testAttrMap
 }
 
-func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c *authclient.Client) (match bool, err error) {
+func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
-		return true, trace.Wrap(s.testAttributeMapping.run(ctx, c))
+		client, closeFn, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer closeFn(ctx)
+		return true, trace.Wrap(s.testAttributeMapping.run(ctx, client))
 	default:
 		return false, nil
 	}

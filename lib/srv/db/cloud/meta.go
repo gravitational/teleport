@@ -20,6 +20,7 @@ package cloud
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -34,13 +35,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // MetadataConfig is the cloud metadata service config.
@@ -63,8 +64,8 @@ func (c *MetadataConfig) Check() error {
 
 // Metadata is a service that fetches cloud databases metadata.
 type Metadata struct {
-	cfg MetadataConfig
-	log logrus.FieldLogger
+	cfg    MetadataConfig
+	logger *slog.Logger
 }
 
 // NewMetadata returns a new cloud metadata service.
@@ -73,8 +74,8 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Metadata{
-		cfg: config,
-		log: logrus.WithField(teleport.ComponentKey, "meta"),
+		cfg:    config,
+		logger: slog.With(teleport.ComponentKey, "meta"),
 	}, nil
 }
 
@@ -103,13 +104,16 @@ func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetch
 	fetchedMeta, err := fetchFn(ctx, database)
 	if err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
-			m.log.WithError(err).Debugf("No permissions to fetch metadata for %q.", database)
+			m.logger.DebugContext(ctx, "No permissions to fetch metadata for database",
+				"error", err,
+				"database", database,
+			)
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 
-	m.log.Debugf("Fetched metadata for %q: %v.", database, fetchedMeta)
+	m.logger.DebugContext(ctx, "Fetched metadata for dabase", "database", database, "metadata", logutils.StringerAttr(fetchedMeta))
 	fetchedMeta.AssumeRoleARN = meta.AssumeRoleARN
 	fetchedMeta.ExternalID = meta.ExternalID
 	database.SetStatusAWS(*fetchedMeta)

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { DebouncedFunc } from 'shared/utils/highbar';
 
 import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';

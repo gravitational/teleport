@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen, within } from '@testing-library/react';
 import { fireEvent, render } from 'design/utils/testing';
 

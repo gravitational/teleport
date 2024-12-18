@@ -53,6 +53,10 @@ import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
 
 import {
   ConfigService,
@@ -188,6 +192,7 @@ export default class MainProcess {
         env: {
           ...process.env,
           TELEPORT_HOME: homeDir,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
         },
       }
     );

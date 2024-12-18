@@ -18,7 +18,7 @@
 
 import { ButtonIcon, Popover } from 'design';
 import { ChatBubble } from 'design/Icon';
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import styled from 'styled-components';
 
 import { ShareFeedbackForm } from './ShareFeedbackForm';

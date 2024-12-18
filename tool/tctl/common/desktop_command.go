@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DesktopCommand implements "tctl desktop" group of commands.
@@ -50,7 +52,7 @@ type DesktopCommand struct {
 }
 
 // Initialize allows DesktopCommand to plug itself into the CLI parser
-func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DesktopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	desktop := app.Command("desktop", "Operate on registered desktops.").Alias("desktops").Alias("windows_desktop").Alias("windows_desktops")
@@ -63,15 +65,22 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
-func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.desktopList.FullCommand():
-		err = c.ListDesktop(ctx, client)
+		commandFunc = c.ListDesktop
 	case c.desktopBootstrap.FullCommand():
-		err = c.BootstrapAD(ctx, client)
+		commandFunc = c.BootstrapAD
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -33,6 +32,7 @@ export function ResourceSearchErrors(props: {
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   onCancel: () => void;
+  hidden?: boolean;
 }) {
   const formattedErrorText = props.errors
     .map(error => error.messageAndCauseWithClusterName(props.getClusterName))
@@ -40,7 +40,8 @@ export function ResourceSearchErrors(props: {
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '800px',

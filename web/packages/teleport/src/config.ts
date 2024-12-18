@@ -24,6 +24,13 @@ import generateResourcePath from './generateResourcePath';
 
 import { defaultEntitlements } from './entitlement';
 
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
+  PluginKind,
+  Regions,
+} from './services/integrations';
+
 import type {
   Auth2faType,
   AuthProvider,
@@ -34,12 +41,7 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type {
-  PluginKind,
-  Regions,
-  AwsOidcPolicyPreset,
-} from './services/integrations';
+import type { WebauthnAssertionResponse } from './services/mfa';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 import type { KubeResourceKind } from './services/kube/types';
@@ -156,6 +158,8 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
+    manageCluster: '/web/clusters/:clusterId/manage',
+
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
     unifiedResources: '/web/cluster/:clusterId/resources',
@@ -174,6 +178,8 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -203,6 +209,12 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    // Access Graph is part of enterprise, but we need to generate links in the audit log,
+    // which is in OSS.
+    accessGraph: {
+      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+    },
   },
 
   api: {
@@ -211,6 +223,7 @@ const cfg = {
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -237,7 +250,6 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
@@ -248,6 +260,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -310,7 +323,11 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationStatsPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
@@ -382,6 +399,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    msTeamsAppZipPath:
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -405,6 +425,12 @@ const cfg = {
 
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
+  },
+
+  getClusterInfoPath(clusterId: string) {
+    return generatePath(cfg.api.clusterInfoPath, {
+      clusterId,
+    });
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -510,12 +536,20 @@ const cfg = {
     return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
-  getIntegrationStatusRoute(type: PluginKind, name: string) {
+  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
+  },
+
+  getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
+    return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
   },
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getManageClusterRoute(clusterId: string) {
+    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -626,6 +660,14 @@ const cfg = {
       desktopName,
       username,
     });
+  },
+
+  getDbConnectRoute(params: UrlDbConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDbSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -821,13 +863,6 @@ const cfg = {
     });
   },
 
-  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopServicesPath, {
-      clusterId,
-      ...params,
-    });
-  },
-
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
@@ -933,6 +968,27 @@ const cfg = {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getIntegrationStatsUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
       clusterId,
       name: integrationName,
     });
@@ -1160,6 +1216,10 @@ const cfg = {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1201,6 +1261,11 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+}
+
+export interface UrlDbConnectParams {
+  clusterId: string;
+  serviceName: string;
 }
 
 export interface UrlSessionRecordingsParams {

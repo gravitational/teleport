@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { Flex } from 'design';

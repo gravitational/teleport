@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { KeyboardEvent } from 'react';
+import { useState, useEffect, KeyboardEvent } from 'react';
 import {
   Link,
   Text,
@@ -38,11 +38,11 @@ import { State } from './useAddApp';
 export function Automatically(props: Props) {
   const { onClose, attempt, token } = props;
 
-  const [name, setName] = React.useState('');
-  const [uri, setUri] = React.useState('');
-  const [cmd, setCmd] = React.useState('');
+  const [name, setName] = useState('');
+  const [uri, setUri] = useState('');
+  const [cmd, setCmd] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (name && uri) {
       const cmd = createAppBashCommand(token.id, name, uri);
       setCmd(cmd);

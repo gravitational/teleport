@@ -18,139 +18,109 @@ package retryutils
 
 import (
 	"fmt"
-	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewJitterBadParameter(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		n         time.Duration
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			n: -1,
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), err)
-			},
-		},
-		{
-			n: 0,
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), err)
-			},
-		},
-		{
-			n:         1,
-			assertErr: require.NoError,
-		},
-		{
-			n:         7,
-			assertErr: require.NoError,
-		},
-	} {
-		t.Run(fmt.Sprintf("n=%v", tc.n), func(t *testing.T) {
-			_, err := newJitter(tc.n, nil)
-			tc.assertErr(t, err)
-			_, err = newShardedJitter(tc.n, nil)
-			tc.assertErr(t, err)
-		})
-	}
-}
 
 func TestNewJitter(t *testing.T) {
 	t.Parallel()
 
-	baseDuration := time.Second
-	mockInt63nFloor := mockInt63n(func(n int64) int64 { return 0 })
-	mockInt63nCeiling := mockInt63n(func(n int64) int64 { return n - 1 })
-
+	const baseDuration time.Duration = time.Microsecond
 	for _, tc := range []struct {
 		desc          string
-		n             time.Duration
+		jitter        Jitter
 		expectFloor   time.Duration
 		expectCeiling time.Duration
 	}{
 		{
 			desc:          "FullJitter",
-			n:             1,
+			jitter:        FullJitter,
 			expectFloor:   0,
 			expectCeiling: baseDuration - 1,
 		},
 		{
 			desc:          "HalfJitter",
-			n:             2,
+			jitter:        HalfJitter,
 			expectFloor:   baseDuration / 2,
 			expectCeiling: baseDuration - 1,
 		},
 		{
 			desc:          "SeventhJitter",
-			n:             7,
-			expectFloor:   baseDuration * 6 / 7,
+			jitter:        SeventhJitter,
+			expectFloor:   baseDuration - baseDuration/7,
 			expectCeiling: baseDuration - 1,
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
-			testFloorJitter, err := newJitter(tc.n, mockInt63nFloor)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectFloor, testFloorJitter(baseDuration))
-
-			testFloorJitter, err = newShardedJitter(tc.n, func() rng { return mockInt63nFloor })
-			require.NoError(t, err)
-			require.Equal(t, tc.expectFloor, testFloorJitter(baseDuration))
-
-			testCeilingJitter, err := newJitter(tc.n, mockInt63nCeiling)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectCeiling, testCeilingJitter(baseDuration))
-
-			testCeilingJitter, err = newShardedJitter(tc.n, func() rng { return mockInt63nCeiling })
-			require.NoError(t, err)
-			require.Equal(t, tc.expectCeiling, testCeilingJitter(baseDuration))
+			var gotFloor, gotCeiling bool
+			for !gotFloor || !gotCeiling {
+				d := tc.jitter(baseDuration)
+				require.GreaterOrEqual(t, d, tc.expectFloor)
+				if d == tc.expectFloor {
+					gotFloor = true
+				}
+				require.LessOrEqual(t, d, tc.expectCeiling)
+				if d == tc.expectCeiling {
+					gotCeiling = true
+				}
+			}
 		})
 	}
 }
 
-type mockInt63n func(n int64) int64
-
-func (m mockInt63n) Int63n(n int64) int64 {
-	return m(n)
+func mutexedSeventhJitter() Jitter {
+	var mu sync.Mutex
+	return func(d time.Duration) time.Duration {
+		mu.Lock()
+		defer mu.Unlock()
+		return SeventhJitter(d)
+	}
 }
 
-// BenchmarkJitter is an attempt to check the effect of concurrency on the performance
-// of a global jitter instance. I'm a bit skeptical of how "true to life" this benchmark
-// really is, but the results would seem to indicate that >100k concurrent jitters would
-// still all complete in <1s, which is very good for our purposes.
-func BenchmarkSingleJitter(b *testing.B) {
-	benchmarkSharedJitter(b, NewHalfJitter())
+func shardedSeventhJitter() Jitter {
+	const shards = 64
+
+	var jitters [shards]Jitter
+	for i := range jitters {
+		jitters[i] = mutexedSeventhJitter()
+	}
+	var ctr atomic.Uint64
+
+	return func(d time.Duration) time.Duration {
+		return jitters[ctr.Add(1)%shards](d)
+	}
 }
 
-func BenchmarkShardedJitter(b *testing.B) {
-	benchmarkSharedJitter(b, NewShardedHalfJitter())
-}
-
-func benchmarkSharedJitter(b *testing.B, jitter Jitter) {
-	benchmarkJitter(b, func() Jitter { return jitter })
-}
-
-func benchmarkJitter(b *testing.B, mkjitter func() Jitter) {
-	procs := runtime.GOMAXPROCS(0)
-	for n := procs; n < 200_000; n = n * 2 {
-		b.Run(fmt.Sprintf("n%d", n), func(b *testing.B) {
-			b.SetParallelism(n / procs)
-			b.RunParallel(func(pb *testing.PB) {
-				jitter := mkjitter()
-				for pb.Next() {
-					jitter(time.Hour)
-				}
-			})
+func BenchmarkJitter(b *testing.B) {
+	impls := map[string]Jitter{
+		"old_global":  mutexedSeventhJitter(),
+		"old_sharded": shardedSeventhJitter(),
+		"new":         SeventhJitter,
+	}
+	for impl, jitter := range impls {
+		b.Run("impl="+impl, func(b *testing.B) {
+			for parShift := range 6 {
+				par := 1 << (parShift * 4)
+				b.Run(fmt.Sprintf("par=%d", par), func(b *testing.B) {
+					var wg sync.WaitGroup
+					wg.Add(par)
+					for range par {
+						go func() {
+							defer wg.Done()
+							for range b.N {
+								jitter(time.Hour)
+							}
+						}()
+					}
+					wg.Wait()
+				})
+			}
 		})
 	}
 }

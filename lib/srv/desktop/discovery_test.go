@@ -30,6 +30,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -268,37 +269,46 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(ctx, desktop)
 			require.NoError(t, err)
 
-			time.Sleep(10 * time.Millisecond)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, desktops, testCase.expected) {
+					return
+				}
 
-			desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-			require.NoError(t, err)
-			require.Len(t, desktops, testCase.expected)
-			if testCase.expected > 0 {
-				require.Equal(t, desktop.GetName(), desktops[0].GetName())
-				require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
-			}
+				if testCase.expected > 0 {
+					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
+					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+				}
+			}, 5*time.Second, 50*time.Millisecond)
 
 			desktop.Spec.Addr = "addr2"
 			_, err = dynamicWindowsClient.UpsertDynamicWindowsDesktop(ctx, desktop)
 			require.NoError(t, err)
 
-			time.Sleep(10 * time.Millisecond)
-			desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-			require.NoError(t, err)
-			require.Len(t, desktops, testCase.expected)
-			if testCase.expected > 0 {
-				require.Equal(t, desktop.GetName(), desktops[0].GetName())
-				require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
-			}
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, desktops, testCase.expected) {
+					return
+				}
+				if testCase.expected > 0 {
+					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
+					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+				}
+			}, 5*time.Second, 50*time.Millisecond)
 
 			require.NoError(t, dynamicWindowsClient.DeleteDynamicWindowsDesktop(ctx, "test"))
 
-			time.Sleep(10 * time.Millisecond)
-
-			desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-			require.NoError(t, err)
-			require.Empty(t, desktops)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				assert.NoError(t, err)
+				assert.Empty(t, desktops)
+			}, 5*time.Second, 50*time.Millisecond)
 		})
-
 	}
 }

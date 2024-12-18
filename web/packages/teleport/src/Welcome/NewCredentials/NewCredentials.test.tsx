@@ -19,7 +19,6 @@
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { render, screen } from 'design/utils/testing';
-import React from 'react';
 
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';

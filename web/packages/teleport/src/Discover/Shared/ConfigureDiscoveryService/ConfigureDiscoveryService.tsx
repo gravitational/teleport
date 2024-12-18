@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import { Box, Text, Mark } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
 import { render, fireEvent, screen, waitFor } from 'design/utils/testing';

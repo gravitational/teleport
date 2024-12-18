@@ -26,7 +26,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +33,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
@@ -51,7 +49,6 @@ func TestUpdate(t *testing.T) {
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
-		clientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),
@@ -93,7 +90,6 @@ func TestParallelUpdate(t *testing.T) {
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
-		clientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),
@@ -167,7 +163,6 @@ func TestUpdateInterruptSignal(t *testing.T) {
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
-		clientTools(),
 		toolsDir,
 		testVersions[0],
 		tools.WithBaseURL(baseURL),
@@ -219,13 +214,4 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Contains(t, output.String(), "Update progress:")
-}
-
-func clientTools() []string {
-	switch runtime.GOOS {
-	case constants.WindowsOS:
-		return []string{"tsh.exe", "tctl.exe"}
-	default:
-		return []string{"tsh", "tctl"}
-	}
 }

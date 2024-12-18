@@ -133,7 +133,7 @@ In direct mode, SSH Service instances act like OpenSSH servers that only accept
 client SSH certificates. Users can connect to SSH servers through the Teleport
 Proxy Service as a jump-host or directly:
 
-![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.svg)
+![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.png)
 
 Direct mode is designed for legacy use cases and only supports self-hosted
 Teleport clusters. We recommend joining agents through the Teleport Proxy
@@ -180,13 +180,13 @@ Teleport cluster:
 - [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh.mdx)
 - [Windows desktops](../../enroll-resources/desktop-access/getting-started.mdx)
 
-## Clients to agents
+## Clients to Agents
 
-Client tools authenticate to Teleport agent by presenting certificates signed by
-a Teleport certificate authority, forwarding traffic to the agent through an SSH
-reverse tunnel established between the Teleport Proxy Service and the agent.
+Client tools authenticate to Teleport Agents by presenting certificates signed by
+a Teleport certificate authority, forwarding traffic to the Agent through an SSH
+reverse tunnel established between the Teleport Proxy Service and the Agent.
 Clients need to retrieve a certificate, then connect to an infrastructure
-resource through the agent.
+resource through the Agent.
 
 ### Credentials for Teleport clients
 
@@ -275,5 +275,5 @@ Reference](../monitoring/audit.mdx).
 
 ## Further reading
 
-- For instructions on deploying agents, see the [Teleport agent
+- For instructions on deploying agents, see the [Teleport Agent
   guides](../../enroll-resources/agents/introduction.mdx).

@@ -207,7 +207,7 @@ install_via_zypper() {
 }
 
 
-# download .tar.gz file via curl/wget, unzip it and run the install sript
+# download .tar.gz file via curl/wget, unzip it and run the install script
 install_via_curl() {
   TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
 
@@ -386,6 +386,9 @@ install_teleport() {
   fi
   if type fdpass-teleport &>/dev/null; then
     echo "  fdpass-teleport - Teleport Machine ID client."
+  fi
+  if type teleport-update &>/dev/null; then
+    echo "  teleport-update - Teleport auto-update agent."
   fi
 }
 

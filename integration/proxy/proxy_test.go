@@ -1236,7 +1236,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// advance the fake clock and verify that the local proxy thinks its cert expired.
 		fakeClock.Advance(time.Hour * 48)
-		err = lp.CheckDBCert(routeToDatabase)
+		err = lp.CheckDBCert(context.Background(), routeToDatabase)
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
@@ -1614,7 +1614,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
 	defer cancel()
 
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 1)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 1)
 	require.NoError(t, err)
 
 	require.Zero(t, ph.Count())
@@ -1624,7 +1624,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	require.NoError(t, os.Unsetenv("no_proxy"))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.NoError(t, err)
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 2)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 2)
 	require.NoError(t, err)
 
 	require.NotZero(t, ph.Count())
@@ -1723,7 +1723,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		startErrC <- err
 	}()
 	require.NoError(t, <-startErrC)
-	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.NoError(t, rc.WaitForNodeCount(context.Background(), rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
 }
 

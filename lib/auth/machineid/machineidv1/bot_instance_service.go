@@ -102,7 +102,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

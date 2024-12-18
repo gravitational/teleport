@@ -287,3 +287,27 @@ func (s *sharedDestinationArgs) BuildDestination() (bot.Destination, error) {
 
 	return dest, nil
 }
+
+// CommandMode is a simple enum to help shared start/configure command
+// substitute the correct verb based on whether they are being used for "start"
+// or "configure" actions.
+type CommandMode int
+
+const (
+	// CommandModeStart indicates a command instance will be used for
+	// `tbot start ...`
+	CommandModeStart CommandMode = iota
+
+	// CommandModeConfigure indicates a command instance will be used for
+	// `tbot configure ...`
+	CommandModeConfigure
+)
+
+func (c CommandMode) String() string {
+	switch c {
+	case CommandModeConfigure:
+		return "Configures"
+	default:
+		return "Starts"
+	}
+}

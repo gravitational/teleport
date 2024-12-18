@@ -17,12 +17,12 @@ other .proto files used to generate the CRDs have changed).
 
 #### Generate the new CRD
 
-1. Add the type name to the `resources` list in `crdgen/main.go`.
+1. Add the type name to the `resources` list in `crdgen/handlerequest.go`.
 2. Add the proto file to the `PROTOS` list in `Makefile` if it is not
    already present. Also add it to the `PROTOS` list in `crdgen/Makefile`.
 3. Run `make manifests` to generate the CRD.
 4. Run `make crdgen-test`. This will should fail if your new CRD is generated.
-   Update the test snapshots with `make -C crdgen update-snapshots`
+   Update the test snapshots with `make -C crdgen update-snapshot`
 
 #### Create a "scheme" defining Go types to match the CRD
 
@@ -40,13 +40,16 @@ Follow the same patterns of existing reconcilers in those packages.
 Use the generic TeleportResourceReconciler if possible, that way you only have
 to implement CRUD methods for your resource.
 
-Write unit tests for your reconciler. Use the generic `testResourceCreation`,
-`testResourceDeletionDrift`, and `testResourceUpdate` helpers to get baseline
+Write unit tests for your reconciler. Use the generic `ResourceCreationTest`,
+`ResourceDeletionDriftTest`, and `ResourceUpdateTest` helpers to get baseline
 coverage.
+
+Update the `defaultTeleportServiceConfig` teleport role in
+`controllers/resources/testlib/env.go` with any new required permissions.
 
 #### Register your reconciler and scheme
 
-In `main.go` and `controllers/resources/testlib/env.go` instantiate your
+In `controllers/resources/setup.go` instantiate your
 controller and register it with the controller-runtime manager.
 Follow the pattern of existing resources which instantiate the reconciler and
 call the `SetupWithManager(mgr)` method.
@@ -59,11 +62,10 @@ your resource version is added to the root `scheme` with a call like
 
 Add Kubernetes RBAC permissions to allow the operator to work with the resources
 on the Kubernetes side.
-The cluster role spec is found in  `../../examples/chart/teleport-cluster/templates/auth/clusterrole.yaml`.
+The cluster role spec is found in  `../../examples/chart/teleport-cluster/templates/auth/config.yaml`.
 
-Add Teleport RBAC permissions for to allow the operator to work with the
-resources on the Teleport side.
-These should be added to the sidecar role in `sidecar/sidecar.go`.
+Update the RBAC permissions in `hack/fixture-operator-role.yaml` to update
+operator the role used for debugging.
 
 ### Debugging tips
 

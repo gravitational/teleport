@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MemoryRouter, Link } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
@@ -152,15 +152,27 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
-export const FailedUnsupportedKubeResourceKind = () => (
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
   <MemoryRouter>
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
       fetchResourceRequestRolesAttempt={{
         status: 'failed',
-        statusText:
-          'Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster "pumpkin-kube-cluster". Allowed kinds: [pod secret]',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
       }}
     />
   </MemoryRouter>
@@ -184,7 +196,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
     'namespace3',
     'namespace4',
   ],
-  bulkToggleKubeResources: () => null,
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
@@ -228,6 +240,11 @@ const baseProps: RequestCheckoutWithSliderProps = {
       kind: 'saml_idp_service_provider',
       name: 'app-saml',
       id: 'app-name',
+    },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'admin-on-account1',
     },
   ],
   clearAttempt: () => null,

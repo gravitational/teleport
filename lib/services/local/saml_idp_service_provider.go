@@ -419,9 +419,13 @@ func spReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, serviceP
 		if !ok {
 			continue
 		}
-
-		if pluginV1.Spec.GetAwsIc().SamlIdpServiceProviderName == serviceProviderName {
-			return trace.BadParameter("cannot delete SAML service provider currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
+		if pluginV1.GetType() != types.PluginType(types.PluginTypeAWSIdentityCenter) {
+			continue
+		}
+		if awsIC := pluginV1.Spec.GetAwsIc(); awsIC != nil {
+			if awsIC.SamlIdpServiceProviderName == serviceProviderName {
+				return trace.BadParameter("cannot delete SAML service provider currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
+			}
 		}
 	}
 

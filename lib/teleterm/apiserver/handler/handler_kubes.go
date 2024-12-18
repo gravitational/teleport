@@ -30,24 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 )
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination
-func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {
-	resp, err := s.DaemonService.GetKubes(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &api.GetKubesResponse{
-		TotalCount: int32(resp.TotalCount),
-		StartKey:   resp.StartKey,
-	}
-	for _, kube := range resp.Kubes {
-		response.Agents = append(response.Agents, newAPIKube(kube))
-	}
-
-	return response, nil
-}
-
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKubernetesResourcesRequest) (*api.ListKubernetesResourcesResponse, error) {
@@ -56,16 +38,18 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
+	resources, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListKubernetesResourcesResponse{
-		NextKey: resp.NextKey,
-	}
+	response := &api.ListKubernetesResourcesResponse{}
 
-	for _, kubeResource := range resp.Resources {
+	for _, resource := range resources {
+		kubeResource, ok := resource.(*types.KubernetesResourceV1)
+		if !ok {
+			return nil, trace.BadParameter("expected resource type %T, got %T", types.KubernetesResourceV1{}, resource)
+		}
 		response.Resources = append(response.Resources, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
 	}
 

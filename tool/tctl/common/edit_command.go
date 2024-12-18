@@ -39,39 +39,47 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
 // Teleport resources.
 type EditCommand struct {
-	app    *kingpin.Application
-	cmd    *kingpin.CmdClause
-	config *servicecfg.Config
-	ref    services.Ref
+	app     *kingpin.Application
+	cmd     *kingpin.CmdClause
+	config  *servicecfg.Config
+	ref     services.Ref
+	confirm bool
 
 	// Editor is used by tests to inject the editing mechanism
 	// so that different scenarios can be asserted.
 	Editor func(filename string) error
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
 	e.cmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
-	
+
 	Example:
 	$ tctl edit rc/remote`).SetValue(&e.ref)
+	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 
-func (e *EditCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error) {
+func (e *EditCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
 	if cmd != e.cmd.FullCommand() {
 		return false, nil
 	}
-
-	err := e.editResource(ctx, client)
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+	err = e.editResource(ctx, client)
 	return true, trace.Wrap(err)
 }
 
@@ -115,8 +123,9 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		filename:    f.Name(),
 		force:       true,
 		withSecrets: true,
+		confirm:     e.confirm,
 	}
-	rc.Initialize(e.app, e.config)
+	rc.Initialize(e.app, nil, e.config)
 
 	err = rc.Get(ctx, client)
 	if closeErr := f.Close(); closeErr != nil {

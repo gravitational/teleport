@@ -20,10 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"math"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -96,7 +96,7 @@ func DefaultClientCertPool(ctx context.Context, client CAGetter, clusterName str
 
 // WithClusterCAs returns a TLS hello callback that returns a copy of the provided
 // TLS config with client CAs pool of the specified cluster.
-func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName string, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName string, logger *slog.Logger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -105,14 +105,14 @@ func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName strin
 			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil {
 				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
+					logger.DebugContext(info.Context(), "Ignoring unsupported cluster name name", "cluster_name", info.ServerName)
 					clusterName = ""
 				}
 			}
 		}
 		pool, totalSubjectsLen, err := DefaultClientCertPool(info.Context(), ap, clusterName)
 		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
+			logger.ErrorContext(info.Context(), "Failed to retrieve client pool for cluster", "error", err, "cluster", clusterName)
 			// this falls back to the default config
 			return nil, nil
 		}
@@ -130,11 +130,11 @@ func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName strin
 		// the current cluster CA. In the unlikely case where it's wrong, the
 		// client will be rejected.
 		if totalSubjectsLen >= int64(math.MaxUint16) {
-			log.Debugf("Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.")
+			logger.DebugContext(info.Context(), "Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate")
 
 			pool, _, err = DefaultClientCertPool(info.Context(), ap, currentClusterName)
 			if err != nil {
-				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
+				logger.ErrorContext(info.Context(), "Failed to retrieve client pool for cluster", "error", err, "cluster", currentClusterName)
 				// this falls back to the default config
 				return nil, nil
 			}

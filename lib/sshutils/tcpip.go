@@ -21,10 +21,10 @@ package sshutils
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -48,7 +48,7 @@ type DirectTCPIPReq struct {
 func ParseDirectTCPIPReq(data []byte) (*DirectTCPIPReq, error) {
 	var r DirectTCPIPReq
 	if err := ssh.Unmarshal(data, &r); err != nil {
-		log.Infof("failed to parse Direct TCP IP request: %v", err)
+		slog.InfoContext(context.Background(), "failed to parse Direct TCP IP request", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	return &r, nil
@@ -67,7 +67,7 @@ type TCPIPForwardReq struct {
 func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
 	var r TCPIPForwardReq
 	if err := ssh.Unmarshal(data, &r); err != nil {
-		log.Infof("failed to parse TCP IP Forward request: %v", err)
+		slog.InfoContext(context.Background(), "failed to parse TCP IP Forward request", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	return &r, nil
@@ -90,18 +90,19 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr str
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					log.WithError(err).Warn("failed to accept connection")
+					slog.WarnContext(ctx, "failed to accept connection", "error", err)
 				}
 				return
 			}
-			logger := log.WithFields(log.Fields{
-				"srcAddr":    srcAddr,
-				"remoteAddr": conn.RemoteAddr().String(),
-			})
+			logger := slog.With(
+				"src_addr", srcAddr,
+				"remote_addr", conn.RemoteAddr().String(),
+			)
 
 			dstHost, dstPort, err := SplitHostPort(conn.RemoteAddr().String())
 			if err != nil {
-				logger.WithError(err).Warn("failed to parse addr")
+				conn.Close()
+				logger.WarnContext(ctx, "failed to parse addr", "error", err)
 				return
 			}
 
@@ -112,14 +113,16 @@ func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr str
 				OrigPort: dstPort,
 			}
 			if err := req.CheckAndSetDefaults(); err != nil {
-				logger.WithError(err).Warn("failed to create forwarded tcpip request")
+				conn.Close()
+				logger.WarnContext(ctx, "failed to create forwarded tcpip request", "error", err)
 				return
 			}
 			reqBytes := ssh.Marshal(req)
 
 			ch, rch, err := sshConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
 			if err != nil {
-				logger.WithError(err).Warn("failed to open channel")
+				conn.Close()
+				logger.WarnContext(ctx, "failed to open channel", "error", err)
 				continue
 			}
 			go ssh.DiscardRequests(rch)

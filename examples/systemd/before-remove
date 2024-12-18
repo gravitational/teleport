@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# This before remove script is run each time the teleport package is removed.
+
+set -eu
+
+echo "Removing symlinks from Teleport system paths..."
+/opt/teleport/system/bin/teleport-update unlink-package || true

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useRef, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import Popover from 'design/Popover';
 import { Box } from 'design';
@@ -24,10 +24,10 @@ import { debounce } from 'shared/utils/highbar';
 
 export default function JoinedUsers(props) {
   const { active, users, open = false, ml, mr } = props;
-  const ref = React.useRef(null);
-  const [isOpen, setIsOpen] = React.useState(open);
+  const ref = useRef(null);
+  const [isOpen, setIsOpen] = useState(open);
 
-  const handleOpen = React.useMemo(() => {
+  const handleOpen = useMemo(() => {
     return debounce(() => setIsOpen(true), 300);
   }, []);
 

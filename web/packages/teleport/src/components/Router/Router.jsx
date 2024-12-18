@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
 import {
   useRouteMatch,
   useParams,
@@ -46,7 +46,7 @@ const Route = props => {
   const { title = '', ...rest } = props;
   const { clusterId } = useParams();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (title && clusterId) {
       document.title = `${clusterId} • ${title}`;
     } else if (title) {

@@ -82,24 +82,40 @@ func TestServiceAccess(t *testing.T) {
 		allowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name:          "UpsertDatabaseObject",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate, types.VerbCreate},
+			name: "UpsertDatabaseObject",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:          "CreateDatabaseObject",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate},
+			name: "CreateDatabaseObject",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
-			name:          "UpdateDatabaseObject",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate},
+			name: "UpdateDatabaseObject",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
-			name:          "DeleteDatabaseObject",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbDelete},
+			name: "DeleteDatabaseObject",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
 			name: "GetDatabaseObject",

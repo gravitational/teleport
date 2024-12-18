@@ -222,7 +222,7 @@ func (s *Service) UpdateRemoteCluster(
 	if err := authCtx.CheckAccessToKind(types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,7 +295,7 @@ func (s *Service) DeleteRemoteCluster(
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

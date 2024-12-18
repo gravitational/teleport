@@ -39,7 +39,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -59,6 +58,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -339,7 +339,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	session := scx.getSession()
 	if session != nil && !session.isStopped() {
-		scx.Infof("Joining existing session %v.", session.id)
+		scx.Logger.InfoContext(ctx, "Joining existing session", "session_id", session.id)
 		mode := types.SessionParticipantMode(scx.env[teleport.EnvSSHJoinMode])
 		if mode == "" {
 			mode = types.SessionPeerMode
@@ -374,9 +374,9 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(sess, ch)
+	scx.setSession(ctx, sess, ch)
 	s.addSession(sess)
-	scx.Infof("Creating (interactive) session %v.", sid)
+	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sid)
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -393,11 +393,11 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
-		scx.Tracef("Session not found, creating a new session %s", sessionID)
+		scx.Logger.Log(ctx, logutils.TraceLevel, "Session not found, creating a new session", "sessin_id", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
-		scx.Tracef("Session found, reusing it %s", sessionID)
+		scx.Logger.Log(ctx, logutils.TraceLevel, "Session found, reusing it", "session_id", sessionID)
 	}
 
 	// This logic allows concurrent request to create a new session
@@ -406,7 +406,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Infof("Creating (exec) session %v.", sessionID)
+	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sessionID)
 
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
@@ -428,7 +428,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(sess, channel)
+	scx.setSession(ctx, sess, channel)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -1299,7 +1299,7 @@ func (s *session) launch() {
 
 		_, err := io.Copy(s.io, s.term.PTY())
 		s.logger.DebugContext(
-			s.serverCtx, "Copying from PTY to writer completed with error.",
+			s.serverCtx, "Copying from PTY to writer completed",
 			"error", err,
 		)
 	}()
@@ -1310,7 +1310,7 @@ func (s *session) launch() {
 
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.logger.DebugContext(
-			s.serverCtx, "Copying from reader to PTY completed with error.",
+			s.serverCtx, "Copying from reader to PTY completed",
 			"error", err,
 		)
 	}()
@@ -1366,12 +1366,31 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
-	if err := s.term.WaitForChild(); err != nil {
-		s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-		return trace.Wrap(err)
+	bpfService := scx.srv.GetBPF()
+
+	// Only wait for the child to be "ready" if BPF is enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	if bpfService.Enabled() {
+		if err := s.term.WaitForChild(); err != nil {
+			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
+			return trace.Wrap(err)
+		}
+	} else {
+		// Clean up the read half of the pipe, and set it to nil so that when the
+		// ServerContext is closed it doesn't attempt to a second close.
+		if err := s.scx.readyr.Close(); err != nil {
+			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
+		}
+		s.scx.readyr = nil
 	}
 
-	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 		return trace.Wrap(err)
 	} else if cgroupID > 0 {
@@ -1380,8 +1399,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
-			if err != nil {
+			if err := bpfService.CloseSession(sessionContext); err != nil {
 				s.logger.ErrorContext(ctx, "Failed to close enhanced recording (interactive) session.", "error", err)
 			}
 		}()
@@ -1522,7 +1540,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			"request", execRequest,
 			"result", result,
 		)
-		scx.SendExecResult(*result)
+		scx.SendExecResult(ctx, *result)
 	}
 
 	// Open a BPF recording session. If BPF was not configured, not available,
@@ -1567,7 +1585,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	go func() {
 		result = execRequest.Wait()
 		if result != nil {
-			scx.SendExecResult(*result)
+			scx.SendExecResult(ctx, *result)
 		}
 
 		// Wait a little bit to let all events filter through before closing the
@@ -2148,7 +2166,7 @@ func (s *session) getParties() (parties []*party) {
 type party struct {
 	sync.Mutex
 
-	log        *log.Entry
+	log        *slog.Logger
 	login      string
 	user       string
 	serverID   string
@@ -2164,10 +2182,12 @@ type party struct {
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
+	pid := rsession.NewID()
 	return &party{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-		}),
+		log: slog.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+			"party_id", pid,
+		),
 		user:     ctx.Identity.TeleportUser,
 		login:    ctx.Identity.Login,
 		serverID: s.registry.Srv.ID(),
@@ -2219,7 +2239,7 @@ func (p *party) Close() error {
 func (p *party) closeUnderSessionLock() error {
 	var err error
 	p.closeOnce.Do(func() {
-		p.log.Infof("Closing party %v", p.id)
+		p.log.InfoContext(p.ctx.cancelContext, "Closing party")
 		// Remove party from its session
 		err = trace.NewAggregate(p.s.removePartyUnderLock(p), p.ch.Close())
 	})

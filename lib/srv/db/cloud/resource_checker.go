@@ -20,9 +20,9 @@ package cloud
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -46,8 +46,8 @@ type DiscoveryResourceCheckerConfig struct {
 	Clients cloud.Clients
 	// Context is the database server close context.
 	Context context.Context
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// Logger is used for logging.
+	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -62,8 +62,8 @@ func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentDatabase)
 	}
 	return nil
 }

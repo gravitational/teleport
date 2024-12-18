@@ -79,6 +79,7 @@ AssignPolicy: {
             "sso:DescribePermissionSet",
             "sso:ListPermissionSets",
             "sso:ListAccountAssignmentsForPrincipal",
+            "sso:ListPermissionSetsProvisionedToAccount",
             "sso:CreateAccountAssignment",
             "sso:DescribeAccountAssignmentCreationStatus",
             "sso:DeleteAccountAssignment",

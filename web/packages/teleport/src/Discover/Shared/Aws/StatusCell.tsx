@@ -17,7 +17,6 @@
  */
 
 import { Flex } from 'design';
-import React from 'react';
 
 import { DisableableCell as Cell } from 'teleport/Discover/Shared';
 

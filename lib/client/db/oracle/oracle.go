@@ -42,8 +42,8 @@ import (
 // wallet.jks   - Java Wallet format used by JDBC Drivers.
 // sqlnet.ora   - Generic Oracle Client Configuration File allowing to specify Wallet Location.
 // tnsnames.ora - Oracle Net Service mapped to connections descriptors.
-func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
-	walletPath := profile.OracleWalletDir(profile.Cluster, db.ServiceName)
+func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase, profile *client.ProfileStatus, siteName string) error {
+	walletPath := profile.OracleWalletDir(siteName, db.ServiceName)
 	if err := os.MkdirAll(walletPath, teleport.PrivateDirMode); err != nil {
 		return trace.Wrap(err)
 	}

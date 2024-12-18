@@ -181,12 +181,12 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	case types.KindAccessMonitoringRule:
 		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
 	case types.KindAccessRequest:
-		return trace.Wrap(a.handleAcessRequest(ctx, event))
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
 	}
 	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
 }
 
-func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
 	ctx, _ = logger.WithField(ctx, "request_id", reqID)

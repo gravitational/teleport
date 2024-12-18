@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';

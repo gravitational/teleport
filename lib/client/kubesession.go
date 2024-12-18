@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -196,7 +195,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 		}
 
 		go func() {
-			RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
+			RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFACeremony())
 			auth.Close()
 			clt.Close()
 		}()

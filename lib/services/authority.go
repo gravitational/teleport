@@ -396,6 +396,12 @@ type UserCertParams struct {
 	// DeviceCredentialID is the identifier for the credential used by the device
 	// to authenticate itself.
 	DeviceCredentialID string
+	// GitHubUserID indicates the GitHub user ID identified by the GitHub
+	// connector.
+	GitHubUserID string
+	// GitHubUserID indicates the GitHub username identified by the GitHub
+	// connector.
+	GitHubUsername string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

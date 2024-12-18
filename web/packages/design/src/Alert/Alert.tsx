@@ -22,6 +22,8 @@ import { style, color, ColorProps } from 'styled-system';
 
 import { IconProps } from 'design/Icon/Icon';
 
+import { StatusIcon, StatusKind } from 'design/StatusIcon';
+
 import { space, SpaceProps, width, WidthProps } from '../system';
 import { Theme } from '../theme';
 import * as Icon from '../Icon';
@@ -193,7 +195,12 @@ export const Alert = ({
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
       <InnerContainer kind={kind}>
         <IconContainer kind={kind}>
-          <AlertIcon kind={kind} customIcon={icon} size={alertIconSize} />
+          <StatusIcon
+            kind={iconKind(kind)}
+            customIcon={icon}
+            size={alertIconSize}
+            color="inherit"
+          />
         </IconContainer>
         <Box
           flex="1"
@@ -248,36 +255,6 @@ const InnerContainer = styled.div<AlertPropsWithRequiredKind>`
 
   ${backgroundColor}
 `;
-
-const AlertIcon = ({
-  kind,
-  customIcon: CustomIcon,
-  ...otherProps
-}: {
-  kind: AlertKind | BannerKind;
-  customIcon?: React.ComponentType<IconProps>;
-} & IconProps) => {
-  const commonProps = { role: 'graphics-symbol', ...otherProps };
-  if (CustomIcon) {
-    return <CustomIcon {...commonProps} />;
-  }
-  switch (kind) {
-    case 'success':
-      return <Icon.Checks aria-label="Success" {...commonProps} />;
-    case 'danger':
-    case 'outline-danger':
-      return <Icon.WarningCircle aria-label="Danger" {...commonProps} />;
-    case 'info':
-    case 'outline-info':
-      return <Icon.Info aria-label="Info" {...commonProps} />;
-    case 'warning':
-    case 'outline-warn':
-      return <Icon.Warning aria-label="Warning" {...commonProps} />;
-    case 'neutral':
-    case 'primary':
-      return <Icon.Notification aria-label="Note" {...commonProps} />;
-  }
-};
 
 const iconContainerStyles = ({
   kind,
@@ -468,7 +445,12 @@ export const Banner = ({
       gap={3}
       alignItems="center"
     >
-      <AlertIcon kind={kind} customIcon={icon} size="large" color={iconColor} />
+      <StatusIcon
+        kind={iconKind(kind)}
+        customIcon={icon}
+        size="large"
+        color={iconColor}
+      />
       <Box flex="1">
         <Text typography="h3">{children}</Text>
         {details}
@@ -523,5 +505,20 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
         foregroundColor: theme.colors.interactive.solid.success.default,
         iconColor: theme.colors.interactive.solid.success.default,
       };
+  }
+};
+
+const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
+  switch (kind) {
+    case 'outline-danger':
+      return 'danger';
+    case 'outline-warn':
+      return 'warning';
+    case 'outline-info':
+      return 'info';
+    case 'primary':
+      return 'neutral';
+    default:
+      return kind;
   }
 };

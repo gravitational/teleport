@@ -22,12 +22,12 @@ import Logger from 'shared/libs/logger';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { Box, Indicator } from 'design';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import session from 'teleport/services/websession';
 import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
 import { StyledIndicator } from 'teleport/Main';
-import { TrustedDeviceRequirement } from 'teleport/DeviceTrust/types';
 
 import { ErrorDialog } from './ErrorDialogue';
 

@@ -54,12 +54,14 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, tc types.TrustedClust
 	// It is recommended to omit trusted cluster name because the trusted cluster name
 	// is updated to the roots cluster name during the handshake with the root cluster.
 	var existingCluster types.TrustedCluster
-	var cas []types.CertAuthority
 	if tc.GetName() != "" {
-		var err error
-		existingCluster, err = a.GetTrustedCluster(ctx, tc.GetName())
+		ec, err := a.GetTrustedCluster(ctx, tc.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		}
+
+		if err == nil {
+			existingCluster = ec
 		}
 	}
 

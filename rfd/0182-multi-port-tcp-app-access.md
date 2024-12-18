@@ -186,7 +186,7 @@ ports.
 
 ##### Embedding the port within SNI or an ALPN protocol
 
-The port number could be included within TLS config on the client side, either as a special sudomain
+The port number could be included within TLS config on the client side, either as a special subdomain
 in the SNI, e.g. `app-teleport-proxy-target-port-1337.teleport.cluster.local`, or a new ALPN
 protocol, say `teleport-tcp@1337`.
 
@@ -544,8 +544,7 @@ Changes in `api/proto/teleport/legacy/client/proto/authservice.proto`:
 +  // Used merely for audit events and mirrors the URI from the app spec.
    string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
 +  // TargetPort signifies that the cert grants access to a specific port in a multi-port TCP app, as
-+  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535 and
-+  // the URI is expected to use this port as well.
++  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535.
 +  // Used only for routing, should not be used in other contexts (e.g., access requests).
 +  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
  }

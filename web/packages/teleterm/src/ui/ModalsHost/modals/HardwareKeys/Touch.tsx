@@ -29,10 +29,12 @@ import { CommonHeader } from './CommonHeader';
 export function Touch(props: {
   req: PromptHardwareKeyTouchRequest;
   onCancel(): void;
+  hidden?: boolean;
 }) {
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -49,7 +48,12 @@ type BotIntegration = {
   kind: IntegrationEnrollKind;
 };
 
-const StyledResourceIcon = styled(ResourceIcon).attrs({ width: '80px' })``;
+const StyledResourceIcon = styled(ResourceIcon)`
+  margin: 0 auto;
+  height: 100%;
+  min-width: 0;
+  max-width: 80px;
+`;
 
 const integrations: BotIntegration[] = [
   {
@@ -83,7 +87,7 @@ const integrations: BotIntegration[] = [
   {
     title: 'Ansible',
     link: 'https://goteleport.com/docs/machine-id/access-guides/ansible/',
-    icon: <ResourceIcon name="ansible" />,
+    icon: <StyledResourceIcon name="ansible" />,
     kind: IntegrationEnrollKind.MachineIDAnsible,
     guided: false,
   },
@@ -118,7 +122,7 @@ const integrations: BotIntegration[] = [
   {
     title: 'Kubernetes',
     link: 'https://goteleport.com/docs/machine-id/deployment/kubernetes/',
-    icon: <ResourceIcon name="kube" />,
+    icon: <StyledResourceIcon name="kube" />,
     kind: IntegrationEnrollKind.MachineIDKubernetes,
     guided: false,
   },
@@ -252,9 +256,7 @@ export function DisplayTile({
 function TileContent({ icon, title }) {
   return (
     <>
-      <Box mt={3} mb={2}>
-        {icon}
-      </Box>
+      <Flex flexBasis={100}>{icon}</Flex>
       <Text>{title}</Text>
     </>
   );

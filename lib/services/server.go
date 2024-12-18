@@ -128,6 +128,9 @@ func compareServers(a, b types.Server) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -433,4 +436,13 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
+}
+
+// EqualFromBool is a helper function that converts a boolean value to an integer
+// value that represents the equality status.
+func EqualFromBool(b bool) int {
+	if !b {
+		return Different
+	}
+	return Equal
 }

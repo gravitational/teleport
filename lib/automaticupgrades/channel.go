@@ -20,13 +20,13 @@ package automaticupgrades
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
@@ -57,12 +57,12 @@ func (c Channels) CheckAndSetDefaults() error {
 	// Else if cloud/stable channel is specified in the config, we use it as default.
 	// Else, we build a default channel based on the teleport binary version.
 	if _, ok := c[DefaultChannelName]; ok {
-		log.Debugln("'default' automatic update channel manually specified, honoring it.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel manually specified, honoring it")
 	} else if cloudDefaultChannel, ok := c[DefaultCloudChannelName]; ok {
-		log.Debugln("'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default")
 		c[DefaultChannelName] = cloudDefaultChannel
 	} else {
-		log.Debugln("'default' automatic update channel not specified, teleport will serve its version by default.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel not specified, teleport will serve its version by default")
 		c[DefaultChannelName] = defaultChannel
 	}
 

@@ -9,7 +9,7 @@ See the [Export Events with FluentD Guide](https://goteleport.com/docs/managemen
 ## How it works
 
 * `teleport-event-handler` takes the Audit Log event stream from Teleport. It loads events in batches of 20 by default. Every event gets sent to fluentd.
-* Once event is successfully received by fluentd, it's ID is saved to the `teleport-event-handler` state. In case `teleport-event-handler` crashes, it will pick the stream up from a latest successful event.
+* Once event is successfully received by fluentd, its ID is saved to the `teleport-event-handler` state. In case `teleport-event-handler` crashes, it will pick the stream up from a latest successful event.
 * Once all events are sent, `teleport-event-handler` starts polling for new evetns. It happens every 5 seconds by default.
 * If storage directory gets lost, you may specify latest event id value. `teleport-event-handler` will pick streaming up from the next event after it.
 

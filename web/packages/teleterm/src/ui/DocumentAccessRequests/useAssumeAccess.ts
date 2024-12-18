@@ -30,12 +30,12 @@ export function useAssumeAccess() {
     rootClusterUri,
     documentsService,
   } = useWorkspaceContext();
-  const { requestResourcesRefresh } = useResourcesContext();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
 
   const [assumeRoleAttempt, runAssumeRole] = useAsync((requestId: string) =>
     retryWithRelogin(ctx, clusterUri, async () => {
       await ctx.clustersService.assumeRoles(rootClusterUri, [requestId]);
-      // refresh the current resource tabs
+      // Refresh the current resource tabs in the workspace.
       requestResourcesRefresh();
     })
   );
@@ -58,7 +58,7 @@ export function useAssumeAccess() {
       return;
     }
 
-    // refresh the current resource tabs
+    // Refresh the current resource tabs in the workspace.
     requestResourcesRefresh();
 
     // open new cluster tab

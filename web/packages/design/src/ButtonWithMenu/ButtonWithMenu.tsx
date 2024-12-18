@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, ReactElement, useRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ComponentType,
+  ElementType,
+  ReactElement,
+  useRef,
+  useState,
+} from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import * as icons from 'design/Icon';
@@ -46,13 +53,15 @@ import { ButtonSize } from 'design/Button';
  *   <MenuItem>Bar</MenuItem>
  * </ButtonWithMenu>
  */
-export const ButtonWithMenu = (props: {
-  text: string;
-  children: MenuItemComponent | MenuItemComponent[];
-  MenuIcon?: ComponentType<IconProps>;
-  size?: ButtonSize;
-  [buttonBorderProp: string]: any;
-}) => {
+export const ButtonWithMenu = <Element extends ElementType = 'button'>(
+  props: {
+    text: string;
+    children: MenuItemComponent | MenuItemComponent[];
+    MenuIcon?: ComponentType<IconProps>;
+    size?: ButtonSize;
+    forwardedAs?: Element;
+  } & ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
+) => {
   const {
     text,
     MenuIcon = icons.MoreVert,

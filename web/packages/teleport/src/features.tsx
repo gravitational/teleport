@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import {
   Bots as BotsIcon,
   CirclePlay,
@@ -46,6 +44,8 @@ import {
 } from 'teleport/Navigation/categories';
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
+
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 
 import { NavTitle } from './types';
 
@@ -246,7 +246,12 @@ export class FeatureBots implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.listBots;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.listBots;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -433,7 +438,12 @@ export class FeatureIntegrations implements TeleportFeature {
   section = ManagementSection.Access;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (cfg.hideInaccessibleFeatures) {
+      return flags.integrations;
+    }
+    return true;
   }
 
   route = {
@@ -571,6 +581,10 @@ export class FeatureClusters implements TeleportFeature {
     },
     searchableTags: ['clusters', 'manage clusters'],
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {
@@ -622,6 +636,22 @@ class FeatureDeviceTrust implements TeleportFeature {
     },
     searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
+}
+
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
 }
 
 // ****************************
@@ -698,6 +728,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureIntegrationStatus(),
 
     // - Identity
     new AccessRequests(),

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -84,7 +84,7 @@ type Configurator struct {
 	spec   *externalauditstorage.ExternalAuditStorageSpec
 	isUsed bool
 
-	credentialsCache *awsoidc.CredentialsCache
+	credentialsCache *credprovider.CredentialsCache
 }
 
 // Options holds options for the Configurator.
@@ -213,7 +213,7 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsCache, err := awsoidc.NewCredentialsCache(awsoidc.CredentialsCacheOptions{
+	credentialsCache, err := credprovider.NewCredentialsCache(credprovider.CredentialsCacheOptions{
 		Integration: oidcIntegrationName,
 		RoleARN:     awsRoleARN,
 		STSClient:   options.stsClient,
@@ -252,7 +252,7 @@ func (c *Configurator) GetSpec() *externalauditstorage.ExternalAuditStorageSpec 
 }
 
 // SetGenerateOIDCTokenFn sets the source of OIDC tokens for this Configurator.
-func (c *Configurator) SetGenerateOIDCTokenFn(fn awsoidc.GenerateOIDCTokenFn) {
+func (c *Configurator) SetGenerateOIDCTokenFn(fn credprovider.GenerateOIDCTokenFn) {
 	c.credentialsCache.SetGenerateOIDCTokenFn(fn)
 }
 
@@ -282,7 +282,7 @@ func (p *Configurator) WaitForFirstCredentials(ctx context.Context) {
 // v1Adapter wraps the credentialsCache to implement
 // [credentials.ProviderWithContext] used by aws-sdk-go (v1).
 type v1Adapter struct {
-	cc *awsoidc.CredentialsCache
+	cc *credprovider.CredentialsCache
 }
 
 var _ credentials.ProviderWithContext = (*v1Adapter)(nil)

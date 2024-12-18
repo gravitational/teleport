@@ -58,7 +58,7 @@ export function IdentityListItem(props: {
       }}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex flexDirection="column">
+        <Flex flexDirection="column" minWidth="0">
           <Text typography="body2" title={userWithClusterName}>
             {userWithClusterName}
           </Text>

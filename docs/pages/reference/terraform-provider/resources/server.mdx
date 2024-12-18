@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_server Terraform resource
+sidebar_label: server
 description: This page describes the supported values of the teleport_server resource of the Teleport Terraform provider.
 ---
 
@@ -85,6 +86,7 @@ Optional:
 
 - `addr` (String) Addr is a host:port address where this server can be reached.
 - `cloud_metadata` (Attributes) CloudMetadata contains info about the cloud instance the server is running on, if any. (see [below for nested schema](#nested-schema-for-speccloud_metadata))
+- `github` (Attributes) GitHub contains info about GitHub proxies where each server represents a GitHub organization. (see [below for nested schema](#nested-schema-for-specgithub))
 - `hostname` (String) Hostname is server hostname
 - `peer_addr` (String) PeerAddr is the address a proxy server is reachable at by its peer proxies.
 - `proxy_ids` (List of String) ProxyIDs is a list of proxy IDs this server is expected to be connected to.
@@ -110,6 +112,14 @@ Optional:
 - `subnet_id` (String) SubnetID is the Subnet ID in use by the instance.
 - `vpc_id` (String) VPCID is the AWS VPC ID where the Instance is running.
 
+
+
+### Nested Schema for `spec.github`
+
+Optional:
+
+- `integration` (String) Integration is the integration that is associated with this Server.
+- `organization` (String) Organization specifies the name of the organization for the GitHub integration.
 
 
 ### Nested Schema for `spec.rotation`

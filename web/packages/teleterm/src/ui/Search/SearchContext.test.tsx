@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, createEvent, render, screen } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react';

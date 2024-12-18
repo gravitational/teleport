@@ -26,18 +26,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 type mockAuthClient struct {
 	authclient.ClientI
-	server *auth.Server
+	server             *auth.Server
+	integrationsClient mockIntegrationsClient
 }
 
 func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
@@ -55,6 +59,21 @@ func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	// return MFA not required to gracefully skip the MFA prompt.
 	return nil, &mfa.ErrMFANotRequired
+}
+
+func (m *mockAuthClient) IntegrationsClient() integrationpb.IntegrationServiceClient {
+	return &m.integrationsClient
+}
+
+type mockIntegrationsClient struct {
+	integrationpb.IntegrationServiceClient
+	caKeySet *types.CAKeySet
+}
+
+func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Context, in *integrationpb.ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*integrationpb.ExportIntegrationCertAuthoritiesResponse, error) {
+	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
+		CertAuthorities: m.caKeySet,
+	}, nil
 }
 
 func TestExportAuthorities(t *testing.T) {
@@ -98,6 +117,10 @@ func TestExportAuthorities(t *testing.T) {
 		privKey, err := x509.ParsePKCS8PrivateKey([]byte(s))
 		require.NoError(t, err, "x509.ParsePKCS8PrivateKey failed")
 		require.NotNil(t, privKey, "x509.ParsePKCS8PrivateKey returned a nil key")
+	}
+
+	validateGitHubCAFunc := func(t *testing.T, s string) {
+		require.Contains(t, s, fixtures.SSHCAPublicKey)
 	}
 
 	for _, exportSecrets := range []bool{false, true} {
@@ -247,10 +270,33 @@ func TestExportAuthorities(t *testing.T) {
 				assertNoSecrets: validateTLSCertificateDERFunc,
 				assertSecrets:   validateRSAPrivateKeyDERFunc,
 			},
+			{
+				name: "github missing integration",
+				req: ExportAuthoritiesRequest{
+					AuthType: "github",
+				},
+				errorCheck: require.Error,
+			},
+			{
+				name: "github",
+				req: ExportAuthoritiesRequest{
+					AuthType:    "github",
+					Integration: "my-github",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateGitHubCAFunc,
+			},
 		} {
 			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {
 				mockedClient := &mockAuthClient{
 					server: testAuth.AuthServer,
+					integrationsClient: mockIntegrationsClient{
+						caKeySet: &types.CAKeySet{
+							SSH: []*types.SSHKeyPair{{
+								PublicKey: []byte(fixtures.SSHCAPublicKey),
+							}},
+						},
+					},
 				}
 				var (
 					err      error
@@ -262,6 +308,10 @@ func TestExportAuthorities(t *testing.T) {
 				if exportSecrets {
 					exportFunc = ExportAuthoritiesSecrets
 					checkFunc = tt.assertSecrets
+				}
+
+				if checkFunc == nil {
+					t.Skip("assert func not provided")
 				}
 
 				exported, err = exportFunc(ctx, mockedClient, tt.req)

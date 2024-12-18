@@ -32,10 +32,12 @@ import { useInterval } from 'shared/hooks';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
+  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
 
   const [duration, setDuration] = useState<Duration>(() =>
     getDurationFromNow({
@@ -46,21 +48,18 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
     getRefreshInterval(duration)
   );
 
-  const [dropRequestAttempt, dropRequest] = useAsync(() => {
-    return retryWithRelogin(
-      ctx,
-      rootClusterUri,
-      () => ctx.clustersService.dropRoles(rootClusterUri, [assumedRequest.id])
-      // TODO(gzdunek): We should refresh the resources,
-      // the same as after assuming a role in `useAssumeAccess`.
-      // Unfortunately, we can't do this because we don't have access to `ResourcesContext`.
-      // Consider moving it into `ResourcesService`.
-    ).catch(err => {
+  const [dropRequestAttempt, dropRequest] = useAsync(async () => {
+    try {
+      await retryWithRelogin(ctx, rootClusterUri, () =>
+        ctx.clustersService.dropRoles(rootClusterUri, [assumedRequest.id])
+      );
+      requestResourcesRefresh();
+    } catch (err) {
       ctx.notificationsService.notifyError({
-        title: 'Could not switch back the role',
+        title: 'Could not drop role',
         description: err.message,
       });
-    });
+    }
   });
 
   const updateDurationAndInterval = useCallback(() => {

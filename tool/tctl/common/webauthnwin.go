@@ -21,9 +21,10 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // webauthnwinCommand adapts webauthnwin.Command for tctl.
@@ -31,10 +32,10 @@ type webauthnwinCommand struct {
 	impl *webauthnwin.Command
 }
 
-func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
+func (c *webauthnwinCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.impl = webauthnwin.NewCommand(app)
 }
 
-func (c *webauthnwinCommand) TryRun(ctx context.Context, selectedCommand string, _ *authclient.Client) (match bool, err error) {
-	return c.impl.TryRun(ctx, selectedCommand)
+func (c *webauthnwinCommand) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
+	return c.impl.TryRun(ctx, cmd)
 }

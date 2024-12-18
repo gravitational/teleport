@@ -25,18 +25,20 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 // Config represents plugin configuration
 type Config struct {
-	// Client is the Teleport API client.
-	Client     teleport.Client
-	Teleport   lib.TeleportConfig
-	Recipients common.RawRecipientsMap `toml:"role_to_recipients"`
-	Log        logger.Config
-	MSAPI      msapi.Config `toml:"msapi"`
-	Preload    bool         `toml:"preload"`
+	common.BaseConfig
+	Client teleport.Client
+	// MSAPI represents MS Graph API and Bot API config.
+	MSAPI msapi.Config `toml:"msapi"`
+	// Preload if set to true will preload the potential msteams recipients.
+	Preload bool `toml:"preload"`
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // LoadConfig reads the config file, initializes a new Config struct object, and returns it.

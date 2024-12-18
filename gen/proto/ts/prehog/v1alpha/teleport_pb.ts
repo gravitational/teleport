@@ -270,6 +270,14 @@ export interface SessionStartEvent {
      * @generated from protobuf field: prehog.v1alpha.UserKind user_kind = 5;
      */
     userKind: UserKind;
+    /**
+     * if session_type == "app_tcp" the app struct contains additional information about app session.
+     *
+     * PostHog property: tp.app
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartAppMetadata app = 6;
+     */
+    app?: SessionStartAppMetadata;
 }
 /**
  * SessionStartDatabaseMetadata contains additional information about database session.
@@ -339,6 +347,19 @@ export interface SessionStartDesktopMetadata {
      * @generated from protobuf field: bool nla = 5;
      */
     nla: boolean;
+}
+/**
+ * SessionStartAppMetadata contains additional information about an app session.
+ *
+ * @generated from protobuf message prehog.v1alpha.SessionStartAppMetadata
+ */
+export interface SessionStartAppMetadata {
+    /**
+     * is_multi_port is true for multi-port TCP apps.
+     *
+     * @generated from protobuf field: bool is_multi_port = 1;
+     */
+    isMultiPort: boolean;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -1710,6 +1731,12 @@ export interface AccessListMemberCreateEvent {
      * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 2;
      */
     metadata?: AccessListMetadata;
+    /**
+     * member_kind is the type of membership of the created member in the parent access list.
+     *
+     * @generated from protobuf field: string member_kind = 3;
+     */
+    memberKind: string;
 }
 /**
  * AccessListMemberUpdate is an event that is emitted when a member is updated in an access list.
@@ -1727,6 +1754,12 @@ export interface AccessListMemberUpdateEvent {
      * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 2;
      */
     metadata?: AccessListMetadata;
+    /**
+     * membership_kind is the type of membership of the updated member in the parent access list.
+     *
+     * @generated from protobuf field: string member_kind = 3;
+     */
+    memberKind: string;
 }
 /**
  * AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
@@ -1744,6 +1777,12 @@ export interface AccessListMemberDeleteEvent {
      * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 2;
      */
     metadata?: AccessListMetadata;
+    /**
+     * member_kind is the type of membership of the deleted user in the parent access list.
+     *
+     * @generated from protobuf field: string member_kind = 3;
+     */
+    memberKind: string;
 }
 /**
  * AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
@@ -1770,6 +1809,18 @@ export interface AccessListGrantsToUserEvent {
      * @generated from protobuf field: int32 count_traits_granted = 3;
      */
     countTraitsGranted: number;
+    /**
+     * count_inherited_roles_granted is the number of roles granted to a user inherited from nested access lists.
+     *
+     * @generated from protobuf field: int32 count_inherited_roles_granted = 4;
+     */
+    countInheritedRolesGranted: number;
+    /**
+     * count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
+     *
+     * @generated from protobuf field: int32 count_inherited_traits_granted = 5;
+     */
+    countInheritedTraitsGranted: number;
 }
 /**
  * AccessListReviewCreateEvent is an event that is emitted when an access list review is created.
@@ -2635,6 +2686,16 @@ export interface SubmitEventRequest {
      * @generated from protobuf field: google.protobuf.Timestamp timestamp = 2;
      */
     timestamp?: Timestamp;
+    /**
+     * teleport_version is the version of the Teleport auth server that submitted
+     * the event, without the "v" prefix.
+     * For example: 16.4.7
+     *
+     * PostHog property: tp.teleport_version
+     *
+     * @generated from protobuf field: string teleport_version = 95;
+     */
+    teleportVersion: string;
     /**
      * @generated from protobuf oneof: event
      */
@@ -4187,7 +4248,8 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
             { no: 2, name: "session_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "database", kind: "message", T: () => SessionStartDatabaseMetadata },
             { no: 4, name: "desktop", kind: "message", T: () => SessionStartDesktopMetadata },
-            { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] }
+            { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
+            { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata }
         ]);
     }
     create(value?: PartialMessage<SessionStartEvent>): SessionStartEvent {
@@ -4219,6 +4281,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
                 case /* prehog.v1alpha.UserKind user_kind */ 5:
                     message.userKind = reader.int32();
                     break;
+                case /* prehog.v1alpha.SessionStartAppMetadata app */ 6:
+                    message.app = SessionStartAppMetadata.internalBinaryRead(reader, reader.uint32(), options, message.app);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4246,6 +4311,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
         /* prehog.v1alpha.UserKind user_kind = 5; */
         if (message.userKind !== 0)
             writer.tag(5, WireType.Varint).int32(message.userKind);
+        /* prehog.v1alpha.SessionStartAppMetadata app = 6; */
+        if (message.app)
+            SessionStartAppMetadata.internalBinaryWrite(message.app, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4398,6 +4466,53 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
  * @generated MessageType for protobuf message prehog.v1alpha.SessionStartDesktopMetadata
  */
 export const SessionStartDesktopMetadata = new SessionStartDesktopMetadata$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionStartAppMetadata$Type extends MessageType<SessionStartAppMetadata> {
+    constructor() {
+        super("prehog.v1alpha.SessionStartAppMetadata", [
+            { no: 1, name: "is_multi_port", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionStartAppMetadata>): SessionStartAppMetadata {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.isMultiPort = false;
+        if (value !== undefined)
+            reflectionMergePartial<SessionStartAppMetadata>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionStartAppMetadata): SessionStartAppMetadata {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool is_multi_port */ 1:
+                    message.isMultiPort = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionStartAppMetadata, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool is_multi_port = 1; */
+        if (message.isMultiPort !== false)
+            writer.tag(1, WireType.Varint).bool(message.isMultiPort);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.SessionStartAppMetadata
+ */
+export const SessionStartAppMetadata = new SessionStartAppMetadata$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {
@@ -7781,12 +7896,14 @@ class AccessListMemberCreateEvent$Type extends MessageType<AccessListMemberCreat
     constructor() {
         super("prehog.v1alpha.AccessListMemberCreateEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata }
+            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata },
+            { no: 3, name: "member_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListMemberCreateEvent>): AccessListMemberCreateEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.memberKind = "";
         if (value !== undefined)
             reflectionMergePartial<AccessListMemberCreateEvent>(this, message, value);
         return message;
@@ -7801,6 +7918,9 @@ class AccessListMemberCreateEvent$Type extends MessageType<AccessListMemberCreat
                     break;
                 case /* prehog.v1alpha.AccessListMetadata metadata */ 2:
                     message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* string member_kind */ 3:
+                    message.memberKind = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7820,6 +7940,9 @@ class AccessListMemberCreateEvent$Type extends MessageType<AccessListMemberCreat
         /* prehog.v1alpha.AccessListMetadata metadata = 2; */
         if (message.metadata)
             AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string member_kind = 3; */
+        if (message.memberKind !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.memberKind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7835,12 +7958,14 @@ class AccessListMemberUpdateEvent$Type extends MessageType<AccessListMemberUpdat
     constructor() {
         super("prehog.v1alpha.AccessListMemberUpdateEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata }
+            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata },
+            { no: 3, name: "member_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListMemberUpdateEvent>): AccessListMemberUpdateEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.memberKind = "";
         if (value !== undefined)
             reflectionMergePartial<AccessListMemberUpdateEvent>(this, message, value);
         return message;
@@ -7855,6 +7980,9 @@ class AccessListMemberUpdateEvent$Type extends MessageType<AccessListMemberUpdat
                     break;
                 case /* prehog.v1alpha.AccessListMetadata metadata */ 2:
                     message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* string member_kind */ 3:
+                    message.memberKind = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7874,6 +8002,9 @@ class AccessListMemberUpdateEvent$Type extends MessageType<AccessListMemberUpdat
         /* prehog.v1alpha.AccessListMetadata metadata = 2; */
         if (message.metadata)
             AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string member_kind = 3; */
+        if (message.memberKind !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.memberKind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7889,12 +8020,14 @@ class AccessListMemberDeleteEvent$Type extends MessageType<AccessListMemberDelet
     constructor() {
         super("prehog.v1alpha.AccessListMemberDeleteEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata }
+            { no: 2, name: "metadata", kind: "message", T: () => AccessListMetadata },
+            { no: 3, name: "member_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListMemberDeleteEvent>): AccessListMemberDeleteEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.memberKind = "";
         if (value !== undefined)
             reflectionMergePartial<AccessListMemberDeleteEvent>(this, message, value);
         return message;
@@ -7909,6 +8042,9 @@ class AccessListMemberDeleteEvent$Type extends MessageType<AccessListMemberDelet
                     break;
                 case /* prehog.v1alpha.AccessListMetadata metadata */ 2:
                     message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* string member_kind */ 3:
+                    message.memberKind = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7928,6 +8064,9 @@ class AccessListMemberDeleteEvent$Type extends MessageType<AccessListMemberDelet
         /* prehog.v1alpha.AccessListMetadata metadata = 2; */
         if (message.metadata)
             AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string member_kind = 3; */
+        if (message.memberKind !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.memberKind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7944,7 +8083,9 @@ class AccessListGrantsToUserEvent$Type extends MessageType<AccessListGrantsToUse
         super("prehog.v1alpha.AccessListGrantsToUserEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "count_roles_granted", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "count_traits_granted", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 3, name: "count_traits_granted", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "count_inherited_roles_granted", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 5, name: "count_inherited_traits_granted", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListGrantsToUserEvent>): AccessListGrantsToUserEvent {
@@ -7952,6 +8093,8 @@ class AccessListGrantsToUserEvent$Type extends MessageType<AccessListGrantsToUse
         message.userName = "";
         message.countRolesGranted = 0;
         message.countTraitsGranted = 0;
+        message.countInheritedRolesGranted = 0;
+        message.countInheritedTraitsGranted = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessListGrantsToUserEvent>(this, message, value);
         return message;
@@ -7969,6 +8112,12 @@ class AccessListGrantsToUserEvent$Type extends MessageType<AccessListGrantsToUse
                     break;
                 case /* int32 count_traits_granted */ 3:
                     message.countTraitsGranted = reader.int32();
+                    break;
+                case /* int32 count_inherited_roles_granted */ 4:
+                    message.countInheritedRolesGranted = reader.int32();
+                    break;
+                case /* int32 count_inherited_traits_granted */ 5:
+                    message.countInheritedTraitsGranted = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7991,6 +8140,12 @@ class AccessListGrantsToUserEvent$Type extends MessageType<AccessListGrantsToUse
         /* int32 count_traits_granted = 3; */
         if (message.countTraitsGranted !== 0)
             writer.tag(3, WireType.Varint).int32(message.countTraitsGranted);
+        /* int32 count_inherited_roles_granted = 4; */
+        if (message.countInheritedRolesGranted !== 0)
+            writer.tag(4, WireType.Varint).int32(message.countInheritedRolesGranted);
+        /* int32 count_inherited_traits_granted = 5; */
+        if (message.countInheritedTraitsGranted !== 0)
+            writer.tag(5, WireType.Varint).int32(message.countInheritedTraitsGranted);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -9871,6 +10026,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         super("prehog.v1alpha.SubmitEventRequest", [
             { no: 1, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "timestamp", kind: "message", T: () => Timestamp },
+            { no: 95, name: "teleport_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "user_login", kind: "message", oneof: "event", T: () => UserLoginEvent },
             { no: 4, name: "sso_create", kind: "message", oneof: "event", T: () => SSOCreateEvent },
             { no: 5, name: "resource_create", kind: "message", oneof: "event", T: () => ResourceCreateEvent },
@@ -9967,6 +10123,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusterName = "";
+        message.teleportVersion = "";
         message.event = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SubmitEventRequest>(this, message, value);
@@ -9982,6 +10139,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                     break;
                 case /* google.protobuf.Timestamp timestamp */ 2:
                     message.timestamp = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.timestamp);
+                    break;
+                case /* string teleport_version */ 95:
+                    message.teleportVersion = reader.string();
                     break;
                 case /* prehog.v1alpha.UserLoginEvent user_login */ 3:
                     message.event = {
@@ -10547,6 +10707,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* google.protobuf.Timestamp timestamp = 2; */
         if (message.timestamp)
             Timestamp.internalBinaryWrite(message.timestamp, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* string teleport_version = 95; */
+        if (message.teleportVersion !== "")
+            writer.tag(95, WireType.LengthDelimited).string(message.teleportVersion);
         /* prehog.v1alpha.UserLoginEvent user_login = 3; */
         if (message.event.oneofKind === "userLogin")
             UserLoginEvent.internalBinaryWrite(message.event.userLogin, writer.tag(3, WireType.LengthDelimited).fork(), options).join();

@@ -208,6 +208,8 @@ export type ThemeColors = {
     brightBlue: string;
     brightMagenta: string;
     brightCyan: string;
+    searchMatch: string;
+    activeSearchMatch: string;
   };
 
   editor: {

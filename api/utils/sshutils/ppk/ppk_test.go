@@ -18,13 +18,11 @@ limitations under the License.
 package ppk_test
 
 import (
-	"crypto/rsa"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
 func TestConvertToPPK(t *testing.T) {
@@ -35,7 +33,7 @@ func TestConvertToPPK(t *testing.T) {
 		output []byte
 	}{
 		{
-			desc: "valid private and public keys 1",
+			desc: "RSA key 1",
 			priv: []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA3U4OOAi+F1Ct1n8HZIs1P39CWB0mKLvshouuklenZug27SuI
 14rjE+hOTNHYz/Pkvk5mmKuIdegMCe8FHAF6chygcEC9BDkowLO+2+f3sazGsu4A
@@ -64,7 +62,6 @@ kFap4eAldBxySXp/5af7H1Xf4BIfbbc1prMM1vIRFTN6l6rbircak7bb9a/dgWmX
 iukFsFq0G0Y2zt9oHOB7pKV/Kff4o1WQ0hcCBD6pZGhbsVxXBi4Oaw==
 -----END RSA PRIVATE KEY-----
 `),
-			pub: []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDdTg44CL4XUK3WfwdkizU/f0JYHSYou+yGi66SV6dm6DbtK4jXiuMT6E5M0djP8+S+TmaYq4h16AwJ7wUcAXpyHKBwQL0EOSjAs77b5/exrMay7gD0fikO5SS4gz0zCZlXsDhMnX2tECCFr7okopHkp4Six+Iu8C067Y+OrPxms6tRSpDUAnvVKRYw9MkWSxM2aBoftrRKAni9VgyVggB7KgCCqfpC+7kp7PlE594oPjPKz/6IV6euBsmsLfwY17avG1vz+B/LTfTbcWU8BCMZ3VUuPGbyOFwkWqAz64dMZFySCO935UiQJu9PCk9a+9nFBxG2TTvc/0bzGmI3Papv`),
 			output: []byte(`PuTTY-User-Key-File-3: ssh-rsa
 Encryption: none
 Comment: teleport-generated-ppk
@@ -94,7 +91,7 @@ Private-MAC: 2697903ac84b70273afc7adaa4e3ebb14536cdaf69654d40e3d46a5ba997ffb0
 `),
 		},
 		{
-			desc: "valid private and public keys 2",
+			desc: "RSA key 2",
 			priv: []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEpQIBAAKCAQEAve2um90K1SkpJD1vcjm2zUYUh5ZU7q1cmO7F0J/6MCEcq3vH
 fDPpPZ4uGLB9jPKzs6FYWhwFNW2oAsDvWSrwwxy5gl1dAdqp1wIm86gafShR0se5
@@ -123,7 +120,6 @@ mmrKTXECgYEA300gTnT46pMU1Wr1Zq4vGauWzk3U4J9HUu3vNy+sg4EEZ9CoiNTw
 nQVO8MZw8iFeSap0ILum8t60sp1/u9aCWJbjPtb/fhx0q7SLdjFEw8s=
 -----END RSA PRIVATE KEY-----
 `),
-			pub: []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC97a6b3QrVKSkkPW9yObbNRhSHllTurVyY7sXQn/owIRyre8d8M+k9ni4YsH2M8rOzoVhaHAU1bagCwO9ZKvDDHLmCXV0B2qnXAibzqBp9KFHSx7mtJ2FYo/jQfaUc7KxELkmvxy9UuB+W9ng8Myqv/rcErDCRPW83Y+56dhEAAhPvtf07R+6YZA8ojFEafk48oS3UvNDT579CVaupnDNYPHmOobeNvGJt1xH+YdLrRd2+6wtSrHFY+OFWUOwp++HaW3myqyO6VZb8bI22UJ9pOfa67SdXydtPY68Q76gz+7IeizntojJ49w7MJUzh26DrEmKephNpVSyyQqM8ZRXp`),
 			output: []byte(`PuTTY-User-Key-File-3: ssh-rsa
 Encryption: none
 Comment: teleport-generated-ppk
@@ -153,7 +149,7 @@ Private-MAC: b5ede95d052e23815c8e8d816c758fb16370fc3178e1613fee61ec158900fd64
 `),
 		},
 		{
-			desc: "valid public and private keys 3",
+			desc: "RSA key 3",
 			priv: []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAz5J/f572H95c9DDZLrXT0kmjytznkvntSOjxmJM44fL8DQz2
 NINFi4awTNYD1eIIzaO4LLw+uXFWKD2P9LgtJ/Cxdb9LRi1OZ5Qrw/jj173zf/g+
@@ -182,7 +178,6 @@ qalC9sysLQ1QI8A8GHNoNPjqMi7SWvzSgYN9TDRjS5GRlH13EALzP7AhWJWDoLYU
 9DXNAEQrPMtX4Lzre7FmrYqEYqwdcac+vyXVgDA7ti1LhDhj8mm3Sg==
 -----END RSA PRIVATE KEY-----
 `),
-			pub: []byte(`ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPkn9/nvYf3lz0MNkutdPSSaPK3OeS+e1I6PGYkzjh8vwNDPY0g0WLhrBM1gPV4gjNo7gsvD65cVYoPY/0uC0n8LF1v0tGLU5nlCvD+OPXvfN/+D7Cki2OhqSADN6sfEoA+PcMHyIcV8+r7cx91jfpJkdPQY5TtAiGdhQspZa5V97HHblW2B0ayYv2PB8B+3OHTRoIh6P3OLZ5J8Zh9wh5GVKH3C+hiV2tltG8tN4xtb5jOdaQfhb21oIah+ur+3y03Rt6H0HvPaEwbE4suezG7eBBzYohSpTmXWbIvStWdy9LBnCmlC51li1HLOYs46b08S8kda+C7opAGPkXbjGv`),
 			output: []byte(`PuTTY-User-Key-File-3: ssh-rsa
 Encryption: none
 Comment: teleport-generated-ppk
@@ -211,6 +206,49 @@ MipqcnT4j5zDuFi744aO5fIchKp02z+ttGVt/i5zuGNh+do=
 Private-MAC: a9b12c6450e46fd7abbaaff5841f8a64f9597c7b2b59bd69d6fd3ceee0ca61ea
 `),
 		},
+		{
+			desc: "ed25519 key",
+			priv: []byte(`-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz
+c2gtZWQyNTUxOQAAACBj4UfPX3B2yLRkt8ABGWiQGME1oY7N7K8yMTECt4HTvgAA
+AIjWpv6D1qb+gwAAAAtzc2gtZWQyNTUxOQAAACBj4UfPX3B2yLRkt8ABGWiQGME1
+oY7N7K8yMTECt4HTvgAAAEBW11q/rO8oWVkJGVV0md/Q7MQMkoisjyqKdk/aFQpl
+U2PhR89fcHbItGS3wAEZaJAYwTWhjs3srzIxMQK3gdO+AAAAAAECAwQF
+-----END OPENSSH PRIVATE KEY-----`),
+			output: []byte(`PuTTY-User-Key-File-3: ssh-ed25519
+Encryption: none
+Comment: teleport-generated-ppk
+Public-Lines: 2
+AAAAC3NzaC1lZDI1NTE5AAAAIGPhR89fcHbItGS3wAEZaJAYwTWhjs3srzIxMQK3
+gdO+
+Private-Lines: 1
+AAAAIFbXWr+s7yhZWQkZVXSZ39DsxAySiKyPKop2T9oVCmVT
+Private-MAC: 69e26c50e92d520bef9a19913b54b9585bcadbc3ba8eb01eadf95c9c4e5e5f4e
+`),
+		},
+		{
+			desc: "ecdsa key",
+			priv: []byte(`-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNl
+Y2RzYS1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQR46dTQpQmnDizIvtPH
+rQ9bOtCD73Jt98YCundWBx2wZxvtAi3OT15Ku/R65Qu2E/6psMdYeADta7DgKtmy
+HT3AAAAAoKbt/b2m7f29AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAy
+NTYAAABBBHjp1NClCacOLMi+08etD1s60IPvcm33xgK6d1YHHbBnG+0CLc5PXkq7
+9HrlC7YT/qmwx1h4AO1rsOAq2bIdPcAAAAAhAObTnBS3qFRxz272PVnDJ37EVyH2
+Ryfdptn0Kw5TyRq7AAAAAAECAwQFBgc=
+-----END OPENSSH PRIVATE KEY-----`),
+			output: []byte(`PuTTY-User-Key-File-3: ecdsa-sha2-nistp256
+Encryption: none
+Comment: teleport-generated-ppk
+Public-Lines: 3
+AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHjp1NClCacO
+LMi+08etD1s60IPvcm33xgK6d1YHHbBnG+0CLc5PXkq79HrlC7YT/qmwx1h4AO1r
+sOAq2bIdPcA=
+Private-Lines: 1
+AAAAIQDm05wUt6hUcc9u9j1Zwyd+xFch9kcn3abZ9CsOU8kauw==
+Private-MAC: 6e788dafd452d27c17d062add28113d59d03a20898ea89046e3809fe38832861
+`),
+		},
 	}
 
 	for _, tc := range tests {
@@ -218,12 +256,7 @@ Private-MAC: a9b12c6450e46fd7abbaaff5841f8a64f9597c7b2b59bd69d6fd3ceee0ca61ea
 			priv, err := keys.ParsePrivateKey(tc.priv)
 			require.NoError(t, err)
 
-			rsaPriv, ok := priv.Signer.(*rsa.PrivateKey)
-			require.True(t, ok)
-			// Without this line, the linter thinks that "crypto/rsa" is unused...
-			require.IsType(t, &rsa.PrivateKey{}, rsaPriv)
-
-			output, err := ppk.ConvertToPPK(rsaPriv, tc.pub)
+			output, err := priv.PPKFile()
 			require.NoError(t, err)
 			require.Equal(t, output, tc.output)
 		})

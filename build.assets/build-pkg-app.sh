@@ -162,7 +162,7 @@ or name of the key to sign packages"
 
   # Prepare app shell.
   local target="$tmp/root/$PACKAGE_NAME.app"
-  cp -r "$tmp/teleport/$PACKAGE_NAME.app" "$target"
+  cp -r "$tmp/teleport$ent/$PACKAGE_NAME.app" "$target"
 
   local entitlements="$buildassets/macos/$TSH_SKELETON/$TSH_SKELETON.entitlements"
   if [[ "$PACKAGE_NAME" == "tctl" ]]; then

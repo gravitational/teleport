@@ -42,7 +42,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { MenuButton } from 'shared/components/MenuAction';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useTeleport } from 'teleport';
@@ -446,7 +446,7 @@ const ActionCell = ({
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING Tokens are defined using{' '}
       <Link
         color="text.main"
         target="_blank"

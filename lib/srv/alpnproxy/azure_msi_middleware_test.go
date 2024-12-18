@@ -29,13 +29,12 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
@@ -53,13 +52,13 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 		require.NoError(t, err)
 		return privateKey
 	}
+	privateKey := newPrivateKey()
 	m := &AzureMSIMiddleware{
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
 		ClientID: "decaffff-cafe-4aaa-cafe-cafecafecafe",
-		Log:      logrus.WithField(teleport.ComponentKey, "msi"),
+		Log:      utils.NewSlogLoggerForTests(),
 		Clock:    clockwork.NewFakeClockAt(time.Date(2022, 1, 1, 9, 0, 0, 0, time.UTC)),
-		Key:      newPrivateKey(),
 		Secret:   "my-secret",
 	}
 	require.NoError(t, m.CheckAndSetDefaults())
@@ -68,6 +67,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 		name           string
 		url            string
 		headers        map[string]string
+		privateKey     crypto.Signer
 		expectedHandle bool
 		expectedCode   int
 		expectedBody   string
@@ -76,12 +76,14 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 		{
 			name:           "ignore non-msi requests",
 			url:            "https://graph.windows.net/foo/bar/baz",
+			privateKey:     privateKey,
 			expectedHandle: false,
 		},
 		{
 			name:           "invalid request, wrong secret",
 			url:            "https://azure-msi.teleport.dev/bad-secret",
 			headers:        nil,
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
@@ -90,6 +92,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, missing secret",
 			url:            "https://azure-msi.teleport.dev",
 			headers:        nil,
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
@@ -98,6 +101,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, missing metadata",
 			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        nil,
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
@@ -106,6 +110,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, bad metadata value",
 			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        map[string]string{"Metadata": "false"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
@@ -114,6 +119,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, missing arguments",
 			url:            "https://azure-msi.teleport.dev/my-secret",
 			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
@@ -122,6 +128,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, missing resource",
 			url:            "https://azure-msi.teleport.dev/my-secret?msi_res_id=azureTestIdentity",
 			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
@@ -130,6 +137,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, missing identity",
 			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource",
 			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"unexpected value for parameter 'msi_res_id': \"\n    }\n}",
@@ -138,6 +146,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "invalid request, wrong identity",
 			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestWrongIdentity",
 			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"unexpected value for parameter 'msi_res_id': azureTestWrongIdentity\"\n    }\n}",
@@ -146,6 +155,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 			name:           "well-formatted request",
 			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestIdentity",
 			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   200,
 			verifyBody: func(t *testing.T, body []byte) {
@@ -182,7 +192,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 					return key.VerifyAzureToken(token)
 				}
 
-				claims, err := fromJWT(req.AccessToken, m.Key)
+				claims, err := fromJWT(req.AccessToken, privateKey)
 				require.NoError(t, err)
 				require.Equal(t, jwt.AzureTokenClaims{
 					TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
@@ -202,10 +212,21 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 				require.Equal(t, expected.NotBefore, req.NotBefore)
 			},
 		},
+		{
+			name:           "no private key set",
+			url:            "https://azure-msi.teleport.dev/my-secret?resource=myresource&msi_res_id=azureTestIdentity",
+			headers:        map[string]string{"Metadata": "true"},
+			privateKey:     nil,
+			expectedHandle: true,
+			expectedCode:   500,
+			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing private key set in AzureMSIMiddleware\"\n    }\n}",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			m.SetPrivateKey(tt.privateKey)
+
 			// prepare request
 			req, err := http.NewRequest("GET", tt.url, strings.NewReader(""))
 			require.NoError(t, err)

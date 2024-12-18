@@ -19,7 +19,6 @@
 import { render, screen, userEvent } from 'design/utils/testing';
 import { createMemoryHistory } from 'history';
 import { Router, MemoryRouter } from 'react-router';
-import React from 'react';
 
 import cfg from 'teleport/config';
 

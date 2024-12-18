@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 import { Box, Button, Indicator, Menu, MenuItem, blink } from 'design';
 import { Laptop, Warning } from 'design/Icon';

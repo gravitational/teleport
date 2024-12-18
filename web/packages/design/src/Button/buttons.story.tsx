@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Fragment } from 'react';
 
 import styled from 'styled-components';
 
@@ -66,7 +66,7 @@ export const Buttons = () => {
         </thead>
         <tbody>
           {fills.map(fill => (
-            <React.Fragment key={fill}>
+            <Fragment key={fill}>
               <tr>
                 <th rowSpan={4}>{fill}</th>
                 <th>neutral</th>
@@ -84,7 +84,7 @@ export const Buttons = () => {
                 <th>success</th>
                 <ButtonTableCells fill={fill} intent="success" />
               </tr>
-            </React.Fragment>
+            </Fragment>
           ))}
         </tbody>
       </Table>{' '}

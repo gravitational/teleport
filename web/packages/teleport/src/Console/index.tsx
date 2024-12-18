@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 
 import Console from './Console';
 import ConsoleContext from './consoleContext';
@@ -25,7 +25,7 @@ import ConsoleContextProvider from './consoleContextProvider';
 // Main entry point to Console where it initializes ContextProvider with the
 // instance of ConsoleContext.
 export function ConsoleWithContext() {
-  const [ctx] = React.useState(() => {
+  const [ctx] = useState(() => {
     return new ConsoleContext();
   });
 

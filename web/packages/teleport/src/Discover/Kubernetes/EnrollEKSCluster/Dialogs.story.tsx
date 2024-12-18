@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { http, HttpResponse, delay } from 'msw';
 

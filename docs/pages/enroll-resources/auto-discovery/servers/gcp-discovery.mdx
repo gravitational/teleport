@@ -231,6 +231,8 @@ the Discovery Service.
 In order to enable GCP instance discovery the `discovery_service.gcp` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
@@ -246,6 +248,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gcp-prod"
   gcp:
     - types: ["gce"]
       # The IDs of GCP projects that VMs can join from.

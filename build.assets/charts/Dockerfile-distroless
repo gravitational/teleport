@@ -23,11 +23,17 @@ COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
 RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
     mkdir -p /opt/staging/etc/teleport && \
     mkdir -p /opt/staging/var/lib/dpkg/status.d/ && \
+    mkdir -p /opt/staging/usr/local/bin && \
     mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
+    mv /opt/staging/opt/teleport/system/bin/* /opt/staging/usr/local/bin/ && \
+    rm -f /opt/staging/usr/local/bin/teleport-update && \
     rm -rf /opt/staging/DEBIAN
 
 FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging /
 COPY --from=staging /opt/staging/root /
 COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
+# Attempt a graceful shutdown by default
+# See https://goteleport.com/docs/reference/signals/ for signal reference.
+STOPSIGNAL SIGQUIT
 ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

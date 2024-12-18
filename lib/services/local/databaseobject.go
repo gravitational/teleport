@@ -45,7 +45,7 @@ func (s *DatabaseObjectService) UpsertDatabaseObject(ctx context.Context, object
 }
 
 func (s *DatabaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
-	out, err := s.service.UpdateResource(ctx, object)
+	out, err := s.service.UnconditionalUpdateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 

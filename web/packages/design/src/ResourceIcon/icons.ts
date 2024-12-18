@@ -47,6 +47,7 @@ import auth0Light from './assets/auth0-light.svg';
 import avalara from './assets/avalara.svg';
 import awsDark from './assets/aws-dark.svg';
 import awsLight from './assets/aws-light.svg';
+import awsAccount from './assets/aws-account.svg';
 import azure from './assets/azure.svg';
 import bill from './assets/bill.svg';
 import bonusly from './assets/bonusly.svg';
@@ -333,6 +334,7 @@ export {
   avalara,
   awsDark,
   awsLight,
+  awsAccount,
   azure,
   bill,
   bonusly,

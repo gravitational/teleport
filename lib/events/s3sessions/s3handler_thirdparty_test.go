@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -39,6 +38,8 @@ import (
 // TestThirdpartyStreams tests various streaming upload scenarios
 // implemented by third party backends using fake backend
 func TestThirdpartyStreams(t *testing.T) {
+	t.Parallel()
+
 	var timeSource gofakes3.TimeSource
 	backend := s3mem.New(s3mem.WithTimeSource(timeSource))
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
@@ -48,7 +49,9 @@ func TestThirdpartyStreams(t *testing.T) {
 	bucketName := fmt.Sprintf("teleport-test-%v", uuid.New().String())
 
 	config := aws.Config{
-		Credentials:  credentials.NewStaticCredentialsProvider("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
+		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{}, nil
+		}),
 		Region:       "us-west-1",
 		BaseEndpoint: aws.String(server.URL),
 	}
@@ -64,12 +67,14 @@ func TestThirdpartyStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	handler, err := NewHandler(context.Background(), Config{
-		AWSConfig:                   &config,
 		Region:                      "us-west-1",
 		Path:                        "/test/",
 		Bucket:                      bucketName,
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
+		CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{}, nil
+		}),
 	})
 	require.NoError(t, err)
 

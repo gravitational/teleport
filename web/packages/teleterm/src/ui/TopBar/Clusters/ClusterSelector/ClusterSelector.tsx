@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { ChevronUp, ChevronDown } from 'design/Icon';
 import styled from 'styled-components';
 import { Text } from 'design';

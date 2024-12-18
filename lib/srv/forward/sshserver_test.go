@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -190,6 +191,7 @@ func TestDirectTCPIP(t *testing.T) {
 	cases := []struct {
 		name           string
 		login          string
+		accessChecker  services.AccessChecker
 		expectAccepted bool
 		expectRejected bool
 	}{
@@ -219,7 +221,7 @@ func TestDirectTCPIP(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          utils.NewSlogLoggerForTests(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -255,17 +257,18 @@ func TestCheckTCPIPForward(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          utils.NewSlogLoggerForTests(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
-			err := s.checkTCPIPForwardRequest(&ssh.Request{
-				Type:      teleport.TCPIPForwardRequest,
-				WantReply: false,
-				Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
-					Addr: "localhost",
-					Port: 0,
-				}),
-			})
+			err := s.checkTCPIPForwardRequest(context.Background(),
+				&ssh.Request{
+					Type:      teleport.TCPIPForwardRequest,
+					WantReply: false,
+					Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
+						Addr: "localhost",
+						Port: 0,
+					}),
+				})
 			tt.assert(t, err)
 		})
 	}

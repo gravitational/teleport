@@ -129,7 +129,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Missing home directory - HOME should still be set to the given
-	// home dir, but the command should set it's CWD to root instead.
+	// home dir, but the command should set its CWD to root instead.
 	changeHomeDir(t, username, "/wrong/place")
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)

@@ -50,7 +50,8 @@ func Extract(r io.Reader, dir string, paths ...ExtractPath) error {
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
-		if ok := filterHeader(header, paths); !ok {
+		dirMode, ok := filterHeader(header, paths)
+		if !ok {
 			continue
 		}
 		err = sanitizeTarPath(header, dir)
@@ -58,7 +59,7 @@ func Extract(r io.Reader, dir string, paths ...ExtractPath) error {
 			return trace.Wrap(err)
 		}
 
-		if err := extractFile(tarball, header, dir); err != nil {
+		if err := extractFile(tarball, header, dir, dirMode); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -74,11 +75,15 @@ type ExtractPath struct {
 	Src, Dst string
 	// Skip extracting the Src path and ignore Dst.
 	Skip bool
+	// DirMode is the file mode for implicit parent directories in Dst.
+	DirMode os.FileMode
 }
 
 // filterHeader modifies the tar header by filtering it through the ExtractPaths.
 // filterHeader returns false if the tar header should be skipped.
-func filterHeader(hdr *tar.Header, paths []ExtractPath) (include bool) {
+// If no paths are provided, filterHeader assumes the header should be included, and sets
+// the mode for implicit parent directories to teleport.DirMaskSharedGroup.
+func filterHeader(hdr *tar.Header, paths []ExtractPath) (dirMode os.FileMode, include bool) {
 	name := path.Clean(hdr.Name)
 	for _, p := range paths {
 		src := path.Clean(p.Src)
@@ -98,14 +103,14 @@ func filterHeader(hdr *tar.Header, paths []ExtractPath) (include bool) {
 				dst += "/" // tar directory headers end in /
 			}
 			hdr.Name = dst
-			return !p.Skip
+			return p.DirMode, !p.Skip
 		default:
 			// If name is a file, then
 			// if src is an exact match to the file name, assume src is a file and write directly to dst,
 			// otherwise, assume src is a directory prefix, and replace that prefix with dst.
 			if src == name {
 				hdr.Name = path.Clean(p.Dst)
-				return !p.Skip
+				return p.DirMode, !p.Skip
 			}
 			if src != "/" {
 				src += "/" // ensure HasPrefix does not match partial names
@@ -114,26 +119,26 @@ func filterHeader(hdr *tar.Header, paths []ExtractPath) (include bool) {
 				continue
 			}
 			hdr.Name = path.Join(p.Dst, strings.TrimPrefix(name, src))
-			return !p.Skip
+			return p.DirMode, !p.Skip
 
 		}
 	}
-	return len(paths) == 0
+	return teleport.DirMaskSharedGroup, len(paths) == 0
 }
 
 // extractFile extracts a single file or directory from tarball into dir.
 // Uses header to determine the type of item to create
 // Based on https://github.com/mholt/archiver
-func extractFile(tarball *tar.Reader, header *tar.Header, dir string) error {
+func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os.FileMode) error {
 	switch header.Typeflag {
 	case tar.TypeDir:
-		return withDir(filepath.Join(dir, header.Name), nil)
+		return withDir(filepath.Join(dir, header.Name), dirMode, nil)
 	case tar.TypeBlock, tar.TypeChar, tar.TypeReg, tar.TypeFifo:
-		return writeFile(filepath.Join(dir, header.Name), tarball, header.FileInfo().Mode())
+		return writeFile(filepath.Join(dir, header.Name), tarball, header.FileInfo().Mode(), dirMode)
 	case tar.TypeLink:
-		return writeHardLink(filepath.Join(dir, header.Name), filepath.Join(dir, header.Linkname))
+		return writeHardLink(filepath.Join(dir, header.Name), filepath.Join(dir, header.Linkname), dirMode)
 	case tar.TypeSymlink:
-		return writeSymbolicLink(filepath.Join(dir, header.Name), header.Linkname)
+		return writeSymbolicLink(filepath.Join(dir, header.Name), header.Linkname, dirMode)
 	default:
 		log.Warnf("Unsupported type flag %v for %v.", header.Typeflag, header.Name)
 	}
@@ -168,8 +173,8 @@ func sanitizeTarPath(header *tar.Header, dir string) error {
 	return nil
 }
 
-func writeFile(path string, r io.Reader, mode os.FileMode) error {
-	err := withDir(path, func() error {
+func writeFile(path string, r io.Reader, mode, dirMode os.FileMode) error {
+	err := withDir(path, dirMode, func() error {
 		// Create file only if it does not exist to prevent overwriting existing
 		// files (like session recordings).
 		out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
@@ -182,24 +187,24 @@ func writeFile(path string, r io.Reader, mode os.FileMode) error {
 	return trace.Wrap(err)
 }
 
-func writeSymbolicLink(path string, target string) error {
-	err := withDir(path, func() error {
+func writeSymbolicLink(path, target string, dirMode os.FileMode) error {
+	err := withDir(path, dirMode, func() error {
 		err := os.Symlink(target, path)
 		return trace.ConvertSystemError(err)
 	})
 	return trace.Wrap(err)
 }
 
-func writeHardLink(path string, target string) error {
-	err := withDir(path, func() error {
+func writeHardLink(path, target string, dirMode os.FileMode) error {
+	err := withDir(path, dirMode, func() error {
 		err := os.Link(target, path)
 		return trace.ConvertSystemError(err)
 	})
 	return trace.Wrap(err)
 }
 
-func withDir(path string, fn func() error) error {
-	err := os.MkdirAll(filepath.Dir(path), teleport.DirMaskSharedGroup)
+func withDir(path string, mode os.FileMode, fn func() error) error {
+	err := os.MkdirAll(filepath.Dir(path), mode)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}

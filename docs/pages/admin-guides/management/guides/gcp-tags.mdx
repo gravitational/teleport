@@ -17,7 +17,7 @@ When the Teleport process starts, it fetches all tags and labels from
 the GCP API and adds them as labels. The process will update the tags every hour, 
 so newly created or deleted tags will be reflected in the labels.
 
-If the GCP label `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname. This
+If the GCP label `TeleportHostname` is present, its value (must be lower case) will override the node's hostname. This
 does not apply to GCP tags.
 
 ```code

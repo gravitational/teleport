@@ -188,6 +188,7 @@ export default function Table<T>(props: TableProps<T>) {
       searchValue: state.searchValue,
       setSearchValue,
       fetching,
+      isSearchable,
     };
 
     if (state.pagination.CustomTable) {
@@ -279,6 +280,7 @@ function PagedTable<T>({
   fetching,
   className,
   style,
+  isSearchable,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
@@ -288,21 +290,25 @@ function PagedTable<T>({
 
   return (
     <>
-      <StyledPanel>
-        <InputSearch
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
-        />
-        {(showTopPager || showBothPager) && (
-          <ClientSidePager
-            nextPage={nextPage}
-            prevPage={prevPage}
-            data={data}
-            {...fetching}
-            {...pagination}
-          />
-        )}
-      </StyledPanel>
+      {(isSearchable || showTopPager || showBothPager) && (
+        <StyledPanel>
+          {isSearchable && (
+            <InputSearch
+              searchValue={searchValue}
+              setSearchValue={setSearchValue}
+            />
+          )}
+          {(showTopPager || showBothPager) && (
+            <ClientSidePager
+              nextPage={nextPage}
+              prevPage={prevPage}
+              data={data}
+              {...fetching}
+              {...pagination}
+            />
+          )}
+        </StyledPanel>
+      )}
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}

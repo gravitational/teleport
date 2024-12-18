@@ -459,6 +459,32 @@ func TestNotifications(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "got error %T, expected an access denied error due to manager trying to upsert a last seen notification timestamp for a different user", err)
+
+	// Verify that users can't list a global notification they are explicitly excluded from.
+
+	// Create a global notification that matches all users with an exclusion for the manager.
+	_, err = srv.Auth().CreateGlobalNotification(ctx, newGlobalNotification(t, "all-except-manager", &notificationsv1.GlobalNotificationSpec{
+		Matcher: &notificationsv1.GlobalNotificationSpec_All{
+			All: true,
+		},
+		ExcludeUsers: []string{managerUsername},
+	}))
+	require.NoError(t, err)
+
+	// Verify that the manager doesn't see the new notification.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, "all-except-manager", resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationTitleLabel])
+
+	// Verify that the auditor can see the new notification.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "all-except-manager", resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationTitleLabel])
+
 }
 
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {

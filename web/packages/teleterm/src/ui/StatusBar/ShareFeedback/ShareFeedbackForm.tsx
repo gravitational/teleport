@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonIcon, ButtonPrimary, Flex, H2, Link } from 'design';
 import Validation from 'shared/components/Validation';
 import { Cross } from 'design/Icon';

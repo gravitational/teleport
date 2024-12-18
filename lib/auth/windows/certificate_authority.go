@@ -20,9 +20,9 @@ package windows
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -45,7 +45,7 @@ type CertificateStoreConfig struct {
 	// LDAPConfig is the ldap configuration
 	LDAPConfig
 	// Log is the logging sink for the service
-	Log logrus.FieldLogger
+	Logger *slog.Logger
 	// ClusterName is the name of this cluster
 	ClusterName string
 	// LC is the LDAPClient
@@ -114,9 +114,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
+		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Log.Info("Added CRL for Windows logins via LDAP")
+		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }

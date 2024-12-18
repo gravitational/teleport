@@ -23,7 +23,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/netip"
 	"strings"
 	"testing"

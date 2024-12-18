@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
 import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
@@ -167,7 +166,7 @@ const renderActionCell = (
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {flags.isAssumed ? 'assumed' : 'assume roles'}
+          {flags.isAssumed ? 'Assumed' : 'Assume Roles'}
         </ButtonPrimary>
       );
     } else {

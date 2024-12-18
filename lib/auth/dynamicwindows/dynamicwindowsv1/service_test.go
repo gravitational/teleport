@@ -37,6 +37,43 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestFailedAccessCheck(t *testing.T) {
+	t.Parallel()
+	checker := fakeChecker{
+		allowedVerbs: []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate},
+	}
+	s := newService(t, authz.AdminActionAuthMFAVerified, &checker)
+	desktop, err := types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
+	require.NoError(t, err)
+	req := dynamicwindowsv1.CreateDynamicWindowsDesktopRequest{
+		Desktop: desktop,
+	}
+	_, err = s.CreateDynamicWindowsDesktop(context.Background(), &req)
+	require.NoError(t, err)
+	checker.failAccess = true
+	testCases := []string{
+		"CreateDynamicWindowsDesktop",
+		"UpdateDynamicWindowsDesktop",
+		"UpsertDynamicWindowsDesktop",
+		"DeleteDynamicWindowsDesktop",
+		"GetDynamicWindowsDesktop",
+	}
+	for _, tt := range testCases {
+		t.Run(fmt.Sprintf("%s failed access check", tt), func(t *testing.T) {
+			err := callMethod(s, tt)
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	}
+	t.Run("ListDynamicWindowsDesktops failed access check", func(t *testing.T) {
+		req := dynamicwindowsv1.ListDynamicWindowsDesktopsRequest{
+			PageSize: 10,
+		}
+		resp, err := s.ListDynamicWindowsDesktops(context.Background(), &req)
+		require.NoError(t, err)
+		require.Empty(t, resp.Desktops)
+	})
+}
+
 func TestServiceAccess(t *testing.T) {
 	t.Parallel()
 
@@ -46,24 +83,40 @@ func TestServiceAccess(t *testing.T) {
 		allowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name:          "CreateDynamicWindowsDesktop",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate},
+			name: "CreateDynamicWindowsDesktop",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
-			name:          "UpdateDynamicWindowsDesktop",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate},
+			name: "UpdateDynamicWindowsDesktop",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
-			name:          "UpsertDynamicWindowsDesktop",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			name: "UpsertDynamicWindowsDesktop",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 		},
 		{
-			name:          "DeleteDynamicWindowsDesktop",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbDelete},
+			name: "DeleteDynamicWindowsDesktop",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
 			name: "ListDynamicWindowsDesktops",
@@ -87,7 +140,7 @@ func TestServiceAccess(t *testing.T) {
 		for _, state := range tt.allowedStates {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("%v,allowed:%v,verbs:%v", tt.name, stateToString(state), verbs), func(t *testing.T) {
-					service := newService(t, state, fakeChecker{allowedVerbs: verbs})
+					service := newService(t, state, &fakeChecker{allowedVerbs: verbs})
 					err := callMethod(service, tt.name)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
@@ -105,7 +158,7 @@ func TestServiceAccess(t *testing.T) {
 			t.Run(fmt.Sprintf("%v,disallowed:%v", tt.name, stateToString(state)), func(t *testing.T) {
 				// it is enough to test against tt.allowedVerbs,
 				// this is the only different data point compared to the test cases above.
-				service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs})
+				service := newService(t, state, &fakeChecker{allowedVerbs: tt.allowedVerbs})
 				err := callMethod(service, tt.name)
 				require.True(t, trace.IsAccessDenied(err))
 			})
@@ -157,16 +210,19 @@ func callMethod(service *Service, method string) error {
 		if desc.MethodName == method {
 			_, err := desc.Handler(service, context.Background(), func(arg any) error {
 				switch arg := arg.(type) {
+				case *dynamicwindowsv1.GetDynamicWindowsDesktopRequest:
+					arg.Name = "test2"
+
 				case *dynamicwindowsv1.CreateDynamicWindowsDesktopRequest:
 					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
 						Addr: "test",
 					})
 				case *dynamicwindowsv1.UpdateDynamicWindowsDesktopRequest:
-					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{
 						Addr: "test",
 					})
 				case *dynamicwindowsv1.UpsertDynamicWindowsDesktopRequest:
-					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{
 						Addr: "test",
 					})
 				}
@@ -180,10 +236,11 @@ func callMethod(service *Service, method string) error {
 
 type fakeChecker struct {
 	allowedVerbs []string
+	failAccess   bool
 	services.AccessChecker
 }
 
-func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
+func (f *fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindDynamicWindowsDesktop {
 		if slices.Contains(f.allowedVerbs, verb) {
 			return nil
@@ -191,6 +248,13 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	}
 
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+}
+
+func (f *fakeChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
+	if f.failAccess {
+		return trace.AccessDenied("denied")
+	}
+	return nil
 }
 
 func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) *Service {

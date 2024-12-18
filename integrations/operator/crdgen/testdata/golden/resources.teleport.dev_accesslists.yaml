@@ -153,6 +153,10 @@ spec:
                       description: ineligible_status describes if this owner is eligible
                         or not and if not, describes how they're lacking eligibility.
                       x-kubernetes-int-or-string: true
+                    membership_kind:
+                      description: membership_kind describes the type of membership,
+                        either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+                      x-kubernetes-int-or-string: true
                     name:
                       description: name is the username of the owner.
                       type: string

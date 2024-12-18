@@ -36,12 +36,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -82,6 +82,13 @@ func WithClient(client *http.Client) Option {
 	}
 }
 
+// WithTools defines custom list of the tools has to be installed by updater.
+func WithTools(tools []string) Option {
+	return func(u *Updater) {
+		u.tools = tools
+	}
+}
+
 // Updater is updater implementation for the client tools auto updates.
 type Updater struct {
 	toolsDir     string
@@ -92,13 +99,14 @@ type Updater struct {
 	client  *http.Client
 }
 
-// NewUpdater initializes the updater for client tools auto updates. We need to specify the list
-// of tools (e.g., `tsh`, `tctl`) that should be updated, the tools directory path where we
-// download, extract package archives with the new version, and replace symlinks (e.g., `$TELEPORT_HOME/bin`).
-// The base URL of the CDN with Teleport packages and the `http.Client` can be customized via options.
-func NewUpdater(tools []string, toolsDir string, localVersion string, options ...Option) *Updater {
+// NewUpdater initializes the updater for client tools auto updates. We need to specify the tools directory
+// path where we download, extract package archives with the new version, and replace symlinks
+// (e.g., `$TELEPORT_HOME/bin`).
+// The base URL of the CDN with Teleport packages, the `http.Client` and  the list of tools (e.g., `tsh`, `tctl`)
+// that must be updated can be customized via options.
+func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 	updater := &Updater{
-		tools:        tools,
+		tools:        DefaultClientTools(),
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
 		baseURL:      baseURL,
@@ -114,38 +122,7 @@ func NewUpdater(tools []string, toolsDir string, localVersion string, options ..
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal() (version string, reExec bool) {
-	// Check if the user has requested a specific version of client tools.
-	requestedVersion := os.Getenv(teleportToolsVersionEnv)
-	switch requestedVersion {
-	// The user has turned off any form of automatic updates.
-	case "off":
-		return "", false
-	// Requested version already the same as client version.
-	case u.localVersion:
-		return u.localVersion, false
-	}
-
-	// If a version of client tools has already been downloaded to
-	// tools directory, return that.
-	toolsVersion, err := checkToolVersion(u.toolsDir)
-	if err != nil {
-		return "", false
-	}
-	// The user has requested a specific version of client tools.
-	if requestedVersion != "" && requestedVersion != toolsVersion {
-		return requestedVersion, true
-	}
-
-	return toolsVersion, false
-}
-
-// CheckRemote first checks the version set by the environment variable. If not set or disabled,
-// it checks against the Proxy Service to determine if client tools need updating by requesting
-// the `webapi/find` handler, which stores information about the required client tools version to
-// operate with this cluster. It returns the semantic version that needs updating and whether
-// re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
-func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version string, reExec bool, err error) {
+func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -155,6 +132,52 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 	// Requested version already the same as client version.
 	case u.localVersion:
 		return u.localVersion, false, nil
+	// No requested version, we continue.
+	case "":
+	// Requested version that is not the local one.
+	default:
+		if _, err := semver.NewVersion(requestedVersion); err != nil {
+			return "", false, trace.Wrap(err, "checking that request version is semantic")
+		}
+		return requestedVersion, true, nil
+	}
+
+	// If a version of client tools has already been downloaded to
+	// tools directory, return that.
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
+	if trace.IsNotFound(err) {
+		return u.localVersion, false, nil
+	}
+	if err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	return toolsVersion, true, nil
+}
+
+// CheckRemote first checks the version set by the environment variable. If not set or disabled,
+// it checks against the Proxy Service to determine if client tools need updating by requesting
+// the `webapi/find` handler, which stores information about the required client tools version to
+// operate with this cluster. It returns the semantic version that needs updating and whether
+// re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
+	// Check if the user has requested a specific version of client tools.
+	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	switch requestedVersion {
+	// The user has turned off any form of automatic updates.
+	case "off":
+		return "", false, nil
+	// Requested version already the same as client version.
+	case u.localVersion:
+		return u.localVersion, false, nil
+	// No requested version, we continue.
+	case "":
+	// Requested version that is not the local one.
+	default:
+		if _, err := semver.NewVersion(requestedVersion); err != nil {
+			return "", false, trace.Wrap(err, "checking that request version is semantic")
+		}
+		return requestedVersion, true, nil
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -165,7 +188,8 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 		Context:   ctx,
 		ProxyAddr: proxyAddr,
 		Pool:      certPool,
-		Timeout:   30 * time.Second,
+		Timeout:   10 * time.Second,
+		Insecure:  insecure,
 	})
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -173,28 +197,28 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
-	toolsVersion, err := checkToolVersion(u.toolsDir)
-	if err != nil {
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
+	if err != nil && !trace.IsNotFound(err) {
 		return "", false, trace.Wrap(err)
 	}
 
 	switch {
-	case requestedVersion != "" && requestedVersion != toolsVersion:
-		return requestedVersion, true, nil
-	case resp.AutoUpdate.ToolsMode != autoupdate.ToolsUpdateModeEnabled || resp.AutoUpdate.ToolsVersion == "":
-		return "", false, nil
+	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
+		if toolsVersion == "" {
+			return u.localVersion, false, nil
+		}
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
-		return resp.AutoUpdate.ToolsVersion, false, nil
+		return u.localVersion, false, nil
 	case resp.AutoUpdate.ToolsVersion != toolsVersion:
 		return resp.AutoUpdate.ToolsVersion, true, nil
 	}
 
-	return toolsVersion, false, nil
+	return toolsVersion, true, nil
 }
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
 // unarchive and replace existing one.
-func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err error) {
+func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string) (err error) {
 	// Create tools directory if it does not exist.
 	if err := os.MkdirAll(u.toolsDir, 0o755); err != nil {
 		return trace.Wrap(err)
@@ -211,21 +235,20 @@ func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err 
 	// If the version of the running binary or the version downloaded to
 	// tools directory is the same as the requested version of client tools,
 	// nothing to be done, exit early.
-	teleportVersion, err := checkToolVersion(u.toolsDir)
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-
 	}
-	if toolsVersion == u.localVersion || toolsVersion == teleportVersion {
+	if updateToolsVersion == toolsVersion {
 		return nil
 	}
 
 	// Download and update client tools in tools directory.
-	if err := u.Update(ctx, toolsVersion); err != nil {
+	if err := u.Update(ctx, updateToolsVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return
+	return nil
 }
 
 // Update downloads requested version and replace it with existing one and cleanups the previous downloads
@@ -237,10 +260,18 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
+	var pkgNames []string
 	for _, pkg := range packages {
-		if err := u.update(ctx, pkg); err != nil {
+		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
+		if err := u.update(ctx, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
+		pkgNames = append(pkgNames, pkgName)
+	}
+
+	// Cleanup the tools directory with previously downloaded and un-archived versions.
+	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgNames); err != nil {
+		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil
@@ -248,16 +279,8 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 
 // update downloads the archive and validate against the hash. Download to a
 // temporary path within tools directory.
-func (u *Updater) update(ctx context.Context, pkg packageURL) error {
-	hash, err := u.downloadHash(ctx, pkg.Hash)
-	if pkg.Optional && trace.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	f, err := os.CreateTemp(u.toolsDir, "tmp-")
+func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) error {
+	f, err := os.CreateTemp("", "teleport-")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,11 +298,19 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	hash, err := u.downloadHash(ctx, pkg.Hash)
+	if pkg.Optional && trace.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !bytes.Equal(archiveHash, hash) {
 		return trace.BadParameter("hash of archive does not match downloaded archive")
 	}
 
-	pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
 	extractDir := filepath.Join(u.toolsDir, pkgName)
 	if runtime.GOOS != constants.DarwinOS {
 		if err := os.Mkdir(extractDir, 0o755); err != nil {
@@ -289,10 +320,6 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 
 	// Perform atomic replace so concurrent exec do not fail.
 	if err := packaging.ReplaceToolsBinaries(u.toolsDir, f.Name(), extractDir, u.tools); err != nil {
-		return trace.Wrap(err)
-	}
-	// Cleanup the tools directory with previously downloaded and un-archived versions.
-	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -340,7 +367,7 @@ func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, trace.NotFound("hash file is not found: %v", resp.StatusCode)
+		return nil, trace.NotFound("hash file is not found: %q", url)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.BadParameter("bad status when downloading archive hash: %v", resp.StatusCode)
@@ -362,6 +389,11 @@ func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) 
 // downloadArchive downloads the archive package by `url` and writes content to the writer interface,
 // return calculated sha256 hash sum of the content.
 func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) ([]byte, error) {
+	// Display a progress bar before initiating the update request to inform the user that
+	// an update is in progress, allowing them the option to cancel before actual response
+	// which might be delayed with slow internet connection or complete isolation to CDN.
+	pw, finish := newProgressWriter(10)
+	defer finish()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -385,14 +417,10 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 	}
 
 	h := sha256.New()
-	pw := &progressWriter{n: 0, limit: resp.ContentLength}
-	body := io.TeeReader(io.TeeReader(resp.Body, h), pw)
-
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
 	// tools to validate the hash before trying to operate on the archive.
-	_, err = io.CopyN(f, body, resp.ContentLength)
-	if err != nil {
+	if _, err := pw.CopyLimit(f, io.TeeReader(resp.Body, h), resp.ContentLength); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

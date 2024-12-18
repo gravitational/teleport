@@ -24,31 +24,26 @@ import { ActionMeta } from 'react-select';
 import { Option } from 'shared/components/Select';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 
-import { requiredField } from 'shared/components/Validation/rules';
-
 import { CheckableOptionComponent } from '../CheckableOption';
 
 import { PendingListItem, PendingKubeResourceItem } from './RequestCheckout';
-
-import type { KubeNamespaceRequest } from '../kube';
 
 export function KubeNamespaceSelector({
   kubeClusterItem,
   fetchKubeNamespaces,
   savedResourceItems,
-  toggleResource,
-  bulkToggleKubeResources,
-  namespaceRequired,
+  updateNamespacesForKubeCluster,
 }: {
   kubeClusterItem: PendingListItem;
-  fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
+  fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListItem
+  ): Promise<string[]>;
   savedResourceItems: PendingListItem[];
-  toggleResource: (resource: PendingListItem) => void;
-  bulkToggleKubeResources: (
+  updateNamespacesForKubeCluster: (
     resources: PendingKubeResourceItem[],
     resource: PendingListItem
   ) => void;
-  namespaceRequired: boolean;
 }) {
   // Flag is used to determine if we need to perform batch action
   // eg: When menu is open, we want to apply changes only after
@@ -63,7 +58,9 @@ export function KubeNamespaceSelector({
 
   const currKubeClustersNamespaceItems = savedResourceItems.filter(
     resource =>
-      resource.kind === 'namespace' && resource.id === kubeClusterItem.id
+      resource.kind === 'namespace' &&
+      resource.id === kubeClusterItem.id &&
+      resource.clusterName === kubeClusterItem.clusterName
   ) as PendingKubeResourceItem[];
 
   const [selectedOpts, setSelectedOpts] = useState<Option[]>(() =>
@@ -81,58 +78,42 @@ export function KubeNamespaceSelector({
 
     switch (actionMeta.action) {
       case 'clear':
-        bulkToggleKubeResources(
-          currKubeClustersNamespaceItems,
-          kubeClusterItem
-        );
+        updateNamespacesForKubeCluster([], kubeClusterItem);
         return;
       case 'remove-value':
-        toggleResource({
-          kind: 'namespace',
-          id: kubeClusterItem.id,
-          subResourceName: actionMeta.removedValue.value,
-          clusterName: kubeClusterItem.clusterName,
-          name: actionMeta.removedValue.value,
-        });
+        const selectedOptions = options || [];
+        updateNamespacesForKubeCluster(
+          selectedOptions.map(o => optionToKubeNamespace(o)),
+          kubeClusterItem
+        );
         return;
     }
   }
 
   const handleMenuClose = () => {
+    const selectedOptions = selectedOpts || [];
     setIsMenuOpen(false);
-
-    const currNamespaces = currKubeClustersNamespaceItems.map(
-      n => n.subResourceName
-    );
-    const selectedNamespaceIds = selectedOpts.map(o => o.value);
-    const toKeep = selectedNamespaceIds.filter(id =>
-      currNamespaces.includes(id)
-    );
-
-    const toInsert = selectedNamespaceIds.filter(o => !toKeep.includes(o));
-    const toRemove = currNamespaces.filter(n => !toKeep.includes(n));
-
-    if (!toInsert.length && !toRemove.length) {
-      return;
-    }
-
-    bulkToggleKubeResources(
-      [...toRemove, ...toInsert].map(namespace => ({
-        kind: 'namespace',
-        id: kubeClusterItem.id,
-        subResourceName: namespace,
-        clusterName: kubeClusterItem.clusterName,
-        name: namespace,
-      })),
+    updateNamespacesForKubeCluster(
+      selectedOptions.map(o => optionToKubeNamespace(o)),
       kubeClusterItem
     );
   };
 
+  function optionToKubeNamespace(
+    selectedOption: Option
+  ): PendingKubeResourceItem {
+    const namespace = selectedOption.value;
+    return {
+      kind: 'namespace',
+      id: kubeClusterItem.id,
+      subResourceName: namespace,
+      clusterName: kubeClusterItem.clusterName,
+      name: namespace,
+    };
+  }
+
   async function handleLoadOptions(input: string) {
-    const namespaces = await fetchKubeNamespaces({
-      kubeCluster: kubeClusterItem.id,
-      search: input,
-    });
+    const namespaces = await fetchKubeNamespaces(input, kubeClusterItem);
 
     return namespaces.map(namespace => ({
       kind: 'namespace',
@@ -142,10 +123,10 @@ export function KubeNamespaceSelector({
   }
 
   return (
-    <Box width="100%" mb={-3}>
+    <Box width="100%" mb={-3} mt={2}>
       <StyledSelect
-        label={`Namespaces${namespaceRequired ? ' (required)' : ''}:`}
-        inputId={kubeClusterItem.id}
+        label={`Namespaces`}
+        inputId={`${kubeClusterItem.id}-${kubeClusterItem.clusterName}`}
         width="100%"
         placeholder="Start typing a namespace and press enter"
         isMulti
@@ -162,11 +143,6 @@ export function KubeNamespaceSelector({
         onChange={handleChange}
         value={selectedOpts}
         menuPosition="fixed" /* required to render dropdown out of its row */
-        rule={
-          namespaceRequired
-            ? requiredField('namespace selection required')
-            : undefined
-        }
         initOptionsOnMenuOpen={(opts: Option[]) => setInitOptions(opts)}
         defaultOptions={initOptions}
       />

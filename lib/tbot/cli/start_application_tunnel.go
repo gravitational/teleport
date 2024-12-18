@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -39,8 +40,8 @@ type ApplicationTunnelCommand struct {
 
 // NewApplicationTunnelCommand initializes flags for an app tunnel command and
 // returns a struct to contain the parse result.
-func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *ApplicationTunnelCommand {
-	cmd := parentCmd.Command("application-tunnel", "Starts an application tunnel").Alias("app-tunnel")
+func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *ApplicationTunnelCommand {
+	cmd := parentCmd.Command("application-tunnel", fmt.Sprintf("%s tbot with an application tunnel.", mode)).Alias("app-tunnel")
 
 	c := &ApplicationTunnelCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

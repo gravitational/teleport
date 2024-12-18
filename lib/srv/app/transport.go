@@ -21,12 +21,15 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -97,6 +100,12 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Add a timeout to control how long it takes to (start) getting a response
+	// from the target server. This allows Teleport to show the user a helpful
+	// error message when the target service is slow in responding.
+	tr.ResponseHeaderTimeout = requestTimeout
+
 	tr.TLSClientConfig, err = configureTLS(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -143,15 +152,35 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Forward the request to the target application and emit an audit event.
+	// Forward the request to the target application.
+	//
+	// If a network error occurred when connecting to the target application,
+	// log and return a helpful error message to the user and Teleport
+	// administrator.
 	resp, err := t.tr.RoundTrip(r)
+	if message, ok := utils.CanExplainNetworkError(err); ok {
+		if t.log.Enabled(r.Context(), slog.LevelDebug) {
+			t.log.DebugContext(r.Context(), "application request failed with a network error",
+				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))
+		}
+
+		code := trace.ErrorToCode(err)
+		return &http.Response{
+			StatusCode: code,
+			Status:     http.StatusText(code),
+			Proto:      r.Proto,
+			ProtoMajor: r.ProtoMajor,
+			ProtoMinor: r.ProtoMinor,
+			Body:       io.NopCloser(strings.NewReader(charWrap(message))),
+			TLS:        r.TLS,
+		}, nil
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	status := uint32(resp.StatusCode)
 
 	// Emit the event to the audit log.
-	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, status, nil /*aws endpoint*/); err != nil {
+	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, uint32(resp.StatusCode), nil /*aws endpoint*/); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -293,3 +322,30 @@ func host(addr string) string {
 	}
 	return host
 }
+
+// charWrap wraps a line to about 80 characters to make it easier to read.
+func charWrap(message string) string {
+	var sb strings.Builder
+	for _, line := range strings.Split(message, "\n") {
+		var n int
+		for _, word := range strings.Fields(line) {
+			sb.WriteString(word)
+			sb.WriteString(" ")
+
+			n += len(word) + 1
+			if n > 80 {
+				sb.WriteString("\n")
+				n = 0
+			}
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+const (
+	// requestTimeout is the timeout to receive a response from the upstream
+	// server. Start it out large (not to break things) and slowly decrease it
+	// over time.
+	requestTimeout = 5 * time.Minute
+)

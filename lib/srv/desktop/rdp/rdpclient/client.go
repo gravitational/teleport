@@ -73,6 +73,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -81,7 +82,6 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -98,14 +98,15 @@ func init() {
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		switch l := logrus.GetLevel(); l {
-		case logrus.TraceLevel:
+		ctx := context.Background()
+		switch {
+		case slog.Default().Enabled(ctx, logutils.TraceLevel):
 			rustLogLevel = "trace"
-		case logrus.DebugLevel:
+		case slog.Default().Enabled(ctx, slog.LevelDebug):
 			rustLogLevel = "debug"
-		case logrus.InfoLevel:
+		case slog.Default().Enabled(ctx, slog.LevelInfo):
 			rustLogLevel = "info"
-		case logrus.WarnLevel:
+		case slog.Default().Enabled(ctx, slog.LevelWarn):
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
@@ -232,7 +233,7 @@ func (c *Client) readClientUsername() error {
 		}
 		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
-			c.cfg.Logger.DebugContext(context.Background(), fmt.Sprintf("Expected ClientUsername message, got %T", msg))
+			c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientUsername message", "message_type", logutils.TypeAttr(msg))
 			continue
 		}
 		c.cfg.Logger.DebugContext(context.Background(), "Got RDP username", "username", u.Username)
@@ -291,6 +292,12 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// [username] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	username := C.CString(c.username)
+	defer C.free(unsafe.Pointer(username))
+
 	// [addr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -328,6 +335,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
+			go_username:      username,
 			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,

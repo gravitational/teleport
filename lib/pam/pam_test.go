@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 // The PAM module used, pam_teleport.so is called from the policy file
 // teleport-acct-echo. The policy file instructs pam_teleport.so to echo the
 // contents of TELEPORT_* to stdout where this test can read, parse, and
-// validate it's output.
+// validate its output.
 func TestEcho(t *testing.T) {
 	t.Parallel()
 	checkTestModule(t, "teleport-acct-echo")

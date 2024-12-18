@@ -283,7 +283,7 @@ const (
 	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
-	// ComponentUpdater represents the agent updater.
+	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
@@ -410,6 +410,10 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
+
+	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
+	// todo(tross): DELETE WHEN ABLE TO
+	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (
@@ -508,6 +512,12 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
+	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
+	// GitHub connector.
+	CertExtensionGitHubUserID = "github-id@goteleport.com"
+	// CertExtensionGitHubUsername indicates the GitHub username identified by
+	// the GitHub connector.
+	CertExtensionGitHubUsername = "github-login@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -694,6 +704,11 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// SystemIdentityCenterAccessRoleName specifies the name of a system role
+	// that grants a user access to AWS Identity Center resources via
+	// Access Requests.
+	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

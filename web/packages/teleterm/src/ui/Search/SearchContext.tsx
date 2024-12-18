@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   useContext,
   useState,
   FC,
@@ -33,6 +33,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   Document,
   DocumentClusterQueryParams,
+  useWorkspaceServiceState,
 } from 'teleterm/ui/services/workspacesService';
 
 import { actionPicker, SearchPicker } from './pickers/pickers';
@@ -130,7 +131,7 @@ export const SearchContextProvider: FC<PropsWithChildren> = props => {
     );
   }
 
-  appContext.workspacesService.useState();
+  useWorkspaceServiceState();
   const activeDocument = appContext.workspacesService
     .getActiveWorkspaceDocumentService()
     ?.getActive();

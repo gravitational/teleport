@@ -34,6 +34,8 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DBCommand implements "tctl db" group of commands.
@@ -55,7 +57,7 @@ type DBCommand struct {
 }
 
 // Initialize allows DBCommand to plug itself into the CLI parser.
-func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DBCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
@@ -68,13 +70,21 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Conf
 }
 
 // TryRun attempts to run subcommands like "db ls".
-func (c *DBCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.dbList.FullCommand():
-		err = c.ListDatabases(ctx, client)
+		commandFunc = c.ListDatabases
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 

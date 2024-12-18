@@ -19,11 +19,10 @@
 import Logger from 'shared/libs/logger';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
-import {
-  MfaChallengeResponse,
-  WebauthnAssertionResponse,
-} from 'teleport/services/auth';
+import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
@@ -113,6 +112,12 @@ class Tty extends EventEmitterMfaSender {
 
   sendKubeExecData(data: KubeExecData) {
     const encoded = this._proto.encodeKubeExecData(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  sendDbConnectData(data: DbConnectData) {
+    const encoded = this._proto.encodeDbConnectData(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
@@ -299,6 +304,14 @@ export type KubeExecData = {
   container: string;
   command: string;
   isInteractive: boolean;
+};
+
+export type DbConnectData = {
+  serviceName: string;
+  protocol: string;
+  dbName: string;
+  dbUser: string;
+  dbRoles: string[];
 };
 
 export default Tty;

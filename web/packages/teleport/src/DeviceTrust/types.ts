@@ -22,7 +22,9 @@ export type TrustedDevice = {
   id: string;
   assetTag: string;
   osType: TrustedDeviceOSType;
-  enrollStatus: string;
+  enrollStatus: 'enrolled' | 'not enrolled';
+  owner: string;
+  createTime?: Date;
 };
 
 export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';
@@ -39,9 +41,3 @@ export type DeviceListProps = {
   fetchStatus?: 'loading' | 'disabled' | '';
   fetchData?: () => void;
 };
-
-export enum TrustedDeviceRequirement {
-  UNSPECIFIED,
-  NOT_REQUIRED,
-  REQUIRED,
-}

@@ -49,6 +49,9 @@ spec:
       {{- if .Values.podSecurityContext }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
       {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}

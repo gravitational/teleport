@@ -24,7 +24,7 @@ import {
   Flex,
   Mark,
 } from 'design';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 import * as Icons from 'design/Icon';
 
@@ -94,7 +94,9 @@ export function AgentWaitingDialog({
               - The Teleport Service could not join this Teleport cluster. Check
               the logs for errors by running
               <br />
-              <Mark>kubectl logs -l app=teleport-agent -n teleport-agent</Mark>
+              <Mark>
+                kubectl logs -l app=teleport-kube-agent -n teleport-agent
+              </Mark>
             </Text>
 
             <Text>

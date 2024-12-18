@@ -65,7 +65,7 @@ spec:
                 type: array
               client_id:
                 description: ClientID is the id of the authentication client (Teleport
-                  Auth server).
+                  Auth Service).
                 type: string
               client_redirect_settings:
                 description: ClientRedirectSettings defines which client redirect
@@ -116,6 +116,42 @@ spec:
                   time period, they will be forced to re-authenticate.
                 format: duration
                 type: string
+              mfa:
+                description: MFASettings contains settings to enable SSO MFA checks
+                  through this auth connector.
+                nullable: true
+                properties:
+                  acr_values:
+                    description: AcrValues are Authentication Context Class Reference
+                      values. The meaning of the ACR value is context-specific and
+                      varies for identity providers. Some identity providers support
+                      MFA specific contexts, such Okta with its "phr" (phishing-resistant)
+                      ACR.
+                    type: string
+                  client_id:
+                    description: ClientID is the OIDC OAuth app client ID.
+                    type: string
+                  client_secret:
+                    description: ClientSecret is the OIDC OAuth app client secret.
+                    type: string
+                  enabled:
+                    description: Enabled specified whether this OIDC connector supports
+                      MFA checks. Defaults to false.
+                    type: boolean
+                  max_age:
+                    description: MaxAge is the amount of time in nanoseconds that
+                      an IdP session is valid for. Defaults to 0 to always force re-authentication
+                      for MFA checks. This should only be set to a non-zero value
+                      if the IdP is setup to perform MFA checks on top of active user
+                      sessions.
+                    format: duration
+                    type: string
+                  prompt:
+                    description: Prompt is an optional OIDC prompt. An empty string
+                      omits prompt. If not specified, it defaults to select_account
+                      for backwards compatibility.
+                    type: string
+                type: object
               prompt:
                 description: Prompt is an optional OIDC prompt. An empty string omits
                   prompt. If not specified, it defaults to select_account for backwards

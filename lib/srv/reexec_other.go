@@ -27,6 +27,8 @@ import (
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 
+func parkerCommandOSTweaks(cmd *exec.Cmd) {}
+
 func userCommandOSTweaks(cmd *exec.Cmd) {}
 
 func setNeutralOOMScore() error { return nil }

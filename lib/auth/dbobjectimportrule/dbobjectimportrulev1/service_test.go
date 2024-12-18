@@ -82,24 +82,40 @@ func TestServiceAccess(t *testing.T) {
 		allowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name:          "UpsertDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate, types.VerbCreate},
+			name: "UpsertDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:          "CreateDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate},
+			name: "CreateDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
-			name:          "UpdateDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate},
+			name: "UpdateDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
-			name:          "DeleteDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbDelete},
+			name: "DeleteDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
 			name: "GetDatabaseObjectImportRule",

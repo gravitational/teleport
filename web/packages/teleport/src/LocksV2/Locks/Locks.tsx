@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useLocation, useHistory } from 'react-router';
 import { formatRelative } from 'date-fns';
 import { Danger } from 'design/Alert';
@@ -183,7 +183,7 @@ export function Locks() {
 function getFormattedDate(d: string): string {
   try {
     return formatRelative(new Date(d), Date.now());
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -207,10 +207,10 @@ export function Pills({ targets }: { targets: LockTarget[] }) {
   const pills = targets.map((target, index) => {
     const labelText = `${target.kind}: ${target.name}`;
     return (
-      <React.Fragment key={`${target.kind}${target.name}${index}`}>
+      <Fragment key={`${target.kind}${target.name}${index}`}>
         {index > 0 && ' '}
         <Pill kind="secondary">{labelText}</Pill>
-      </React.Fragment>
+      </Fragment>
     );
   });
 

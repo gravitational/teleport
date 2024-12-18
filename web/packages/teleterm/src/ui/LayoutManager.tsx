@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Flex } from 'design';
 
 import { AccessRequestCheckout } from 'teleterm/ui/AccessRequestCheckout';

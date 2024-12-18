@@ -50,6 +50,16 @@ function render(
   return testingRender(ui, { wrapper: Providers, ...options });
 }
 
+/*
+ Returns a Promise resolving on the next macrotask, allowing any pending state
+ updates / timeouts to finish.
+ */
+function tick() {
+  return new Promise<void>(res =>
+    jest.requireActual('timers').setImmediate(res)
+  );
+}
+
 screen.debug = () => {
   window.console.log(prettyDOM());
 };
@@ -64,6 +74,7 @@ export {
   screen,
   fireEvent,
   darkTheme as theme,
+  tick,
   render,
   prettyDOM,
   waitFor,

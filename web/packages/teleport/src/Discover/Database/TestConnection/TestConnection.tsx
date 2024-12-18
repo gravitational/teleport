@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, LabelInput, H3, Subtitle3 } from 'design';
 
 import Select, { Option } from 'shared/components/Select';
@@ -32,7 +32,7 @@ import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInp
 
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import { MfaAuthnResponse } from 'teleport/services/mfa';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 import { WILD_CARD } from 'teleport/Discover/Shared/const';
 
 import {
@@ -43,7 +43,7 @@ import {
   StyledBox,
   useConnectionDiagnostic,
 } from '../../Shared';
-import { DatabaseEngine } from '../../SelectResource';
+import { DatabaseEngine, getDatabaseProtocol } from '../../SelectResource';
 
 export function TestConnection() {
   const { resourceSpec, agentMeta } = useDiscover();
@@ -93,7 +93,7 @@ export function TestConnection() {
 
   function testConnection(
     validator: Validator,
-    mfaResponse?: MfaAuthnResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     if (!validator.validate()) {
       return;
@@ -117,7 +117,7 @@ export function TestConnection() {
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(validator, res)}
+              onMfaResponse={async res => testConnection(validator, res)}
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />
@@ -185,8 +185,7 @@ export function TestConnection() {
                 isDisabled={
                   attempt.status === 'processing' || nameOpts.length === 0
                 }
-                // Database name is required for Postgres.
-                isClearable={dbEngine !== DatabaseEngine.Postgres}
+                isClearable={!isDbNameRequired(dbEngine)}
               />
               <CustomInputFieldForAsterisks
                 selectedOption={selectedDbName}
@@ -237,4 +236,18 @@ function getInputValue(input: string, inputKind: 'name' | 'user') {
     return inputKind === 'name' ? '<name>' : '<user>';
   }
   return input;
+}
+
+function isDbNameRequired(engine: DatabaseEngine) {
+  const protocol = getDatabaseProtocol(engine);
+  switch (protocol) {
+    case 'mongodb':
+    case 'oracle':
+    case 'postgres':
+    case 'spanner':
+    case 'sqlserver':
+      return true;
+    default:
+      return false;
+  }
 }
