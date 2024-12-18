@@ -59,7 +59,7 @@ func (r dataSourceTeleportWorkloadIdentity) Read(ctx context.Context, req tfsdk.
 		return
 	}
 
-	workloadIdentityI, err := r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, id.Value)
+	workloadIdentityI, err := r.p.Client.GetWorkloadIdentity(ctx, id.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 		return

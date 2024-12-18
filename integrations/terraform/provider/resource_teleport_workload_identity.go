@@ -82,7 +82,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 
 	id := workloadIdentityResource.Metadata.Name
 
-	_, err = r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, id)
+	_, err = r.p.Client.GetWorkloadIdentity(ctx, id)
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("WorkloadIdentity exists in Teleport. Either remove it (tctl rm workload_identity/%v)"+
@@ -96,7 +96,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		return
 	}
 
-	_, err = r.p.Client.WorkloadIdentityResourceServiceClient().CreateWorkloadIdentity(ctx, workloadIdentityResource)
+	_, err = r.p.Client.CreateWorkloadIdentity(ctx, workloadIdentityResource)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 		return
@@ -106,7 +106,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
-		workloadIdentityI, err = r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, id)
+		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
 				resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(bErr), "workload_identity"))
@@ -161,7 +161,7 @@ func (r resourceTeleportWorkloadIdentity) Read(ctx context.Context, req tfsdk.Re
 		return
 	}
 
-	workloadIdentityI, err := r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, id.Value)
+	workloadIdentityI, err := r.p.Client.GetWorkloadIdentity(ctx, id.Value)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -211,13 +211,13 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 	
 	name := workloadIdentityResource.Metadata.Name
 
-	workloadIdentityBefore, err := r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, name)
+	workloadIdentityBefore, err := r.p.Client.GetWorkloadIdentity(ctx, name)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", err, "workload_identity"))
 		return
 	}
 
-	_, err = r.p.Client.WorkloadIdentityResourceServiceClient().UpsertWorkloadIdentity(ctx, workloadIdentityResource)
+	_, err = r.p.Client.UpsertWorkloadIdentity(ctx, workloadIdentityResource)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating WorkloadIdentity", err, "workload_identity"))
 		return
@@ -228,7 +228,7 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
-		workloadIdentityI, err = r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, name)
+		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, name)
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", err, "workload_identity"))
 			return
@@ -272,7 +272,7 @@ func (r resourceTeleportWorkloadIdentity) Delete(ctx context.Context, req tfsdk.
 		return
 	}
 
-	err := r.p.Client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, id.Value)
+	err := r.p.Client.DeleteWorkloadIdentity(ctx, id.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 		return
@@ -283,7 +283,7 @@ func (r resourceTeleportWorkloadIdentity) Delete(ctx context.Context, req tfsdk.
 
 // ImportState imports WorkloadIdentity state
 func (r resourceTeleportWorkloadIdentity) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	workloadIdentity, err := r.p.Client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, req.ID)
+	workloadIdentity, err := r.p.Client.GetWorkloadIdentity(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 		return
