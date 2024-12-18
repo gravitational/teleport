@@ -17,11 +17,18 @@
  */
 
 import { Meta } from '@storybook/react';
-import { UserReset } from './UserReset';
+
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { useEffect, useState } from 'react';
+
+import cfg from 'teleport/config';
+
+import { UserReset } from './UserReset';
 
 type StoryProps = {
   status: 'processing' | 'success' | 'error';
+  isMfaEnabled: boolean;
+  allowPasswordless: boolean;
 };
 
 const meta: Meta<StoryProps> = {
@@ -35,6 +42,8 @@ const meta: Meta<StoryProps> = {
   },
   args: {
     status: 'processing',
+    isMfaEnabled: true,
+    allowPasswordless: true,
   },
 };
 
@@ -46,6 +55,18 @@ export function Story(props: StoryProps) {
     success: { status: 'success' },
     error: { status: 'failed', statusText: 'some server error' },
   };
+  const [, setState] = useState({});
+
+  useEffect(() => {
+    const defaultAuth = structuredClone(cfg.auth);
+    cfg.auth.second_factor = props.isMfaEnabled ? 'on' : 'off';
+    cfg.auth.allowPasswordless = props.allowPasswordless;
+    setState({}); // Force re-render of the component with new cfg.
+
+    return () => {
+      cfg.auth = defaultAuth;
+    };
+  }, [props.isMfaEnabled, props.allowPasswordless]);
 
   return (
     <UserReset
