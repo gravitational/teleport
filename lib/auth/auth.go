@@ -5627,7 +5627,7 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 
 const (
 	serverHostnameMaxLen       = 256
-	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]?[a-zA-Z0-9\.-]*$`
 	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
 )
 
@@ -5635,7 +5635,7 @@ var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
 
 // validServerHostname returns false if the hostname is longer than 256 characters or
 // does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
-// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+// cannot begin with a symbol.
 func validServerHostname(hostname string) bool {
 	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
 }

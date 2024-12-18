@@ -4562,3 +4562,68 @@ func TestServerHostnameSanitization(t *testing.T) {
 		})
 	}
 }
+
+func TestValidServerHostname(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		want     bool
+	}{
+		{
+			name:     "valid dns hostname",
+			hostname: "llama.example.com",
+			want:     true,
+		},
+		{
+			name:     "valid friendly hostname",
+			hostname: "llama",
+			want:     true,
+		},
+		{
+			name:     "uuid hostname",
+			hostname: uuid.NewString(),
+			want:     true,
+		},
+		{
+			name:     "valid hostname with multi-dashes",
+			hostname: "llama--example.com",
+			want:     true,
+		},
+		{
+			name:     "valid hostname with multi-dots",
+			hostname: "llama..example.com",
+			want:     true,
+		},
+		{
+			name:     "valid hostname with numbers",
+			hostname: "llama9",
+			want:     true,
+		},
+		{
+			name:     "hostname with invalid characters",
+			hostname: "llama?!$",
+			want:     false,
+		},
+		{
+			name:     "super long hostname",
+			hostname: strings.Repeat("a", serverHostnameMaxLen*2),
+			want:     false,
+		},
+		{
+			name:     "hostname with spaces",
+			hostname: "the quick brown fox jumps over the lazy dog",
+			want:     false,
+		},
+		{
+			name:     "hostname with ;",
+			hostname: "llama;example.com",
+			want:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := validServerHostname(tt.hostname)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
