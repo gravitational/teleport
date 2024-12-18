@@ -19,6 +19,8 @@ RELEASE=$(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 
+PLUGIN_NAME ?= $(ACCESS_PLUGIN)
+
 DOCKER_VERSION = $(subst +,_,$(VERSION))
 DOCKER_NAME = teleport-plugin-$(ACCESS_PLUGIN)
 DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -47,7 +49,6 @@ clean:
 	rm -rf *.gz
 
 .PHONY: release
-release: PLUGIN_NAME = $(ACCESS_PLUGIN)
 release: $(BINARY) $(RELCLI)
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir build/$(RELEASE_NAME)
