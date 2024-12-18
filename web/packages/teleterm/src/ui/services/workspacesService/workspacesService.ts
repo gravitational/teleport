@@ -122,6 +122,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * When a workspace is removed, it's removed from the restored state too.
    */
   private restoredState?: Immutable<WorkspacesPersistedState>;
+  /**
+   * Ensures `setActiveWorkspace` calls are not executed in parallel.
+   * An ongoing call is canceled when a new one is initiated.
+   */
+  private setActiveWorkspaceAbortController = new AbortController();
 
   constructor(
     private modalsService: ModalsService,
@@ -277,6 +282,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
    * workspace state for the cluster and then asks the user about restoring documents from the
    * previous session if there are any.
+   * Only one call can be executed at a time. Any ongoing call is canceled when a new one is initiated.
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
@@ -303,6 +309,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
      */
     isAtDesiredWorkspace: boolean;
   }> {
+    this.setActiveWorkspaceAbortController.abort();
+    this.setActiveWorkspaceAbortController = new AbortController();
+    const abortSignal = this.setActiveWorkspaceAbortController.signal;
+
     if (!clusterUri) {
       this.setState(draftState => {
         draftState.rootClusterUri = undefined;
@@ -323,7 +333,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
 
     if (cluster.profileStatusError) {
-      await this.clustersService.syncRootClustersAndCatchErrors();
+      await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
       // Update the cluster.
       cluster = this.clustersService.findCluster(clusterUri);
       // If the problem persists (because, for example, the user still hasn't
@@ -346,14 +356,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     if (!cluster.connected) {
       const connected = await new Promise<boolean>(resolve =>
-        this.modalsService.openRegularDialog({
-          kind: 'cluster-connect',
-          clusterUri,
-          reason: undefined,
-          prefill,
-          onCancel: () => resolve(false),
-          onSuccess: () => resolve(true),
-        })
+        this.modalsService.openRegularDialog(
+          {
+            kind: 'cluster-connect',
+            clusterUri,
+            reason: undefined,
+            prefill,
+            onCancel: () => resolve(false),
+            onSuccess: () => resolve(true),
+          },
+          abortSignal
+        )
       );
       if (!connected) {
         return { isAtDesiredWorkspace: false };
@@ -385,14 +398,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     const documentsReopen = await new Promise<
       'confirmed' | 'discarded' | 'canceled'
     >(resolve =>
-      this.modalsService.openRegularDialog({
-        kind: 'documents-reopen',
-        rootClusterUri: clusterUri,
-        numberOfDocuments: restoredWorkspace.documents.length,
-        onConfirm: () => resolve('confirmed'),
-        onDiscard: () => resolve('discarded'),
-        onCancel: () => resolve('canceled'),
-      })
+      this.modalsService.openRegularDialog(
+        {
+          kind: 'documents-reopen',
+          rootClusterUri: clusterUri,
+          numberOfDocuments: restoredWorkspace.documents.length,
+          onConfirm: () => resolve('confirmed'),
+          onDiscard: () => resolve('discarded'),
+          onCancel: () => resolve('canceled'),
+        },
+        abortSignal
+      )
     );
     switch (documentsReopen) {
       case 'confirmed':
