@@ -1939,6 +1939,28 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	return trace.Wrap(err)
 }
 
+type autoUpdateAgentRolloutCollection struct {
+	version *autoupdatev1pb.AutoUpdateAgentRollout
+}
+
+func (c *autoUpdateAgentRolloutCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.version)}
+}
+
+func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
+	t.AddRow([]string{
+		c.version.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.version.GetSpec().GetStartVersion()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetTargetVersion()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetAutoupdateMode()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetSchedule()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetStrategy()),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessMonitoringRuleCollection struct {
 	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
 }
