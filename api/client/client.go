@@ -5081,6 +5081,46 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, req *notifi
 	return rsp, trace.Wrap(err)
 }
 
+func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error {
+	_, err := c.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *Client) CreateWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func (c *Client) UpsertWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ResourceUsageClient returns an unadorned Resource Usage service client,
 // using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
