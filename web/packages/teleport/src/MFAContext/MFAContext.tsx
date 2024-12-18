@@ -38,7 +38,7 @@ export const MfaContextProvider = ({ children }: PropsWithChildren) => {
 
   return (
     <MfaContext.Provider value={mfaCtx}>
-      <AuthnDialog {...adminMfa}></AuthnDialog>
+      <AuthnDialog mfaState={adminMfa}></AuthnDialog>
       {children}
     </MfaContext.Provider>
   );
