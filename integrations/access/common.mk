@@ -2,8 +2,11 @@
 # the include path is relative to the including Makefile (nested one directory deeper) not to this one.
 include ../../../build.assets/images.mk
 
+include ../../../build.assets/relcli.mk
+
 VERSION ?= $(shell go run ../../hack/get-version/get-version.go)
 BUILDDIR ?= build
+RELEASE_DIR ?= build
 BINARY = $(BUILDDIR)/teleport-$(ACCESS_PLUGIN)
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags "-w -s"
@@ -44,7 +47,8 @@ clean:
 	rm -rf *.gz
 
 .PHONY: release
-release: $(BINARY)
+release: PLUGIN_NAME = $(ACCESS_PLUGIN)
+release: $(BINARY) $(RELCLI)
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir build/$(RELEASE_NAME)
 	cp -rf $(BINARY) \
@@ -52,9 +56,14 @@ release: $(BINARY)
 		cmd/teleport-$(ACCESS_PLUGIN)/install \
 		build/$(RELEASE_NAME)/
 	echo $(VERSION) > build/$(RELEASE_NAME)/VERSION
-	tar -C build/ -czf build/$(RELEASE).tar.gz $(RELEASE_NAME)
+	tar -C build/ -czf $(RELEASE_DIR)/$(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf build/$(RELEASE_NAME)/
-	@echo "---> Created build/$(RELEASE).tar.gz."
+	@echo "---> Created $(RELEASE_DIR)/$(RELEASE).tar.gz."
+	$(RELCLI) generate-manifest \
+        --path "$(RELEASE_DIR)/$(RELEASE).tar.gz" \
+		--os "$(OS)" \
+		--architecture "$(ARCH)" \
+        --description "$(PLUGIN_NAME) plugin for Teleport"
 
 .PHONY: docker-build
 docker-build: OS = linux

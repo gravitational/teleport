@@ -1,10 +1,12 @@
 include install.mk
+include ../../build.assets/relcli.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
 PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
+RELEASE_DIR ?= .
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
@@ -136,11 +138,16 @@ endif
 
 .PHONY: release
 ifeq ($(OS),darwin)
-release: darwin-signed-build
+release: darwin-signed-build | $(RELCLI)
 else
-release: build
+release: build | $(RELCLI)
 endif
-	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+	tar -C $(BUILDDIR) -czf $(RELEASE_DIR)/$(RELEASE).tar.gz .
+	$(RELCLI) generate-manifest \
+        --path "$(RELEASE_DIR)/$(RELEASE).tar.gz" \
+		--os "$(OS)" \
+		--architecture "$(ARCH)" \
+        --description "Terraform provider plugin for Teleport"
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)

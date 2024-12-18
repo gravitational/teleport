@@ -1,4 +1,5 @@
 include ../../build.assets/images.mk
+include ../../build.assets/relcli.mk
 
 VERSION ?= $(shell go run ../hack/get-version/get-version.go)
 GO_VERSION=1.21.9
@@ -14,6 +15,7 @@ GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 
 BUILDDIR ?= build
 BINARY = $(BUILDDIR)/teleport-event-handler
+RELEASE_DIR ?= .
 
 GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
@@ -55,9 +57,9 @@ darwin-signed-build: build
 
 .PHONY: release
 ifeq ($(OS),darwin)
-release: darwin-signed-build
+release: darwin-signed-build | $(RELCLI)
 else
-release: build
+release: build | $(RELCLI)
 endif
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir $(RELEASE_NAME)
@@ -66,9 +68,14 @@ endif
           install \
           $(RELEASE_NAME)/
 	echo $(GITTAG) > $(RELEASE_NAME)/VERSION
-	tar -czf $(RELEASE).tar.gz $(RELEASE_NAME)
+	tar -czf $(RELEASE_DIR)/$(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf $(RELEASE_NAME)/
-	@echo "---> Created $(RELEASE).tar.gz."
+	@echo "---> Created $(RELEASE_DIR)/$(RELEASE).tar.gz."
+	$(RELCLI) generate-manifest \
+        --path "$(RELEASE_DIR)/$(RELEASE).tar.gz" \
+		--os "$(OS)" \
+		--architecture "$(ARCH)" \
+        --description "Event handler plugin for Teleport"
 
 
 .PHONY: clean
