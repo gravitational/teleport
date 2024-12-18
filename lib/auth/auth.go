@@ -1494,12 +1494,11 @@ func (a *Server) runPeriodicOperations() {
 									heartbeatsMissedByAuth.Inc()
 								}
 
+								if srv.GetSubKind() != types.SubKindOpenSSHNode {
+									return false, nil
+								}
 								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
 								if !validServerHostname(srv.GetHostname()) {
-									if srv.GetSubKind() != types.SubKindOpenSSHNode {
-										return false, nil
-									}
-
 									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
 
 									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
@@ -1512,6 +1511,17 @@ func (a *Server) runPeriodicOperations() {
 
 									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
 										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+									}
+								} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+									// If the hostname has been replaced by a sanitized version, revert it back to the original
+									// if the original is valid under the most recent rules.
+									logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
+									if err := restoreSanitizedHostname(srv); err != nil {
+										logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
+										return false, nil
+									}
+									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+										log.Warnf("Failed to update node hostname: %v", err)
 									}
 								}
 
@@ -5627,7 +5637,7 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 
 const (
 	serverHostnameMaxLen       = 256
-	serverHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+	serverHostnameRegexPattern = `^[a-zA-Z0-9]+[a-zA-Z0-9\.-]*$`
 	replacedHostnameLabel      = types.TeleportInternalLabelPrefix + "invalid-hostname"
 )
 
@@ -5635,7 +5645,7 @@ var serverHostnameRegex = regexp.MustCompile(serverHostnameRegexPattern)
 
 // validServerHostname returns false if the hostname is longer than 256 characters or
 // does not entirely consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
-// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+// cannot begin with a symbol.
 func validServerHostname(hostname string) bool {
 	return len(hostname) <= serverHostnameMaxLen && serverHostnameRegex.MatchString(hostname)
 }
@@ -5667,6 +5677,26 @@ func sanitizeHostname(server types.Server) error {
 		}
 
 		s.Metadata.Labels[replacedHostnameLabel] = invalidHostname
+	default:
+		return trace.BadParameter("invalid server provided")
+	}
+
+	return nil
+}
+
+// restoreSanitizedHostname restores the original hostname of a server and removes the label.
+func restoreSanitizedHostname(server types.Server) error {
+	oldHostname, ok := server.GetLabels()[replacedHostnameLabel]
+	// if the label is not present or the hostname is invalid under the most recent rules, do nothing.
+	if !ok || !validServerHostname(oldHostname) {
+		return nil
+	}
+
+	switch s := server.(type) {
+	case *types.ServerV2:
+		// restore the original hostname and remove the label.
+		s.Spec.Hostname = oldHostname
+		delete(s.Metadata.Labels, replacedHostnameLabel)
 	default:
 		return trace.BadParameter("invalid server provided")
 	}
