@@ -62,14 +62,17 @@ type createOktaClientParams struct {
 	oktaOrganization        string
 	pluginCredentialsLabels map[string]string
 	connectorID             string
-	scopes                  []string
 }
 
-func (w *createOktaClientParams) GetApiCredentials() *oktapb.OktaAPICredentials {
-	return w.credsFromReq
+func (p *createOktaClientParams) validate() error {
+	if p.oktaOrganization == "" {
+		return trace.BadParameter("missing Okta organization URL")
+	}
+	if p.credsFromReq.GetSswsBearerToken() == "" && p.credsFromReq.GetOauthId() == "" {
+		return trace.BadParameter("missing Okta API credentials")
+	}
+	return nil
 }
-
-func (w *createOktaClientParams) GetOktaOrganizationUrl() string { return w.oktaOrganization }
 
 // createOktaClient creates Okta client from the request payload or saved credentials.
 // This function is shared function between Create and Update plugin flow.
@@ -93,13 +96,13 @@ func (s *Service) createOktaClient(ctx context.Context, params *createOktaClient
 }
 
 func (s *Service) createOktaClientFromSavedCred(ctx context.Context, params *createOktaClientParams) (api.Client, error) {
-	psc, err := s.credsBackend.GetPluginStaticCredentialsByLabels(ctx, params.pluginCredentialsLabels)
+	staticCreds, err := s.credsBackend.GetPluginStaticCredentialsByLabels(ctx, params.pluginCredentialsLabels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var authProvider api.AuthProvider
-	for _, v := range psc {
+	for _, v := range staticCreds {
 		// We will try to create Okta client from saved credentials stored Teleport backend.
 		// Okta credentials can be SSWS, OAuth or SCIM token
 		// but for client auth we only need OAuth or SSWS token.
@@ -141,21 +144,21 @@ func (s *Service) oktaAuthProviderFromStaticCreds(ctx context.Context, staticCre
 }
 
 func (s *Service) createOktaClientFromRequestPayload(ctx context.Context, params *createOktaClientParams) (api.Client, error) {
-	if err := validateCredential(params); err != nil {
+	if err := params.validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var authProvider api.AuthProvider
 	switch {
-	case params.GetApiCredentials().GetOauthId() != "":
+	case params.credsFromReq.GetOauthId() != "":
 		authProvider = api.NewOauthProviderWithOktaCASigner(ctx, api.OauthOktaCACredentialsConfig{
-			OAuthClientID: params.GetApiCredentials().GetOauthId(),
+			OAuthClientID: params.credsFromReq.GetOauthId(),
 			AuthService:   s.authCache,
 			CAKeyStore:    s.jwtSigner,
 			Clock:         s.clock,
 		})
-	case params.GetApiCredentials().GetSswsBearerToken() != "":
-		authProvider = api.NewSSWSAuthProvider(params.GetApiCredentials().GetSswsBearerToken())
+	case params.credsFromReq.GetSswsBearerToken() != "":
+		authProvider = api.NewSSWSAuthProvider(params.credsFromReq.GetSswsBearerToken())
 	default:
 		return nil, trace.BadParameter("missing Okta API credentials")
 	}
@@ -165,9 +168,9 @@ func (s *Service) createOktaClientFromRequestPayload(ctx context.Context, params
 			Transport: s.roundTripper,
 			Timeout:   defaults.HTTPRequestTimeout,
 		},
-		Endpoint:     params.GetOktaOrganizationUrl(),
+		Endpoint:     params.oktaOrganization,
 		AuthProvider: authProvider,
-		Log:          slog.With("okta_url", params.GetOktaOrganizationUrl()),
+		Log:          slog.With("okta_url", params.oktaOrganization),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

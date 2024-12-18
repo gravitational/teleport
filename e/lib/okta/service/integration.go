@@ -36,7 +36,6 @@ func (s *Service) ValidateClientCredentials(ctx context.Context, req *oktapb.Val
 	params := &createOktaClientParams{
 		credsFromReq:     req.GetApiCredentials(),
 		oktaOrganization: req.GetOktaOrganizationUrl(),
-		scopes:           []string{api.ScopeUserRead},
 	}
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
@@ -142,7 +141,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 }
 
 func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
-	info, err := s.getOrCreateSAMLConnector(ctx, req)
+	connectorInfo, err := s.getOrCreateSAMLConnector(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get or create SAML connector")
 	}
@@ -152,7 +151,7 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err, "failed to get Okta plugin credentials")
 	}
 
-	oktaPlugin, err := createOktaPlugin(req, info, creds)
+	oktaPlugin, err := newOktaPlugin(req, connectorInfo, creds)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,25 +171,25 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 	return &oktapb.CreateIntegrationResponse{
 		Plugin: oktaPlugin,
 		ConnectorInfo: &oktapb.ConnectorInfo{
-			OktaAppId:             info.OktaAppID,
-			OktaAppName:           info.OktaAppName,
-			OktaAppLabels:         info.OktaAppLabel,
-			TeleportConnectorName: info.Connector.GetName(),
+			OktaAppId:             connectorInfo.OktaAppID,
+			OktaAppName:           connectorInfo.OktaAppName,
+			OktaAppLabels:         connectorInfo.OktaAppLabel,
+			TeleportConnectorName: connectorInfo.Connector.GetName(),
 		},
 	}, nil
 }
 
-func createOktaPlugin(req *oktapb.CreateIntegrationRequest, info *sso.SAMLConnectorInfo, creds []*types.PluginStaticCredentialsV1) (*types.PluginV1, error) {
+func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAMLConnectorInfo, creds []*types.PluginStaticCredentialsV1) (*types.PluginV1, error) {
 	credsInfo := buildCredentialsInfo(creds)
 	oktaSettings := &types.PluginOktaSettings{
 		CredentialsInfo: credsInfo,
-		OrgUrl:          info.OktaOrg,
+		OrgUrl:          connectorInfo.OktaOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SyncUsers:            req.GetEnableUserSync(),
 			SyncAccessLists:      req.GetEnableAccessListSync(),
 			DisableSyncAppGroups: !req.GetEnableAppGroupSync(),
-			SsoConnectorId:       info.Connector.GetName(),
-			AppId:                info.OktaAppID,
+			SsoConnectorId:       connectorInfo.Connector.GetName(),
+			AppId:                connectorInfo.OktaAppID,
 
 			GroupFilters:  req.GetAccessListSettings().GetGroupFilters(),
 			AppFilters:    req.GetAccessListSettings().GetAppFilters(),
@@ -287,21 +286,10 @@ func (s *Service) createOktaClientForPluginInstall(ctx context.Context, req *okt
 		}
 		req.OktaOrganizationUrl = oktaOrg
 	}
-	scopes := []string{
-		api.ScopeAppsRead,
-		api.ScopeOrgsRead,
-		api.ScopeGroupsRead,
-	}
-	if connector == nil {
-		// If the reuses connector is not set, the flow needs to create SAML Okta app in Okta organization.
-		// For that the okta.apps.manage scope is required.
-		scopes = append(scopes, api.ScopeAppsManage)
-	}
 
 	oktaClient, err := s.createOktaClient(ctx, &createOktaClientParams{
 		credsFromReq:     req.GetApiCredentials(),
 		oktaOrganization: req.GetOktaOrganizationUrl(),
-		scopes:           scopes,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create Okta client")

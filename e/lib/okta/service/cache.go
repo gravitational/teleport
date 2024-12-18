@@ -8,7 +8,6 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
-	"github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -16,7 +15,6 @@ func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsR
 	params := &createOktaClientParams{
 		credsFromReq:     req.GetApiCredentials(),
 		oktaOrganization: req.GetOktaOrganizationUrl(),
-		scopes:           []string{api.ScopeGroupsRead},
 	}
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
@@ -49,7 +47,6 @@ func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsReque
 	params := &createOktaClientParams{
 		credsFromReq:     req.GetApiCredentials(),
 		oktaOrganization: req.GetOktaOrganizationUrl(),
-		scopes:           []string{api.ScopeAppsRead},
 	}
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
