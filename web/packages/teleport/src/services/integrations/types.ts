@@ -298,6 +298,31 @@ export type IntegrationWithSummary = {
   awseks: ResourceTypeSummary;
 };
 
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+export type IntegrationDiscoveryRules = {
+  // rules is the list of integration rules.
+  rules: IntegrationDiscoveryRule[];
+  // nextKey is the position to resume listing rules.
+  nextKey: string;
+};
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+export type IntegrationDiscoveryRule = {
+  // resourceType indicates the type of resource that this rule targets.
+  // This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+  // Example: ec2, rds, eks
+  resourceType: string;
+  // region where this rule applies to.
+  region: string;
+  // labelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+  labelMatcher: Label[];
+  // discoveryConfig is the name of the DiscoveryConfig that created this rule.
+  discoveryConfig: string;
+  // lastSync contains the time when this rule was used.
+  // If empty, it indicates that the rule is not being used.
+  lastSync: number;
+};
+
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
 export type ResourceTypeSummary = {
   // rulesCount is the number of enrollment rules that are using this integration.

@@ -20,6 +20,8 @@ import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+
 import generateResourcePath from './generateResourcePath';
 
 import { defaultEntitlements } from './entitlement';
@@ -198,6 +200,8 @@ const cfg = {
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
     integrationStatus: '/web/integrations/status/:type/:name',
+    integrationStatusResources:
+      '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
@@ -325,6 +329,9 @@ const cfg = {
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
+    integrationRulesPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&limit=:limit?',
+
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
@@ -538,6 +545,18 @@ const cfg = {
 
   getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
+  },
+
+  getIntegrationStatusResourcesRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    resourceKind: AwsResource
+  ) {
+    return generatePath(cfg.routes.integrationStatusResources, {
+      type,
+      name,
+      resourceKind,
+    });
   },
 
   getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
@@ -978,6 +997,20 @@ const cfg = {
     return generatePath(cfg.api.integrationStatsPath, {
       clusterId,
       name,
+    });
+  },
+
+  getIntegrationRulesUrl(
+    name: string,
+    resourceType: AwsResource,
+    params?: UrlResourcesParams
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.integrationRulesPath, {
+      clusterId,
+      name,
+      resourceType,
+      ...params,
     });
   },
 
