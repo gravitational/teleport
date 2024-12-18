@@ -51,6 +51,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.43
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/athena v1.49.0
+	github.com/aws/aws-sdk-go-v2/service/dax v1.23.7
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.24.8
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.195.0
