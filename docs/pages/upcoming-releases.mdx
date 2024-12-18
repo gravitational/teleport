@@ -14,12 +14,6 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ### 17.1.0
 
-#### Per-session MFA via IdP
-
-Teleport users will be able to satisfy per-session MFA checks by authenticating
-with an external identity provider as an alternative to using second factors
-registered with Teleport.
-
 #### Access requests support for AWS Identity Center
 
 AWS Identity Center integration will allow users to request short or long term
@@ -48,7 +42,20 @@ ports accessible on the virtual network.
 Teleport's web UI will include a new role editor that allows users to create
 and modify roles without resorting to a raw YAML editor.
 
+#### Granular SSH port forwarding controls
+
+Teleport will allow cluster administrators to enable local and remote port forwarding
+separately rather than grouping both types of port forwarding behind a single option.
+
 ### 17.2.0
+
+#### Per-session MFA via IdP
+
+Teleport users will be able to satisfy per-session MFA checks by authenticating
+with an external identity provider as an alternative to using second factors
+registered with Teleport.
+
+*Delayed from Teleport 17.1.0.*
 
 #### GitHub access
 
@@ -57,11 +64,9 @@ interact with Github with RBAC and audit logging support.
 
 *Delayed from Teleport 17.1.0.*
 
-#### Granular SSH port forwarding controls
+#### Oracle TOAD 🐸
 
-Teleport will allow cluster administrators to enable local and remote port forwarding
-separately rather than grouping both types of port forwarding behind a single option.
-
+TODO(russjones).
 
 ## Teleport Policy
 
