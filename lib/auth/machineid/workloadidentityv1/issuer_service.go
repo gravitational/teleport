@@ -179,28 +179,18 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	if err != nil {
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
-	// Evaluate any rules explicitly configured by the user
-	if err := evaluateRules(wi, attrs); err != nil {
-		return nil, trace.Wrap(err)
+	decision := decide(ctx, wi, attrs)
+	if !decision.shouldIssue {
+		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
 
-	// Perform any templating
-	spiffeIDPath, err := templateString(wi.GetSpec().GetSpiffe().GetId(), attrs)
-	if err != nil {
-		return nil, trace.Wrap(err, "templating spec.spiffe.id")
-	}
 	spiffeID, err := spiffeid.FromURI(&url.URL{
 		Scheme: "spiffe",
 		Host:   s.clusterName,
-		Path:   spiffeIDPath,
+		Path:   decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetId(),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating SPIFFE ID")
-	}
-
-	hint, err := templateString(wi.GetSpec().GetSpiffe().GetHint(), attrs)
-	if err != nil {
-		return nil, trace.Wrap(err, "templating spec.spiffe.hint")
+		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
 
 	// TODO(noah): Add more sophisticated control of the TTL.
@@ -225,7 +215,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		UserMetadata:             authz.ClientUserMetadata(ctx),
 		ConnectionMetadata:       authz.ConnectionMetadata(ctx),
 		SPIFFEID:                 spiffeID.String(),
-		Hint:                     hint,
+		Hint:                     decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetHint(),
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
 	}
@@ -234,7 +224,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
 
 		SpiffeId: spiffeID.String(),
-		Hint:     hint,
+		Hint:     decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetHint(),
 
 		ExpiresAt: timestamppb.New(notAfter),
 		Ttl:       durationpb.New(ttl),
