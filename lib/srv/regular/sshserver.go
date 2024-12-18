@@ -1536,16 +1536,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 
-	startEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardCode, scx.DstAddr)
+	addrHost, _, err := sshutils.SplitHostPort(scx.ConnectionContext.ServerConn.LocalAddr().String())
+	if err != nil {
+		return
+	}
+	addr := sshutils.JoinHostPort(addrHost, req.Port)
+
+	startEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardCode, addr)
 	s.emitAuditEventWithLog(ctx, &startEvent)
 
 	if err := utils.ProxyConn(ctx, conn, channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-		errEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardFailureCode, scx.DstAddr)
+		errEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardFailureCode, addr)
 		s.emitAuditEventWithLog(ctx, &errEvent)
 		scx.Logger.WarnContext(ctx, "Connection problem in direct-tcpip channel", "error", err)
 	}
 
-	stopEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardStopCode, scx.DstAddr)
+	stopEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardStopCode, addr)
 	s.emitAuditEventWithLog(ctx, &stopEvent)
 }
 
@@ -2235,14 +2241,19 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
+	addrHost, _, err := sshutils.SplitHostPort(scx.ConnectionContext.ServerConn.LocalAddr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	event := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardCode, scx.SrcAddr)
+	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
+	addr := sshutils.JoinHostPort(addrHost, listenPort)
+	event := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardCode, addr)
 	s.emitAuditEventWithLog(ctx, &event)
 
 	// spawn remote forwarding handler to multiplex connections to the forwarded port
 	go func() {
-		stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, scx.SrcAddr)
+		stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, addr)
 		defer s.emitAuditEventWithLog(ctx, &stopEvent)
 
 		for {
@@ -2287,17 +2298,17 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 			go ssh.DiscardRequests(rch)
 			go io.Copy(io.Discard, ch.Stderr())
 			go func() {
-				startEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardCode, scx.SrcAddr)
+				startEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardCode, addr)
 				startEvent.RemoteAddr = conn.RemoteAddr().String()
 				s.emitAuditEventWithLog(ctx, &startEvent)
 
 				if err := utils.ProxyConn(ctx, conn, ch); err != nil {
-					errEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardFailureCode, scx.SrcAddr)
+					errEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardFailureCode, addr)
 					errEvent.RemoteAddr = conn.RemoteAddr().String()
 					s.emitAuditEventWithLog(ctx, &errEvent)
 				}
 
-				stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardStopCode, scx.SrcAddr)
+				stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardStopCode, addr)
 				stopEvent.RemoteAddr = conn.RemoteAddr().String()
 				s.emitAuditEventWithLog(ctx, &stopEvent)
 			}()
@@ -2327,6 +2338,11 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	// Close the listener once the connection is closed, if it hasn't
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
+		event := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, addr)
+		if err := s.EmitAuditEvent(context.Background(), &event); err != nil {
+			s.logger.WarnContext(context.Background(), "Failed to emit audit event", "error", err)
+		}
+
 		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
 		if ok {
 			return trace.Wrap(listener.Close())
