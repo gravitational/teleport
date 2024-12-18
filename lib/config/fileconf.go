@@ -1542,8 +1542,8 @@ type AccessGraphAWSSync struct {
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
 type AccessGraphAzureSync struct {
+	// SubscriptionID is the Azure subscription ID configured for syncing
 	SubscriptionID string `yaml:"subscription_id,omitempty"`
-	Integration    string `yaml:"integration,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

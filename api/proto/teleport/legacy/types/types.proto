@@ -8048,6 +8048,8 @@ message AccessGraphAWSSync {
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
 message AccessGraphAzureSync {
-  string SubscriptionID = 2 [(gogoproto.jsontag) = "subscription_id,omitempty"];
-  string Integration = 3 [(gogoproto.jsontag) = "integration,omitempty"];
+  // SubscriptionID Is the ID of the Azure subscription to sync resources from
+  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
