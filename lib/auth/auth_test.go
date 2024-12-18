@@ -4479,6 +4479,10 @@ func TestServerHostnameSanitization(t *testing.T) {
 			hostname: uuid.NewString() + ".example.com",
 		},
 		{
+			name:     "valid dns hostname with multi-dots",
+			hostname: "llama..example.com",
+		},
+		{
 			name:            "empty hostname",
 			hostname:        "",
 			invalidHostname: true,
@@ -4486,11 +4490,6 @@ func TestServerHostnameSanitization(t *testing.T) {
 		{
 			name:            "exceptionally long hostname",
 			hostname:        strings.Repeat("a", serverHostnameMaxLen*2),
-			invalidHostname: true,
-		},
-		{
-			name:            "invalid dns hostname",
-			hostname:        "llama..example.com",
 			invalidHostname: true,
 		},
 		{
@@ -4617,6 +4616,11 @@ func TestValidServerHostname(t *testing.T) {
 		{
 			name:     "hostname with ;",
 			hostname: "llama;example.com",
+			want:     false,
+		},
+		{
+			name:     "empty hostname",
+			hostname: "",
 			want:     false,
 		},
 	}
