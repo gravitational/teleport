@@ -602,6 +602,8 @@ func (s *IssuanceService) getWorkloadIdentities(
 		page = nextPage
 	}
 
+	// TODO: Filter by access or search first? Caching??
+
 	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
 	// Filter out identities user cannot access.
 	for _, wid := range workloadIdentities {
@@ -638,6 +640,8 @@ func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels
 	return labels
 }
 
+var maxWorkloadIdentitiesIssued = 10 // TODO: maybe make this configurable.
+
 func (s *IssuanceService) IssueWorkloadIdentities(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
@@ -658,11 +662,41 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.getWorkloadIdentities(
+	// TODO: It'd be nice to record our decisions in some way that we can later
+	// inspect. Perhaps we need to abstract away the issuing from the "eval
+	// engine" which returns the templated values and the decision of whether
+	// or not to issue.
+
+	// Ok now we have a filtered list of workload identities that the user can
+	// access and match the labels that they've specified. We now need to test
+	// how many actually pass rules/template eval.
+	workloadIdentities, err := s.getWorkloadIdentities(
 		ctx,
 		authCtx,
 		convertLabels(req.LabelSelectors),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
+	}
+
+	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
+	for _, wi := range workloadIdentities {
+		decision := decide(ctx, wi, attrs)
+		if decision.shouldIssue {
+			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
+		}
+		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
+			// If we're now above the limit, then we want to exit out...
+			return nil, trace.BadParameter("too many workload identities to issue") // TODO: better error lol.
+		}
+	}
+
+	// TODO(noah) Now actually issue i.g.
 
 	// TODO(noah): Coming to a PR near you soon!
 	return nil, trace.NotImplemented("not implemented")
