@@ -21,6 +21,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -229,7 +230,7 @@ func TestGenerate(t *testing.T) {
 
 	for f := range actualFiles {
 		if _, ok := expectedFiles[f]; !ok {
-			t.Errorf(
+			t.Fatalf(
 				"file %v created after running the generator but is not in %v",
 				f,
 				config.DestinationDirectory,
@@ -238,7 +239,7 @@ func TestGenerate(t *testing.T) {
 	}
 	for f := range expectedFiles {
 		if _, ok := actualFiles[f]; !ok {
-			t.Errorf(
+			t.Fatalf(
 				"file %v in %v was not created after running the generator",
 				f,
 				config.DestinationDirectory,
@@ -248,5 +249,25 @@ func TestGenerate(t *testing.T) {
 
 	// Actual file names and expected file names match, so we can compare
 	// each file.
+	for f := range actualFiles {
+		actual, err := memfs.Open(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actualContent, err := io.ReadAll(actual)
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		expected, err := os.Open(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedContent, err := io.ReadAll(expected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, string(expectedContent), string(actualContent))
+	}
 }
