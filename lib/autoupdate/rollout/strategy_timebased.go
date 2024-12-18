@@ -20,19 +20,16 @@ package rollout
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"log/slog"
-	"time"
-
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	update "github.com/gravitational/teleport/api/types/autoupdate"
 )
 
 const (
-	updateReasonInWindow       = "in_window"
-	updateReasonOutsideWindow  = "outside_window"
-	updateReasonRolloutChanged = "rollout_changed_during_window"
+	updateReasonInWindow      = "in_window"
+	updateReasonOutsideWindow = "outside_window"
 )
 
 type timeBasedStrategy struct {
@@ -79,7 +76,12 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow := status.StartTime.AsTime().After(now.Truncate(time.Hour))
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			if err != nil {
+				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				errs = append(errs, err)
+				continue
+			}
 
 			switch {
 			case !shouldBeActive:

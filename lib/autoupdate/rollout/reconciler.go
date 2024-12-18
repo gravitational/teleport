@@ -153,7 +153,7 @@ func (r *reconciler) tryReconcile(ctx context.Context) error {
 		return trace.Wrap(err, "computing rollout status")
 	}
 
-	// we must figure if something changed
+	// We compute if something changed.
 	specChanged := !proto.Equal(existingRollout.GetSpec(), newSpec)
 	statusChanged := !proto.Equal(existingRollout.GetStatus(), newStatus)
 	rolloutChanged := specChanged || statusChanged
