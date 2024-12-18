@@ -1529,7 +1529,7 @@ func (a *Server) runPeriodicOperations() {
 								}
 
 								// If the hostname has been replaced by a sanitized version, revert it back to the original
-								// if the original is valid under the new rules.
+								// if the original is valid under the most recent rules.
 								if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
 									switch s := srv.(type) {
 									case *types.ServerV2:
