@@ -512,13 +512,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				// for that service.
 
 				if m.SSHServer != nil {
+					// we initialize sshKeepAliveDelay before calling
+					// handleSSHServerHB unlike the other heartbeat types
+					// because handleSSHServerHB needs the delay to reset it
+					// after an announce, including the first one
 					if sshKeepAliveDelay == nil {
-						sshKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval:    c.serverKeepAlive,
-							VariableInterval: c.sshHBVariableDuration,
-							Jitter:           retryutils.SeventhJitter,
-						})
+						sshKeepAliveDelay = c.createKeepAliveDelay(c.sshHBVariableDuration)
 					}
 
 					if err := c.handleSSHServerHB(handle, m.SSHServer, sshKeepAliveDelay); err != nil {
@@ -534,12 +533,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 
 					if appKeepAliveDelay == nil {
-						appKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval:    c.serverKeepAlive,
-							VariableInterval: c.appHBVariableDuration,
-							Jitter:           retryutils.SeventhJitter,
-						})
+						appKeepAliveDelay = c.createKeepAliveDelay(c.appHBVariableDuration)
 					}
 				}
 
@@ -550,12 +544,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 
 					if dbKeepAliveDelay == nil {
-						dbKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval:    c.serverKeepAlive,
-							VariableInterval: c.dbHBVariableDuration,
-							Jitter:           retryutils.SeventhJitter,
-						})
+						dbKeepAliveDelay = c.createKeepAliveDelay(c.dbHBVariableDuration)
 					}
 				}
 
@@ -566,12 +555,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 
 					if kubeKeepAliveDelay == nil {
-						kubeKeepAliveDelay = delay.New(delay.Params{
-							FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
-							FixedInterval:    c.serverKeepAlive,
-							VariableInterval: c.kubeHBVariableDuration,
-							Jitter:           retryutils.SeventhJitter,
-						})
+						kubeKeepAliveDelay = c.createKeepAliveDelay(c.kubeHBVariableDuration)
 					}
 				}
 
@@ -1227,6 +1211,15 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 	}
 
 	return nil
+}
+
+func (c *Controller) createKeepAliveDelay(variableDuration *interval.VariableDuration) *delay.Delay {
+	return delay.New(delay.Params{
+		FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
+		FixedInterval:    c.serverKeepAlive,
+		VariableInterval: variableDuration,
+		Jitter:           retryutils.SeventhJitter,
+	})
 }
 
 // Close terminates all control streams registered with this controller. Control streams
