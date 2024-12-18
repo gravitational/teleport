@@ -184,103 +184,30 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
 
-	spiffeID, err := spiffeid.FromURI(&url.URL{
-		Scheme: "spiffe",
-		Host:   s.clusterName,
-		Path:   decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetId(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing SPIFFE ID")
-	}
-
-	// TODO(noah): Add more sophisticated control of the TTL.
-	ttl := time.Hour
-	if req.RequestedTtl != nil && req.RequestedTtl.AsDuration() != 0 {
-		ttl = req.RequestedTtl.AsDuration()
-		if ttl > defaultMaxTTL {
-			ttl = defaultMaxTTL
-		}
-	}
-
-	now := s.clock.Now()
-	notBefore := now.Add(-1 * time.Minute)
-	notAfter := now.Add(ttl)
-
-	// Prepare event
-	evt := &apievents.SPIFFESVIDIssued{
-		Metadata: apievents.Metadata{
-			Type: events.SPIFFESVIDIssuedEvent,
-			Code: events.SPIFFESVIDIssuedSuccessCode,
-		},
-		UserMetadata:             authz.ClientUserMetadata(ctx),
-		ConnectionMetadata:       authz.ConnectionMetadata(ctx),
-		SPIFFEID:                 spiffeID.String(),
-		Hint:                     decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetHint(),
-		WorkloadIdentity:         wi.GetMetadata().GetName(),
-		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-	}
-	cred := &workloadidentityv1pb.Credential{
-		WorkloadIdentityName:     wi.GetMetadata().GetName(),
-		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-
-		SpiffeId: spiffeID.String(),
-		Hint:     decision.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetHint(),
-
-		ExpiresAt: timestamppb.New(notAfter),
-		Ttl:       durationpb.New(ttl),
-	}
-
+	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		evt.SVIDType = "x509"
-		certDer, certSerial, err := s.issueX509SVID(
+		cred, err = s.issueX509SVID(
 			ctx,
+			decision.templatedWorkloadIdentity,
 			v.X509SvidParams,
-			notBefore,
-			notAfter,
-			spiffeID,
+			req.RequestedTtl.AsDuration(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
 		}
-		serialStr := serialString(certSerial)
-		cred.Credential = &workloadidentityv1pb.Credential_X509Svid{
-			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
-				Cert:         certDer,
-				SerialNumber: serialStr,
-			},
-		}
-		evt.SerialNumber = serialStr
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams:
-		evt.SVIDType = "jwt"
-		signedJwt, jti, err := s.issueJWTSVID(
+		cred, err = s.issueJWTSVID(
 			ctx,
+			decision.templatedWorkloadIdentity,
 			v.JwtSvidParams,
-			now,
-			notAfter,
-			spiffeID,
+			req.RequestedTtl.AsDuration(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing JWT SVID")
 		}
-		cred.Credential = &workloadidentityv1pb.Credential_JwtSvid{
-			JwtSvid: &workloadidentityv1pb.JWTSVIDCredential{
-				Jwt: signedJwt,
-				Jti: jti,
-			},
-		}
-		evt.JTI = jti
 	default:
 		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
-	}
-
-	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
-		s.logger.WarnContext(
-			ctx,
-			"failed to emit audit event for SVID issuance",
-			"error", err,
-			"event", evt,
-		)
 	}
 
 	return &workloadidentityv1pb.IssueWorkloadIdentityResponse{
@@ -350,46 +277,123 @@ func (s *IssuanceService) getX509CA(
 	return tlsCA, nil
 }
 
+func baseEvent(
+	ctx context.Context,
+	wi *workloadidentityv1pb.WorkloadIdentity,
+	spiffeID spiffeid.ID,
+) *apievents.SPIFFESVIDIssued {
+	return &apievents.SPIFFESVIDIssued{
+		Metadata: apievents.Metadata{
+			Type: events.SPIFFESVIDIssuedEvent,
+			Code: events.SPIFFESVIDIssuedSuccessCode,
+		},
+		UserMetadata:             authz.ClientUserMetadata(ctx),
+		ConnectionMetadata:       authz.ConnectionMetadata(ctx),
+		SPIFFEID:                 spiffeID.String(),
+		Hint:                     wi.GetSpec().GetSpiffe().GetHint(),
+		WorkloadIdentity:         wi.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
+	}
+}
+
+func calculateTTL(
+	clock clockwork.Clock,
+	requestedTTL time.Duration,
+) (time.Time, time.Time, time.Time, time.Duration) {
+	ttl := time.Hour
+	if requestedTTL != 0 {
+		ttl = requestedTTL
+		if ttl > defaultMaxTTL {
+			ttl = defaultMaxTTL
+		}
+	}
+	now := clock.Now()
+	notBefore := now.Add(-1 * time.Minute)
+	notAfter := now.Add(ttl)
+	return now, notBefore, notAfter, ttl
+}
+
 func (s *IssuanceService) issueX509SVID(
 	ctx context.Context,
+	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.X509SVIDParams,
-	notBefore time.Time,
-	notAfter time.Time,
-	spiffeID spiffeid.ID,
-) (_ []byte, _ *big.Int, err error) {
+	requestedTTL time.Duration,
+) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
 	defer func() { tracing.EndSpan(span, err) }()
 
 	switch {
 	case params == nil:
-		return nil, nil, trace.BadParameter("x509_svid_params: is required")
+		return nil, trace.BadParameter("x509_svid_params: is required")
 	case len(params.PublicKey) == 0:
-		return nil, nil, trace.BadParameter("x509_svid_params.public_key: is required")
+		return nil, trace.BadParameter("x509_svid_params.public_key: is required")
 	}
+
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: "spiffe",
+		Host:   s.clusterName,
+		Path:   wid.GetSpec().GetSpiffe().GetId(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing SPIFFE ID")
+	}
+	_, notBefore, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
 
 	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "parsing public key")
+		return nil, trace.Wrap(err, "parsing public key")
 	}
 
 	certSerial, err := generateCertSerial()
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating certificate serial")
+		return nil, trace.Wrap(err, "generating certificate serial")
 	}
-	template := x509Template(certSerial, notBefore, notAfter, spiffeID)
+	serialString := serialString(certSerial)
 
 	ca, err := s.getX509CA(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
+		return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 	}
 	certBytes, err := x509.CreateCertificate(
-		rand.Reader, template, ca.Cert, pubKey, ca.Signer,
+		rand.Reader,
+		x509Template(certSerial, notBefore, notAfter, spiffeID),
+		ca.Cert,
+		pubKey,
+		ca.Signer,
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return certBytes, certSerial, nil
+	evt := baseEvent(ctx, wid, spiffeID)
+	evt.SVIDType = "x509"
+	evt.SerialNumber = serialString
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
+		s.logger.WarnContext(
+			ctx,
+			"failed to emit audit event for SVID issuance",
+			"error", err,
+			"event", evt,
+		)
+	}
+
+	return &workloadidentityv1pb.Credential{
+		WorkloadIdentityName:     wid.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wid.GetMetadata().GetRevision(),
+
+		SpiffeId: spiffeID.String(),
+		Hint:     wid.GetSpec().GetSpiffe().GetHint(),
+
+		ExpiresAt: timestamppb.New(notAfter),
+		Ttl:       durationpb.New(ttl),
+
+		Credential: &workloadidentityv1pb.Credential_X509Svid{
+			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
+				Cert:         certBytes,
+				SerialNumber: serialString,
+			},
+		},
+	}, nil
 }
 
 const jtiLength = 16
@@ -424,36 +428,45 @@ func (s *IssuanceService) getJWTIssuerKey(
 
 func (s *IssuanceService) issueJWTSVID(
 	ctx context.Context,
+	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.JWTSVIDParams,
-	now time.Time,
-	notAfter time.Time,
-	spiffeID spiffeid.ID,
-) (_ string, _ string, err error) {
+	requestedTTL time.Duration,
+) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
 	defer func() { tracing.EndSpan(span, err) }()
 
 	switch {
 	case params == nil:
-		return "", "", trace.BadParameter("jwt_svid_params: is required")
+		return nil, trace.BadParameter("jwt_svid_params: is required")
 	case len(params.Audiences) == 0:
-		return "", "", trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
+		return nil, trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
 	}
+
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: "spiffe",
+		Host:   s.clusterName,
+		Path:   wid.GetSpec().GetSpiffe().GetId(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing SPIFFE ID")
+	}
+	now, _, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
 
 	jti, err := utils.CryptoRandomHex(jtiLength)
 	if err != nil {
-		return "", "", trace.Wrap(err, "generating JTI")
+		return nil, trace.Wrap(err, "generating JTI")
 	}
 
 	key, err := s.getJWTIssuerKey(ctx)
 	if err != nil {
-		return "", "", trace.Wrap(err, "getting JWT issuer key")
+		return nil, trace.Wrap(err, "getting JWT issuer key")
 	}
 
 	// Determine the public address of the proxy for inclusion in the JWT as
 	// the issuer for purposes of OIDC compatibility.
 	issuer, err := oidc.IssuerForCluster(ctx, s.cache, "/workload-identity")
 	if err != nil {
-		return "", "", trace.Wrap(err, "determining issuer URI")
+		return nil, trace.Wrap(err, "determining issuer URI")
 	}
 
 	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
@@ -466,10 +479,38 @@ func (s *IssuanceService) issueJWTSVID(
 		SetExpiry:   notAfter,
 	})
 	if err != nil {
-		return "", "", trace.Wrap(err, "signing jwt")
+		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	return signed, jti, nil
+	evt := baseEvent(ctx, wid, spiffeID)
+	evt.SVIDType = "jwt"
+	evt.JTI = jti
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
+		s.logger.WarnContext(
+			ctx,
+			"failed to emit audit event for SVID issuance",
+			"error", err,
+			"event", evt,
+		)
+	}
+
+	return &workloadidentityv1pb.Credential{
+		WorkloadIdentityName:     wid.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wid.GetMetadata().GetRevision(),
+
+		SpiffeId: spiffeID.String(),
+		Hint:     wid.GetSpec().GetSpiffe().GetHint(),
+
+		ExpiresAt: timestamppb.New(notAfter),
+		Ttl:       durationpb.New(ttl),
+
+		Credential: &workloadidentityv1pb.Credential_JwtSvid{
+			JwtSvid: &workloadidentityv1pb.JWTSVIDCredential{
+				Jwt: signed,
+				Jti: jti,
+			},
+		},
+	}, nil
 }
 
 func (s *IssuanceService) getWorkloadIdentities(
@@ -506,9 +547,9 @@ func (s *IssuanceService) getWorkloadIdentities(
 
 	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
 	for _, wid := range canAccess {
-		match, _, err := services.MatchLabelGetter(types.Labels{
-			"*": []string{"*"},
-		}, types.Resource153ToResourceWithLabels(wid))
+		match, _, err := services.MatchLabelGetter(
+			labels, types.Resource153ToResourceWithLabels(wid),
+		)
 		if err != nil {
 			// Maybe log and skip rather than returning an error?
 			return nil, trace.Wrap(err)
