@@ -848,7 +848,9 @@ install_from_file() {
         tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
         # install binaries to /usr/local/bin
         for BINARY in ${TELEPORT_BINARY_LIST}; do
-            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            if [ -e "${TELEPORT_ARCHIVE_PATH}/${BINARY}" ]; then
+                ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            fi
         done
     elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         # convert teleport arch to deb arch
