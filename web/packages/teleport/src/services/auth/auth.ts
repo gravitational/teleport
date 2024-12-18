@@ -436,13 +436,13 @@ const auth = {
       .then(res => res?.webauthn_response);
   },
 
-  getAdminActionMfaResponse(allowReuse?: boolean) {
+  async getAdminActionMfaResponse(allowReuse?: boolean) {
     return mfaContext.getAdminActionMfaResponse(allowReuse);
   },
 
   // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
-  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return mfaContext.getAdminActionMfaResponse(allowReuse);
+  async getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+    return auth.getAdminActionMfaResponse(allowReuse);
   },
 };
 
