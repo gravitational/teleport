@@ -182,7 +182,7 @@ func TestGenerate(t *testing.T) {
 		},
 		SourcePath: "testdata/src",
 		DestinationDirectory: path.Join(
-			filepath.Dir(callerPath), "cmd", "resource-ref-generator", "reference", "testdata", "dest",
+			filepath.Dir(callerPath), "testdata", "dest",
 		),
 		ExcludedResourceTypes: []TypeInfo{
 			{
