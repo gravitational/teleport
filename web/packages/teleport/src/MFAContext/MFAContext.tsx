@@ -1,18 +1,19 @@
 import { PropsWithChildren, createContext, useCallback, useRef } from 'react';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
+import api from 'teleport/services/api';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import { useTeleport } from '..';
 
-export interface MFAContextValue {
+export interface MfaContextValue {
   getAdminActionMfaResponse(reusable?: boolean): Promise<MfaChallengeResponse>;
 }
 
-export const MFAContext = createContext<MFAContextValue>(null);
+export const MfaContext = createContext<MfaContextValue>(null);
 
-export const MFAContextProvider = ({ children }: PropsWithChildren) => {
+export const MfaContextProvider = ({ children }: PropsWithChildren) => {
   const allowReuse = useRef(false);
   const adminMfa = useMfa({
     req: {
@@ -36,11 +37,12 @@ export const MFAContextProvider = ({ children }: PropsWithChildren) => {
 
   const ctx = useTeleport();
   ctx.joinTokenService.setMfaContext(mfaCtx);
+  api.setMfaContext(mfaCtx);
 
   return (
-    <MFAContext.Provider value={mfaCtx}>
+    <MfaContext.Provider value={mfaCtx}>
       <AuthnDialog {...adminMfa}></AuthnDialog>
       {children}
-    </MFAContext.Provider>
+    </MfaContext.Provider>
   );
 };

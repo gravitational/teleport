@@ -17,7 +17,7 @@
  */
 
 import cfg from 'teleport/config';
-import { MFAContextValue } from 'teleport/MFAContext/MFAContext';
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
@@ -29,8 +29,8 @@ const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
 class JoinTokenService {
   // MFA context is set late by the MFA Context provider.
-  mfa: MFAContextValue;
-  setMfaContext(mfa: MFAContextValue) {
+  mfa: MfaContextValue;
+  setMfaContext(mfa: MfaContextValue) {
     this.mfa = mfa;
   }
 
