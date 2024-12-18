@@ -170,13 +170,13 @@ export function TestConnection(props: AgentStepProps) {
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res =>
-            testConnection({
+          onMfaResponse={async res => {
+            await testConnection({
               login: selectedLoginOpt.value,
               sshPrincipalSelectionMode,
               mfaResponse: res,
-            })
-          }
+            });
+          }}
           onClose={cancelMfaDialog}
           challengeScope={MfaChallengeScope.USER_SESSION}
         />

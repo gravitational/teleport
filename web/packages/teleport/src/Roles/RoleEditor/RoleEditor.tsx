@@ -17,7 +17,7 @@
  */
 
 import { Alert, Box, Flex } from 'design';
-import React, { useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import Validation, { Validator } from 'shared/components/Validation';

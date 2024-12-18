@@ -2249,7 +2249,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ReadOnlyAccessPoint: authServer,
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
-		Logger:              process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -3116,7 +3116,7 @@ func (process *TeleportProcess) initSSH() error {
 
 			go func() {
 				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-					mux.Entry.WithError(err).Error("node ssh multiplexer terminated unexpectedly")
+					process.logger.ErrorContext(process.ExitContext(), "node ssh multiplexer terminated unexpectedly", "error", err, "mux_id", mux.ID)
 				}
 			}()
 			defer mux.Close()
@@ -3604,7 +3604,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		listenerHTTP := muxListener.HTTP()
 		go func() {
 			if err := muxListener.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				muxListener.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", muxListener.ID)
 			}
 		}()
 
@@ -4021,7 +4021,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.sshGRPC = mux.TLS()
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", mux.ID)
 			}
 		}()
 	}
@@ -4117,7 +4117,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 		go func() {
 			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
 		return &listeners, nil
@@ -4149,7 +4149,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 		go func() {
 			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+				process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 			}
 		}()
 		return &listeners, nil
@@ -4196,7 +4196,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				process.muxPostgresOnWebPort(cfg, &listeners)
 				go func() {
 					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-						listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+						process.logger.ErrorContext(process.ExitContext(), "Mux encountered error serving", "error", err, "mux_id", listeners.mux.ID)
 					}
 				}()
 			} else {
@@ -4482,7 +4482,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
-			Log:              process.log.WithField(teleport.ComponentKey, "router"),
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
@@ -4585,7 +4584,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName:   cn.GetClusterName(),
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
-			Logger:        process.log,
+			Logger:        process.logger,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -4895,7 +4894,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ClusterName:   clusterName,
 		AccessPoint:   accessPoint,
 		LockWatcher:   lockWatcher,
-		Logger:        process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		PermitCaching: process.Config.CachePolicy.Enabled,
 	})
 	if err != nil {
@@ -5060,7 +5059,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName:   clusterName,
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
-			Logger:        process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -5163,7 +5162,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName:   clusterName,
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
-			Logger:        process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6027,7 +6026,7 @@ func (process *TeleportProcess) initApps() {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
-			Logger:      process.log.WithField(teleport.ComponentKey, component),
+			Logger:      process.logger.With(teleport.ComponentKey, component),
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -6711,12 +6710,10 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: cfg.accessPoint,
-		LockWatcher: cfg.lockWatcher,
-		Logger: process.log.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.ComponentProxySecureGRPC, process.id),
-		}),
+		ClusterName:   clusterName,
+		AccessPoint:   cfg.accessPoint,
+		LockWatcher:   cfg.lockWatcher,
+		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
 		PermitCaching: process.Config.CachePolicy.Enabled,
 	})
 	if err != nil {

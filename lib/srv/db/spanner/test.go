@@ -30,7 +30,6 @@ import (
 	"cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -39,10 +38,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -162,7 +159,6 @@ type TestServer struct {
 	srv      *grpc.Server
 	listener net.Listener
 	port     string
-	log      logrus.FieldLogger
 	spannerpb.UnimplementedSpannerServer
 }
 
@@ -183,11 +179,6 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 		return nil, trace.Wrap(err)
 	}
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolSpanner,
-		"name":                config.Name,
-	})
-
 	checker := credentialChecker{expectToken: "Bearer " + config.AuthToken}
 	testServer := &TestServer{
 		srv: grpc.NewServer(
@@ -197,7 +188,6 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 		),
 		listener: config.Listener,
 		port:     port,
-		log:      logger,
 	}
 	spannerpb.RegisterSpannerServer(testServer.srv, testServer)
 

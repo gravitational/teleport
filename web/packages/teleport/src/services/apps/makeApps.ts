@@ -20,7 +20,7 @@ import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, PermissionSet } from './types';
+import { App, AppSubKind, PermissionSet } from './types';
 
 export default function makeApp(json: any): App {
   json = json || {};
@@ -59,11 +59,13 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
+    } else if (subKind === AppSubKind.AwsIcAccount) {
+      /** publicAddr for Identity Center account app is a URL with scheme. */
+      addrWithProtocol = publicAddr;
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
   }
-
   let samlAppSsoUrl = '';
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;

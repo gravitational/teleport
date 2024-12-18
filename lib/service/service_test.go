@@ -39,7 +39,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -1291,9 +1290,8 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
-	log := logrus.New()
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, log),
+		Supervisor: NewSupervisor(hostID, utils.NewLoggerForTests()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1301,7 +1299,8 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		log: log,
+		log:    utils.NewLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests(),
 	}
 
 	// Create a limiter with no limits.

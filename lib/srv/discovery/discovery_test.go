@@ -52,7 +52,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -77,7 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
@@ -751,7 +750,6 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			legacyLogger := logrus.New()
 			logger := libutils.NewSlogLoggerForTests()
 
 			reporter := &mockUsageReporter{}
@@ -772,10 +770,10 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				GetEC2Client: func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+				GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 					return ec2Client, nil
 				},
-				GetSSMClient: func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (server.SSMClient, error) {
+				GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 					return tc.ssm, nil
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
@@ -784,7 +782,6 @@ func TestDiscoveryServer(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
 				Log:              logger,
-				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 				CloudClients:     tc.cloudClients,
 				clock:            fakeClock,
@@ -845,7 +842,6 @@ func TestDiscoveryServer(t *testing.T) {
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	legacyLogger := logrus.New()
 	logger := libutils.NewSlogLoggerForTests()
 
 	defaultDiscoveryGroup := "dg01"
@@ -914,7 +910,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	getEC2Client := func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+	getEC2Client := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		return ec2Client, nil
 	}
 
@@ -942,7 +938,6 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
 		Log:              logger,
-		LegacyLogger:     legacyLogger,
 		DiscoveryGroup:   defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
@@ -996,7 +991,7 @@ func newMockKubeService(name, namespace, externalName string, labels, annotation
 type noopProtocolChecker struct{}
 
 // CheckProtocol for noopProtocolChecker just returns 'tcp'
-func (*noopProtocolChecker) CheckProtocol(uri string) string {
+func (*noopProtocolChecker) CheckProtocol(service corev1.Service, port corev1.ServicePort) string {
 	return "tcp"
 }
 
@@ -1440,12 +1435,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-
-			legacyLogger := logrus.New()
 			logger := libutils.NewSlogLoggerForTests()
 
-			legacyLogger.SetOutput(w)
-			legacyLogger.SetLevel(logrus.DebugLevel)
 			clustersNotUpdated := make(chan string, 10)
 			go func() {
 				// reconcileRegexp is the regex extractor of a log message emitted by reconciler when
@@ -1484,7 +1475,6 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					},
 					Emitter:        authClient,
 					Log:            logger,
-					LegacyLogger:   legacyLogger,
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -1945,18 +1935,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 	)
 	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
 	_, awsRedshiftDBWithIntegration := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName})
-	_, awsRedshiftDBWithIntegrationAndDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfig: discoveryConfigName})
-	_, awsRedshiftDBWithDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfig: discoveryConfigName})
+	_, awsRedshiftDBWithIntegrationAndDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
+	_, awsRedshiftDBWithDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
 	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
-	_, azRedisDBWithDiscoveryConfig := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfig: discoveryConfigName})
+	_, azRedisDBWithDiscoveryConfig := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
 
 	role := types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
 	awsRDSDBWithRole := awsRDSDB.Copy()
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
-	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfig: discoveryConfigName})
+	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
 
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
@@ -1982,6 +1972,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				{Engine: aws.String(services.RDSEnginePostgres)},
 			},
 		},
+		MemoryDB: &mocks.MemoryDBMock{},
 		Redshift: &mocks.RedshiftMock{
 			Clusters: []*redshift.Cluster{awsRedshiftResource},
 		},
@@ -2244,6 +2235,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
 			},
 		},
+		{
+			name: "discovery config status must be updated even when there are no resources",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						// MemoryDB mock client returns no resources.
+						Types:       []string{types.AWSMatcherMemoryDB},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{},
+			wantEvents:      0,
+			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
+				require.Equal(t, uint64(0), s.DiscoveredResources)
+				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -2362,7 +2374,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	dc1Name := uuid.NewString()
 	dc2Name := uuid.NewString()
 
-	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfig: dc2Name, discoveryGroup: mainDiscoveryGroup})
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryConfigName: dc2Name, discoveryGroup: mainDiscoveryGroup})
 
 	testCloudClients := &cloud.TestCloudClients{
 		STS: &mocks.STSMock{},
@@ -2830,7 +2842,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			legacyLogger := logrus.New()
 			logger := libutils.NewSlogLoggerForTests()
 
 			emitter := &mockEmitter{}
@@ -2847,7 +2858,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
-				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
@@ -3139,7 +3149,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			legacyLogger := logrus.New()
 			logger := libutils.NewSlogLoggerForTests()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
@@ -3155,7 +3164,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
-				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
@@ -3203,7 +3211,6 @@ func TestServer_onCreate(t *testing.T) {
 			DiscoveryGroup: "test-cluster",
 			AccessPoint:    accessPoint,
 			Log:            libutils.NewSlogLoggerForTests(),
-			LegacyLogger:   logrus.New(),
 		},
 	}
 
@@ -3532,10 +3539,10 @@ func (m fakeWatcher) Error() error {
 }
 
 type rewriteDiscoveryLabelsParams struct {
-	matcherType     string
-	discoveryConfig string
-	discoveryGroup  string
-	integration     string
+	matcherType         string
+	discoveryConfigName string
+	discoveryGroup      string
+	integration         string
 }
 
 // rewriteCloudResource is a test helper func that rewrites an expected cloud
@@ -3546,8 +3553,8 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryPar
 	if discoveryParams.matcherType != "" {
 		staticLabels[types.DiscoveryTypeLabel] = discoveryParams.matcherType
 	}
-	if discoveryParams.discoveryConfig != "" {
-		staticLabels[types.TeleportInternalDiscoveryConfigName] = discoveryParams.discoveryConfig
+	if discoveryParams.discoveryConfigName != "" {
+		staticLabels[types.TeleportInternalDiscoveryConfigName] = discoveryParams.discoveryConfigName
 	}
 	if discoveryParams.discoveryGroup != "" {
 		staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryParams.discoveryGroup

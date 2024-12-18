@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Indicator, Box, Alert } from 'design';
 
@@ -79,7 +79,7 @@ export function Integrations() {
   return (
     <>
       <FeatureBox>
-        <FeatureHeader>
+        <FeatureHeader justifyContent="space-between">
           <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
           <IntegrationsAddButton
             requiredPermissions={[

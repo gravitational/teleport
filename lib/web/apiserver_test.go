@@ -424,7 +424,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:      s.server.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: s.proxyClient,
 		SiteGetter:       revTunServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -5250,24 +5249,24 @@ func TestCreateRegisterChallenge(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		req             *createRegisterChallengeRequest
+		req             *createRegisterChallengeWithTokenRequest
 		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
 	}{
 		{
 			name: "totp",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType: "totp",
 			},
 		},
 		{
 			name: "webauthn",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType: "webauthn",
 			},
 		},
 		{
 			name: "passwordless",
-			req: &createRegisterChallengeRequest{
+			req: &createRegisterChallengeWithTokenRequest{
 				DeviceType:  "webauthn",
 				DeviceUsage: "passwordless",
 			},
@@ -8219,7 +8218,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	clustername := authServer.ClusterName()
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:      clustername,
-		Log:              log.WithField(teleport.ComponentKey, "router"),
 		LocalAccessPoint: client,
 		SiteGetter:       revTunServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -8253,7 +8251,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			mux.Entry.WithError(err).Error("Mux encountered err serving")
+			log.WithError(err).Error("Mux encountered err serving")
 		}
 	}()
 
@@ -8261,7 +8259,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		ClusterName: clustername,
 		AccessPoint: authServer.Auth(),
 		LockWatcher: proxyLockWatcher,
-		Logger:      log,
 	})
 	require.NoError(t, err)
 
