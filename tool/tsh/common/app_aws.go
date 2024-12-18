@@ -52,11 +52,6 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if shouldUseAWSEndpointURLMode(cf) {
-		log.Debugf("Forcing endpoint URL mode for AWS command %q.", cf.AWSCommandArgs)
-		cf.AWSEndpointURLMode = true
-	}
-
 	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,32 +75,6 @@ func onAWS(cf *CLIConf) error {
 
 	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
-}
-
-func shouldUseAWSEndpointURLMode(cf *CLIConf) bool {
-	inputAWSCommand := strings.Join(removeAWSCommandFlags(cf.AWSCommandArgs), " ")
-	switch inputAWSCommand {
-	// `aws ssm start-session` first calls ssm.<region>.amazonaws.com to get an
-	// stream URL and an token. Then it makes a wss connection with the
-	// provided token to the provided stream URL. The wss request currently
-	// respects HTTPS_PROXY but does not respect local CA bundle we provided
-	// thus causing a failure. Even if this is resolved one day, the wss send
-	// the token through websocket data channel for authentication, instead of
-	// sigv4, which likely we won't support.
-	//
-	// When using the endpoint URL mode, only the first request goes through
-	// Teleport Proxy. The wss connection does not respect the endpoint URL and
-	// goes to AWS directly (thus working fine).
-	//
-	// Reference:
-	// https://github.com/aws/session-manager-plugin/
-	//
-	// "aws ecs execute-command" also start SSM sessions.
-	case "ssm start-session", "ecs execute-command":
-		return true
-	default:
-		return false
-	}
 }
 
 func removeAWSCommandFlags(args []string) (ret []string) {

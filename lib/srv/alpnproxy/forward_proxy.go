@@ -24,10 +24,12 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -175,7 +177,30 @@ func MatchAllRequests(req *http.Request) bool {
 // MatchAWSRequests is a MatchFunc that returns true if request is an AWS API
 // request.
 func MatchAWSRequests(req *http.Request) bool {
-	return awsapiutils.IsAWSEndpoint(req.Host)
+	if dump, err := httputil.DumpRequest(req, true); err == nil {
+		logrus.Debugf("=== dump req %s", string(dump))
+	}
+	return awsapiutils.IsAWSEndpoint(req.Host) &&
+		// Avoid proxying SSM session WebSocket requests and let the forward proxy
+		// send it directly to AWS.
+		//
+		// `aws ssm start-session` first calls ssm.<region>.amazonaws.com to get
+		// a stream URL and a token. Then it makes a wss connection with the
+		// provided token to the provided stream URL. The stream URL looks like:
+		// wss://ssmmessages.region.amazonaws.com/v1/data-channel/session-id?stream=(input|output)
+		//
+		// The wss request currently respects HTTPS_PROXY but does not
+		// respect local CA bundle we provided thus causing a failure. The
+		// request is not signed with SigV4 either.
+		//
+		// Reference:
+		// https://github.com/aws/session-manager-plugin/
+		!isAWSSSMWebsocketRequest(req)
+}
+
+func isAWSSSMWebsocketRequest(req *http.Request) bool {
+	return awsapiutils.IsAWSEndpoint(req.Host) &&
+		strings.HasPrefix(req.Host, "ssmmessages.")
 }
 
 // MatchAzureRequests is a MatchFunc that returns true if request is an Azure API
