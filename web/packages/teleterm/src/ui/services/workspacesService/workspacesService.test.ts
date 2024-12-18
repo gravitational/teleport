@@ -283,19 +283,21 @@ describe('setActiveWorkspace', () => {
   });
 
   it('does not switch the workspace if the cluster has a profile status error', async () => {
+    const rootCluster = makeRootCluster({
+      connected: false,
+      loggedInUser: undefined,
+      profileStatusError: 'no YubiKey device connected',
+    });
     const { workspacesService, notificationsService } = getTestSetup({
-      cluster: makeRootCluster({
-        connected: false,
-        loggedInUser: undefined,
-        profileStatusError: 'no YubiKey device connected',
-      }),
+      cluster: rootCluster,
       persistedWorkspaces: {},
     });
 
     jest.spyOn(notificationsService, 'notifyError');
 
-    const { isAtDesiredWorkspace } =
-      await workspacesService.setActiveWorkspace('/clusters/foo');
+    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
+      rootCluster.uri
+    );
 
     expect(isAtDesiredWorkspace).toBe(false);
     expect(notificationsService.notifyError).toHaveBeenCalledWith(
@@ -370,10 +372,46 @@ describe('setActiveWorkspace', () => {
       })
     );
   });
+
+  it('ongoing setActive call is canceled when the method is called again', async () => {
+    const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
+    const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
+    const workspace1: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: clusterFoo.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/non-existing-doc',
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster: [clusterFoo, clusterBar],
+      persistedWorkspaces: { [clusterFoo.uri]: workspace1 },
+    });
+
+    workspacesService.restorePersistedState();
+    await Promise.all([
+      // Activating the workspace foo will be stuck on restoring previous documents,
+      // since we don't have any handler. This dialog will be canceled be a request
+      // to set workspace bar (which doesn't have any documents).
+      workspacesService.setActiveWorkspace(clusterFoo.uri),
+      workspacesService.setActiveWorkspace(clusterBar.uri),
+    ]);
+
+    expect(workspacesService.getRootClusterUri()).toStrictEqual(clusterBar.uri);
+  });
 });
 
 function getTestSetup(options: {
-  cluster: tshd.Cluster | undefined; // assumes that only one cluster can be added
+  cluster: tshd.Cluster | tshd.Cluster[] | undefined;
   persistedWorkspaces: Record<string, Workspace>;
 }) {
   const { cluster } = options;
@@ -397,9 +435,14 @@ function getTestSetup(options: {
     saveWorkspacesState: jest.fn(),
   };
 
+  const normalizedClusters = (
+    Array.isArray(cluster) ? cluster : [cluster]
+  ).filter(Boolean);
   const clustersService: Partial<ClustersService> = {
-    findCluster: jest.fn(() => cluster),
-    getRootClusters: () => [cluster].filter(Boolean),
+    findCluster: jest.fn(clusterUri =>
+      normalizedClusters.find(c => c.uri === clusterUri)
+    ),
+    getRootClusters: () => normalizedClusters,
     syncRootClustersAndCatchErrors: async () => {},
   };
 

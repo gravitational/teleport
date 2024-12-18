@@ -32,17 +32,22 @@ import {
   PasswordlessPrompt,
   CreateGatewayRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { isAbortError } from 'shared/utils/abortError';
 
 import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
+import {
+  TshdClient,
+  CloneableAbortSignal,
+  cloneAbortSignal,
+} from 'teleterm/services/tshd';
 
 import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 
 const { routing } = uri;
 
@@ -338,13 +343,20 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ]);
   }
 
-  async syncRootClustersAndCatchErrors() {
+  async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
     try {
-      const { response } = await this.client.listRootClusters({});
+      const { response } = await this.client.listRootClusters(
+        {},
+        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
+      );
       clusters = response.clusters;
     } catch (error) {
+      if (isAbortError(error)) {
+        this.logger.info('Listing root clusters aborted');
+        return;
+      }
       const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
