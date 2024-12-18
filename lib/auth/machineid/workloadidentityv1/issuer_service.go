@@ -220,6 +220,7 @@ ruleLoop:
 		}
 		return nil
 	}
+	// TODO: Eventually, we'll need to work support for deny rules into here.
 	return trace.AccessDenied("no matching rule found")
 }
 
