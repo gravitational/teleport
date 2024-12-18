@@ -1,11 +1,8 @@
 import { PropsWithChildren, createContext, useCallback, useRef } from 'react';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa } from 'teleport/lib/useMfa';
-import api from 'teleport/services/api';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
-
-import { useTeleport } from '..';
 
 export interface MfaContextValue {
   getAdminActionMfaResponse(reusable?: boolean): Promise<MfaChallengeResponse>;
@@ -33,11 +30,11 @@ export const MfaContextProvider = ({ children }: PropsWithChildren) => {
     [adminMfa, allowReuse]
   );
 
-  const mfaCtx = { getAdminActionMfaResponse };
-
-  const ctx = useTeleport();
-  ctx.joinTokenService.setMfaContext(mfaCtx);
-  api.setMfaContext(mfaCtx);
+  const mfaCtx = {
+    getAdminActionMfaResponse,
+    useMfa,
+  };
+  auth.setMfaContext(mfaCtx);
 
   return (
     <MfaContext.Provider value={mfaCtx}>

@@ -25,6 +25,8 @@ import {
   MfaChallengeResponse,
   SsoChallenge,
 } from 'teleport/services/mfa';
+
+import { MfaContextValue } from 'teleport/MFAContext/MFAContext';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
@@ -33,6 +35,7 @@ import {
   parseMfaChallengeJson,
   parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
+
 import { makeChangedUserAuthn } from './make';
 import makePasswordToken from './makePasswordToken';
 import {
@@ -44,7 +47,13 @@ import {
   UserCredentials,
 } from './types';
 
+let mfaContext: MfaContextValue;
+
 const auth = {
+  setMfaContext(mfa: MfaContextValue) {
+    mfaContext = mfa;
+  },
+
   checkWebauthnSupport() {
     if (window.PublicKeyCredential) {
       return Promise.resolve();
@@ -277,24 +286,9 @@ const auth = {
   // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
   async getMfaChallengeResponse(
     challenge: MfaAuthenticateChallenge,
-    mfaType?: DeviceType,
+    mfaType: DeviceType,
     totpCode?: string
   ): Promise<MfaChallengeResponse | undefined> {
-    if (!challenge) return;
-
-    // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
-    // to display a component, similar to the one used in useMfa. For now we just default to
-    // whichever method we can succeed with first.
-    if (!mfaType) {
-      if (totpCode) {
-        mfaType = 'totp';
-      } else if (challenge.webauthnPublicKey) {
-        mfaType = 'webauthn';
-      } else if (challenge.ssoChallenge) {
-        mfaType = 'sso';
-      }
-    }
-
     if (mfaType === 'webauthn') {
       return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
     }
@@ -389,7 +383,7 @@ const auth = {
   createPrivilegeTokenWithWebauthn() {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
+      .then(chal => auth.getMfaChallengeResponse(chal, 'webauthn'))
       .then(mfaResp => auth.createPrivilegeToken(mfaResp));
   },
 
@@ -442,27 +436,13 @@ const auth = {
       .then(res => res?.webauthn_response);
   },
 
-  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
-    if (!cfg.isAdminActionMfaEnforced()) {
-      return;
-    }
-
-    return auth
-      .getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: allowReuse,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      })
-      .then(auth.getMfaChallengeResponse);
+  getAdminActionMfaResponse(allowReuse?: boolean) {
+    return mfaContext.getAdminActionMfaResponse(allowReuse);
   },
 
   // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
+    return mfaContext.getAdminActionMfaResponse(allowReuse);
   },
 };
 
