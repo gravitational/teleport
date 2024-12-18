@@ -24,12 +24,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -177,9 +175,6 @@ func MatchAllRequests(req *http.Request) bool {
 // MatchAWSRequests is a MatchFunc that returns true if request is an AWS API
 // request.
 func MatchAWSRequests(req *http.Request) bool {
-	if dump, err := httputil.DumpRequest(req, true); err == nil {
-		logrus.Debugf("=== dump req %s", string(dump))
-	}
 	return awsapiutils.IsAWSEndpoint(req.Host) &&
 		// Avoid proxying SSM session WebSocket requests and let the forward proxy
 		// send it directly to AWS.
