@@ -17,11 +17,10 @@
 package reference
 
 import (
-	"bytes"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"os"
 	"testing"
 
@@ -160,9 +159,10 @@ type MyStruct struct{
 	}
 }
 
-// This test reads the golden file at the destination path and compares the
-// generated resource reference with it. To regenerate the golden file, delete
-// it (reference/testdata/golden.mdx) and run the test again.
+// This test reads the golden files at the destination directory and compares
+// the generated resource reference docs with them. To regenerate the golden
+// files, delete the destination directory (reference/testdata) and run the test
+// again.
 func TestGenerate(t *testing.T) {
 	config := GeneratorConfig{
 		RequiredFieldTypes: []TypeInfo{
@@ -185,18 +185,29 @@ func TestGenerate(t *testing.T) {
 		},
 		FieldAssignmentMethodName: "setStaticFields",
 	}
-	golden, err := os.Open(config.DestinationDirectory)
-	if os.IsNotExist(err) {
-		assert.NoError(t, Generate(afero.NewOsFs(), config))
-		return
+
+	dir, err := os.ReadDir(config.DestinationDirectory)
+
+	// Recreate the golden file directory if it is missing.
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(config.DestinationDirectory, 0777); err != nil {
+			t.Fatal(err)
+		}
+		if err := Generate(afero.NewOsFs(), config); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	var expected bytes.Buffer
-	_, err = io.Copy(&expected, golden)
-	assert.NoError(t, err)
+	actual := afero.NewMemMapFs()
+	if err := Generate(actual, config); err != nil {
+		t.Fatal(err)
+	}
 
-	// TODO: Fix the test to compare multiple files
-	//	var actual bytes.Buffer
-	//	assert.NoError(t, Generate(&actual, config))
-	//	assert.Equal(t, expected.String(), actual.String())
+	// TODO: create a map with all files in the in-memory directory
+	// TODO: range through the files  in the map and check each one against the one in
+	// the real directory
+	// TODO: if there are any leftover files, fail
 }
