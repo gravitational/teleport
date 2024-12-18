@@ -8104,12 +8104,14 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
-  // PollInterval is the frequency at which to poll for AWS resources
+  // PollInterval is the frequency at which to poll for resources
   google.protobuf.Duration PollInterval = 2 [
     (gogoproto.jsontag) = "poll_interval,omitempty",
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
+  // Azure is a configuration for Azure Access Graph service poll service.
+  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -8120,4 +8122,12 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
+message AccessGraphAzureSync {
+  // SubscriptionID Is the ID of the Azure subscription to sync resources from
+  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }

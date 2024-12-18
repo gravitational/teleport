@@ -1754,6 +1754,12 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			subscriptionID := azureMatcher.SubscriptionID
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				SubscriptionID: subscriptionID,
+			})
+		}
 		if fc.Discovery.AccessGraph.PollInterval > 0 {
 			tMatcher.PollInterval = fc.Discovery.AccessGraph.PollInterval
 		}
