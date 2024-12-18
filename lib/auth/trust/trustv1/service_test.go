@@ -100,6 +100,18 @@ func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.Rota
 	return f.rotateCertAuthorityData[string(req.Type)]
 }
 
+func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) CreateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) UpdateTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool
