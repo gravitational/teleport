@@ -213,6 +213,10 @@ func TestGenerate(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := memfs.MkdirAll(config.DestinationDirectory, 0777); err != nil {
+		t.Fatal(err)
+	}
+
 	fileActual, err := memfs.Open(config.DestinationDirectory)
 	if err != nil {
 		t.Fatal(err)
