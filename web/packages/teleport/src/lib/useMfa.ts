@@ -108,11 +108,14 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
     setMfaAttempt(makeEmptyAttempt());
   };
 
-  const getChallengeResponse = async (challenge?: MfaAuthenticateChallenge) => {
-    const [resp, err] = await getResponse(challenge);
-    if (err) throw err;
-    return resp;
-  };
+  const getChallengeResponse = useCallback(
+    async (challenge?: MfaAuthenticateChallenge) => {
+      const [resp, err] = await getResponse(challenge);
+      if (err) throw err;
+      return resp;
+    },
+    [getResponse]
+  );
 
   const submit = useCallback(
     async (mfaType?: DeviceType, totpCode?: string) => {

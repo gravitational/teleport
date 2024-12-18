@@ -166,6 +166,7 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 	return nil, nil
 }
 
+// ParseMFAChallengeResponse parses [MFAChallengeResponse] from JSON and returns it as a [proto.MFAAuthenticateResponse].
 func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateResponse, error) {
 	var resp MFAChallengeResponse
 	if err := json.Unmarshal(mfaResponseJSON, &resp); err != nil {

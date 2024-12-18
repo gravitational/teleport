@@ -61,7 +61,7 @@ describe('AuthnDialog', () => {
         data: null,
       },
     });
-    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -87,7 +87,7 @@ describe('AuthnDialog', () => {
         data: null,
       },
     });
-    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
@@ -110,7 +110,7 @@ describe('AuthnDialog', () => {
         error: new Error(errorText),
       },
     });
-    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
 
     expect(screen.getByTestId('danger-alert')).toBeInTheDocument();
     expect(screen.getByText(errorText)).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('AuthnDialog', () => {
       },
       submit: jest.fn(),
     });
-    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const ssoButton = screen.getByText('Okta');
     fireEvent.click(ssoButton);
     expect(mfa.submit).toHaveBeenCalledTimes(1);
@@ -146,7 +146,7 @@ describe('AuthnDialog', () => {
       },
       submit: jest.fn(),
     });
-    render(<AuthnDialog {...mfa} resetAttempt={mockOnCancel} />);
+    render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const webauthn = screen.getByText('Passkey or MFA Device');
     fireEvent.click(webauthn);
     expect(mfa.submit).toHaveBeenCalledTimes(1);

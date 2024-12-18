@@ -168,7 +168,7 @@ export function AppLauncher() {
       ) : (
         <AppLauncherProcessing />
       )}
-      <AuthnDialog {...mfa}></AuthnDialog>
+      <AuthnDialog mfaState={mfa}></AuthnDialog>
     </div>
   );
 }

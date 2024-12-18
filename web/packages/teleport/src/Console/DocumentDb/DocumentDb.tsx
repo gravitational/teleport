@@ -52,7 +52,7 @@ export function DocumentDb({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog {...mfa} />
+      <AuthnDialog mfaState={mfa} />
 
       {status === 'waiting' && (
         <ConnectDialog

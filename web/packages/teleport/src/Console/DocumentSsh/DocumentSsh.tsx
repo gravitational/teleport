@@ -145,14 +145,8 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog
-        {...ttyMfa}
-        resetAttempt={() => {
-          ttyMfa.resetAttempt();
-          closeDocument();
-        }}
-      />
-      <AuthnDialog {...ftMfa} />
+      <AuthnDialog mfaState={ttyMfa} onClose={closeDocument} />
+      <AuthnDialog mfaState={ftMfa} />
       {status === 'initialized' && terminal}
     </Document>
   );

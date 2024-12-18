@@ -184,13 +184,10 @@ export function DesktopSession(props: State) {
 const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
   return (
     <AuthnDialog
-      {...mfa}
+      mfaState={mfa}
       replaceErrorText={
         'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
       }
-      resetAttempt={() => {
-        mfa.resetAttempt();
-      }}
     />
   );
 };

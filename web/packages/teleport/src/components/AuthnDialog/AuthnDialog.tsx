@@ -28,17 +28,16 @@ import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 import { MfaState } from 'teleport/lib/useMfa';
 import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 
-export type Props = MfaState & {
+export type Props = {
+  mfaState: MfaState;
   replaceErrorText?: string;
+  onClose?: () => void;
 };
 
 export default function AuthnDialog({
-  options,
-  challenge,
-  submit,
-  attempt,
-  resetAttempt,
+  mfaState: { options, challenge, submit, attempt, resetAttempt },
   replaceErrorText,
+  onClose,
 }: Props) {
   if (!challenge && attempt.status !== 'error') return;
 
@@ -50,7 +49,13 @@ export default function AuthnDialog({
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <H2>Verify Your Identity</H2>
-        <ButtonIcon data-testid="close-dialog" onClick={resetAttempt}>
+        <ButtonIcon
+          data-testid="close-dialog"
+          onClick={() => {
+            resetAttempt();
+            onClose();
+          }}
+        >
           <Cross color="text.slightlyMuted" />
         </ButtonIcon>
       </Flex>

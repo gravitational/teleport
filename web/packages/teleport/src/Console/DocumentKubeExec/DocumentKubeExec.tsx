@@ -63,13 +63,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog
-        {...mfa}
-        resetAttempt={() => {
-          mfa.resetAttempt();
-          closeDocument();
-        }}
-      />
+      <AuthnDialog mfaState={mfa} onClose={closeDocument} />
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />
