@@ -92,7 +92,8 @@ jobs:
               "attachments": [
                 {
                   "color": "good",
-                  "title": "Release for ${{ inputs.teleport-version }} succeeded"
+                  "title": "Release for ${{ inputs.teleport-version }} succeeded",
+                  "title_link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                 }
               ]
             }
