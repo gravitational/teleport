@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { useParams } from 'react-router';
 
 import { FeatureBox } from 'teleport/components/Layout';
@@ -27,6 +25,7 @@ import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
+import {AwsOidcTitle} from "teleport/Integrations/status/AwsOidc/AwsOidcTitle";
 
 export function Details() {
   const { resourceKind } = useParams<{
@@ -38,13 +37,16 @@ export function Details() {
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
   return (
-    <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}>
+    <>
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      {resourceKind == AwsResource.ec2 && <Rules />}
-      {resourceKind == AwsResource.eks && <Rules />}
-      {resourceKind == AwsResource.rds && <Rds />}
-    </FeatureBox>
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}>
+        {integration && <AwsOidcTitle integration={integration} resource={resourceKind}/>}
+        {resourceKind == AwsResource.ec2 && <Rules />}
+        {resourceKind == AwsResource.eks && <Rules />}
+        {resourceKind == AwsResource.rds && <Rds />}
+      </FeatureBox>
+    </>
   );
 }

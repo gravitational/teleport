@@ -17,7 +17,7 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, {UrlResourcesParams} from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 

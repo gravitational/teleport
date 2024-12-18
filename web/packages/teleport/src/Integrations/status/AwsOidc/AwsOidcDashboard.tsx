@@ -27,6 +27,7 @@ import {
   AwsResource,
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import {AwsOidcTitle} from "teleport/Integrations/status/AwsOidc/AwsOidcTitle";
 
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
@@ -50,26 +51,29 @@ export function AwsOidcDashboard() {
   const { awsec2, awseks, awsrds } = statsAttempt.data;
   const { data: integration } = integrationAttempt;
   return (
-    <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+    <>
       <AwsOidcHeader integration={integration} />
-      <H2 my={3}>Auto-Enrollment</H2>
-      <Flex gap={3}>
-        <StatCard
-          name={integration.name}
-          resource={AwsResource.ec2}
-          summary={awsec2}
-        />
-        <StatCard
-          name={integration.name}
-          resource={AwsResource.eks}
-          summary={awseks}
-        />
-        <StatCard
-          name={integration.name}
-          resource={AwsResource.rds}
-          summary={awsrds}
-        />
-      </Flex>
-    </FeatureBox>
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
+        {integration && <AwsOidcTitle integration={integration}/>}
+        <H2 my={3}>Auto-Enrollment</H2>
+        <Flex gap={3}>
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.ec2}
+            summary={awsec2}
+          />
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.eks}
+            summary={awseks}
+          />
+          <StatCard
+            name={integration.name}
+            resource={AwsResource.rds}
+            summary={awsrds}
+          />
+        </Flex>
+      </FeatureBox>
+    </>
   );
 }

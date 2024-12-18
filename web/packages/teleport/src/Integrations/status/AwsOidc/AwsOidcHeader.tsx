@@ -18,16 +18,14 @@
 
 import { Link as InternalLink } from 'react-router-dom';
 
-import { ButtonIcon, Flex, Label, Text } from 'design';
-import { ArrowLeft, ChevronRight } from 'design/Icon';
+import { ButtonIcon, ButtonText, Flex, Text } from 'design';
+import { Plugs } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import Link from 'design/Link';
-
 import cfg from 'teleport/config';
-import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import { Integration } from 'teleport/services/integrations';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { useHistory } from 'react-router';
 
 export function AwsOidcHeader({
   integration,
@@ -36,44 +34,62 @@ export function AwsOidcHeader({
   integration: Integration;
   resource?: AwsResource;
 }) {
-  const { status, labelKind } = getStatusAndLabel(integration);
+  const history = useHistory();
+  const divider = (
+    <Text typography="body3" color="text.slightlyMuted">
+      /
+    </Text>
+  );
+
   return (
-    <Flex alignItems="center">
+    <Flex
+      alignItems="center"
+      borderBottom={1}
+      borderColor="levels.surface"
+      width={'100%'}
+      pl={5}
+      py={1}
+    >
       <HoverTooltip position="bottom" tipContent="Back to Integrations">
         <ButtonIcon
+          size="small"
           as={InternalLink}
           to={cfg.routes.integrations}
-          aria-label="back"
+          aria-label="integrations-table"
+          color="text.slightlyMuted"
         >
-          <ArrowLeft size="medium" />
+          <Plugs size="small" />
         </ButtonIcon>
       </HoverTooltip>
       {!resource ? (
-        <Text bold fontSize={6} mx={2}>
-          {integration.name}
-        </Text>
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+            {integration.name}
+          </Text>
+        </>
       ) : (
         <>
-          <Link
-            color="text.main"
-            href={cfg.getIntegrationStatusRoute(
-              integration.kind,
-              integration.name
-            )}
+          {divider}
+          <ButtonText
+            size="small"
+            onClick={() =>
+              history.push(
+                cfg.getIntegrationStatusRoute(
+                  integration.kind,
+                  integration.name
+                )
+              )
+            }
           >
-            <Text bold fontSize={6} mx={2}>
-              {integration.name}
-            </Text>
-          </Link>
-          <ChevronRight />
-          <Text bold fontSize={6}>
+            {integration.name}
+          </ButtonText>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
             {resource.toUpperCase()}
           </Text>
         </>
       )}
-      <Label kind={labelKind} aria-label="status" px={3} ml={3}>
-        {status}
-      </Label>
     </Flex>
   );
 }
