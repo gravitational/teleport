@@ -50,27 +50,29 @@ type resourceSection struct {
 // Intended to be executed with a ReferenceContent.
 // Ampersands are replaced with backticks.
 var referenceTemplate string = `---
-title: {{ .Resource.Kind }} {{ .Resource.Version }} Reference
-description: Provides a reference of fields within the {{ .Kind }} {{ .Version}} resource, which you can manage with tctl.
-sidebar_title: {{ .Kind }} {{ .Version }}
+title: {{ .Resource.SectionName }} Reference
+description: Provides a reference of fields within the {{ .Resource.SectionName }} resource, which you can manage with tctl.
+sidebar_title: {{ .Resource.SectionName }}
 ---
 
+{{ if ne .Resource.Kind "" }}
 **Kind**: {{ .Resource.Kind }}
+{{ end }}
 
+{{ if ne .Resource.Version "" }}
 **Version**: {{ .Resource.Version }}
+{{ end }}
 
 {{ .Resource.Description }}
 
 {/*Automatically generated from: {{ .Resource.SourcePath}}*/}
 
-{{ if gt (len .Fields) 0 }}
+{{ if gt (len .Resource.Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
-{{ range .Fields -}}
+{{ range .Resource.Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
-{{ end }}
-
 {{ end }}
 
 {{ range .Fields }}
@@ -86,6 +88,7 @@ sidebar_title: {{ .Kind }} {{ .Version }}
 {{ range .Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
 {{ end }} 
+{{ end }}
 {{ end }}
 `
 
