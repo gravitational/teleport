@@ -285,10 +285,10 @@ version: v1
 Create the custom rule and remove the default one:
 
 {/* spell-checker: disable */}
-```text
-> tctl create -f import_no_objects.yaml
+```code
+$ tctl create -f import_no_objects.yaml
 rule "import_no_objects" has been created
-> tctl rm db_object_import_rule/import_all_objects
+$ tctl rm db_object_import_rule/import_all_objects
 Rule "import_all_objects" has been deleted
 ```
 {/* spell-checker: enable */}
