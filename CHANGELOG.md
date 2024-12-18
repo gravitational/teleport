@@ -2,8 +2,34 @@
 
 ## 17.1.0 (12/18/24)
 
+### Access requests support for AWS Identity Center
+
+AWS Identity Center integration will allow users to request short or long term access to permission sets via Access Requests.
+
+### Database access for PostgreSQL via web UI
+
+Database access users will be able to connect to PostgreSQL databases connected to Teleport right from the web UI and use psql-style interface to query the database.
+
+### Hosted email plugin for access requests
+
+Users will be able to setup Mailgun or generic SMTP server for access request notifications using Teleport web UI without needing to self-host the email plugin.
+
+### Multi-port support for VNet
+
+Users will be able to support multiple ports (or a range of ports) with a single TCP application, and Teleport VNet will make all of the application's ports accessible on the virtual network.
+
+### Graphical Role Editor
+
+Teleport's web UI will include a new role editor that allows users to create and modify roles without resorting to a raw YAML editor.
+
+### Granular SSH port forwarding controls
+
+Teleport will allow cluster administrators to enable local and remote port forwarding separately rather than grouping both types of port forwarding behind a single option.
+
+### Other improvements and fixes
+
 * Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50397](https://github.com/gravitational/teleport/pull/50397)
-* Prevents panic in SAML app or OIDC integration deletion when a plugin type is not `PluginTypeAWSIdentityCenter` or `PluginAWSICSettings` is nil. [#50360](https://github.com/gravitational/teleport/pull/50360)
+* Fixed an issue causing panics in SAML app or OIDC integration deletion relating to AWS Identity Center integration. [#50360](https://github.com/gravitational/teleport/pull/50360)
 * Fix missing roles in access lists causing users to be locked out of their account. [#50298](https://github.com/gravitational/teleport/pull/50298)
 * Added support for connecting to PostgreSQL databases using WebUI. [#50287](https://github.com/gravitational/teleport/pull/50287)
 * Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50279](https://github.com/gravitational/teleport/pull/50279)
