@@ -154,8 +154,8 @@ const (
 	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
 )
 
-// discoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
-var discoverEC2IssueTypes = []string{
+// DiscoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
+var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 	AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
@@ -261,8 +261,8 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 		)
 	}
 
-	if !slices.Contains(discoverEC2IssueTypes, ut.GetSpec().IssueType) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", discoverEC2IssueTypes)
+	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
+		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEC2IssueTypes)
 	}
 
 	if len(ut.Spec.DiscoverEc2.Instances) == 0 {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, LabelInput, H3, Subtitle3 } from 'design';
 
 import Select, { Option } from 'shared/components/Select';
@@ -117,7 +117,7 @@ export function TestConnection() {
         <Box>
           {showMfaDialog && (
             <ReAuthenticate
-              onMfaResponse={res => testConnection(validator, res)}
+              onMfaResponse={async res => testConnection(validator, res)}
               onClose={cancelMfaDialog}
               challengeScope={MfaChallengeScope.USER_SESSION}
             />

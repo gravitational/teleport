@@ -58,6 +58,42 @@ func ParseWeekday(s string) (day time.Weekday, ok bool) {
 	return time.Sunday, false
 }
 
+// ParseWeekdays attempts to parse a slice of strings representing week days.
+// The slice must not be empty but can also contain a single value "*", representing the whole week.
+// Day order doesn't matter but the same week day must not be present multiple times.
+// In the interest of flexibility, parsing is case-insensitive and supports the common three-letter shorthand
+// accepted by many common scheduling utilites (e.g. contab, systemd timers).
+func ParseWeekdays(days []string) (map[time.Weekday]struct{}, error) {
+	if len(days) == 0 {
+		return nil, trace.BadParameter("empty weekdays list")
+	}
+	// Special case, we support wildcards.
+	if len(days) == 1 && days[0] == Wildcard {
+		return map[time.Weekday]struct{}{
+			time.Monday:    {},
+			time.Tuesday:   {},
+			time.Wednesday: {},
+			time.Thursday:  {},
+			time.Friday:    {},
+			time.Saturday:  {},
+			time.Sunday:    {},
+		}, nil
+	}
+	weekdays := make(map[time.Weekday]struct{}, 7)
+	for _, day := range days {
+		weekday, ok := ParseWeekday(day)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse weekday: %v", day)
+		}
+		// Check if this is a duplicate
+		if _, ok := weekdays[weekday]; ok {
+			return nil, trace.BadParameter("duplicate weekday: %v", weekday.String())
+		}
+		weekdays[weekday] = struct{}{}
+	}
+	return weekdays, nil
+}
+
 // generator builds a closure that iterates valid maintenance config from the current day onward. Used in
 // schedule export logic and tests.
 func (w *AgentUpgradeWindow) generator(from time.Time) func() (start time.Time, end time.Time) {

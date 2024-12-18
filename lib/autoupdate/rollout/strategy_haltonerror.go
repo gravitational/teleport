@@ -1,0 +1,155 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package rollout
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
+)
+
+const (
+	updateReasonCanStart              = "can_start"
+	updateReasonCannotStart           = "cannot_start"
+	updateReasonPreviousGroupsNotDone = "previous_groups_not_done"
+	updateReasonUpdateComplete        = "update_complete"
+	updateReasonUpdateInProgress      = "update_in_progress"
+)
+
+type haltOnErrorStrategy struct {
+	log   *slog.Logger
+	clock clockwork.Clock
+}
+
+func (h *haltOnErrorStrategy) name() string {
+	return update.AgentsStrategyHaltOnError
+}
+
+func newHaltOnErrorStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrategy, error) {
+	if log == nil {
+		return nil, trace.BadParameter("missing log")
+	}
+	if clock == nil {
+		return nil, trace.BadParameter("missing clock")
+	}
+	return &haltOnErrorStrategy{
+		log:   log.With("strategy", update.AgentsStrategyHaltOnError),
+		clock: clock,
+	}, nil
+}
+
+func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+	now := h.clock.Now()
+	// We process every group in order, all the previous groups must be in the DONE state
+	// for the next group to become active. Even if some early groups are not DONE,
+	// later groups might be ACTIVE and need to transition to DONE, so we cannot
+	// return early and must process every group.
+	//
+	// For example, in a dev/staging/prod setup, the "dev" group might get rolled
+	// back while "staging" is still ACTIVE. We must not start PROD but still need
+	// to transition "staging" to DONE.
+	previousGroupsAreDone := true
+
+	for i, group := range groups {
+		switch group.State {
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
+			var previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup
+			if i != 0 {
+				previousGroup = groups[i-1]
+			}
+			canStart, err := canStartHaltOnError(group, previousGroup, now)
+			if err != nil {
+				// In halt-on-error rollouts, groups are dependent.
+				// Failing to transition a group should prevent other groups from transitioning.
+				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				return err
+			}
+			switch {
+			case previousGroupsAreDone && canStart:
+				// We can start
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
+			case previousGroupsAreDone:
+				// All previous groups are OK, but time-related criteria are not OK
+				setGroupState(group, group.State, updateReasonCannotStart, now)
+			default:
+				// At least one previous group is not DONE
+				setGroupState(group, group.State, updateReasonPreviousGroupsNotDone, now)
+			}
+			previousGroupsAreDone = false
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
+			// The group has been manually rolled back. We don't touch anything and
+			// don't process the next groups.
+			previousGroupsAreDone = false
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
+			// The group has already been updated, we can look at the next group
+		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
+			// The group is currently being updated. We check if we can transition it to the done state
+			done, reason := isDoneHaltOnError(group, now)
+
+			if done {
+				// We transition to the done state. We continue processing the groups as we might be able to start the next one.
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE, reason, now)
+			} else {
+				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, reason, now)
+			}
+			previousGroupsAreDone = false
+
+		default:
+			return trace.BadParameter("unknown autoupdate group state: %v", group.State)
+		}
+	}
+	return nil
+}
+
+func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
+	// check wait hours
+	if group.ConfigWaitHours != 0 {
+		if previousGroup == nil {
+			return false, trace.BadParameter("the first group cannot have non-zero wait hours")
+		}
+
+		previousStart := previousGroup.StartTime.AsTime()
+		if previousStart.IsZero() || previousStart.Unix() == 0 {
+			return false, trace.BadParameter("the previous group doesn't have a start time, cannot check the 'wait_hours' criteria")
+		}
+
+		// Check if the wait_hours criteria is OK, if we are at least after 'wait_hours' hours since the previous start.
+		if now.Before(previousGroup.StartTime.AsTime().Add(time.Duration(group.ConfigWaitHours) * time.Hour)) {
+			return false, nil
+		}
+	}
+
+	return inWindow(group, now)
+}
+
+func isDoneHaltOnError(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, string) {
+	// Currently we don't implement status reporting from groups/agents.
+	// So we just wait 60 minutes and consider the maintenance done.
+	// This will change as we introduce agent status report and aggregated agent counts.
+	if group.StartTime.AsTime().Add(time.Hour).Before(now) {
+		return true, updateReasonUpdateComplete
+	}
+	return false, updateReasonUpdateInProgress
+}

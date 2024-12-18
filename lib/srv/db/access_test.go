@@ -2611,7 +2611,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		for _, db := range p.Databases {
 			select {
 			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(db)
+				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
 				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,

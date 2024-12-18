@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
@@ -258,6 +257,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
     Icons.Warning,
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: Icons.Warning,
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,

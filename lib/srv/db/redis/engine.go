@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -32,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // NewEngine create new Redis engine.
@@ -581,18 +583,23 @@ func isTeleportErr(err error) bool {
 	return errors.As(err, &error)
 }
 
-// driverLogger implements go-redis driver's internal logger using logrus and
+// driverLogger implements go-redis driver's internal logger using slog and
 // logs everything at TRACE level.
 type driverLogger struct {
-	*logrus.Entry
+	*slog.Logger
 }
 
-func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
-	l.Entry.Tracef(format, v...)
+func (l *driverLogger) Printf(ctx context.Context, format string, v ...any) {
+	if !l.Logger.Enabled(ctx, logutils.TraceLevel) {
+		return
+	}
+
+	//nolint:sloglint // Allow non-static messages
+	l.Logger.Log(ctx, logutils.TraceLevel, fmt.Sprintf(format, v...))
 }
 
 func init() {
 	redis.SetLogger(&driverLogger{
-		Entry: logrus.WithField(teleport.ComponentKey, "go-redis"),
+		Logger: slog.With(teleport.ComponentKey, "go-redis"),
 	})
 }
