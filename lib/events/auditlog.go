@@ -545,8 +545,25 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		"session_id", string(sessionID),
 	)
 
+	sessionStartCh := make(chan apievents.AuditEvent, 1)
+	if watcher, err := EventsWatcherFromContext(ctx); err == nil {
+		go func() {
+			select {
+			case evt, ok := <-sessionStartCh:
+				if !ok {
+					watcher.OnSessionStart(nil, trace.NotFound("session start event not found"))
+					return
+				}
+
+				watcher.OnSessionStart(evt, nil)
+			}
+		}()
+	}
+
 	go func() {
 		defer rawSession.Close()
+		defer close(sessionStartCh)
+
 		// this shouldn't be necessary as the position should be already 0 (Download
 		// takes an io.WriterAt), but it's better to be safe than sorry
 		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
@@ -556,6 +573,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 		protoReader := NewProtoReader(rawSession)
 
+		firstEvent := true
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
@@ -570,6 +588,11 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 					close(c)
 				}
 				return
+			}
+
+			if firstEvent {
+				sessionStartCh <- event
+				firstEvent = false
 			}
 
 			if event.GetIndex() >= startIndex {
@@ -665,4 +688,37 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
+}
+
+// TODO
+type streamSessionEventsContextKey string
+
+const (
+	// TODO
+	eventWatcherContextKey streamSessionEventsContextKey = "watcher"
+)
+
+// TODO
+type EventsWatcher interface {
+	// TODO
+	OnSessionStart(evt apievents.AuditEvent, err error)
+}
+
+// TODO
+func ContextWithEventWatcher(ctx context.Context, watcher EventsWatcher) context.Context {
+	return context.WithValue(ctx, eventWatcherContextKey, watcher)
+}
+
+// TODO
+func EventsWatcherFromContext(ctx context.Context) (EventsWatcher, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
+
+	watcher, ok := ctx.Value(eventWatcherContextKey).(EventsWatcher)
+	if !ok {
+		return nil, trace.BadParameter("events watcher was not found in the context")
+	}
+
+	return watcher, nil
 }
