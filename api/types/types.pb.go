@@ -50536,47 +50536,6 @@ func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.Integration)
 		i = encodeVarintTypes(dAtA, i, uint64(len(m.Integration)))
 		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.SubscriptionID) > 0 {
-		i -= len(m.SubscriptionID)
-		copy(dAtA[i:], m.SubscriptionID)
-		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubscriptionID)))
-		i--
-		dAtA[i] = 0x12
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *AccessGraphAzureSync) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AccessGraphAzureSync) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Integration) > 0 {
-		i -= len(m.Integration)
-		copy(dAtA[i:], m.Integration)
-		i = encodeVarintTypes(dAtA, i, uint64(len(m.Integration)))
-		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.SubscriptionID) > 0 {
