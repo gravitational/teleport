@@ -3773,7 +3773,7 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 
-	fmt.Println("autoupdate_version has been created")
+	fmt.Println("autoupdate_agent_rollout has been created")
 	return nil
 }
 
