@@ -23,6 +23,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -31,6 +33,7 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -39,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -49,6 +53,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	libui "github.com/gravitational/teleport/lib/ui"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/oidc"
@@ -258,6 +263,228 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 		ClusterARN:          deployServiceResp.ClusterArn,
 		ClusterDashboardURL: deployServiceResp.ClusterDashboardUrl,
 	}, nil
+}
+
+// awsOIDCListDeployedDatabaseService lists the deployed Database Services in Amazon ECS.
+func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	regions, err := fetchRelevantAWSRegions(ctx, clt, clt.DiscoveryConfigClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	services, err := listDeployedDatabaseServices(ctx, h.logger, integrationName, regions, clt.IntegrationAWSOIDCClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListDeployedDatabaseServiceResponse{
+		Services: services,
+	}, nil
+}
+
+type databaseGetter interface {
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	GetDatabases(context.Context) ([]types.Database, error)
+}
+
+type discoveryConfigLister interface {
+	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+}
+
+func fetchRelevantAWSRegions(ctx context.Context, authClient databaseGetter, discoveryConfigsClient discoveryConfigLister) ([]string, error) {
+	regionsSet := make(map[string]struct{})
+
+	// Collect Regions from Database resources.
+	databases, err := authClient.GetDatabases(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, resource := range databases {
+		regionsSet[resource.GetAWS().Region] = struct{}{}
+		regionsSet[resource.GetAllLabels()[types.DiscoveryLabelRegion]] = struct{}{}
+	}
+
+	// Iterate over all DatabaseServices and fetch their AWS Region in the matchers.
+	var nextPageKey string
+	for {
+		req := &proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.MaxIterationLimit,
+			StartKey:     nextPageKey,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
+		}
+		page, err := client.GetResourcePage[types.DatabaseService](ctx, authClient, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		maps.Copy(regionsSet, extractRegionsFromDatabaseServicesPage(page.Resources))
+
+		if page.NextKey == "" {
+			break
+		}
+		nextPageKey = page.NextKey
+	}
+
+	// Iterate over all DiscoveryConfigs and fetch their AWS Region in AWS Matchers.
+	nextPageKey = ""
+	for {
+		resp, respNextPageKey, err := discoveryConfigsClient.ListDiscoveryConfigs(ctx, defaults.MaxIterationLimit, nextPageKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		maps.Copy(regionsSet, extractRegionsFromDiscoveryConfigPage(resp))
+
+		if respNextPageKey == "" {
+			break
+		}
+		nextPageKey = respNextPageKey
+	}
+
+	// Drop any invalid region.
+	ret := make([]string, 0, len(regionsSet))
+	for region := range regionsSet {
+		if aws.IsValidRegion(region) == nil {
+			ret = append(ret, region)
+		}
+	}
+
+	return ret, nil
+}
+
+func extractRegionsFromDatabaseServicesPage(dbServices []types.DatabaseService) map[string]struct{} {
+	regionsSet := make(map[string]struct{})
+	for _, resource := range dbServices {
+		for _, matcher := range resource.GetResourceMatchers() {
+			if matcher.Labels == nil {
+				continue
+			}
+			for labelKey, labelValues := range *matcher.Labels {
+				if labelKey != types.DiscoveryLabelRegion {
+					continue
+				}
+				for _, labelValue := range labelValues {
+					regionsSet[labelValue] = struct{}{}
+				}
+			}
+		}
+	}
+
+	return regionsSet
+}
+
+func extractRegionsFromDiscoveryConfigPage(discoveryConfigs []*discoveryconfig.DiscoveryConfig) map[string]struct{} {
+	regionsSet := make(map[string]struct{})
+
+	for _, dc := range discoveryConfigs {
+		for _, awsMatcher := range dc.Spec.AWS {
+			for _, region := range awsMatcher.Regions {
+				regionsSet[region] = struct{}{}
+			}
+		}
+	}
+
+	return regionsSet
+}
+
+type deployedDatabaseServiceLister interface {
+	ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error)
+}
+
+func listDeployedDatabaseServices(ctx context.Context,
+	logger *slog.Logger,
+	integrationName string,
+	regions []string,
+	awsOIDCClient deployedDatabaseServiceLister,
+) ([]ui.AWSOIDCDeployedDatabaseService, error) {
+	var services []ui.AWSOIDCDeployedDatabaseService
+	for _, region := range regions {
+		var nextToken string
+		for {
+			resp, err := awsOIDCClient.ListDeployedDatabaseServices(ctx, &integrationv1.ListDeployedDatabaseServicesRequest{
+				Integration: integrationName,
+				Region:      region,
+				NextToken:   nextToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, deployedDatabaseService := range resp.DeployedDatabaseServices {
+				matchingLabels, err := matchingLabelsFromDeployedService(deployedDatabaseService)
+				if err != nil {
+					logger.WarnContext(ctx, "Failed to obtain teleport config string from ECS Service",
+						"ecs_service", deployedDatabaseService.ServiceDashboardUrl,
+						"error", err,
+					)
+				}
+				validTeleportConfigFound := err == nil
+
+				services = append(services, ui.AWSOIDCDeployedDatabaseService{
+					Name:                deployedDatabaseService.Name,
+					DashboardURL:        deployedDatabaseService.ServiceDashboardUrl,
+					MatchingLabels:      matchingLabels,
+					ValidTeleportConfig: validTeleportConfigFound,
+				})
+			}
+
+			if resp.NextToken == "" {
+				break
+			}
+			nextToken = resp.NextToken
+		}
+	}
+	return services, nil
+}
+
+func matchingLabelsFromDeployedService(deployedDatabaseService *integrationv1.DeployedDatabaseService) ([]libui.Label, error) {
+	commandArgs := deployedDatabaseService.ContainerCommand
+	// This command is what starts the teleport agent in the ECS Service Fargate container.
+	// See deployservice.go/upsertTask for details.
+	// It is expected to have at least 3 values, even if dumb-init is removed in the future.
+	if len(commandArgs) < 3 {
+		return nil, trace.BadParameter("unexpected command size, expected at least 3 args, got %d", len(commandArgs))
+	}
+
+	// The command should have a --config-string flag and then the teleport's base64 encoded configuration as argument
+	teleportConfigStringFlagIdx := slices.Index(commandArgs, "--config-string")
+	if teleportConfigStringFlagIdx == -1 {
+		return nil, trace.BadParameter("missing --config-string flag in container command")
+	}
+	if len(commandArgs) < teleportConfigStringFlagIdx+1 {
+		return nil, trace.BadParameter("missing --config-string argument in container command")
+	}
+	teleportConfigString := commandArgs[teleportConfigStringFlagIdx+1]
+
+	labelMatchers, err := deployserviceconfig.ParseResourceLabelMatchers(teleportConfigString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var matchingLabels []libui.Label
+	for labelKey, labelValues := range labelMatchers {
+		for _, labelValue := range labelValues {
+			matchingLabels = append(matchingLabels, libui.Label{
+				Name:  labelKey,
+				Value: labelValue,
+			})
+		}
+	}
+
+	return matchingLabels, nil
 }
 
 // awsOIDCConfigureDeployServiceIAM returns a script that configures the required IAM permissions to enable the usage of DeployService action.
