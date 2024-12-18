@@ -4,7 +4,7 @@
 
 ### Access requests support for AWS Identity Center
 
-AWS Identity Center integration will allow users to request short or long term access to permission sets via Access Requests.
+AWS Identity Center integration now allows users to request short or long term access to permission sets via Access Requests.
 
 ### Database access for PostgreSQL via web UI
 
