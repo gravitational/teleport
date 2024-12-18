@@ -1,5 +1,24 @@
 # Changelog
 
+## 17.1.0 (12/18/24)
+
+* Updated golang.org/x/net to v0.33.0 (addresses CVE-2024-45338). [#50397](https://github.com/gravitational/teleport/pull/50397)
+* Prevents panic in SAML app or OIDC integration deletion when a plugin type is not `PluginTypeAWSIdentityCenter` or `PluginAWSICSettings` is nil. [#50360](https://github.com/gravitational/teleport/pull/50360)
+* Fix missing roles in access lists causing users to be locked out of their account. [#50298](https://github.com/gravitational/teleport/pull/50298)
+* Added support for connecting to PostgreSQL databases using WebUI. [#50287](https://github.com/gravitational/teleport/pull/50287)
+* Improved the performance of Teleport agents serving a large number of resources in Kubernetes. [#50279](https://github.com/gravitational/teleport/pull/50279)
+* Improve performance of Kubernetes App Auto Discover. [#50269](https://github.com/gravitational/teleport/pull/50269)
+* Added more granular access controls for SSH port forwarding. Access to remote or local port forwarding can now be controlled individually using the new `ssh_port_forwarding` role option. [#50241](https://github.com/gravitational/teleport/pull/50241)
+* Properly close ssh port forwarding connections to prevent requests hanging indefinitely. [#50238](https://github.com/gravitational/teleport/pull/50238)
+* Teleport's RDP client now sets the load balancing cookie to improve compatibility with local traffic managers. [#50226](https://github.com/gravitational/teleport/pull/50226)
+* Fixes an intermittent EKS authentication failure when dealing with EKS auto-discovery. [#50197](https://github.com/gravitational/teleport/pull/50197)
+* Expose /.well-known/jwks-okta public endpoint for Okta API services type App. [#50177](https://github.com/gravitational/teleport/pull/50177)
+* Switched to a new role editor UI. [#50030](https://github.com/gravitational/teleport/pull/50030)
+* Added support for multiple ports to TCP applications. [#49711](https://github.com/gravitational/teleport/pull/49711)
+
+Enterprise:
+* Adds AWS Account name to Identity Center Roles and resources. Some manual cleanup may be required where users and Access Lists have been assigned the obsolete roles.
+
 ## 17.0.6 (12/12/24)
 
 * Fixed bug causing users to see notifications for their own access requests in some cases. [#50076](https://github.com/gravitational/teleport/pull/50076)
