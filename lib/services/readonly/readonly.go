@@ -71,6 +71,7 @@ func sealAuthPreference(p types.AuthPreference) AuthPreference {
 type ClusterNetworkingConfig interface {
 	GetCaseInsensitiveRouting() bool
 	GetWebIdleTimeout() time.Duration
+	GetRoutingStrategy() types.RoutingStrategy
 	Clone() types.ClusterNetworkingConfig
 }
 
