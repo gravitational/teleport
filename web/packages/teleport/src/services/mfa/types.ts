@@ -18,8 +18,7 @@
 
 import { AuthProviderType } from 'shared/services';
 
-import { Base64urlString } from '../auth/types';
-import { CreateNewHardwareDeviceRequest } from '../auth/types';
+import { Base64urlString, CreateNewHardwareDeviceRequest } from '../auth/types';
 
 export type DeviceType = 'totp' | 'webauthn' | 'sso';
 
