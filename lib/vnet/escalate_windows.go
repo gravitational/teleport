@@ -40,6 +40,7 @@ import (
 const (
 	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
+	serviceAccess      = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
 )
 
 var (
@@ -85,7 +86,7 @@ func startService(cfg AdminProcessConfig) (*mgr.Service, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "converting service name to UTF16")
 	}
-	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_START)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccess)
 	if err != nil {
 		if installErr := escalateAndInstallService(cfg); installErr != nil {
 			return nil, trace.NewAggregate(
@@ -223,10 +224,9 @@ func configureServicePermissions(service *mgr.Service, userSIDStr string) error 
 		return trace.Wrap(err, "getting DACL from security descriptor")
 	}
 	explicitAccess := []windows.EXPLICIT_ACCESS{{
-		AccessPermissions: windows.ACCESS_MASK(
-			windows.SERVICE_QUERY_STATUS | windows.SERVICE_INTERROGATE | windows.SERVICE_START | windows.SERVICE_STOP),
-		AccessMode:  windows.GRANT_ACCESS,
-		Inheritance: windows.NO_INHERITANCE,
+		AccessPermissions: windows.ACCESS_MASK(serviceAccess),
+		AccessMode:        windows.GRANT_ACCESS,
+		Inheritance:       windows.NO_INHERITANCE,
 		Trustee: windows.TRUSTEE{
 			TrusteeForm:  windows.TRUSTEE_IS_SID,
 			TrusteeType:  windows.TRUSTEE_IS_USER,

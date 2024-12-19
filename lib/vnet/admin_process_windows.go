@@ -75,6 +75,7 @@ func RunAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
+	defer device.Close()
 	tunName, err := device.Name()
 	if err != nil {
 		return trace.Wrap(err, "getting TUN device name")

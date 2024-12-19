@@ -30,6 +30,7 @@ func newProcessManager() (*ProcessManager, context.Context) {
 	return &ProcessManager{
 		g:      g,
 		cancel: cancel,
+		closed: make(chan struct{}),
 	}, ctx
 }
 
@@ -39,6 +40,7 @@ func newProcessManager() (*ProcessManager, context.Context) {
 type ProcessManager struct {
 	g      *errgroup.Group
 	cancel context.CancelFunc
+	closed chan struct{}
 }
 
 // AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
@@ -58,10 +60,20 @@ func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() err
 // Wait blocks and waits for the background tasks to finish, which typically happens when another
 // goroutine calls Close on the process manager.
 func (pm *ProcessManager) Wait() error {
-	return trace.Wrap(pm.g.Wait())
+	err := pm.g.Wait()
+	select {
+	case <-pm.closed:
+		// Errors are expected after the process manager has been closed and the
+		// context has been canceled.
+		return nil
+	default:
+	}
+	return trace.Wrap(err)
 }
 
-// Close stops any active background tasks by canceling the underlying context.
+// Close stops any active background tasks by canceling the underlying context,
+// and waits for all tasks to terminate. Close must not be called more than once.
 func (pm *ProcessManager) Close() {
+	close(pm.closed)
 	pm.cancel()
 }
