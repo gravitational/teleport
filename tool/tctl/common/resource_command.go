@@ -181,6 +181,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 		types.KindGitServer:                rc.createGitServer,
+		types.KindAutoUpdateAgentRollout:   rc.createAutoUpdateAgentRollout,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -202,6 +203,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:               rc.updateGitServer,
+		types.KindAutoUpdateAgentRollout:  rc.updateAutoUpdateAgentRollout,
 	}
 	rc.config = config
 
@@ -1629,6 +1631,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindNetworkRestrictions,
 		types.KindAutoUpdateConfig,
 		types.KindAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -2059,6 +2062,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateVersion has been deleted\n")
+	case types.KindAutoUpdateAgentRollout:
+		if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3337,6 +3345,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAutoUpdateAgentRollout:
+		version, err := client.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateAgentRolloutCollection{version}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3792,6 +3806,37 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 		return trace.Wrap(err)
 	}
 	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateAgentRollout(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateAgentRollout(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, version); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")

@@ -1432,6 +1432,10 @@ func TestCreateResources(t *testing.T) {
 			create: testCreateAutoUpdateVersion,
 		},
 		{
+			kind:   types.KindAutoUpdateAgentRollout,
+			create: testCreateAutoUpdateAgentRollout,
+		},
+		{
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
@@ -2405,6 +2409,58 @@ version: v1
 	require.NoError(t, err)
 	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
 	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
+}
+
+func testCreateAutoUpdateAgentRollout(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_agent_rollout
+metadata:
+  name: autoupdate-agent-rollout
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  start_version: 1.2.3
+  target_version: 1.2.3
+  autoupdate_mode: "suspended"
+  schedule: "regular"
+  strategy: "halt-on-error"
+status:
+  groups:
+    - name: my-group
+      state: 1
+      config_days: ["*"]
+      config_start_hour: 12
+      config_wait_hours: 0
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateAgentRollout](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateAgentRollout
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateAgentRollout{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateAgentRollout})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout})
+	require.ErrorContains(t, err, "autoupdate_agent_rollout \"autoupdate-agent-rollout\" doesn't exist")
 }
 
 func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
