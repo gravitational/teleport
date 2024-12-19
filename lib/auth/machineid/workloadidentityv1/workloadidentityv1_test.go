@@ -18,6 +18,7 @@ package workloadidentityv1_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -81,13 +82,19 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 	return srv, emitter
 }
 
-func TestIssueWorkloadIdentity(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+type issuanceTestPack struct {
+	srv           *auth.TestTLSServer
+	eventRecorder *eventstest.MockRecorderEmitter
+	clock         clockwork.Clock
 
+	issuer             string
+	spiffeX509CAPool   *x509.CertPool
+	spiffeJWTSigner    crypto.Signer
+	spiffeJWTSignerKID string
+}
+
+func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
 	clock := srv.Auth().GetClock()
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
@@ -119,8 +126,27 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
 
+	return &issuanceTestPack{
+		srv:                srv,
+		eventRecorder:      eventRecorder,
+		clock:              clock,
+		issuer:             wantIssuer,
+		spiffeX509CAPool:   spiffeX509CAPool,
+		spiffeJWTSigner:    jwtSigner,
+		spiffeJWTSignerKID: kid,
+	}
+}
+
+func TestIssueWorkloadIdentity(t *testing.T) {
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+
+	ctx := context.Background()
+	tp := newIssuanceTestPack(t, ctx)
+
 	wildcardAccess, _, err := auth.CreateUserAndRole(
-		srv.Auth(),
+		tp.srv.Auth(),
 		"dog",
 		[]string{},
 		[]types.Rule{},
@@ -131,11 +157,11 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	wilcardAccessClient, err := srv.NewClient(auth.TestUser(wildcardAccess.GetName()))
+	wilcardAccessClient, err := tp.srv.NewClient(auth.TestUser(wildcardAccess.GetName()))
 	require.NoError(t, err)
 
 	specificAccess, _, err := auth.CreateUserAndRole(
-		srv.Auth(),
+		tp.srv.Auth(),
 		"cat",
 		[]string{},
 		[]types.Rule{},
@@ -146,7 +172,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	specificAccessClient, err := srv.NewClient(auth.TestUser(specificAccess.GetName()))
+	specificAccessClient, err := tp.srv.NewClient(auth.TestUser(specificAccess.GetName()))
 	require.NoError(t, err)
 
 	// Generate a keypair to generate x509 SVIDs for.
@@ -156,7 +182,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create some WorkloadIdentity resources
-	full, err := srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+	full, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -247,28 +273,28 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					),
 				))
 				// Check expiry makes sense
-				require.WithinDuration(t, clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
 
 				// Check the JWT
 				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
 				require.NoError(t, err)
 
 				claims := jwt.Claims{}
-				err = parsed.Claims(jwtSigner.Public(), &claims)
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
 				require.NoError(t, err)
 				// Check headers
 				require.Len(t, parsed.Headers, 1)
-				require.Equal(t, kid, parsed.Headers[0].KeyID)
+				require.Equal(t, tp.spiffeJWTSignerKID, parsed.Headers[0].KeyID)
 				// Check claims
 				require.Equal(t, wantSPIFFEID, claims.Subject)
 				require.NotEmpty(t, claims.ID)
 				require.Equal(t, jwt.Audience{"example.com", "test.example.com"}, claims.Audience)
-				require.Equal(t, wantIssuer, claims.Issuer)
-				require.WithinDuration(t, clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
-				require.WithinDuration(t, clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
+				require.Equal(t, tp.issuer, claims.Issuer)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, tp.clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
 
 				// Check audit log event
-				evt, ok := eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
+				evt, ok := tp.eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
 				require.True(t, ok)
 				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
 				require.Equal(t, claims.ID, evt.JTI)
@@ -337,7 +363,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					),
 				))
 				// Check expiry makes sense
-				require.WithinDuration(t, clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
 
 				// Check the X509
 				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
@@ -345,9 +371,9 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				// Check included public key matches
 				require.Equal(t, workloadKey.Public(), cert.PublicKey)
 				// Check cert expiry
-				require.WithinDuration(t, clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
 				// Check cert nbf
-				require.WithinDuration(t, clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
 
@@ -371,13 +397,13 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 
 				// Check cert signature is valid
 				_, err = cert.Verify(x509.VerifyOptions{
-					Roots:       spiffeX509CAPool,
-					CurrentTime: srv.Auth().GetClock().Now(),
+					Roots:       tp.spiffeX509CAPool,
+					CurrentTime: tp.srv.Auth().GetClock().Now(),
 				})
 				require.NoError(t, err)
 
 				// Check audit log event
-				evt, ok := eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
+				evt, ok := tp.eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
 				require.True(t, ok)
 				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
 				require.Equal(t, cred.GetX509Svid().GetSerialNumber(), evt.SerialNumber)
@@ -459,11 +485,316 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eventRecorder.Reset()
+			tp.eventRecorder.Reset()
 			c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
 				tt.client.GetConnection(),
 			)
 			res, err := c.IssueWorkloadIdentity(ctx, tt.req)
+			tt.requireErr(t, err)
+			if tt.assert != nil {
+				tt.assert(t, res)
+			}
+		})
+	}
+}
+
+func TestIssueWorkloadIdentities(t *testing.T) {
+	experimentStatus := experiment.Enabled()
+	defer experiment.SetEnabled(experimentStatus)
+	experiment.SetEnabled(true)
+
+	ctx := context.Background()
+	tp := newIssuanceTestPack(t, ctx)
+
+	user, _, err := auth.CreateUserAndRole(
+		tp.srv.Auth(),
+		"cat",
+		[]string{},
+		[]types.Rule{},
+		auth.WithRoleMutator(func(role types.Role) {
+			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{
+				"access": []string{"yes"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+	client, err := tp.srv.NewClient(auth.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Generate a keypair to generate x509 SVIDs for.
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	// Create some WorkloadIdentity resources
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "bar-labelled",
+			Labels: map[string]string{
+				"foo":    "bar",
+				"access": "yes",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "workload.kubernetes.namespace",
+								Equals:    "default",
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id:   "/example/{{user.name}}/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}",
+				Hint: "Wow - what a lovely hint, {{user.name}}!",
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "buzz-labelled",
+			Labels: map[string]string{
+				"foo":    "buzz",
+				"access": "yes",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "workload.kubernetes.namespace",
+								Equals:    "default",
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id:   "/example/{{user.name}}/{{ workload.kubernetes.namespace }}/{{ workload.kubernetes.service_account }}",
+				Hint: "Wow - what a lovely hint, {{user.name}}!",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "inaccessible",
+			Labels: map[string]string{
+				"foo":    "bar",
+				"access": "no",
+			},
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/example",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Make enough to trip the "too many" error
+	for i := 0; i < 12; i++ {
+		_, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: fmt.Sprintf("%d", i),
+				Labels: map[string]string{
+					"error":  "too-many",
+					"access": "yes",
+				},
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Rules: &workloadidentityv1pb.WorkloadIdentityRules{},
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/exampled",
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	workloadAttrs := func(f func(attrs *workloadidentityv1pb.WorkloadAttrs)) *workloadidentityv1pb.WorkloadAttrs {
+		attrs := &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
+				Attested:       true,
+				Namespace:      "default",
+				PodName:        "test",
+				ServiceAccount: "bar",
+			},
+		}
+		if f != nil {
+			f(attrs)
+		}
+		return attrs
+	}
+	tests := []struct {
+		name       string
+		client     *authclient.Client
+		req        *workloadidentityv1pb.IssueWorkloadIdentitiesRequest
+		requireErr require.ErrorAssertionFunc
+		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentitiesResponse)
+	}{
+		{
+			name:   "jwt svid",
+			client: client,
+			req: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					{
+						Key:    "foo",
+						Values: []string{"bar", "buzz"},
+					},
+				},
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				workloadIdentitiesIssued := []string{}
+				for _, cred := range res.Credentials {
+					workloadIdentitiesIssued = append(workloadIdentitiesIssued, cred.WorkloadIdentityName)
+
+					// Check a credential was actually included and is valid.
+					parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+					require.NoError(t, err)
+					claims := jwt.Claims{}
+					err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+					require.NoError(t, err)
+				}
+				require.EqualValues(t, []string{"bar-labelled", "buzz-labelled"}, workloadIdentitiesIssued)
+			},
+		},
+		{
+			name:   "x509 svid",
+			client: client,
+			req: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					{
+						Key:    "foo",
+						Values: []string{"bar", "buzz"},
+					},
+				},
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				workloadIdentitiesIssued := []string{}
+				for _, cred := range res.Credentials {
+					workloadIdentitiesIssued = append(workloadIdentitiesIssued, cred.WorkloadIdentityName)
+					// Check X509 cert actually included and signed.
+					cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+					require.NoError(t, err)
+					// Check included public key matches
+					require.Equal(t, workloadKey.Public(), cert.PublicKey)
+					_, err = cert.Verify(x509.VerifyOptions{
+						Roots:       tp.spiffeX509CAPool,
+						CurrentTime: tp.srv.Auth().GetClock().Now(),
+					})
+					require.NoError(t, err)
+				}
+				require.EqualValues(t, []string{"bar-labelled", "buzz-labelled"}, workloadIdentitiesIssued)
+			},
+		},
+		{
+			name:   "rules prevent issuing",
+			client: client,
+			req: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					{
+						Key:    "foo",
+						Values: []string{"bar", "buzz"},
+					},
+				},
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(func(attrs *workloadidentityv1pb.WorkloadAttrs) {
+					attrs.Kubernetes.Namespace = "not-default"
+				}),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				require.Empty(t, res.Credentials)
+			},
+		},
+		{
+			name:   "no matching labels",
+			client: client,
+			req: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					{
+						Key:    "foo",
+						Values: []string{"muahah"},
+					},
+				},
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				require.Empty(t, res.Credentials)
+			},
+		},
+		{
+			name:   "too many to issue",
+			client: client,
+			req: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					{
+						Key:    "error",
+						Values: []string{"too-many"},
+					},
+				},
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "number of identities that would be issued exceeds maximum permitted (max = 10), use more specific labels")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tp.eventRecorder.Reset()
+			c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
+				tt.client.GetConnection(),
+			)
+			res, err := c.IssueWorkloadIdentities(ctx, tt.req)
 			tt.requireErr(t, err)
 			if tt.assert != nil {
 				tt.assert(t, res)

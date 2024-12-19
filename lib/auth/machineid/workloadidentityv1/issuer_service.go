@@ -278,7 +278,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
 			// If we're now above the limit, then we want to exit out...
 			return nil, trace.BadParameter(
-				"number of identities that would be issued exceeds maximum %d",
+				"number of identities that would be issued exceeds maximum permitted (max = %d), use more specific labels",
 				maxWorkloadIdentitiesIssued,
 			)
 		}
