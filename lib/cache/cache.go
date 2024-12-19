@@ -3620,6 +3620,26 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }
 
+// ListIdentityCenterAccountsWithFilter returns a paginated list of all
+// Identity Center Accounts in the cache that match the supplied predicate
+func (c *Cache) ListIdentityCenterAccountsWithFilter(
+	ctx context.Context,
+	pageSize int,
+	pageToken *pagination.PageRequestToken,
+	filter func(services.IdentityCenterAccount) bool,
+) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccountsWithFilter")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListIdentityCenterAccountsWithFilter(ctx, pageSize, pageToken, filter)
+}
+
 func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
 	defer span.End()

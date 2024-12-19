@@ -19,6 +19,8 @@ package local
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func newTestBackend(t *testing.T, ctx context.Context, clock clockwork.Clock) backend.Backend {
@@ -266,6 +269,81 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 					require.ErrorContains(t, err, "doesn't exist")
 				}
 			})
+		})
+	}
+}
+
+func TestIdentityCenterAccountListing(t *testing.T) {
+	// GIVEN a test cluster
+	ctx := newTestContext(t)
+	clock := clockwork.NewFakeClock()
+	backend := newTestBackend(t, ctx, clock)
+
+	// GIVEN an Identity Center Service
+	uut, err := NewIdentityCenterService(IdentityCenterServiceConfig{Backend: backend})
+	require.NoError(t, err)
+
+	// GIVEN a collection of Identity Center accounts
+	accounts := make(map[services.IdentityCenterAccountID]services.IdentityCenterAccount)
+	for _, id := range []string{"alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf"} {
+		accounts[services.IdentityCenterAccountID(id)] =
+			makeTestIdentityCenterAccount(t, ctx, uut, id)
+	}
+
+	testCases := []struct {
+		name     string
+		pageSize int
+		filter   func(services.IdentityCenterAccount) bool
+		expected []services.IdentityCenterAccountID
+	}{
+		{
+			name:     "full",
+			pageSize: 0,
+			filter:   func(services.IdentityCenterAccount) bool { return true },
+			expected: slices.Collect(maps.Keys(accounts)),
+		},
+		{
+			name:     "paged",
+			pageSize: 2,
+			filter:   func(services.IdentityCenterAccount) bool { return true },
+			expected: slices.Collect(maps.Keys(accounts)),
+		},
+		{
+			name:     "filtered",
+			pageSize: 3,
+			expected: []services.IdentityCenterAccountID{
+				"alpha", "charlie", "echo", "golf",
+			},
+			filter: func(acct services.IdentityCenterAccount) bool {
+				name := acct.Metadata.Name
+				return name == "alpha" || name == "charlie" ||
+					name == "echo" || name == "golf"
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			var pageToken pagination.PageRequestToken
+			output := make(map[services.IdentityCenterAccountID]services.IdentityCenterAccount)
+			for {
+				page, nextPage, err := uut.ListIdentityCenterAccountsWithFilter(ctx, test.pageSize, &pageToken, test.filter)
+				require.NoError(t, err)
+
+				if test.pageSize != 0 {
+					require.LessOrEqual(t, len(page), test.pageSize)
+				}
+
+				for _, account := range page {
+					output[services.IdentityCenterAccountID(account.Metadata.Name)] = account
+				}
+
+				if nextPage == pagination.EndOfList {
+					break
+				}
+				pageToken.Update(nextPage)
+			}
+			require.Len(t, output, len(test.expected))
 		})
 	}
 }
