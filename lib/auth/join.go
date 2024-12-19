@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-jose/go-jose/v3/json"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -96,12 +98,6 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	return provisionToken, nil
 }
 
-type joinAttributeSourcer interface {
-	// JoinAuditAttributes returns a series of attributes that can be inserted into
-	// audit events related to a specific join.
-	JoinAuditAttributes() (map[string]interface{}, error)
-}
-
 func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	var addr string
 	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
@@ -123,7 +119,7 @@ func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingToken
 func (a *Server) handleJoinFailure(
 	origErr error,
 	pt types.ProvisionToken,
-	attributeSource joinAttributeSourcer,
+	rawJoinAttrs any,
 	req *types.RegisterUsingTokenRequest,
 ) {
 	fields := logrus.Fields{}
@@ -134,19 +130,13 @@ func (a *Server) handleJoinFailure(
 		fields["remote_addr"] = req.RemoteAddr
 	}
 
-	// Fetch and encode attributes if they are available.
-	var attributesProto *apievents.Struct
-	if attributeSource != nil {
-		var err error
-		attributes, err := attributeSource.JoinAuditAttributes()
-		if err != nil {
-			log.WithError(err).Warn("Unable to fetch join attributes from join method")
-		}
-		fields["attributes"] = attributes
-		attributesProto, err = apievents.EncodeMap(attributes)
-		if err != nil {
-			log.WithError(err).Warn("Unable to encode join attributes for audit event")
-		}
+	// Fetch and encode rawJoinAttrs if they are available.
+	attributesStruct, err := rawJoinAttrsToStruct(rawJoinAttrs)
+	if err != nil {
+		log.WithError(err).Warn("Unable to encode join rawJoinAttrs for audit event.")
+	}
+	if attributesStruct != nil {
+		fields["attributes"] = attributesStruct
 	}
 
 	// Add log fields from token if available.
@@ -168,7 +158,7 @@ func (a *Server) handleJoinFailure(
 				Code: events.BotJoinFailureCode,
 			},
 			Status:     status,
-			Attributes: attributesProto,
+			Attributes: attributesStruct,
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
 			},
@@ -186,7 +176,7 @@ func (a *Server) handleJoinFailure(
 				Code: events.InstanceJoinFailureCode,
 			},
 			Status:     status,
-			Attributes: attributesProto,
+			Attributes: attributesStruct,
 		}
 		if pt != nil {
 			instanceJoinEvent.Method = string(pt.GetJoinMethod())
@@ -217,12 +207,13 @@ func (a *Server) handleJoinFailure(
 // If the token includes a specific join method, the rules for that join method
 // will be checked.
 func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (certs *proto.Certs, err error) {
-	var joinAttributeSrc joinAttributeSourcer
+	attrs := &workloadidentityv1pb.JoinAttrs{}
+	var rawClaims any
 	var provisionToken types.ProvisionToken
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(err, provisionToken, joinAttributeSrc, req)
+			a.handleJoinFailure(err, provisionToken, rawClaims, req)
 		}
 	}()
 
@@ -244,7 +235,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodGitHub:
 		claims, err := a.checkGitHubJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Github = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -252,7 +244,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodGitLab:
 		claims, err := a.checkGitLabJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Gitlab = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -260,7 +253,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodCircleCI:
 		claims, err := a.checkCircleCIJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Circleci = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -268,7 +262,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodKubernetes:
 		claims, err := a.checkKubernetesJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Kubernetes = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -276,7 +271,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodGCP:
 		claims, err := a.checkGCPJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Gcp = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -284,7 +280,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodSpacelift:
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Spacelift = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -292,7 +289,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodTerraformCloud:
 		claims, err := a.checkTerraformCloudJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.TerraformCloud = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -300,7 +298,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	case types.JoinMethodBitbucket:
 		claims, err := a.checkBitbucketJoinRequest(ctx, req)
 		if claims != nil {
-			joinAttributeSrc = claims
+			rawClaims = claims
+			attrs.Bitbucket = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -323,10 +322,16 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, err = a.generateCertsBot(ctx, provisionToken, req, joinAttributeSrc)
+		certs, err = a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req,
+			rawClaims,
+			attrs,
+		)
 		return certs, trace.Wrap(err)
 	}
-	certs, err = a.generateCerts(ctx, provisionToken, req, joinAttributeSrc)
+	certs, err = a.generateCerts(ctx, provisionToken, req, rawClaims)
 	return certs, trace.Wrap(err)
 }
 
@@ -334,7 +339,8 @@ func (a *Server) generateCertsBot(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
 	req *types.RegisterUsingTokenRequest,
-	joinAttributeSrc joinAttributeSourcer,
+	rawJoinClaims any,
+	attrs *workloadidentityv1pb.JoinAttrs,
 ) (*proto.Certs, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
@@ -382,6 +388,23 @@ func (a *Server) generateCertsBot(
 			RemoteAddr: req.RemoteAddr,
 		},
 	}
+	var err error
+	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
+	if err != nil {
+		log.WithError(err).Warn("Unable to encode join attributes for audit event.")
+	}
+
+	// Prepare join attributes for encoding into the X509 cert and for inclusion
+	// in audit logs.
+	if attrs == nil {
+		attrs = &workloadidentityv1pb.JoinAttrs{}
+	}
+	attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
+		JoinMethod: string(joinMethod),
+	}
+	if joinMethod != types.JoinMethodToken {
+		attrs.Meta.JoinTokenName = provisionToken.GetName()
+	}
 
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
@@ -393,22 +416,12 @@ func (a *Server) generateCertsBot(
 		// TODO(nklaassen): consider logging the SSH public key as well, for now
 		// the SSH and TLS public keys are still identical for tbot.
 		PublicKey: req.PublicTLSKey,
+		JoinAttrs: attrs,
 	}
-
-	if joinAttributeSrc != nil {
-		attributes, err := joinAttributeSrc.JoinAuditAttributes()
-		if err != nil {
-			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
-		}
-		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
-		if err != nil {
-			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
-		}
-
-		auth.Metadata, err = structpb.NewStruct(attributes)
-		if err != nil {
-			log.WithError(err).Warn("Unable to encode struct value for join metadata.")
-		}
+	// TODO(noah): In v18, we can drop writing to the deprecated Metadata field.
+	auth.Metadata, err = rawJoinAttrsToGoogleStruct(rawJoinClaims)
+	if err != nil {
+		log.WithError(err).Warn("Unable to encode join attributes for bot instance authentication event.")
 	}
 
 	certs, botInstanceID, err := a.generateInitialBotCerts(
@@ -423,6 +436,7 @@ func (a *Server) generateCertsBot(
 		auth,
 		req.BotInstanceID,
 		req.BotGeneration,
+		attrs,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -450,7 +464,7 @@ func (a *Server) generateCerts(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
 	req *types.RegisterUsingTokenRequest,
-	joinAttributeSrc joinAttributeSourcer,
+	rawJoinClaims any,
 ) (*proto.Certs, error) {
 	if req.Expires != nil {
 		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
@@ -510,20 +524,44 @@ func (a *Server) generateCerts(
 			RemoteAddr: req.RemoteAddr,
 		},
 	}
-	if joinAttributeSrc != nil {
-		attributes, err := joinAttributeSrc.JoinAuditAttributes()
-		if err != nil {
-			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
-		}
-		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
-		if err != nil {
-			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
-		}
+	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
+	if err != nil {
+		log.WithError(err).Warn("Unable to encode join attributes for audit event.")
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit instance join event.")
 	}
 	return certs, nil
+}
+
+func rawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
+	if in == nil {
+		return nil, nil
+	}
+	attrBytes, err := json.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling join attributes")
+	}
+	out := &apievents.Struct{}
+	if err := out.UnmarshalJSON(attrBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling join attributes")
+	}
+	return out, nil
+}
+
+func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
+	if in == nil {
+		return nil, nil
+	}
+	attrBytes, err := json.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling join attributes")
+	}
+	out := &structpb.Struct{}
+	if err := out.UnmarshalJSON(attrBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling join attributes")
+	}
+	return out, nil
 }
 
 func generateChallenge(encoding *base64.Encoding, length int) (string, error) {

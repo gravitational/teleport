@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
@@ -312,37 +313,49 @@ func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup
 	return false
 }
 
-func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *proto.RegisterUsingAzureMethodRequest, cfg *azureRegisterConfig) error {
+func azureJoinToAttrs(vm *azure.VirtualMachine) *workloadidentityv1pb.JoinAttrsAzure {
+	return &workloadidentityv1pb.JoinAttrsAzure{
+		Subscription:  vm.Subscription,
+		ResourceGroup: vm.ResourceGroup,
+	}
+}
+
+func (a *Server) checkAzureRequest(
+	ctx context.Context,
+	challenge string,
+	req *proto.RegisterUsingAzureMethodRequest,
+	cfg *azureRegisterConfig,
+) (*workloadidentityv1pb.JoinAttrsAzure, error) {
 	requestStart := a.clock.Now()
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if provisionToken.GetJoinMethod() != types.JoinMethodAzure {
-		return trace.AccessDenied("this token does not support the Azure join method")
+		return nil, trace.AccessDenied("this token does not support the Azure join method")
+	}
+	token, ok := provisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 
 	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	vm, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	token, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
-	}
+	attrs := azureJoinToAttrs(vm)
 
 	if err := checkAzureAllowRules(vm, token.GetName(), token.Spec.Azure.Allow); err != nil {
-		return trace.Wrap(err)
+		return attrs, trace.Wrap(err)
 	}
 
-	return nil
+	return attrs, nil
 }
 
 func generateAzureChallenge() (string, error) {
@@ -399,7 +412,8 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.checkAzureRequest(ctx, challenge, req, cfg); err != nil {
+	joinAttrs, err := a.checkAzureRequest(ctx, challenge, req, cfg)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -409,6 +423,9 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 			provisionToken,
 			req.RegisterUsingTokenRequest,
 			nil,
+			&workloadidentityv1pb.JoinAttrs{
+				Azure: joinAttrs,
+			},
 		)
 		return certs, trace.Wrap(err)
 	}

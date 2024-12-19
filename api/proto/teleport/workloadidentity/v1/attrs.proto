@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "teleport/workloadidentity/v1/join_attrs.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // Attributes sourced from the Kubernetes workload attestor.
@@ -80,4 +82,6 @@ message Attrs {
   // Attributes sourced from the user/bot making the request for a workload
   // identity credential.
   UserAttrs user = 2;
+  // Attributes resulting from the join process.
+  JoinAttrs join = 3;
 }
