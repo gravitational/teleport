@@ -36,7 +36,7 @@ import (
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs ...string) error {
+func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs []string) error {
 	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
@@ -51,9 +51,6 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs 
 		return trace.Wrap(err)
 	}
 	if reExec {
-		if len(reExecArgs) == 0 {
-			reExecArgs = os.Args[1:]
-		}
 		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
 	}
 
@@ -67,7 +64,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentVersion string, reExecArgs 
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool, reExecArgs ...string) error {
+func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy string, insecure bool, reExecArgs []string) error {
 	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
@@ -84,9 +81,6 @@ func CheckAndUpdateRemote(ctx context.Context, currentVersion string, proxy stri
 		return trace.Wrap(err)
 	}
 	if reExec {
-		if len(reExecArgs) == 0 {
-			reExecArgs = os.Args[1:]
-		}
 		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
 	}
 
