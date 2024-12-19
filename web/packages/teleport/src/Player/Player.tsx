@@ -16,20 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
+
 import styled from 'styled-components';
 
-import { Flex, Box } from 'design';
-
+import { Flex, Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
-import { useParams, useLocation } from 'teleport/components/Router';
+import { makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { useParams, useLocation } from 'teleport/components/Router';
 import session from 'teleport/services/websession';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
-
 import { RecordingType } from 'teleport/services/recordings';
+
+import useTeleport from 'teleport/useTeleport';
 
 import ActionBar from './ActionBar';
 import { DesktopPlayer } from './DesktopPlayer';
@@ -39,19 +41,44 @@ import Tabs, { TabItem } from './PlayerTabs';
 const validRecordingTypes = ['ssh', 'k8s', 'desktop'];
 
 export function Player() {
+  const ctx = useTeleport();
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
+
+  useEffect(() => {
+    document.title = `Play ${sid} • ${clusterId}`;
+  }, [sid, clusterId]);
 
   const recordingType = getUrlParameter(
     'recordingType',
     search
   ) as RecordingType;
-  const durationMs = Number(getUrlParameter('durationMs', search));
+
+  // In order to render the progress bar, we need to know the length of the session.
+  // All in-product links to the session player should include the session duration in the URL.
+  // Some users manually build the URL based on the session ID and don't specify the session duration.
+  // For those cases, we make a separate API call to get the duration.
+  const [fetchDurationAttempt, fetchDuration] = useAsync(
+    useCallback(
+      () => ctx.recordingsService.fetchRecordingDuration(clusterId, sid),
+      [ctx.recordingsService, clusterId, sid]
+    )
+  );
 
   const validRecordingType = validRecordingTypes.includes(recordingType);
-  const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
+  const durationMs = Number(getUrlParameter('durationMs', search));
+  const shouldFetchSessionDuration =
+    validRecordingType && (!Number.isInteger(durationMs) || durationMs <= 0);
 
-  document.title = `Play ${sid} • ${clusterId}`;
+  useEffect(() => {
+    if (shouldFetchSessionDuration) {
+      fetchDuration();
+    }
+  }, [fetchDuration, shouldFetchSessionDuration]);
+
+  const combinedAttempt = shouldFetchSessionDuration
+    ? fetchDurationAttempt
+    : makeSuccessAttempt({ durationMs });
 
   function onLogout() {
     session.logout();
@@ -70,13 +97,25 @@ export function Player() {
     );
   }
 
-  if (!validDurationMs) {
+  if (
+    combinedAttempt.status === '' ||
+    combinedAttempt.status === 'processing'
+  ) {
+    return (
+      <StyledPlayer>
+        <Box textAlign="center" mx={10} mt={5}>
+          <Indicator />
+        </Box>
+      </StyledPlayer>
+    );
+  }
+  if (combinedAttempt.status === 'error') {
     return (
       <StyledPlayer>
         <Box textAlign="center" mx={10} mt={5}>
           <Danger mb={0}>
-            Invalid query parameter durationMs:{' '}
-            {getUrlParameter('durationMs', search)}, should be an integer.
+            Unable to determine the length of this session. The session
+            recording may be incomplete or corrupted.
           </Danger>
         </Box>
       </StyledPlayer>
@@ -102,15 +141,20 @@ export function Player() {
           <DesktopPlayer
             sid={sid}
             clusterId={clusterId}
-            durationMs={durationMs}
+            durationMs={combinedAttempt.data.durationMs}
           />
         ) : (
-          <SshPlayer sid={sid} clusterId={clusterId} durationMs={durationMs} />
+          <SshPlayer
+            sid={sid}
+            clusterId={clusterId}
+            durationMs={combinedAttempt.data.durationMs}
+          />
         )}
       </Flex>
     </StyledPlayer>
   );
 }
+
 const StyledPlayer = styled.div`
   display: flex;
   height: 100%;
