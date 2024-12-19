@@ -225,7 +225,7 @@ func configureServicePermissions(service *mgr.Service, userSIDStr string) error 
 	}
 	explicitAccess := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: windows.ACCESS_MASK(
-			windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP),
+			windows.SERVICE_QUERY_CONFIG | windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP),
 		AccessMode:  windows.GRANT_ACCESS,
 		Inheritance: windows.NO_INHERITANCE,
 		Trustee: windows.TRUSTEE{
@@ -272,7 +272,7 @@ type windowsService struct {
 // Execute implements [svc.Handler].
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
-	status <- svc.Status{State: svc.StartPending}
+	status <- svc.Status{State: svc.StartPending, Accepts: cmdsAccepted}
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -285,6 +285,8 @@ loop:
 		select {
 		case request := <-requests:
 			switch request.Cmd {
+			case svc.Interrogate:
+				status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 			case svc.Stop, svc.Shutdown:
 				break loop
 			}
