@@ -497,16 +497,16 @@ func (w *WrappedClient) oktaErrToTrace(_ context.Context, err error) error {
 
 	switch oktaErr.ErrorCode {
 	case OktaErrCodeAuthenticationException, OktaErrCodeInvalidSessionException, OktaErrCodeInvalidTokenProvidedException:
-		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
+		return trace.WithField(trace.AccessDenied("%s", oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	case OktaErrCodeAccessDeniedException:
-		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
+		return trace.WithField(trace.AccessDenied("%s", oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	case OktaErrCodeResourceNotFoundException, OktaErrCodeNotFoundException:
-		return trace.WithField(trace.NotFound(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
+		return trace.WithField(trace.NotFound("%s", oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	case OktaErrCodeAPIValidationException:
 		return &OktaAPIValidationError{ErrorID: oktaErr.ErrorId, Summary: oktaErr.ErrorSummary}
 	default:
 		// If we don't have a more specific error to provide, just wrap the error and return it.
-		return trace.WithField(trace.BadParameter(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
+		return trace.WithField(trace.BadParameter("%s", oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	}
 }
 

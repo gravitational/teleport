@@ -1486,7 +1486,7 @@ func TestService_UpsertAccessListMemberMaxDepth(t *testing.T) {
 
 		if i == accesslist.MaxAllowedDepth {
 			require.Error(t, err)
-			require.ErrorIs(t, err, trace.BadParameter(fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedList.Spec.Title, parentList.Spec.Title, accesslist.MaxAllowedDepth)))
+			require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedList.Spec.Title, parentList.Spec.Title, accesslist.MaxAllowedDepth))
 			expectEvent(t, events.AccessListMemberCreateFailureCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
 				require.False(t, event.Success)
 			})

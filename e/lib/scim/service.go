@@ -217,7 +217,7 @@ func (s *Service) ListSCIMResources(ctx context.Context, req *scimpb.ListSCIMRes
 
 	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
 	if !ok {
-		return nil, trace.NotFound(req.Target.ResourceType)
+		return nil, trace.NotFound("%s", req.Target.ResourceType)
 	}
 
 	return resourceTypeHandler.listResources(ctx, shim, req.Filter, req.Page)
@@ -272,7 +272,7 @@ func (s *Service) GetSCIMResource(ctx context.Context, req *scimpb.GetSCIMResour
 
 	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
 	if !ok {
-		return nil, trace.NotFound(req.Target.ResourceType)
+		return nil, trace.NotFound("%s", req.Target.ResourceType)
 	}
 
 	return resourceTypeHandler.getResource(ctx, shim, req.Target)
@@ -288,7 +288,7 @@ func (s *Service) CreateSCIMResource(ctx context.Context, req *scimpb.CreateSCIM
 
 	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
 	if !ok {
-		return nil, trace.NotFound(req.Target.ResourceType)
+		return nil, trace.NotFound("%s", req.Target.ResourceType)
 	}
 
 	return resourceTypeHandler.createResource(ctx, shim, req.Resource)
@@ -305,7 +305,7 @@ func (s *Service) UpdateSCIMResource(ctx context.Context, req *scimpb.UpdateSCIM
 
 	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
 	if !ok {
-		return nil, trace.NotFound(req.Target.ResourceType)
+		return nil, trace.NotFound("%s", req.Target.ResourceType)
 	}
 
 	if req.Resource.Id == "" {
@@ -323,7 +323,7 @@ func (s *Service) DeleteSCIMResource(ctx context.Context, req *scimpb.DeleteSCIM
 
 	resourceTypeHandler, ok := s.resourceTypes[req.Target.ResourceType]
 	if !ok {
-		return nil, trace.NotFound(req.Target.ResourceType)
+		return nil, trace.NotFound("%s", req.Target.ResourceType)
 	}
 
 	if err := resourceTypeHandler.deleteResource(ctx, shim, req.Target.ResourceId); err != nil {

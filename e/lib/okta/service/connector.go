@@ -100,7 +100,7 @@ func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, r
 		// Using the CompareFailed error here results in the HTTP response
 		// returning http.StatusPreconditionFailed, which we can use as a signal
 		// to the UI that the problem is the underlying SAML connector.
-		return nil, trace.CompareFailed(msg)
+		return nil, trace.CompareFailed("%s", msg)
 	}
 	return connInfo, nil
 }

@@ -47,7 +47,7 @@ func (m *mockExternalIDGetter) GetUserExternalID(_ context.Context, localID stri
 	if extID, ok := m.users[localID]; ok {
 		return extID, nil
 	}
-	return "", trace.NotFound(localID)
+	return "", trace.NotFound("%s", localID)
 }
 
 func (m *mockExternalIDGetter) GetAccessListExternalID(_ context.Context, localID string) (provisioning.ExternalID, error) {
@@ -57,7 +57,7 @@ func (m *mockExternalIDGetter) GetAccessListExternalID(_ context.Context, localI
 	if extID, ok := m.accessLists[localID]; ok {
 		return extID, nil
 	}
-	return "", trace.NotFound(localID)
+	return "", trace.NotFound("%s", localID)
 }
 
 func (m *mockExternalIDGetter) setMockUser(t *testing.T, localID string, externalID provisioning.ExternalID) {

@@ -52,7 +52,7 @@ func (uh *userHandler) create(ctx context.Context, shim providerShim, r *scimpb.
 func (uh *userHandler) update(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
 	user, err := uh.users.GetUser(ctx, r.Id, false)
 	if err != nil {
-		return nil, trace.NotFound(r.Id)
+		return nil, trace.NotFound("%s", r.Id)
 	}
 
 	if user.GetRevision() != r.Meta.Version {
@@ -89,7 +89,7 @@ func (uh *userHandler) get(ctx context.Context, shim providerShim, resourceID st
 	// if this user does not belong to this IDP plugin, then they don't exist as
 	// far as this request is concerned.
 	if !shim.userPredicate(ctx, user) {
-		return nil, trace.NotFound(resourceID)
+		return nil, trace.NotFound("%s", resourceID)
 	}
 
 	userResource, err := shim.userToResource(ctx, user)

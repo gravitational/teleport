@@ -467,7 +467,7 @@ func findOktaBuiltinGroup(ctx context.Context, oktaClient api.Client, name strin
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case result == nil:
-		return nil, trace.NotFound(name)
+		return nil, trace.NotFound("%s", name)
 	default:
 		return result, nil
 	}

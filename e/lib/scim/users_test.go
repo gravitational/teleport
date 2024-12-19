@@ -252,7 +252,7 @@ func TestUserGet(t *testing.T) {
 				return u, nil
 			}
 		}
-		return nil, trace.NotFound(username)
+		return nil, trace.NotFound("%s", username)
 	}
 
 	testCases := []struct {

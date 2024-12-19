@@ -756,7 +756,7 @@ func (s *Service) redactAutoEnrollError(actualErr error, dev *devicepb.Device, u
 	// Transform drift errors into BadParameter, but otherwise no need to redact.
 	// The user already has permissions to create tokens without data.
 	if errors.Is(actualErr, &storage.CollectedDataDriftError{}) {
-		actualErr = trace.BadParameter(actualErr.Error())
+		actualErr = trace.BadParameter("%s", actualErr)
 	}
 	return trace.Wrap(actualErr)
 }

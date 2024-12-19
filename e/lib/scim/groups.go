@@ -425,7 +425,7 @@ func (gh *groupHandler) loadAccessList(ctx context.Context, shim providerShim, i
 	}
 
 	if !shim.accessListPredicate(ctx, acl) {
-		return nil, trace.NotFound(id)
+		return nil, trace.NotFound("%s", id)
 	}
 
 	return acl, nil

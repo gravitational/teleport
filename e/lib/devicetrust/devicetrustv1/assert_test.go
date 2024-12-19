@@ -51,8 +51,9 @@ func TestAssertCeremony(t *testing.T) {
 		// Assert device.
 		if got == nil {
 			t.Fatal("AssertDevice returned nil device")
+		} else {
+			got.CollectedData = nil // CollectedData not relevant for the test.
 		}
-		got.CollectedData = nil // CollectedData not relevant for the test.
 		if diff := cmp.Diff(dev, got, protocmp.Transform()); diff != "" {
 			t.Errorf("AssertDevice device mismatch (-want +got)\n%s", diff)
 		}

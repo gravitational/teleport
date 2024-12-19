@@ -976,7 +976,7 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	// just from the token.
 	err := isHTTPS(issuerURL)
 	if err != nil {
-		return nil, trace.NotFound(err.Error())
+		return nil, trace.NotFound("%s", err)
 	}
 
 	oac, err := oidcClient.OAuthClient()
@@ -1002,7 +1002,7 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	// just from the token.
 	err = isHTTPS(endpoint)
 	if err != nil {
-		return nil, trace.NotFound(err.Error())
+		return nil, trace.NotFound("%s", err)
 	}
 	logger.DebugContext(context.Background(), "Fetching OIDC claims from UserInfo endpoint", "endpoint", endpoint)
 

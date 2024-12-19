@@ -40,7 +40,7 @@ func matchDeviceToken(safePlainToken string, hashedToken []byte) error {
 	plainToken, err := base64.RawURLEncoding.DecodeString(safePlainToken)
 	if err != nil {
 		// Re-wrap as a BadParameter.
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(hashedToken, plainToken); err != nil {
