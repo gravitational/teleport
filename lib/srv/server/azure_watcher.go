@@ -121,6 +121,7 @@ type azureFetcherConfig struct {
 	ResourceGroup       string
 	AzureClientGetter   azureClientGetter
 	DiscoveryConfigName string
+	Integration         string
 }
 
 type azureInstanceFetcher struct {
@@ -132,6 +133,7 @@ type azureInstanceFetcher struct {
 	Parameters          map[string]string
 	ClientID            string
 	DiscoveryConfigName string
+	Integration         string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -142,6 +144,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		ResourceGroup:       cfg.ResourceGroup,
 		Labels:              cfg.Matcher.ResourceTags,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
+		Integration:         cfg.Integration,
 	}
 
 	if cfg.Matcher.Params != nil {
@@ -162,6 +165,12 @@ func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]I
 
 func (f *azureInstanceFetcher) GetDiscoveryConfigName() string {
 	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *azureInstanceFetcher) IntegrationName() string {
+	return f.Integration
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
