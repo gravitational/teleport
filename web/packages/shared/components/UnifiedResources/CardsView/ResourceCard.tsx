@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
@@ -26,7 +26,7 @@ import { ResourceIcon } from 'design/ResourceIcon';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
@@ -85,6 +85,8 @@ export function ResourceCard({
   useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
 

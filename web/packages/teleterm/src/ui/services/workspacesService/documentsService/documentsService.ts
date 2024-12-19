@@ -44,6 +44,8 @@ import {
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
   DocumentPtySession,
+  WebSessionRequest,
+  DocumentAuthorizeWebSession,
 } from './types';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
@@ -228,6 +230,21 @@ export class DocumentsService {
     };
   }
 
+  createAuthorizeWebSessionDocument(params: {
+    rootClusterUri: string;
+    webSessionRequest: WebSessionRequest;
+  }): DocumentAuthorizeWebSession {
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.authorize_web_session',
+      title: 'Authorize Web Session',
+      rootClusterUri: params.rootClusterUri,
+      webSessionRequest: params.webSessionRequest,
+    };
+  }
+
   openConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
@@ -408,7 +425,7 @@ export class DocumentsService {
     if (doc.kind === 'doc.gateway_kube') {
       const { params } = routing.parseKubeUri(doc.targetUri);
       this.update(doc.uri, {
-        title: [shellBinName, cwd, params.kubeId].filter(Boolean).join(' · '),
+        title: [params.kubeId, shellBinName].filter(Boolean).join(' · '),
       });
     }
   }

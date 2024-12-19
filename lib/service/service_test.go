@@ -39,15 +39,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -101,7 +103,7 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 			name: "everything enabled",
 			cfg: func() *servicecfg.Config {
 				cfg := servicecfg.MakeDefaultConfig()
-				cfg.DataDir = t.TempDir()
+				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -132,7 +134,7 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 			name: "everything enabled with additional roles",
 			cfg: func() *servicecfg.Config {
 				cfg := servicecfg.MakeDefaultConfig()
-				cfg.DataDir = t.TempDir()
+				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -192,7 +194,7 @@ func TestDynamicClientReuse(t *testing.T) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = fakeClock
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeTempDir(t)
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -274,7 +276,7 @@ func TestMonitor(t *testing.T) {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeTempDir(t)
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
@@ -292,7 +294,10 @@ func TestMonitor(t *testing.T) {
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
@@ -785,7 +790,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeTempDir(t)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
@@ -910,7 +915,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
-			cfg.DataDir = t.TempDir()
+			cfg.DataDir = makeTempDir(t)
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
@@ -935,7 +940,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewRealClock()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeTempDir(t)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
@@ -1003,7 +1008,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	authCfg := servicecfg.MakeDefaultConfig()
 	authCfg.SetAuthServerAddress(listenAddr)
-	authCfg.DataDir = t.TempDir()
+	authCfg.DataDir = makeTempDir(t)
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.StaticTokens = staticTokens
 	authCfg.Auth.StorageConfig.Type = lite.GetName()
@@ -1025,7 +1030,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	authListenAddr := authProc.Config.AuthServerAddresses()[0]
 	nodeCfg := servicecfg.MakeDefaultConfig()
 	nodeCfg.SetAuthServerAddress(authListenAddr)
-	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.DataDir = makeTempDir(t)
 	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1285,9 +1290,8 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
-	log := logrus.New()
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, log),
+		Supervisor: NewSupervisor(hostID, utils.NewLoggerForTests()),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1295,7 +1299,8 @@ func TestProxyGRPCServers(t *testing.T) {
 				},
 			},
 		},
-		log: log,
+		log:    utils.NewLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests(),
 	}
 
 	// Create a limiter with no limits.
@@ -1612,11 +1617,7 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
-	var err error
-	dataDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dataDir) })
-
+	dataDir := makeTempDir(t)
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = true
 	cfg.Clock = fakeClock
@@ -1633,7 +1634,10 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1739,7 +1743,7 @@ func TestInstanceMetadata(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newCfg()
-			cfg.DataDir = t.TempDir()
+			cfg.DataDir = makeTempDir(t)
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.InstanceMetadataClient = tc.imClient
 
@@ -1747,6 +1751,7 @@ func TestInstanceMetadata(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, process.Close())
+				require.NoError(t, process.Wait())
 			})
 
 			if tc.expectCloudLabels {
@@ -1800,7 +1805,7 @@ func TestInitDatabaseService(t *testing.T) {
 			t.Parallel()
 
 			cfg := servicecfg.MakeDefaultConfig()
-			cfg.DataDir = t.TempDir()
+			cfg.DataDir = makeTempDir(t)
 			cfg.DebugService = servicecfg.DebugConfig{
 				Enabled: false,
 			}
@@ -1820,19 +1825,28 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.Databases.Enabled = test.enabled
 			cfg.Databases.Databases = test.databases
 
+			// This timeout should consider time to receive the event + shutdown
+			// time.
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			var eg errgroup.Group
 			process, err := NewTeleport(cfg)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, process.Close())
-			})
 			require.NoError(t, process.Start())
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
+			eg.Go(func() error { return process.WaitForSignals(ctx, nil) })
+			// Ensures the process is closed in failure scenarios.
+			t.Cleanup(func() {
+				cancel()
+				_ = eg.Wait()
+			})
 
 			if !test.expectErr {
 				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
 				require.NoError(t, err)
+				require.NoError(t, process.Close())
+				// Expect Teleport to shutdown without reporting any issue.
+				require.NoError(t, eg.Wait())
 				return
 			}
 
@@ -1842,6 +1856,92 @@ func TestInitDatabaseService(t *testing.T) {
 			exitPayload, ok := event.Payload.(ExitEventPayload)
 			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
 			require.Equal(t, "db.init", exitPayload.Service.Name())
+			// Database service init is a critical service, meaning failures on
+			// it should cause the process to exit with error.
+			require.Error(t, eg.Wait())
 		})
 	}
+}
+
+// TestAgentRolloutController validates that the agent rollout controller is started
+// when we run the Auth Service. It does so by creating a dummy autoupdate_version resource
+// and checking that the corresponding autoupdate_agent_rollout resource is created by the auth.
+// If you want to test the reconciliation logic, add tests to the rolloutcontroller package instead.
+func TestAgentRolloutController(t *testing.T) {
+	t.Parallel()
+
+	dataDir := makeTempDir(t)
+
+	cfg := servicecfg.MakeDefaultConfig()
+	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
+	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
+	// check, this will break the next time we add a new waiter.
+	cfg.Clock = clockwork.NewRealClock()
+	cfg.DataDir = dataDir
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.DebugService.Enabled = false
+	cfg.Auth.StorageConfig.Params["path"] = dataDir
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	// Speed up the reconciliation period for testing purposes.
+	cfg.Auth.AgentRolloutControllerSyncPeriod = 200 * time.Millisecond
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	// Test setup: start the Teleport auth and wait for it to beocme ready
+	require.NoError(t, process.Start())
+
+	// Test setup: wait for every service to start
+	ctx, cancel := context.WithTimeout(process.ExitContext(), 30*time.Second)
+	defer cancel()
+	for _, eventName := range []string{AuthTLSReady, InstanceReady} {
+		_, err := process.WaitForEvent(ctx, eventName)
+		require.NoError(t, err)
+	}
+
+	// Test cleanup: close the Teleport process and wait for every service to exist before returning.
+	// This ensures that a service will not make the test fail by writing a file to the temporary directory while it's
+	// being removed.
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	// Test execution: create the autoupdate_version resource
+	authServer := process.GetAuthServer()
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
+			StartVersion:  "1.2.3",
+			TargetVersion: "1.2.4",
+			Schedule:      autoupdate.AgentsScheduleImmediate,
+			Mode:          autoupdate.AgentsUpdateModeEnabled,
+		},
+	})
+	require.NoError(t, err)
+	version, err = authServer.CreateAutoUpdateVersion(ctx, version)
+	require.NoError(t, err)
+
+	// Test validation: check that a new autoupdate_agent_rollout config was created
+	require.Eventually(t, func() bool {
+		rollout, err := authServer.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return false
+		}
+		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to
+// avoid https://github.com/golang/go/issues/62614.
+func makeTempDir(t *testing.T) string {
+	t.Helper()
+
+	tempDir, err := os.MkdirTemp("", "teleport-test-")
+	require.NoError(t, err, "os.MkdirTemp() failed")
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	return tempDir
 }

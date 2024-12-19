@@ -27,8 +27,8 @@ import (
 	"math"
 	"os"
 	"testing"
-	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -44,10 +44,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -928,78 +926,6 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 	}
 }
 
-func TestGetDesktopEventWebURL(t *testing.T) {
-	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	tt := []struct {
-		name      string
-		proxyHost string
-		cluster   string
-		sid       session.ID
-		events    []events.EventFields
-		expected  string
-	}{
-		{
-			name:     "nil events",
-			events:   nil,
-			expected: "",
-		},
-		{
-			name:     "empty events",
-			events:   make([]events.EventFields, 0),
-			expected: "",
-		},
-		{
-			name:      "two events, 1000 ms duration",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(1000 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
-		},
-		{
-			name:      "multiple events",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(10 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(20 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(30 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(40 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(50 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
-		})
-	}
-}
-
 type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
 
 func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
@@ -1389,4 +1315,73 @@ func TestNonRetryableError(t *testing.T) {
 	assert.True(t, IsNonRetryableError(err))
 	assert.True(t, trace.IsAccessDenied(err))
 	assert.Equal(t, orgError, err.Unwrap())
+}
+
+func TestWarningAboutIncompatibleClientVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		clientVersion   string
+		serverVersion   string
+		expectedWarning string
+	}{
+		{
+			name:          "client on a higher major version than server triggers a warning",
+			clientVersion: "17.0.0",
+			serverVersion: "16.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is 16.x.x but you are using 17.0.0.
+Please downgrade tsh to 16.x.x or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:          "client on a too low major version compared to server triggers a warning",
+			clientVersion: "16.4.0",
+			serverVersion: "18.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is 17.0.0 but you are using 16.4.0.
+Please upgrade tsh to 17.0.0 or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:            "client on a higher minor version than server does not trigger a warning",
+			clientVersion:   "17.1.0",
+			serverVersion:   "17.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client on a lower major version than server does not trigger a warning",
+			clientVersion:   "17.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client and server on the same version do not trigger a warning",
+			clientVersion:   "18.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			minClientVersion, err := semver.NewVersion(test.serverVersion)
+			require.NoError(t, err)
+			minClientVersion.Major = minClientVersion.Major - 1
+			warning, err := getClientIncompatibilityWarning(versions{
+				MinClient: minClientVersion.String(),
+				Client:    test.clientVersion,
+				Server:    test.serverVersion,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectedWarning, warning)
+		})
+	}
 }

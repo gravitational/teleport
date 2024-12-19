@@ -53,7 +53,10 @@ export function Default() {
   return (
     <Validation>
       {({ validator }) => {
-        validator.validate();
+        // Prevent rendering loop.
+        if (!validator.state.validating) {
+          validator.validate();
+        }
         return (
           <Flex flexDirection="column">
             <FieldSelect

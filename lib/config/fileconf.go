@@ -1523,6 +1523,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// Azure is the Azure configuration for the AccessGraph Sync service.
+	Azure []AccessGraphAzureSync `yaml:"azure,omitempty"`
 	// PollInterval is the frequency at which to poll for AWS resources
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
@@ -1536,6 +1538,12 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+// AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
+type AccessGraphAzureSync struct {
+	// SubscriptionID is the Azure subscription ID configured for syncing
+	SubscriptionID string `yaml:"subscription_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -2036,6 +2044,12 @@ type App struct {
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
+
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+	// Only applicable to TCP App Access.
+	// If this field is not empty, URI is expected to contain no port number and start with the tcp
+	// protocol.
+	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2080,6 +2094,18 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+type PortRange struct {
+	// Port describes the start of the range. It must be between 1 and 65535.
+	Port int `yaml:"port"`
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than Port and less than or equal to 65535. When describing a single port, it must be
+	// set to 0.
+	EndPort int `yaml:"end_port,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

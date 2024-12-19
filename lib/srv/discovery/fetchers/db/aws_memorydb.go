@@ -61,14 +61,15 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	var eligibleClusters []*memorydb.Cluster
 	for _, cluster := range clusters {
 		if !libcloudaws.IsMemoryDBClusterSupported(cluster) {
-			cfg.Log.Debugf("MemoryDB cluster %q is not supported. Skipping.", aws.StringValue(cluster.Name))
+			cfg.Logger.DebugContext(ctx, "Skipping unsupported MemoryDB cluster", "cluster", aws.StringValue(cluster.Name))
 			continue
 		}
 
 		if !libcloudaws.IsMemoryDBClusterAvailable(cluster) {
-			cfg.Log.Debugf("The current status of MemoryDB cluster %q is %q. Skipping.",
-				aws.StringValue(cluster.Name),
-				aws.StringValue(cluster.Status))
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable MemoryDB cluster",
+				"cluster", aws.StringValue(cluster.Name),
+				"status", aws.StringValue(cluster.Status),
+			)
 			continue
 		}
 
@@ -84,9 +85,9 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	allSubnetGroups, err := getMemoryDBSubnetGroups(ctx, memDBClient)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			cfg.Log.WithError(err).Debug("No permissions to describe subnet groups")
+			cfg.Logger.DebugContext(ctx, "No permissions to describe subnet groups", "error", err)
 		} else {
-			cfg.Log.WithError(err).Info("Failed to describe subnet groups.")
+			cfg.Logger.InfoContext(ctx, "Failed to describe subnet groups", "error", err)
 		}
 	}
 
@@ -95,16 +96,22 @@ func (f *memoryDBPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 		tags, err := getMemoryDBResourceTags(ctx, memDBClient, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				cfg.Logger.DebugContext(ctx, "No permissions to list resource tags", "error", err)
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for MemoryDB cluster %q.", aws.StringValue(cluster.Name))
+				cfg.Logger.InfoContext(ctx, "Failed to list resource tags for MemoryDB cluster ",
+					"error", err,
+					"cluster", aws.StringValue(cluster.Name),
+				)
 			}
 		}
 
 		extraLabels := common.ExtraMemoryDBLabels(cluster, tags, allSubnetGroups)
 		database, err := common.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 		if err != nil {
-			cfg.Log.WithError(err).Infof("Could not convert memorydb cluster %q configuration endpoint to database resource.", aws.StringValue(cluster.Name))
+			cfg.Logger.InfoContext(ctx, "Could not convert memorydb cluster configuration endpoint to database resource",
+				"error", err,
+				"cluster", aws.StringValue(cluster.Name),
+			)
 		} else {
 			databases = append(databases, database)
 		}

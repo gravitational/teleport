@@ -495,6 +495,58 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	}, nil
 }
 
+// ListDeployedDatabaseServices lists Database Services deployed into Amazon ECS.
+func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *integrationpb.ListDeployedDatabaseServicesRequest) (*integrationpb.ListDeployedDatabaseServicesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDatabaseServicesClient, err := awsoidc.NewListDeployedDatabaseServicesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDatabaseServicesResponse, err := awsoidc.ListDeployedDatabaseServices(ctx, listDatabaseServicesClient, awsoidc.ListDeployedDatabaseServicesRequest{
+		Integration:         req.Integration,
+		TeleportClusterName: clusterName.GetClusterName(),
+		Region:              req.Region,
+		NextToken:           req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployedDatabaseServices := make([]*integrationpb.DeployedDatabaseService, 0, len(listDatabaseServicesResponse.DeployedDatabaseServices))
+	for _, deployedService := range listDatabaseServicesResponse.DeployedDatabaseServices {
+		deployedDatabaseServices = append(deployedDatabaseServices, &integrationpb.DeployedDatabaseService{
+			Name:                deployedService.Name,
+			ServiceDashboardUrl: deployedService.ServiceDashboardURL,
+			ContainerEntryPoint: deployedService.ContainerEntryPoint,
+			ContainerCommand:    deployedService.ContainerCommand,
+		})
+	}
+
+	return &integrationpb.ListDeployedDatabaseServicesResponse{
+		DeployedDatabaseServices: deployedDatabaseServices,
+		NextToken:                listDatabaseServicesResponse.NextToken,
+	}, nil
+}
+
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -537,6 +589,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		AgentVersion:        req.AgentVersion,
 		TeleportClusterName: clusterName.GetClusterName(),
 		IntegrationName:     req.Integration,
+		ExtraLabels:         req.ExtraLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -548,6 +601,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 			EksClusterName: r.ClusterName,
 			ResourceId:     r.ResourceId,
 			Error:          trace.UserMessage(r.Error),
+			IssueType:      r.IssueType,
 		})
 	}
 

@@ -20,13 +20,13 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
@@ -49,8 +49,8 @@ type WatcherConfig struct {
 	Interval time.Duration
 	// TriggerFetchC can be used to force an instant Poll, instead of waiting for the next poll Interval.
 	TriggerFetchC chan struct{}
-	// Log is the watcher logger.
-	Log logrus.FieldLogger
+	// Logger is the watcher logger.
+	Logger *slog.Logger
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// DiscoveryGroup is the name of the discovery group that the current
@@ -63,6 +63,8 @@ type WatcherConfig struct {
 	DiscoveryGroup string
 	// Origin is used to specify what type of origin watcher's resources are
 	Origin string
+	// PreFetchHookFn is called before starting a new fetch cycle.
+	PreFetchHookFn func()
 }
 
 // CheckAndSetDefaults validates the config.
@@ -73,8 +75,8 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.TriggerFetchC == nil {
 		c.TriggerFetchC = make(chan struct{})
 	}
-	if c.Log == nil {
-		c.Log = logrus.New()
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -103,19 +105,19 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	watcher := &Watcher{
+
+	return &Watcher{
 		cfg:        config,
 		ctx:        ctx,
 		resourcesC: make(chan types.ResourcesWithLabels),
-	}
-	return watcher, nil
+	}, nil
 }
 
 // Start starts fetching cloud resources and sending them to the channel.
 func (w *Watcher) Start() {
 	pollTimer := w.cfg.Clock.NewTimer(w.cfg.Interval)
 	defer pollTimer.Stop()
-	w.cfg.Log.Infof("Starting watcher.")
+	w.cfg.Logger.InfoContext(w.ctx, "Starting watcher")
 	w.fetchAndSend()
 	for {
 		select {
@@ -133,7 +135,7 @@ func (w *Watcher) Start() {
 			pollTimer.Reset(w.cfg.Interval)
 
 		case <-w.ctx.Done():
-			w.cfg.Log.Infof("Watcher done.")
+			w.cfg.Logger.InfoContext(w.ctx, "Watcher done")
 			return
 		}
 	}
@@ -141,6 +143,10 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
+	if w.cfg.PreFetchHookFn != nil {
+		w.cfg.PreFetchHookFn()
+	}
+
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
 		fetchersLock        sync.Mutex
@@ -157,9 +163,9 @@ func (w *Watcher) fetchAndSend() {
 				// not others. This is acceptable, so make a debug log instead
 				// of a warning.
 				if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher).Debugf("Skipped fetcher for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
+					w.cfg.Logger.DebugContext(groupCtx, "Skipped fetcher for resources", "error", err, "fetcher", lFetcher, "resource", lFetcher.ResourceType(), "cloud", lFetcher.Cloud())
 				} else {
-					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher).Warnf("Unable to fetch resources for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
+					w.cfg.Logger.WarnContext(groupCtx, "Unable to fetch resources", "error", err, "fetcher", lFetcher, "resource", lFetcher.ResourceType(), "cloud", lFetcher.Cloud())
 				}
 				// never return the error otherwise it will impact other watchers.
 				return nil
@@ -171,9 +177,9 @@ func (w *Watcher) fetchAndSend() {
 				// Add the integration name to the static labels for each resource.
 				fetcherLabels[types.TeleportInternalDiscoveryIntegrationName] = lFetcher.IntegrationName()
 			}
-			if lFetcher.DiscoveryConfigName() != "" {
+			if lFetcher.GetDiscoveryConfigName() != "" {
 				// Add the discovery config name to the static labels of each resource.
-				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.DiscoveryConfigName()
+				fetcherLabels[types.TeleportInternalDiscoveryConfigName] = lFetcher.GetDiscoveryConfigName()
 			}
 
 			if w.cfg.DiscoveryGroup != "" {

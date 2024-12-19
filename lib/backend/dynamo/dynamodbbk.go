@@ -38,9 +38,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
@@ -282,7 +283,12 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(dynamoResolver)}
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(dynamoResolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
@@ -292,8 +298,6 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
 	}
-
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 

@@ -33,6 +33,7 @@ export const MessageTypeEnum = {
   ERROR: 'e',
   LATENCY: 'l',
   KUBE_EXEC: 'k',
+  DB_CONNECT: 'd',
 };
 
 export const messageFields = {
@@ -62,6 +63,7 @@ export const messageFields = {
       challengeResponse: MessageTypeEnum.MFA_CHALLENGE.charCodeAt(0),
       kubeExec: MessageTypeEnum.KUBE_EXEC.charCodeAt(0),
       error: MessageTypeEnum.ERROR.charCodeAt(0),
+      dbConnect: MessageTypeEnum.DB_CONNECT.charCodeAt(0),
     },
   },
 };
@@ -93,6 +95,10 @@ export class Protobuf {
 
   encodeKubeExecData(message) {
     return this.encode(messageFields.type.values.kubeExec, message);
+  }
+
+  encodeDbConnectData(message) {
+    return this.encode(messageFields.type.values.dbConnect, message);
   }
 
   encodeRawMessage(message) {

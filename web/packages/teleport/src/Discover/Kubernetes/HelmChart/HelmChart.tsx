@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';

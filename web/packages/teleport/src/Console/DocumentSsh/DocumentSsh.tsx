@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Indicator, Box } from 'design';
@@ -36,6 +36,8 @@ import { useMfa } from 'teleport/lib/useMfa';
 
 import Document from '../Document';
 
+import { useConsoleContext } from '../consoleContextProvider';
+
 import { Terminal, TerminalRef } from './Terminal';
 import useSshSession from './useSshSession';
 import { useFileTransfer } from './useFileTransfer';
@@ -49,6 +51,8 @@ export default function DocumentSshWrapper(props: PropTypes) {
 }
 
 function DocumentSsh({ doc, visible }: PropTypes) {
+  const ctx = useConsoleContext();
+  const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
@@ -130,7 +134,10 @@ function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
-      <FileTransferActionBar isConnected={doc.status === 'connected'} />
+      <FileTransferActionBar
+        hasAccess={hasFileTransferAccess}
+        isConnected={doc.status === 'connected'}
+      />
       {status === 'loading' && (
         <Box textAlign="center" m={10}>
           <Indicator />

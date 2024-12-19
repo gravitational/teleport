@@ -36,11 +36,13 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -148,8 +150,12 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &querier{
-		athenaClient:  athena.NewFromConfig(*cfg.awsCfg),
-		s3Getter:      s3.NewFromConfig(*cfg.awsCfg),
+		athenaClient: athena.NewFromConfig(*cfg.awsCfg, func(o *athena.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		}),
+		s3Getter: s3.NewFromConfig(*cfg.awsCfg, func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		}),
 		querierConfig: cfg,
 	}, nil
 }

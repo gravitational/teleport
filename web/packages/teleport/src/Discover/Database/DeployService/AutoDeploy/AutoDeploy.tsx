@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import styled, { useTheme } from 'styled-components';
 import {
   Box,
@@ -545,6 +545,16 @@ const DeployHints = ({
               </AlternateInstructionButton>
             </li>
           </ul>
+          <Text>
+            Refer to the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/#troubleshooting"
+            >
+              troubleshooting documentation
+            </Link>{' '}
+            for more details.
+          </Text>
         </Flex>
       </HintBox>
     );

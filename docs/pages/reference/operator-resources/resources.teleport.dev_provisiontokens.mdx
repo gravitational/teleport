@@ -29,6 +29,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
 |azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
+|bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
@@ -64,6 +65,23 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |resource_groups|[]string||
 |subscription|string||
+
+### spec.bitbucket
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specbitbucketallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|audience|string|Audience is a Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.|
+|identity_provider_url|string|IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.|
+
+### spec.bitbucket.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|branch_name|string||
+|deployment_environment_uuid|string||
+|repository_uuid|string||
+|workspace_uuid|string||
 
 ### spec.circleci
 

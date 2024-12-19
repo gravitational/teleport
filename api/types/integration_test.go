@@ -281,6 +281,52 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErrorIs: trace.IsBadParameter,
 		},
+		{
+			name: "github: valid",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{
+						Organization: "my-org",
+					},
+				)
+			},
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindGitHub,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_GitHub{
+							GitHub: &GitHubIntegrationSpecV1{
+								Organization: "my-org",
+							},
+						},
+					},
+				}
+			},
+			expectedErrorIs: noErrorFunc,
+		},
+		{
+			name: "github: error when invalid org is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationGitHub(
+					Metadata{
+						Name: name,
+					},
+					&GitHubIntegrationSpecV1{},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			name := uuid.NewString()

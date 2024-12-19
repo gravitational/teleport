@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode } from 'react';
+import { ComponentProps, ReactNode } from 'react';
 import { StyleFunction } from 'styled-components';
 
 import Dialog from 'design/Dialog';
@@ -35,7 +35,7 @@ export function DialogConfirmation(props: {
     event: KeyboardEvent | React.MouseEvent,
     reason: 'escapeKeyDown' | 'backdropClick'
   ) => void;
-  dialogCss?: StyleFunction<any>;
+  dialogCss?: StyleFunction<ComponentProps<'div'>>;
 }) {
   return (
     <Dialog

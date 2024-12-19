@@ -4206,46 +4206,16 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		if !utils.MeetsMinVersion(teleport.Version, pr.MinClientVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected potentially incompatible client and server versions.
-Minimum client version supported by the server is %v but you are using %v.
-Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+		warning, err := getClientIncompatibilityWarning(versions{
+			MinClient: pr.MinClientVersion,
+			Client:    teleport.Version,
+			Server:    pr.ServerVersion,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		if !utils.MeetsMaxVersion(teleport.Version, pr.ServerVersion) {
-			serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(pr.ServerVersion)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected potentially incompatible client and server versions.
-Maximum client version supported by the server is %v but you are using %v.
-Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-				serverVersionWithWildcards, teleport.Version, serverVersionWithWildcards)
-		}
-
-		// Recent `tsh mfa` changes require at least Teleport v15.
-		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-		if !utils.MeetsMinVersion(pr.ServerVersion, minServerVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected incompatible client and server versions.
-Minimum server version supported by tsh is %v but your server is using %v.
-Please use a tsh version that matches your server.
-You may use the --skip-version-check flag to bypass this check.
-
-`,
-				minServerVersion, pr.ServerVersion)
+		if warning != "" {
+			fmt.Fprint(tc.Stderr, warning)
 		}
 	}
 
@@ -4266,6 +4236,53 @@ You may use the --skip-version-check flag to bypass this check.
 	tc.lastPing = pr
 
 	return pr, nil
+}
+
+type versions struct {
+	MinClient string
+	Client    string
+	Server    string
+}
+
+func getClientIncompatibilityWarning(versions versions) (string, error) {
+	if !utils.MeetsMinVersion(versions.Client, versions.MinClient) {
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			versions.MinClient, versions.Client, versions.MinClient), nil
+	}
+
+	clientMajorVersion, err := utils.MajorSemver(versions.Client)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	serverMajorVersion, err := utils.MajorSemver(versions.Server)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(serverMajorVersion)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is %v but you are using %v.
+Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			serverVersionWithWildcards, versions.Client, serverVersionWithWildcards), nil
+	}
+
+	return "", nil
 }
 
 // GetCurrentSignatureAlgorithmSuite returns the current signature algorithm
@@ -5013,19 +5030,6 @@ func findActiveApps(keyRing *KeyRing) ([]tlsca.RouteToApp, error) {
 		}
 	}
 	return apps, nil
-}
-
-// getDesktopEventWebURL returns the web UI URL users can access to
-// watch a desktop session recording in the browser
-func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
-	if len(events) < 1 {
-		return ""
-	}
-	start := events[0].GetTimestamp()
-	end := events[len(events)-1].GetTimestamp()
-	duration := end.Sub(start)
-
-	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.

@@ -274,7 +274,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.CoackroachDb,
+      engine: DatabaseEngine.CockroachDb,
     },
     name: 'CockroachDB',
     keywords: [...selfhostedKeywords, 'cockroachdb'],
@@ -421,13 +421,32 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
   switch (engine) {
     case DatabaseEngine.Postgres:
     case DatabaseEngine.AuroraPostgres:
+    case DatabaseEngine.Redshift:
       return 'postgres';
     case DatabaseEngine.MySql:
     case DatabaseEngine.AuroraMysql:
       return 'mysql';
+    case DatabaseEngine.MongoDb:
+      return 'mongodb';
+    case DatabaseEngine.Redis:
+      return 'redis';
+    case DatabaseEngine.CockroachDb:
+      return 'cockroachdb';
+    case DatabaseEngine.SqlServer:
+      return 'sqlserver';
+    case DatabaseEngine.Snowflake:
+      return 'snowflake';
+    case DatabaseEngine.Cassandra:
+      return 'cassandra';
+    case DatabaseEngine.ElasticSearch:
+      return 'elasticsearch';
+    case DatabaseEngine.DynamoDb:
+      return 'dynamodb';
+    case DatabaseEngine.Doc:
+      return '' as any;
+    default:
+      engine satisfies never;
   }
-
-  return '' as any;
 }
 
 export function getDefaultDatabasePort(engine: DatabaseEngine): string {

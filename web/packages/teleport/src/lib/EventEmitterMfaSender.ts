@@ -21,7 +21,7 @@ import { EventEmitter } from 'events';
 import {
   MfaChallengeResponse,
   WebauthnAssertionResponse,
-} from 'teleport/services/auth';
+} from 'teleport/services/mfa';
 
 class EventEmitterMfaSender extends EventEmitter {
   constructor() {

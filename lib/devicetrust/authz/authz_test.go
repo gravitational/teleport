@@ -55,6 +55,25 @@ func TestIsSSHDeviceVerified(t *testing.T) {
 	})
 }
 
+func TestHasDeviceTrustExtensions(t *testing.T) {
+	testIsDeviceVerified(t, "HasDeviceTrustExtensions", func(ext *tlsca.DeviceExtensions) bool {
+		if ext == nil {
+			return authz.HasDeviceTrustExtensions(nil)
+		}
+		var extensions []string
+		if ext.DeviceID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceID)
+		}
+		if ext.AssetTag != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceAssetTag)
+		}
+		if ext.CredentialID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceCredentialID)
+		}
+		return authz.HasDeviceTrustExtensions(extensions)
+	})
+}
+
 func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceExtensions) bool) {
 	tests := []struct {
 		name string

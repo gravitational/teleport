@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 
 import { makeDefaultMfaState, MfaState } from 'teleport/lib/useMfa';
-import { SSOChallenge } from 'teleport/services/auth';
+
+import { SSOChallenge } from 'teleport/services/mfa';
 
 import AuthnDialog from './AuthnDialog';
 

@@ -28,6 +28,7 @@ export interface AccessStrategy {
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
+  requireReason: boolean;
 }
 
 export interface UserContext {
@@ -106,6 +107,8 @@ export interface Acl {
   accessGraph: Access;
   bots: Access;
   accessMonitoringRule: Access;
+  contacts: Access;
+  fileTransferAccess: boolean;
 }
 
 // AllTraits represent all the traits defined for a user.

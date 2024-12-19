@@ -115,6 +115,11 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Nla:               u.Desktop.Nla,
 		}
 	}
+	if u.App != nil {
+		sessionStart.App = &prehogv1a.SessionStartAppMetadata{
+			IsMultiPort: u.App.IsMultiPort,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,
@@ -1267,6 +1272,22 @@ func (u *UserTaskStateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 				IssueType:      u.IssueType,
 				State:          u.State,
 				InstancesCount: u.InstancesCount,
+			},
+		},
+	}
+}
+
+// SessionRecordingAccessEvent is an event that is emitted after an user access
+// a session recording.
+type SessionRecordingAccessEvent prehogv1a.SessionRecordingAccessEvent
+
+func (s *SessionRecordingAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionRecordingAccess{
+			SessionRecordingAccess: &prehogv1a.SessionRecordingAccessEvent{
+				SessionType: s.SessionType,
+				UserName:    a.AnonymizeString(s.UserName),
+				Format:      s.Format,
 			},
 		},
 	}

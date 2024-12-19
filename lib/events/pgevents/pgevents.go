@@ -268,8 +268,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func configureCockroachDBRetention(ctx context.Context, cfg *Config, pool *pgxpool.Pool) error {
-	// Arbitrary timeout to make sure we don't end up hanging for some reason
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// The first run of this query on multi region setup can sometimes take more than 5 seconds.
+	// The subsequent runs are faster (a couple of seconds at most).
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var expiryQuery string

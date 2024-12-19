@@ -56,8 +56,10 @@ import (
 	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
+	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -73,6 +75,7 @@ import (
 	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -80,6 +83,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
@@ -89,10 +93,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
+	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -104,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/vnetconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/decision/decisionv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -1973,9 +1980,56 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 // version for some features of the role returns a shallow copy of the given
 // role downgraded for compatibility with the older version.
 func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
-	// Teleport 16 supports all role features that Teleport 15 does,
-	// so no downgrade is necessary.
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata. Teleport
+		// clients have been reporting their version for long enough that older
+		// clients won't even support v6 roles at all, so this is likely a
+		// third-party client, and we shouldn't assume that downgrading the role
+		// will do more good than harm.
+		return role, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedSSHPortForwardingVersions = map[int64]semver.Version{
+	17: {Major: 17, Minor: 1, Patch: 0},
+}
+
+func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	sshPortForwarding := role.GetOptions().SSHPortForwarding
+	if sshPortForwarding == nil || (sshPortForwarding.Remote == nil && sshPortForwarding.Local == nil) {
+		return role
+	}
+
+	minSupportedVersion, ok := minSupportedSSHPortForwardingVersions[clientVersion.Major]
+	if ok {
+		if supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedVersion.String()); supported || err != nil {
+			return role
+		}
+	}
+
+	role = apiutils.CloneProtoMsg(role)
+	options := role.GetOptions()
+
+	//nolint:staticcheck // this field is preserved for backwards compatibility
+	options.PortForwarding = types.NewBoolOption(services.RoleSet{role}.CanPortForward())
+	role.SetOptions(options)
+	reason := fmt.Sprintf(`Client version %q does not support granular SSH port forwarding. Role %q will be downgraded `+
+		`to simple port forwarding rules instead. In order to support granular SSH port forwarding, all clients must be `+
+		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedVersion)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return role
 }
 
 // GetRole retrieves a role by name.
@@ -2060,6 +2114,15 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2087,6 +2150,15 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
+	}
+
 	if err = services.ValidateRole(req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2112,6 +2184,15 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
+	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
+	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
+	// agents (similar to a role downgrade).
+	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
+		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
 	if err = services.ValidateRole(req.Role); err != nil {
@@ -5093,6 +5174,35 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
+	workloadIdentityResourceService, err := workloadidentityv1.NewResourceService(&workloadidentityv1.ResourceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.WorkloadIdentities,
+		Cache:      cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity resource service")
+	}
+	workloadidentityv1pb.RegisterWorkloadIdentityResourceServiceServer(server, workloadIdentityResourceService)
+
+	clusterName, err := cfg.AuthServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
+		Authorizer:  cfg.Authorizer,
+		Cache:       cfg.AuthServer.Cache,
+		Emitter:     cfg.Emitter,
+		Clock:       cfg.AuthServer.GetClock(),
+		KeyStore:    cfg.AuthServer.keyStore,
+		ClusterName: clusterName.GetClusterName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity issuance service")
+	}
+	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5357,12 +5467,31 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
+	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
+		Authorizer:               cfg.Authorizer,
+		Backend:                  cfg.AuthServer.Services,
+		ProxyPublicAddrGetter:    cfg.AuthServer.getProxyPublicAddr,
+		GitHubAuthRequestCreator: cfg.AuthServer.CreateGithubAuthRequest,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
+
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
 	// Enterprise builds would fail with a duplicate service registered error.
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
 	}
+
+	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
 	return authServer, nil
 }

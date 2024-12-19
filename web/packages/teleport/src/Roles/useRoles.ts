@@ -24,6 +24,8 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import type { UrlListRolesParams } from 'teleport/config';
 
 export function useRoles(ctx: TeleportContext) {
+  const rolesAcl = ctx.storeUser.getRoleAccess();
+
   async function create(role: Partial<RoleWithYaml>) {
     return ctx.resourceService.createRole(await toYaml(role));
   }
@@ -45,6 +47,7 @@ export function useRoles(ctx: TeleportContext) {
     create,
     update,
     remove,
+    rolesAcl,
   };
 }
 

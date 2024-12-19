@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -103,6 +103,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
 	types.KindDatabaseObject:        {},
+	types.KindGitServer:             {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -198,6 +199,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPluginStaticCredentials},
+		{Kind: types.KindGitServer},
+		{Kind: types.KindWorkloadIdentity},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -255,6 +259,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindGitServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -461,8 +466,8 @@ type SetupConfigFn func(c Config) Config
 type Cache struct {
 	Config
 
-	// Entry is a logging entry
-	Logger *log.Entry
+	// Logger emits log messages.
+	Logger *slog.Logger
 
 	// rw is used to prevent reads of invalid cache states.  From a
 	// memory-safety perspective, this RWMutex is used to protect
@@ -550,6 +555,9 @@ type Cache struct {
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
+	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
+	gitServersCache              *local.GitServerService
+	workloadIdentityCache        workloadIdentityCacher
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -732,6 +740,9 @@ type Config struct {
 	SPIFFEFederations SPIFFEFederationReader
 	// StaticHostUsers is the static host user service.
 	StaticHostUsers services.StaticHostUser
+	// WorkloadIdentity is the upstream Workload Identities service that we're
+	// caching
+	WorkloadIdentity WorkloadIdentityReader
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -784,6 +795,10 @@ type Config struct {
 
 	// IdentityCenter is the upstream Identity Center service that we're caching
 	IdentityCenter services.IdentityCenter
+	// PluginStaticCredentials is the plugin static credentials services
+	PluginStaticCredentials services.PluginStaticCredentials
+	// GitServers is the Git server service.
+	GitServers services.GitServerGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -998,6 +1013,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1018,6 +1039,18 @@ func New(config Config) (*Cache, error) {
 
 	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
 		Backend: config.Backend})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	gitServersCache, err := local.NewGitServerService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1070,9 +1103,13 @@ func New(config Config) (*Cache, error) {
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
-		Logger: log.WithFields(log.Fields{
-			teleport.ComponentKey: config.Component,
-		}),
+		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
+		gitServersCache:              gitServersCache,
+		workloadIdentityCache:        workloadIdentityCache,
+		Logger: slog.With(
+			teleport.ComponentKey, config.Component,
+			"target", config.target,
+		),
 	}
 	collections, err := setupCollections(cs, config.Watches)
 	if err != nil {
@@ -1112,15 +1149,15 @@ func (c *Cache) Start() error {
 	select {
 	case <-c.initC:
 		if c.initErr == nil {
-			c.Logger.Infof("Cache %q first init succeeded.", c.Config.target)
+			c.Logger.InfoContext(c.ctx, "Cache first init succeeded")
 		} else {
-			c.Logger.WithError(c.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", c.Config.target)
+			c.Logger.WarnContext(c.ctx, "Cache first init failed, continuing re-init attempts in background", "error", c.initErr)
 		}
 	case <-c.ctx.Done():
 		c.Close()
 		return trace.Wrap(c.ctx.Err(), "context closed during cache init")
 	case <-time.After(c.Config.CacheInitTimeout):
-		c.Logger.Warn("Cache init is taking too long, will continue in background.")
+		c.Logger.WarnContext(c.ctx, "Cache init is taking too long, will continue in background")
 	}
 	return nil
 }
@@ -1223,7 +1260,7 @@ Outer:
 
 func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	defer func() {
-		c.Logger.Debug("Cache is closing, returning from update loop.")
+		c.Logger.DebugContext(ctx, "Cache is closing, returning from update loop")
 		// ensure that close operations have been run
 		c.Close()
 	}()
@@ -1235,11 +1272,11 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Logger.Warnf("Re-init the cache on error: %v", err)
+			c.Logger.WarnContext(ctx, "Re-init the cache on error", "error", err)
 		}
 
 		// events cache should be closed as well
-		c.Logger.Debug("Reloading cache.")
+		c.Logger.DebugContext(ctx, "Reloading cache")
 
 		c.notify(ctx, Event{Type: Reloading, Event: types.Event{
 			Resource: &types.ResourceHeader{
@@ -1250,7 +1287,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 		startedWaiting := c.Clock.Now()
 		select {
 		case t := <-retry.After():
-			c.Logger.Debugf("Initiating new watch after waiting %v.", t.Sub(startedWaiting))
+			c.Logger.DebugContext(ctx, "Initiating new watch after backoff", "backoff_time", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-c.ctx.Done():
 			return
@@ -1379,7 +1416,9 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 				rejectedKinds = append(rejectedKinds, key.String())
 			}
 		}
-		c.Logger.WithField("rejected", rejectedKinds).Warn("Some resource kinds unsupported by the server cannot be cached")
+		c.Logger.WarnContext(ctx, "Some resource kinds unsupported by the server cannot be cached",
+			"rejected", rejectedKinds,
+		)
 	}
 
 	apply, err := c.fetch(ctx, confirmedKindsMap)
@@ -1432,15 +1471,15 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	fetchAndApplyDuration := time.Since(fetchAndApplyStart)
 	if fetchAndApplyDuration > time.Second*20 {
-		c.Logger.WithFields(log.Fields{
-			"cache_target": c.Config.target,
-			"duration":     fetchAndApplyDuration.String(),
-		}).Warn("slow fetch and apply")
+		c.Logger.WarnContext(ctx, "slow fetch and apply",
+			"cache_target", c.Config.target,
+			"duration", fetchAndApplyDuration.String(),
+		)
 	} else {
-		c.Logger.WithFields(log.Fields{
-			"cache_target": c.Config.target,
-			"duration":     fetchAndApplyDuration.String(),
-		}).Debug("fetch and apply")
+		c.Logger.DebugContext(ctx, "fetch and apply",
+			"cache_target", c.Config.target,
+			"duration", fetchAndApplyDuration.String(),
+		)
 	}
 
 	var lastStalenessWarning time.Time
@@ -1483,7 +1522,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 						if sk := event.Resource.GetSubKind(); sk != "" {
 							kind = fmt.Sprintf("%s/%s", kind, sk)
 						}
-						c.Logger.WithField("last_kind", kind).Warnf("Encountered %d stale event(s), may indicate degraded backend or event system performance.", staleEventCount)
+						c.Logger.WarnContext(ctx, "Encountered stale event(s), may indicate degraded backend or event system performance",
+							"stale_event_count", staleEventCount,
+							"last_kind", kind,
+						)
 						lastStalenessWarning = now
 						staleEventCount = 0
 					}
@@ -1602,7 +1644,10 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	}
 
 	if removed > 0 {
-		c.Logger.Debugf("Removed %d nodes via relative expiry (retentionThreshold=%s).", removed, retentionThreshold)
+		c.Logger.DebugContext(ctx, "Removed nodes via relative expiry",
+			"removed_node_count", removed,
+			"retention_threshold", retentionThreshold,
+		)
 	}
 
 	return nil
@@ -1743,7 +1788,10 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections.byKind[resourceKind]
 	if !ok {
-		c.Logger.Warnf("Skipping unsupported event %v/%v", event.Resource.GetKind(), event.Resource.GetSubKind())
+		c.Logger.WarnContext(ctx, "Skipping unsupported event",
+			"event_kind", event.Resource.GetKind(),
+			"event_sub_kind", event.Resource.GetSubKind(),
+		)
 		return nil
 	}
 	if err := collection.processEvent(ctx, event); err != nil {
@@ -2559,7 +2607,10 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
+			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
+				"session_kind", sess.GetSubKind(),
+				"session", sess.GetName(),
+			)
 			return sess, nil
 		}
 	}
@@ -2598,7 +2649,10 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
+			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
+				"session_kind", sess.GetSubKind(),
+				"session", sess.GetName(),
+			)
 			return sess, nil
 		}
 	}
@@ -2624,7 +2678,10 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
+			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
+				"session_kind", sess.GetSubKind(),
+				"session", sess.GetName(),
+			)
 			return sess, nil
 		}
 	}
@@ -2714,7 +2771,10 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.Debugf("Cache was forced to load session %v/%v from upstream.", sess.GetSubKind(), sess.GetName())
+			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
+				"session_kind", sess.GetSubKind(),
+				"session", sess.GetName(),
+			)
 			return sess, nil
 		}
 	}
@@ -3558,6 +3618,19 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	defer rg.Release()
 
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
+}
+
+func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetAccountAssignment(ctx, id)
 }
 
 // ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments

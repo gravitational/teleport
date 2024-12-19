@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Transition } from 'react-transition-group';
 
 import {
@@ -170,6 +170,7 @@ export function AccessRequestCheckout() {
                       switch (c.kind) {
                         case 'app':
                         case 'saml_idp_service_provider':
+                        case 'aws_ic_account_assignment':
                           resource.Icon = Icon.Application;
                           break;
                         case 'node':
