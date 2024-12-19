@@ -225,14 +225,13 @@ func TestSSHServerBasics(t *testing.T) {
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
 	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.failKeepAlives = 2
+	auth.failUpserts = 2
 	auth.mu.Unlock()
 
 	// keepalive should fail twice, but since the upsert is already known
 	// to have succeeded, we should not see an upsert failure yet.
 	awaitEvents(t, events,
-		expect(sshKeepAliveErr, sshKeepAliveErr),
+		expect(sshKeepAliveErr, sshKeepAliveErr, sshKeepAliveOk),
 		deny(sshUpsertErr, handlerClose),
 	)
 
@@ -247,6 +246,32 @@ func TestSSHServerBasics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	// this explicit upsert will not happen since the server is the same, but
+	// keepalives should work
+	awaitEvents(t, events,
+		expect(sshKeepAliveOk),
+		deny(sshKeepAliveErr, sshUpsertErr, sshUpsertRetryOk, handlerClose),
+	)
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+				Labels: map[string]string{
+					"changed": "changed",
+				},
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
 
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
