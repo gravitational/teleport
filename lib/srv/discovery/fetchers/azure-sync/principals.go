@@ -20,63 +20,87 @@ package azure_sync
 
 import (
 	"context"
-	"slices"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore" //nolint:unused // used in a dependent PR
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-const groupType = "#microsoft.graph.group"                       //nolint:unused // used in a dependent PR
-const defaultGraphScope = "https://graph.microsoft.com/.default" //nolint:unused // used in a dependent PR
-
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
-func fetchPrincipals(ctx context.Context, subscriptionID string, cred azcore.TokenCredential) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint:unused // used in a dependent PR
-	// Get the graph client
-	scopes := []string{defaultGraphScope}
-	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: scopes})
+func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) {
+	// Fetch the users, groups, and service principals
+	var users []*msgraph.User
+	err := cli.IterateUsers(ctx, func(user *msgraph.User) bool {
+		users = append(users, user)
+		return true
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cli := NewGraphClient(token)
 
-	// Fetch the users, groups, and managed identities
-	users, err := cli.ListUsers(ctx)
+	var groups []*msgraph.Group
+	err = cli.IterateGroups(ctx, func(group *msgraph.Group) bool {
+		groups = append(groups, group)
+		return true
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	groups, err := cli.ListGroups(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	svcPrincipals, err := cli.ListServicePrincipals(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	principals := slices.Concat(users, groups, svcPrincipals)
 
-	// Return the users as protobuf messages
-	pbPrincipals := make([]*accessgraphv1alpha.AzurePrincipal, 0, len(principals))
-	for _, principal := range principals {
-		// Extract group membership
-		memberOf := make([]string, 0)
-		for _, member := range principal.MemberOf {
-			if member.Type == groupType {
-				memberOf = append(memberOf, member.ID)
-			}
+	var servicePrincipals []*msgraph.ServicePrincipal
+	err = cli.IterateServicePrincipals(ctx, func(servicePrincipal *msgraph.ServicePrincipal) bool {
+		servicePrincipals = append(servicePrincipals, servicePrincipal)
+		return true
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Return the users, groups, and service principals as protobuf messages
+	var pbPrincipals []*accessgraphv1alpha.AzurePrincipal
+	for _, user := range users {
+		var memberOf []string
+		for _, member := range user.MemberOf {
+			memberOf = append(memberOf, member.ID)
 		}
-		// Create the protobuf principal and append it to the list
-		pbPrincipal := &accessgraphv1alpha.AzurePrincipal{
-			Id:             principal.ID,
+		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
+			Id:             *user.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    principal.Name,
+			DisplayName:    *user.DisplayName,
 			MemberOf:       memberOf,
-		}
-		pbPrincipals = append(pbPrincipals, pbPrincipal)
+			ObjectType:     "user",
+		})
 	}
+	for _, group := range groups {
+		var memberOf []string
+		for _, member := range group.MemberOf {
+			memberOf = append(memberOf, member.ID)
+		}
+		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
+			Id:             *group.ID,
+			SubscriptionId: subscriptionID,
+			LastSyncTime:   timestamppb.Now(),
+			DisplayName:    *group.DisplayName,
+			MemberOf:       memberOf,
+			ObjectType:     "group",
+		})
+	}
+	for _, sp := range servicePrincipals {
+		var memberOf []string
+		for _, member := range sp.MemberOf {
+			memberOf = append(memberOf, member.ID)
+		}
+		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
+			Id:             *sp.ID,
+			SubscriptionId: subscriptionID,
+			LastSyncTime:   timestamppb.Now(),
+			DisplayName:    *sp.DisplayName,
+			MemberOf:       memberOf,
+			ObjectType:     "servicePrincipal",
+		})
+	}
+
 	return pbPrincipals, nil
 }

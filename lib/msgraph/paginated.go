@@ -54,7 +54,14 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
+	uri.RawQuery = url.Values{
+		"$top": {
+			strconv.Itoa(c.pageSize),
+		},
+		"$expand": {
+			"memberOf",
+		},
+	}.Encode()
 	uriString := uri.String()
 	for uriString != "" {
 		resp, err := c.request(ctx, http.MethodGet, uriString, nil)
@@ -99,6 +106,14 @@ func (c *Client) IterateGroups(ctx context.Context, f func(*Group) bool) error {
 // Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
 func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 	return iterateSimple(c, ctx, "users", f)
+}
+
+// IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
+func (c *Client) IterateServicePrincipals(ctx context.Context, f func(principal *ServicePrincipal) bool) error {
+	return iterateSimple(c, ctx, "servicePrincipals", f)
 }
 
 // IterateGroupMembers lists all members for the given Entra ID group using pagination.
