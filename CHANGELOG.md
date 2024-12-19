@@ -41,6 +41,7 @@ Teleport will allow cluster administrators to enable local and remote port forwa
 * Expose /.well-known/jwks-okta public endpoint for Okta API services type App. [#50177](https://github.com/gravitational/teleport/pull/50177)
 * Switched to a new role editor UI. [#50030](https://github.com/gravitational/teleport/pull/50030)
 * Added support for multiple ports to TCP applications. [#49711](https://github.com/gravitational/teleport/pull/49711)
+* Allow multiple consecutive occurrences of `-` and `.` in SSH server hostnames.  [#50410](https://github.com/gravitational/teleport/pull/50410)
 
 Enterprise:
 * Adds AWS Account name to Identity Center Roles and resources. Some manual cleanup may be required where users and Access Lists have been assigned the obsolete roles.
