@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/url"
@@ -38,7 +39,6 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
@@ -124,13 +124,17 @@ func NewTracer(description string) *Tracer {
 
 // Start logs start of the trace
 func (t *Tracer) Start() *Tracer {
-	log.Debugf("Tracer started %v.", t.Description)
+	slog.DebugContext(context.Background(), "Tracer started",
+		"trace", t.Description)
 	return t
 }
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
+	slog.DebugContext(context.Background(), "Tracer completed",
+		"trace", t.Description,
+		"duration", time.Since(t.Started),
+	)
 	return t
 }
 
