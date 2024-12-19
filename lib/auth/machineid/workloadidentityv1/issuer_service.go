@@ -150,16 +150,23 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	switch {
 	case req.GetName() == "":
 		return nil, trace.BadParameter("name: is required")
 	case req.GetCredential() == nil:
 		return nil, trace.BadParameter("at least one credential type must be requested")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
 	wi, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
@@ -175,10 +182,6 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
-	if err != nil {
-		return nil, trace.Wrap(err, "deriving attributes")
-	}
 	decision := decide(ctx, wi, attrs)
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
@@ -249,6 +252,9 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
