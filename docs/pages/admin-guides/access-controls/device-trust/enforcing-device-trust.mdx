@@ -111,7 +111,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: (=clusterDefaults.clusterName=)
   device_trust:

@@ -280,7 +280,7 @@ Yubikey for Hardware Key support, you might get an error on rare occasions.
 Depending on your settings, you might be asked to tap your Yubikey many times.
 Each tap is necessary to safely authenticate you.
 
-For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference`,
+For example, if you have `second_factors: ["webauthn"]` set in your `cluster_auth_preference`,
 and `require_session_mfa: hardware_key_touch` set on your role,
 you'll see the following output when you first sign in:
 
