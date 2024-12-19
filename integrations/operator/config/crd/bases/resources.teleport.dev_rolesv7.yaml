@@ -372,6 +372,13 @@ spec:
                           is used.
                         format: duration
                         type: string
+                      max_scheduling_date:
+                        description: MaxSchedulingDate is the maximum time in the future
+                          that access can be scheduled for. If this is zero, scheduling
+                          is limited to the current time only. Format accepts standard
+                          duration strings like "720h" (30 days) or "168h" (1 week).
+                        format: duration
+                        type: string
                       reason:
                         description: Reason defines settings for the reason for the
                           access provided by the user.
@@ -958,6 +965,13 @@ spec:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
                           is used.
+                        format: duration
+                        type: string
+                      max_scheduling_date:
+                        description: MaxSchedulingDate is the maximum time in the future
+                          that access can be scheduled for. If this is zero, scheduling
+                          is limited to the current time only. Format accepts standard
+                          duration strings like "720h" (30 days) or "168h" (1 week).
                         format: duration
                         type: string
                       reason:
