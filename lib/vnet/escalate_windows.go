@@ -225,7 +225,7 @@ func configureServicePermissions(service *mgr.Service, userSIDStr string) error 
 	}
 	explicitAccess := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: windows.ACCESS_MASK(
-			windows.SERVICE_QUERY_CONFIG | windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP),
+			windows.SERVICE_QUERY_STATUS | windows.SERVICE_INTERROGATE | windows.SERVICE_START | windows.SERVICE_STOP),
 		AccessMode:  windows.GRANT_ACCESS,
 		Inheritance: windows.NO_INHERITANCE,
 		Trustee: windows.TRUSTEE{
