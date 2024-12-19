@@ -18,17 +18,3 @@
 // +build !darwin,!windows
 
 package vnet
-
-import (
-	"context"
-
-	"github.com/gravitational/trace"
-)
-
-func configureOS(ctx context.Context, cfg *osConfig) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
-	return trace.Wrap(ErrVnetNotImplemented)
-}

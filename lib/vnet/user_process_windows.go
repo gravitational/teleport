@@ -1,0 +1,116 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package vnet
+
+import (
+	"context"
+	"os"
+	"time"
+
+	"github.com/Microsoft/go-winio"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+)
+
+// UserProcessConfig provides the necessary configuration to run VNet.
+type UserProcessConfig struct {
+	// AppProvider is a required field providing an interface implementation for [AppProvider].
+	AppProvider AppProvider
+	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
+	// will be created.
+	ClusterConfigCache *ClusterConfigCache
+	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
+	// rules as HomeDir in tsh.
+	HomePath string
+}
+
+func (c *UserProcessConfig) CheckAndSetDefaults() error {
+	if c.AppProvider == nil {
+		return trace.BadParameter("missing AppProvider")
+	}
+	if c.HomePath == "" {
+		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
+	}
+	return nil
+}
+
+// RunUserProcess launches a Windows service in the background that in turn
+// calls [RunAdminProcess]. The user process exposes a gRPC interface on a named
+// pipe that the admin process uses to query application names and get user
+// certificates for apps.
+
+// RunUserProcess returns a [ProcessManager] which controls the lifecycle of
+// both the user and admin processes.
+//
+// The caller is expected to call Close on the process manager to clean up any
+// resources and terminate the admin process, which will in turn stop the
+// networking stack and deconfigure the host OS.
+//
+// ctx is used to wait for setup steps that happen before RunUserProcess hands out the
+// control to the process manager. If ctx gets canceled during RunUserProcess, the process
+// manager gets closed along with its background tasks.
+func RunUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessManager, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ipv6Prefix, err := NewIPv6Prefix()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+
+	pipePath := `\\.\pipe\vnet`
+	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err, "listening on named pipe")
+	}
+
+	pm, processCtx := newProcessManager()
+	success := false
+	defer func() {
+		if !success {
+			// Closes the socket and background tasks.
+			pm.Close()
+		}
+	}()
+
+	pm.AddCriticalBackgroundTask("admin process", func() error {
+		adminConfig := AdminProcessConfig{
+			NamedPipe:  pipePath,
+			IPv6Prefix: ipv6Prefix.String(),
+			DNSAddr:    dnsIPv6.String(),
+			HomePath:   config.HomePath,
+		}
+		return trace.Wrap(execAdminProcess(processCtx, adminConfig))
+	})
+
+	pm.AddCriticalBackgroundTask("ipc service", func() error {
+		defer pipe.Close()
+		// TODO(nklaassen): wrap [config.AppProvider] with a gRPC service to expose
+		// the necessary methods to the admin process over [pipe].
+		select {
+		case <-processCtx.Done():
+			return processCtx.Err()
+		case <-time.After(30 * time.Second):
+			return nil
+		}
+	})
+
+	return pm, nil
+}

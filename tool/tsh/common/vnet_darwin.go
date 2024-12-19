@@ -86,7 +86,7 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
 
-	config := daemon.Config{
+	config := vnet.AdminProcessConfig{
 		SocketPath: c.socketPath,
 		IPv6Prefix: c.ipv6Prefix,
 		DNSAddr:    c.dnsAddr,

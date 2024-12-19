@@ -47,7 +47,7 @@ func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 	}
 }
 
-func (c *vnetDaemonCommand) tryRun(cf *CLIConf, command string) error {
+func (c *vnetDaemonCommand) tryRun(cf *CLIConf, command string) (bool, error) {
 	if c.FullCommand() != command {
 		return false, nil
 	}

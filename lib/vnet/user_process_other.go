@@ -18,23 +18,3 @@
 // +build !darwin,!windows
 
 package vnet
-
-import (
-	"context"
-	"runtime"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/vnet/daemon"
-)
-
-var (
-	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
-
-// execAdminProcess is called from the normal user process to execute the admin
-// subcommand as root.
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}

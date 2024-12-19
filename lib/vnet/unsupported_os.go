@@ -20,26 +20,41 @@
 package vnet
 
 import (
-	"os"
+	"context"
+	"runtime"
 
 	"github.com/gravitational/trace"
-	"golang.zx2c4.com/wireguard/tun"
 )
 
-func createSocket() (*noSocket, string, error) {
-	return nil, "", trace.Wrap(ErrVnetNotImplemented)
+var (
+	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
+	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+)
+
+type UserProcessConfig struct {
+	AppProvider        any
+	ClusterConfigCache any
 }
 
-func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func receiveTUNDevice(_ *noSocket) (tun.Device, error) {
+func RunUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, error) {
 	return nil, trace.Wrap(ErrVnetNotImplemented)
 }
 
-type noSocket struct{}
+type AdminProcessConfig struct {
+	SocketPath string
+	IPv6Prefix string
+	DNSAddr    string
+	HomePath   string
+}
 
-func (_ noSocket) Close() error {
+func (_ AdminProcessConfig) CheckAndSetDefaults() error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func configureOS(_ context.Context, _ *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+func (_ *osConfigurator) doWithDroppedRootPrivileges(_ context.Context, _ func() error) (err error) {
 	return trace.Wrap(ErrVnetNotImplemented)
 }

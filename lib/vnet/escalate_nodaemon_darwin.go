@@ -31,12 +31,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 // execAdminProcess is called from the normal user process to execute
 // "tsh vnet-admin-setup" as root via an osascript wrapper.
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
+func execAdminProcess(ctx context.Context, config AdminProcessConfig) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
