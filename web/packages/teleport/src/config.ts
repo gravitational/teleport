@@ -215,6 +215,9 @@ const cfg = {
     accessGraph: {
       crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
     },
+
+    /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+    samlIdpSso: '/enterprise/saml-idp/sso',
   },
 
   api: {
