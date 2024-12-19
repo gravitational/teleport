@@ -99,7 +99,7 @@ func ParseResourceLabelMatchers(teleportConfigStringBase64 string) (types.Labels
 		return nil, trace.BadParameter("invalid base64 value, error=%v", err)
 	}
 
-	var teleportConfig *config.FileConfig
+	var teleportConfig config.FileConfig
 	if err := yaml.Unmarshal(teleportConfigString, &teleportConfig); err != nil {
 		return nil, trace.BadParameter("invalid teleport config, error=%v", err)
 	}
