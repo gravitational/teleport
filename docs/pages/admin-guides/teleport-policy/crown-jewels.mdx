@@ -1,9 +1,9 @@
 ---
-title: See permission changes with Access Graph Crown Jewels
-description: Describes how to use Access Graph Crown Jewels to see permission changes in Teleport.
+title: See permission changes with Graph Explorer Crown Jewels
+description: Describes how to use Graph Explorer Crown Jewels to see permission changes in Teleport.
 ---
 
-Access Graph's Crown Jewel feature allows you to track changes to access for
+Graph Explorer's Crown Jewel feature allows you to track changes to access for
 your most sensitive users or resources. When you mark a resource as a Crown
 Jewel, Teleport emits audit events any time access to that resource changes.
 
@@ -23,14 +23,13 @@ log in via Teleport Auth Connectors.
 
 - A running Teleport Enterprise cluster v16.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
-- For self-hosted clusters, a running Access Graph node v1.24.0 or later.
-Check [Access Graph page](teleport-policy.mdx) for details on
-how to set up Access Graph.
+- For self-hosted clusters, a running Graph Explorer node v1.24.0 or later.
+Check [Graph Explorer page](teleport-policy.mdx) for details on how to set it up.
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
+Graph Explorer is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
 available to Teleport Enterprise edition customers.
 
-After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
+After logging in to the Teleport UI, navigate to the Management tab. If enabled, Graph Explorer options can be found
 under the Permission Management section.
 
 ## Required RBAC permissions
@@ -55,7 +54,7 @@ version: v7
 
 To create a Crown Jewel, you need to mark a resource or user as critical. Only changes to marked resources
 and users will be logged by Teleport Policy.
-To mark a resource or user as Crown Jewel, open the Access Graph and navigate to the "Crown Jewels" tab.
+To mark a resource or user as Crown Jewel, open the Graph Explorer and navigate to the "Crown Jewels" tab.
 
 ![Create Page](../../../img/access-graph/crown-jewels/create-page.webp)
 
@@ -67,13 +66,13 @@ Pick a name for the Crown Jewel and click "Create".
 
 ![Create Matcher Name](../../../img/access-graph/crown-jewels/create-matcher-name.webp)
 
-The Crown Jewel will now be created, and you will see it in the list of Crown Jewels. Access Graph will now create
+The Crown Jewel will now be created, and you will see it in the list of Crown Jewels. Graph Explorer will now create
 audit events in Teleport's audit log and new entries in the "Access Changes" tab in the "Crown Jewels" menu whenever
 access path to a resource or a user changes.
 
 ## Viewing permission changes
 
-To view permission changes, open the Access Graph and navigate to the "Crown Jewels" tab.
+To view permission changes, open the Explorer and navigate to the "Crown Jewels" tab.
 Here you can see a list of all Crown Jewels and the changes that have been made to them.
 
 ![Changes](../../../img/access-graph/crown-jewels/changes.webp)
