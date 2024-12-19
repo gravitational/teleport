@@ -264,6 +264,35 @@ spec:
 version: v1
 ```
 
+### Disabling the default import rule
+
+Teleport expects at least one import rule to be defined. If it is missing, the Teleport Auth Service will create a default import rule on startup.
+
+If you don't want to import any database objects, create a rule that matches no databases. In the example below, the list of matching label values is empty, so no database will ever match this selector.
+
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: import_no_objects
+spec:
+  database_labels:
+  - {}
+  mappings:
+  - {}
+version: v1
+```
+
+Create the custom rule and remove the default one:
+
+{/* spell-checker: disable */}
+```code
+$ tctl create -f import_no_objects.yaml
+rule "import_no_objects" has been created
+$ tctl rm db_object_import_rule/import_all_objects
+Rule "import_all_objects" has been deleted
+```
+{/* spell-checker: enable */}
+
 ### Database admin user
 
 A database admin user is responsible for granting permissions to end users. You
