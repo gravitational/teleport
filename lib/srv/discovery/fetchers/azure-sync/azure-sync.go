@@ -20,6 +20,7 @@ package azure_sync
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -66,6 +67,7 @@ type Fetcher struct {
 	lastDiscoveredResources uint64
 	lastResult              *Resources
 
+	graphClient      *msgraph.Client
 	roleAssignClient RoleAssignmentsClient
 	roleDefClient    RoleDefinitionsClient
 	vmClient         VirtualMachinesClient
@@ -80,6 +82,9 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	}
 
 	// Create the clients
+	graphClient, err := msgraph.NewClient(msgraph.Config{
+		TokenProvider: cred,
+	})
 	roleAssignClient, err := azure.NewRoleAssignmentsClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,6 +102,7 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 	return &Fetcher{
 		Config:           cfg,
 		lastResult:       &Resources{},
+		graphClient:      graphClient,
 		roleAssignClient: roleAssignClient,
 		roleDefClient:    roleDefClient,
 		vmClient:         vmClient,
@@ -152,11 +158,7 @@ func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error)
 	errsCh := make(chan error)
 	if feats.Principals {
 		eg.Go(func() error {
-			cred, err := a.CloudClients.GetAzureCredential()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			principals, err := fetchPrincipals(ctx, a.SubscriptionID, cred)
+			principals, err := fetchPrincipals(ctx, a.SubscriptionID, a.graphClient)
 			if err != nil {
 				errsCh <- err
 				return err
