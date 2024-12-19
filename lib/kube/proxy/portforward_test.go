@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +42,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestPortForwardKubeService(t *testing.T) {
@@ -269,7 +269,6 @@ type portForwarder interface {
 // connection, it will leak memory.
 func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 	t.Parallel()
-	logger := log.NewEntry(&log.Logger{Out: io.Discard})
 	const (
 		reqID = "reqID"
 		// portHeaderValue is the value of the port header in the stream.
@@ -285,7 +284,7 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 			context:       context.Background(),
 			onPortForward: func(addr string, success bool) {},
 		},
-		Entry:                 logger,
+		logger:                utils.NewSlogLoggerForTests(),
 		sourceConn:            sourceConn,
 		targetConn:            targetConn,
 		streamChan:            make(chan httpstream.Stream),
