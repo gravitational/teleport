@@ -20,9 +20,9 @@ package azure_sync
 
 import (
 	"context"
-	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"fmt" //nolint:golint // used in a dependent PR
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -34,11 +34,7 @@ type RoleDefinitionsClient interface {
 	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
 }
 
-func fetchRoleDefinitions(
-	ctx context.Context,
-	subscriptionID string,
-	cli RoleDefinitionsClient,
-) ([]*accessgraphv1alpha.AzureRoleDefinition, error) {
+func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDefinitionsClient) ([]*accessgraphv1alpha.AzureRoleDefinition, error) { //nolint:unused // used in a dependent PR
 	// List the role definitions
 	roleDefs, err := cli.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
 	if err != nil {
@@ -68,7 +64,7 @@ func fetchRoleDefinitions(
 	return pbRoleDefs, nil
 }
 
-func ptrsToList(ptrs []*string) []string {
+func ptrsToList(ptrs []*string) []string { //nolint:unused // used in a dependent PR
 	strList := make([]string, 0, len(ptrs))
 	for _, ptr := range ptrs {
 		strList = append(strList, *ptr)
