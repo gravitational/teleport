@@ -72,13 +72,6 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	return cmd
 }
 
-func (c *vnetAdminSetupCommand) tryRun(cf *CLIConf, command string) (bool, error) {
-	if c.FullCommand() != command {
-		return false, nil
-	}
-	return true, trace.Wrap(c.run(cf))
-}
-
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 	homePath := os.Getenv(types.HomeEnvVar)
 	if homePath == "" {

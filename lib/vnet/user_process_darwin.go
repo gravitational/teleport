@@ -63,6 +63,12 @@ func (c *UserProcessConfig) CheckAndSetDefaults() error {
 // control to the process manager. If ctx gets canceled during RunUserProcess, the process
 // manager gets closed along with its background tasks.
 func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+	defer func() {
+		if pm != nil && err != nil {
+			pm.Close()
+		}
+	}()
+
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,12 +80,6 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	pm, processCtx := newProcessManager()
-	defer func() {
-		if err != nil {
-			// Closes the socket and background tasks.
-			pm.Close()
-		}
-	}()
 
 	// Create the socket that's used to receive the TUN device from the admin process.
 	socket, socketPath, err := createSocket()

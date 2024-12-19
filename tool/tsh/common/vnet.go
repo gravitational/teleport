@@ -25,7 +25,8 @@ import (
 )
 
 type vnetCLICommand interface {
-	tryRun(cf *CLIConf, command string) (bool, error)
+	FullCommand() string
+	run(cf *CLIConf) error
 }
 
 type vnetCommands struct {
@@ -34,8 +35,8 @@ type vnetCommands struct {
 
 func (c *vnetCommands) tryRun(cf *CLIConf, command string) (bool, error) {
 	for _, subcommand := range c.subcommands {
-		if ok, err := subcommand.tryRun(cf, command); ok || err != nil {
-			return ok, trace.Wrap(err)
+		if subcommand.FullCommand() == command {
+			return true, trace.Wrap(subcommand.run(cf))
 		}
 	}
 	return false, nil
@@ -50,13 +51,6 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
 	}
 	return cmd
-}
-
-func (c *vnetCommand) tryRun(cf *CLIConf, command string) (bool, error) {
-	if c.FullCommand() != command {
-		return false, nil
-	}
-	return true, trace.Wrap(c.run(cf))
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {

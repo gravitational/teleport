@@ -47,13 +47,6 @@ func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 	}
 }
 
-func (c *vnetDaemonCommand) tryRun(cf *CLIConf, command string) (bool, error) {
-	if c.FullCommand() != command {
-		return false, nil
-	}
-	return true, trace.Wrap(c.run(cf))
-}
-
 func (c *vnetDaemonCommand) run(cf *CLIConf) error {
 	if cf.Debug {
 		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)

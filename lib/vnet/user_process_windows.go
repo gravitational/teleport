@@ -69,6 +69,12 @@ func (c *UserProcessConfig) CheckAndSetDefaults() error {
 // control to the process manager. If ctx gets canceled during RunUserProcess, the process
 // manager gets closed along with its background tasks.
 func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+	defer func() {
+		if pm != nil && err != nil {
+			pm.Close()
+		}
+	}()
+
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,11 +86,6 @@ func RunUserProcess(ctx context.Context, config *UserProcessConfig) (pm *Process
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	pm, processCtx := newProcessManager()
-	defer func() {
-		if err != nil {
-			pm.Close()
-		}
-	}()
 
 	// TODO(nklaassen): make sure only the admin service can dial the pipe.
 	pipe, err := winio.ListenPipe(pipePath, &winio.PipeConfig{})

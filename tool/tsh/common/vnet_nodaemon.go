@@ -29,6 +29,11 @@ func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
 
 type vnetDaemonNotSupported struct{}
 
-func (vnetDaemonNotSupported) tryRun(_ *CLIConf, _ string) (bool, error) {
-	return false, nil
+func (vnetDaemonNotSupported) FullCommand() string {
+	return ""
+}
+
+func (vnetDaemonNotSupported) run(_ *CLIConf) error {
+	// This can never be called because FullCommand returns an empty string.
+	return nil
 }

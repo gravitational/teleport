@@ -17,13 +17,10 @@
 package common
 
 import (
-	"os"
-
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/svc"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -33,24 +30,25 @@ func isWindowsService() bool {
 }
 
 func newVnetCommands(app *kingpin.Application) *vnetCommands {
-	vnetCommand := newVnetCommand(app)
-	subcommands := []vnetCLICommand{
-		vnetCommand,
-	}
 	if isWindowsService() {
-		subcommands = append(subcommands, newVnetServiceCommand(app))
-	} else {
-		subcommands = append(subcommands, newVnetInstallServiceCommand(app))
+		return &vnetCommands{
+			subcommands: []vnetCLICommand{
+				newVnetServiceCommand(app),
+			},
+		}
 	}
 	return &vnetCommands{
-		subcommands: subcommands,
+		subcommands: []vnetCLICommand{
+			newVnetCommand(app),
+			newVnetInstallServiceCommand(app),
+			newVnetUninstallServiceCommand(app),
+		},
 	}
 }
 
 type vnetInstallServiceCommand struct {
 	*kingpin.CmdClause
 	userSID string
-	home    string
 }
 
 func newVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceCommand {
@@ -58,44 +56,44 @@ func newVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceC
 		CmdClause: app.Command("vnet-install-service", "Install the VNet Windows service.").Hidden(),
 	}
 	cmd.Flag("userSID", "SID of the user that the service should be installed for.").Required().StringVar(&cmd.userSID)
-	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
 	return cmd
 }
 
-func (c *vnetInstallServiceCommand) tryRun(_ *CLIConf, command string) (bool, error) {
-	if c.FullCommand() != command {
-		return false, nil
+func (c *vnetInstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.InstallService(cf.Context, c.userSID))
+}
+
+type vnetUninstallServiceCommand struct {
+	*kingpin.CmdClause
+}
+
+func newVnetUninstallServiceCommand(app *kingpin.Application) *vnetUninstallServiceCommand {
+	cmd := &vnetUninstallServiceCommand{
+		CmdClause: app.Command("vnet-uninstall-service", "Uninstall (delete) the VNet Windows service.").Hidden(),
 	}
-	return true, trace.Wrap(vnet.InstallService(c.userSID, c.home))
+	return cmd
+}
+
+func (c *vnetUninstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.UninstallService(cf.Context))
 }
 
 // vnetServiceCommand is the command that runs the Windows service.
 type vnetServiceCommand struct {
 	*kingpin.CmdClause
-	// home is the path to the user's TELEPORT_HOME.
-	home string
+	userSID string
 }
 
 func newVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand {
 	cmd := &vnetServiceCommand{
 		CmdClause: app.Command("vnet-service", "Start the VNet service.").Hidden(),
 	}
-	cmd.Flag("home", "User's TELEPORT_HOME path.").Required().StringVar(&cmd.home)
+	cmd.Flag("userSID", "SID of the user that the service is being started for.").Required().StringVar(&cmd.userSID)
 	return cmd
 }
 
-func (c *vnetServiceCommand) tryRun(cf *CLIConf, command string) (bool, error) {
-	if c.FullCommand() != command {
-		return false, nil
-	}
-	return true, trace.Wrap(c.run(cf))
-}
-
 func (c *vnetServiceCommand) run(cf *CLIConf) error {
-	if err := os.Setenv(types.HomeEnvVar, c.home); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := vnet.ServiceMain(cf.Context); err != nil {
+	if err := vnet.ServiceMain(cf.Context, c.userSID); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

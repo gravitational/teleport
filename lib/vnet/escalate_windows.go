@@ -28,19 +28,17 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/safetext/shsprintf"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 )
 
 const (
 	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
-	serviceAccess      = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
+	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
 )
 
 var (
@@ -51,7 +49,7 @@ var (
 // execAdminProcess is called from the normal user process to execute the admin
 // subcommand as root.
 func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
-	service, err := startService(cfg)
+	service, err := startService(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -75,7 +73,7 @@ func execAdminProcess(ctx context.Context, cfg AdminProcessConfig) error {
 	}
 }
 
-func startService(cfg AdminProcessConfig) (*mgr.Service, error) {
+func startService(ctx context.Context, cfg AdminProcessConfig) (*mgr.Service, error) {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -86,54 +84,62 @@ func startService(cfg AdminProcessConfig) (*mgr.Service, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "converting service name to UTF16")
 	}
-	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccess)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
 	if err != nil {
-		if installErr := escalateAndInstallService(cfg); installErr != nil {
-			return nil, trace.NewAggregate(
-				trace.Wrap(err, "opening Windows service %s", serviceName),
-				trace.Wrap(installErr, "installing Windows service"))
+		log.InfoContext(ctx, "Failed to open Windows service, trying to install the service", "error", err)
+		if err := escalateAndInstallService(); err != nil {
+			return nil, trace.Wrap(err, "installing Windows service")
 		}
-		serviceHandle, err = windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_START)
-		if err != nil {
-			return nil, trace.Wrap(err, "opening Windows service immediately after installation")
+		if serviceHandle, err = waitForService(ctx, scManager, serviceNamePtr); err != nil {
+			return nil, trace.Wrap(err, "waiting for service immediately after installation")
 		}
 	}
 	service := &mgr.Service{
 		Name:   serviceName,
 		Handle: serviceHandle,
 	}
-	if err := service.Start(serviceArgs(cfg)...); err != nil {
+	if err := service.Start(
+		"vnet-service",
+		"--home", cfg.HomePath,
+		"--pipe", cfg.NamedPipe,
+		"--ipv6-prefix", cfg.IPv6Prefix,
+		"--dns-addr", cfg.DNSAddr,
+	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 	return service, nil
 }
 
-func escalateAndInstallService(cfg AdminProcessConfig) error {
-	tshPath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err, "getting executable path")
-	}
+func escalateAndInstallService() error {
 	user, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err, "getting current user")
 	}
-	args, err := ptrsFromStrings(
+	return trace.Wrap(escalateAndRunSubcommand("vnet-install-service", "--userSID", user.Uid))
+}
+
+func escalateAndRunSubcommand(args ...string) error {
+	tshPath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "getting executable path")
+	}
+	argPtrs, err := ptrsFromStrings(
 		"runas",
 		shsprintf.EscapeDefaultContext(tshPath),
-		escapeAndJoinArgs("vnet-install-service", "--userSID", user.Uid, "--home", cfg.HomePath),
+		escapeAndJoinArgs(args...),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := windows.ShellExecute(
-		0,       // parent window handle (default is no window)
-		args[0], // verb
-		args[1], // file
-		args[2], // args
-		nil,     // cwd (default is current directory)
-		1,       // showCmd (1 is normal)
+		0,          // parent window handle (default is no window)
+		argPtrs[0], // verb
+		argPtrs[1], // file
+		argPtrs[2], // args
+		nil,        // cwd (default is current directory)
+		1,          // showCmd (1 is normal)
 	); err != nil {
-		return trace.Wrap(err, "installing Windows service as administrator via runas")
+		return trace.Wrap(err, "running subcommand as administrator via runas")
 	}
 	return nil
 }
@@ -157,32 +163,44 @@ func escapeAndJoinArgs(args ...string) string {
 	return strings.Join(args, " ")
 }
 
-func serviceArgs(cfg AdminProcessConfig) []string {
-	return []string{
-		"vnet-service",
-		"--pipe", cfg.NamedPipe,
-		"--ipv6-prefix", cfg.IPv6Prefix,
-		"--dns-addr", cfg.DNSAddr,
+func waitForService(ctx context.Context, scManager windows.Handle, serviceNamePtr *uint16) (windows.Handle, error) {
+	deadline := time.After(30 * time.Second)
+	for {
+		serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
+		if err == nil {
+			return serviceHandle, nil
+		}
+		select {
+		case <-ctx.Done():
+			return 0, trace.Wrap(ctx.Err())
+		case <-deadline:
+			return 0, trace.Errorf("timeout waiting for service to start")
+		case <-time.After(time.Second):
+		}
 	}
 }
 
-func InstallService(userSID, home string) error {
+// InstallService implements the vnet-install-service command, it must run as
+// adminstrator and installs the TeleportVNet Windows service.
+func InstallService(ctx context.Context, userSID string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
 	}
 	defer m.Disconnect()
-	service, err := installService(m, home)
+	service, err := installService(m, userSID)
 	if err != nil {
 		return trace.Wrap(err, "installing Windows service")
 	}
+	defer service.Close()
 	if err := configureServicePermissions(service, userSID); err != nil {
-		return trace.Wrap(err, "configuring Windows service permissions")
+		slog.ErrorContext(ctx, "Error configuring permissions for the Windows service, will attempt to delete the service", "error", err)
+		return trace.Wrap(service.Delete(), "deleting Windows service after failing to configure permissions")
 	}
 	return nil
 }
 
-func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
+func installService(m *mgr.Mgr, userSID string) (*mgr.Service, error) {
 	if service, err := m.OpenService(serviceName); err == nil {
 		// Service is already installed.
 		return service, nil
@@ -200,7 +218,7 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 	}
 	args := []string{
 		"vnet-service",
-		"--home", profile.FullProfilePath(os.Getenv(types.HomeEnvVar)),
+		"--userSID", userSID,
 	}
 	service, err := m.CreateService(serviceName, tshPath, serviceCfg, args...)
 	if err != nil {
@@ -212,7 +230,7 @@ func installService(m *mgr.Mgr, home string) (*mgr.Service, error) {
 func configureServicePermissions(service *mgr.Service, userSIDStr string) error {
 	userSID, err := windows.StringToSid(userSIDStr)
 	if err != nil {
-		return trace.Wrap(err, "converting SID from string")
+		return trace.Wrap(err, "parsing user SID from string")
 	}
 	securityDescriptor, err := windows.GetNamedSecurityInfo(
 		service.Name, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION)
@@ -224,7 +242,7 @@ func configureServicePermissions(service *mgr.Service, userSIDStr string) error 
 		return trace.Wrap(err, "getting DACL from security descriptor")
 	}
 	explicitAccess := []windows.EXPLICIT_ACCESS{{
-		AccessPermissions: windows.ACCESS_MASK(serviceAccess),
+		AccessPermissions: windows.ACCESS_MASK(serviceAccessFlags),
 		AccessMode:        windows.GRANT_ACCESS,
 		Inheritance:       windows.NO_INHERITANCE,
 		Trustee: windows.TRUSTEE{
@@ -251,12 +269,36 @@ func configureServicePermissions(service *mgr.Service, userSIDStr string) error 
 	return nil
 }
 
+// UninstallService implements the vnet-uninstall-service command to uninstall
+// the TeleportVNet Windows service. If it does not have sufficient permissions,
+// it tries to re-execute itself with administrator rights via a UAC prompt.
+func UninstallService(ctx context.Context) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		slog.ErrorContext(ctx, "Error connecting to service manager, attempting to escalate to administrator",
+			"error", err)
+		err := escalateAndRunSubcommand("vnet-uninstall-service")
+		return trace.Wrap(err, "escalating to administrator to uninstall service")
+	}
+	defer m.Disconnect()
+	service, err := m.OpenService(serviceName)
+	if err != nil {
+		return trace.Wrap(err, "unable to open service, it may not be installed")
+	}
+	defer service.Close()
+	if err := service.Delete(); err != nil {
+		return trace.Wrap(err, "deleting Windows service")
+	}
+	return nil
+}
+
 // ServiceMain runs with Windows VNet service.
-func ServiceMain(ctx context.Context) error {
+func ServiceMain(ctx context.Context, userSID string) error {
 	cleanup := setupServiceLogger()
 	defer cleanup()
 	s := &windowsService{
-		done: ctx.Done(),
+		userSID: userSID,
+		done:    ctx.Done(),
 	}
 	if err := svc.Run(serviceName, s); err != nil {
 		return trace.Wrap(err, "running Windows service")
@@ -265,7 +307,8 @@ func ServiceMain(ctx context.Context) error {
 }
 
 type windowsService struct {
-	done <-chan struct{}
+	userSID string
+	done    <-chan struct{}
 }
 
 // Execute implements [svc.Handler].
@@ -309,9 +352,9 @@ loop:
 func (s *windowsService) run(ctx context.Context, args []string) error {
 	slog.InfoContext(ctx, "Initial arguments", "args", os.Args)
 	slog.InfoContext(ctx, "Executed arguments", "args", args)
-	homePath := os.Getenv(types.HomeEnvVar)
 	var (
 		debug      bool
+		homePath   string
 		pipePath   string
 		ipv6Prefix string
 		dnsAddr    string
@@ -319,6 +362,7 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	app := kingpin.New(serviceName, "Teleport Windows Service")
 	app.Flag("debug", "Enable verbose logging").Short('d').BoolVar(&debug)
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
+	serviceCmd.Flag("home", "user's TELEPORT_HOME path").Required().StringVar(&homePath)
 	serviceCmd.Flag("pipe", "pipe path").Required().StringVar(&pipePath)
 	serviceCmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").Required().StringVar(&ipv6Prefix)
 	serviceCmd.Flag("dns-addr", "VNet DNS address").Required().StringVar(&dnsAddr)
@@ -326,7 +370,15 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	if err != nil {
 		return trace.Wrap(err, "parsing arguments")
 	}
-	slog.InfoContext(ctx, "Full command", "cmd", cmd)
+	if cmd != serviceCmd.FullCommand() {
+		return trace.BadParameter("executed arguments did not match vnet-service")
+	}
+	if err := checkHomePermissions(s.userSID, homePath); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := os.Setenv(types.HomeEnvVar, homePath); err != nil {
+		return trace.Wrap(err, "setting env var")
+	}
 	if err := RunAdminProcess(ctx, AdminProcessConfig{
 		NamedPipe:  pipePath,
 		IPv6Prefix: ipv6Prefix,
@@ -334,6 +386,26 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 		HomePath:   homePath,
 	}); err != nil {
 		return trace.Wrap(err, "running admin process")
+	}
+	return nil
+}
+
+func checkHomePermissions(userSIDStr, homePath string) error {
+	userSID, err := windows.StringToSid(userSIDStr)
+	if err != nil {
+		return trace.Wrap(err, "parsing user SID from string")
+	}
+	pathSecurityInfo, err := windows.GetNamedSecurityInfo(
+		homePath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return trace.Wrap(err, "getting security descriptor for user home path")
+	}
+	pathOwner, _, err := pathSecurityInfo.Owner()
+	if err != nil {
+		return trace.Wrap(err, "getting user home path ownership from security info")
+	}
+	if !windows.EqualSid(userSID, pathOwner) {
+		return trace.AccessDenied("user does not own home path %s", homePath)
 	}
 	return nil
 }
